@@ -2,10 +2,10 @@
 set -euo pipefail
 
 SITE_HOST="${AGENTC_SITE_HOST:-agentc.sh}"
+API_BASE="${AGENTC_API_BASE:-https://${SITE_HOST}/api/binary}"
+
 PACKAGE_NAME="agentc"
 BINARY_NAME="agentc"
-
-API_BASE="https://${SITE_HOST}/api/binary"
 
 TMP_DIR=""
 
