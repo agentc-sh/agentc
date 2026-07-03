@@ -304,6 +304,7 @@ jobs:
       variant: toolchain
       task: docker:build:toolchain
       tag_suffix: toolchain
+      architectures: ${{ inputs.publish_prerelease && !github.event.repository.private && 'amd64,arm64' || 'amd64' }}
     secrets: inherit
 
   make-prerelease:

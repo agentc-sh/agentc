@@ -288,6 +288,7 @@ jobs:
       variant: slim
       task: docker:build:slim
       tag_suffix: slim
+      architectures: amd64,arm64
       sbom_artifact_name: sbom
       channel_alias: slim
     secrets: inherit
@@ -314,6 +315,7 @@ jobs:
       variant: toolchain
       task: docker:build:toolchain
       tag_suffix: toolchain
+      architectures: amd64,arm64
       sbom_artifact_name: sbom
       channel_alias: toolchain
     secrets: inherit

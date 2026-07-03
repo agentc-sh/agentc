@@ -40,6 +40,11 @@ on:
         description: Tag suffix used for the requested image flavor
         required: true
         type: string
+      architectures:
+        description: Comma-separated architectures to build, for example amd64 or amd64,arm64
+        required: false
+        default: amd64,arm64
+        type: string
       sbom_artifact_name:
         description: Optional previously-uploaded sbom artifact name to restore into sbom/
         required: false
@@ -52,19 +57,76 @@ on:
         type: string
 
 jobs:
+  prepare-matrix:
+    name: Prepare OCI matrix
+    runs-on: ubuntu-latest
+    outputs:
+      arch_matrix: ${{ steps.matrix.outputs.arch_matrix }}
+    steps:
+      - name: Compute architecture matrix
+        id: matrix
+        run: |
+          INPUT_ARCHITECTURES="${{ inputs.architectures }}"
+          INPUT_ARCHITECTURES="${INPUT_ARCHITECTURES// /}"
+
+          if [[ -z "$INPUT_ARCHITECTURES" ]]; then
+            echo "architectures input must not be empty"
+            exit 1
+          fi
+
+          declare -A SEEN_ARCHITECTURES=()
+          ARCH_ENTRIES=()
+
+          IFS=',' read -r -a REQUESTED_ARCHITECTURES <<< "$INPUT_ARCHITECTURES"
+
+          for requested_architecture in "${REQUESTED_ARCHITECTURES[@]}"; do
+            case "$requested_architecture" in
+              amd64|x86_64)
+                ARCH_NAME="amd64"
+                ARCH_PLATFORM="linux/amd64"
+                ARCH_TAG_SUFFIX="amd64"
+                ;;
+              arm64|aarch64)
+                ARCH_NAME="arm64"
+                ARCH_PLATFORM="linux/arm64"
+                ARCH_TAG_SUFFIX="arm64"
+                ;;
+              *)
+                echo "Unsupported architecture: $requested_architecture"
+                exit 1
+                ;;
+            esac
+
+            if [[ -n "${SEEN_ARCHITECTURES[$ARCH_NAME]}" ]]; then
+              continue
+            fi
+
+            SEEN_ARCHITECTURES[$ARCH_NAME]=1
+            ARCH_ENTRIES+=("{\"name\":\"${ARCH_NAME}\",\"platform\":\"${ARCH_PLATFORM}\",\"tag_suffix\":\"${ARCH_TAG_SUFFIX}\"}")
+          done
+
+          ARCH_MATRIX="["
+
+          for index in "${!ARCH_ENTRIES[@]}"; do
+            if [[ "$index" -gt 0 ]]; then
+              ARCH_MATRIX+=","
+            fi
+
+            ARCH_MATRIX+="${ARCH_ENTRIES[$index]}"
+          done
+
+          ARCH_MATRIX+="]"
+
+          echo "arch_matrix=${ARCH_MATRIX}" >> "$GITHUB_OUTPUT"
+
   build-images:
     name: Build OCI image (${{ inputs.variant }} / ${{ matrix.arch.name }})
+    needs: [prepare-matrix]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        arch:
-          - name: amd64
-            platform: linux/amd64
-            tag_suffix: amd64
-          - name: arm64
-            platform: linux/arm64
-            tag_suffix: arm64
+        arch: ${{ fromJson(needs.prepare-matrix.outputs.arch_matrix) }}
     permissions:
       actions: read
       contents: write
@@ -231,7 +293,7 @@ jobs:
   publish-manifests:
     name: Publish OCI manifests (${{ inputs.variant }})
     if: inputs.publish
-    needs: [build-images]
+    needs: [prepare-matrix, build-images]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -249,15 +311,37 @@ jobs:
 
       - name: Publish version manifest
         run: |
+          AMD64_REF=""
+          ARM64_REF=""
+
+          if [[ "${{ inputs.architectures }}" == *"amd64"* ]]; then
+            AMD64_REF=" ${{ inputs.image_uri }}:${{ inputs.version_tag }}-${{ inputs.tag_suffix }}-amd64"
+          fi
+
+          if [[ "${{ inputs.architectures }}" == *"arm64"* ]]; then
+            ARM64_REF=" ${{ inputs.image_uri }}:${{ inputs.version_tag }}-${{ inputs.tag_suffix }}-arm64"
+          fi
+
           docker buildx imagetools create \
             --tag "${{ inputs.image_uri }}:${{ inputs.version_tag }}-${{ inputs.tag_suffix }}" \
-            "${{ inputs.image_uri }}:${{ inputs.version_tag }}-${{ inputs.tag_suffix }}-amd64" \
-            "${{ inputs.image_uri }}:${{ inputs.version_tag }}-${{ inputs.tag_suffix }}-arm64"
+            ${AMD64_REF} \
+            ${ARM64_REF}
 
       - name: Publish channel alias manifest
         if: inputs.channel_alias != ''
         run: |
+          AMD64_REF=""
+          ARM64_REF=""
+
+          if [[ "${{ inputs.architectures }}" == *"amd64"* ]]; then
+            AMD64_REF=" ${{ inputs.image_uri }}:${{ inputs.version_tag }}-${{ inputs.tag_suffix }}-amd64"
+          fi
+
+          if [[ "${{ inputs.architectures }}" == *"arm64"* ]]; then
+            ARM64_REF=" ${{ inputs.image_uri }}:${{ inputs.version_tag }}-${{ inputs.tag_suffix }}-arm64"
+          fi
+
           docker buildx imagetools create \
             --tag "${{ inputs.image_uri }}:${{ inputs.channel_alias }}" \
-            "${{ inputs.image_uri }}:${{ inputs.version_tag }}-${{ inputs.tag_suffix }}-amd64" \
-            "${{ inputs.image_uri }}:${{ inputs.version_tag }}-${{ inputs.tag_suffix }}-arm64"
+            ${AMD64_REF} \
+            ${ARM64_REF}
