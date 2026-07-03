@@ -1,0 +1,86 @@
+version: '3'
+
+tasks:
+  lock:
+    cmds: 
+      - cargo update
+
+  check:
+    desc: Check the code
+    cmds:
+      - cargo check --all-features {{.CLI_ARGS}}
+
+  fmt:
+    desc: Format the code
+    cmds:
+      - >
+        cargo fmt --all -- --check
+
+  fmt:fix:
+    desc: Format the code
+    cmds:
+      - >
+        cargo fmt --all
+
+  lint:
+    desc: Lint the code
+    cmds:
+      - >
+        cargo clippy --all-targets --all-features {{.CLI_ARGS}}
+
+  lint:fix:
+    desc: Lint the code
+    cmds:
+      - >
+        cargo clippy --fix --all-targets --all-features --allow-dirty --allow-staged {{.CLI_ARGS}}
+
+  test:
+    cmds:
+      - cargo test --all-features {{.CLI_ARGS}}
+
+  test:compiler:
+    cmds:
+      - |
+        cargo test --all-features \
+          -p agentc \
+          -p agentc-blocks \
+          -p agentc-compiler \
+          -p agentc-core \
+          {{.CLI_ARGS}}
+
+  test:runtime:
+    cmds:
+      - |
+        cargo test --all-features \
+          -p agentc-agent \
+          -p agentc-agent-macros \
+          -p agentc-agent-react \
+          -p agentc-config \
+          -p agentc-database \
+          -p agentc-domain \
+          -p agentc-domain-sql \
+          -p agentc-http \
+          -p agentc-mcp \
+          -p agentc-model \
+          -p agentc-prompt \
+          -p agentc-protocol-ag-ui \
+          -p agentc-skills \
+          -p agentc-telemetry \
+          -p agentc-tools \
+          {{.CLI_ARGS}}
+  audit:
+    cmds:
+      - cargo audit {{.CLI_ARGS}}
+
+  bench:
+    cmds:
+      - cargo bench --all-features {{.CLI_ARGS}}
+
+  bench:criterion:
+    cmds:
+      - cargo criterion --all-features {{.CLI_ARGS}}
+
+  build:
+    desc: Build the application
+    cmds:
+      - cargo build --all-features {{.CLI_ARGS}}

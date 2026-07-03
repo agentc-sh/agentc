@@ -1,0 +1,80 @@
+name: Enhancement Request
+description: Suggest an enhancement or feature improvement
+title: "[Enhancement]: "
+labels: ["enhancement"]
+body:
+  - type: input
+    id: area
+    attributes:
+      label: Area of Improvement
+      description: Specify what part of the system this targets (e.g., code quality, performance, architecture, UX).
+      placeholder: e.g., Performance
+
+  - type: textarea
+    id: current-situation
+    attributes:
+      label: Current Situation
+      description: Describe how things work currently. What are the pain points or limitations?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-improvement
+    attributes:
+      label: Proposed Improvement
+      description: Describe the improvement you're proposing. What will be better after this change?
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation
+      description: Why should this improvement be made? What problems does it solve?
+
+  - type: textarea
+    id: technical-approach
+    attributes:
+      label: Technical Approach
+      description: Outline the technical changes required. What needs to be modified, refactored, or redesigned?
+
+  - type: textarea
+    id: affected-components
+    attributes:
+      label: Affected Components
+      description: What parts of the system will be affected?
+
+  - type: textarea
+    id: potential-risks
+    attributes:
+      label: Potential Risks
+      description: Are there any specific risks or side effects to consider?
+
+  - type: dropdown
+    id: breaking-changes
+    attributes:
+      label: Breaking Changes
+      description: Does this change introduce any breaking changes?
+      options:
+        - "No"
+        - "Yes"
+    validations:
+      required: true
+
+  - type: textarea
+    id: success-metrics
+    attributes:
+      label: Success Metrics
+      description: How will you measure whether this improvement achieved its goals?
+
+  - type: textarea
+    id: implementation-plan
+    attributes:
+      label: Implementation Plan
+      description: Break down the work into phases or steps if applicable.
+
+  - type: textarea
+    id: additional-notes
+    attributes:
+      label: Additional Notes
+      description: Any other relevant information, constraints, or considerations.

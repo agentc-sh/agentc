@@ -1,0 +1,99 @@
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+description = "An LLM agent compiler and runtime."
+authors = ["agentc authors <hello@agentc.sh>"]
+repository = "https://github.com/agentc-sh/agentc"
+license = "MIT"
+readme = "README.md"
+
+[workspace]
+resolver = "2"
+members = [
+    "crates/agentc-domain",
+    "crates/agentc-domain-sql",
+    "crates/agentc-database",
+    "crates/agentc-http",
+    "crates/agentc-protocol-ag-ui",
+    "crates/agentc-telemetry",
+    "crates/agentc-model",
+    "crates/agentc-agent-macros",
+    "crates/agentc-agent",
+    "crates/agentc-agent-react",
+    "crates/agentc-tools",
+    "crates/agentc-mcp",
+    "crates/agentc-config",
+    "crates/agentc-prompt",
+    "crates/agentc-compiler",
+    "crates/agentc-blocks",
+    "crates/agentc-core",
+    "crates/agentc-skills",
+    "crates/agentc",
+]
+exclude = [
+    "crates/test-bin",
+]
+
+[workspace.dependencies]
+tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7" }
+tokio-stream = { version = "0.1" }
+rayon = { version = "1" }
+pin-project-lite = "0.2"
+async-trait = { version = "0.1" }
+async-stream = { version = "0.3" }
+futures = { version = "0.3" }
+
+rustls = { version = "0.23", features = ["aws_lc_rs"] }
+
+thiserror = { version = "2.0" }
+anyhow = { version = "1" }
+
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1" }
+serde_norway = { version = "0.9" }
+toml = { version = "1", features = ["serde"] }
+hcl-rs = { version = "0.19", features = ["perf"] }
+validator = { version = "0.20", features = ["derive"] }
+sanitizer = { version = "1", features = ["derive"] }
+
+bs58 = { version = "0.5" }
+regex = { version = "1.12" }
+convert_case = { version = "0.11" }
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.23", features = ["v4", "v5", "fast-rng", "zerocopy", "serde"] }
+json-patch = { version = "4.2", features = ["schemars", "utoipa"] }
+schemars = { version = "1.1", features = ["derive", "chrono04", "url2", "uuid1"] }
+utoipa = { version = "5.4", features = ["axum_extras", "chrono", "uuid", "time", "url", "preserve_order", "preserve_path_order"] }
+
+cel = { version = "0.14", features = ["chrono", "regex", "json"] }
+minijinja = { version = "2", features = ["json"] }
+
+sea-orm = { version = "1.1", features = ["sqlx-sqlite", "sqlx-postgres", "runtime-tokio-rustls", "macros", "with-uuid"] }
+sea-orm-migration = { version = "1.1" }
+
+tracing = { version = "0.1" }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "chrono"] }
+tracing-opentelemetry = { version = "0.33" }
+opentelemetry = { version = "0.32" }
+opentelemetry_sdk = { version = "0.32", features = ["rt-tokio", "serde", "serde_json"] }
+opentelemetry-otlp = { version = "0.32" }
+opentelemetry-semantic-conventions = { version = "0.32", features = ["semconv_experimental"] }
+opentelemetry-appender-tracing = { version = "0.32" }
+sentry = { version = "0.48", features = ["anyhow", "tracing", "tower-http", "opentelemetry"] }
+
+axum = { version = "0.8", features = ["tracing"] }
+axum-server = { version = "0.8", features = ["tls-rustls"] }
+serde_qs = { version = "1.1", features = ["axum"] }
+utoipa-axum = { version = "0.2" }
+utoipa-scalar = { version = "0.3", features = ["axum"] }
+tower-http = { version = "0.7", features = ["trace"] }
+tower-layer = { version = "0.3" }
+tower = { version = "0.5", features = ["tokio", "tracing"] }
+http = { version = "1.4" }
+
+lazy_static = { version = "1" }
+indexmap = { version = "2" }
+walkdir = { version = "2" }
+
+criterion = { version = "0.8", features = ["html_reports"] }

@@ -1,0 +1,38 @@
+[package]
+name = "agentc-core"
+version.workspace = true
+edition.workspace = true
+description.workspace = true
+repository.workspace = true
+license.workspace = true
+readme.workspace = true
+
+[features]
+default = []
+javascript = ["agentc-compiler/javascript"]
+
+[dependencies]
+agentc-compiler = { path = "../agentc-compiler", version = "0.0.0" }
+agentc-blocks = { path = "../agentc-blocks", version = "0.0.0" }
+
+tokio = { workspace = true }
+async-trait = { workspace = true }
+futures = { workspace = true }
+
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_norway = { workspace = true }
+hcl-rs = { workspace = true }
+validator = { workspace = true }
+sanitizer = { workspace = true }
+convert_case = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+regex = { workspace = true }
+
+minijinja = { workspace = true }
+
+config = { version = "0.15.19" }

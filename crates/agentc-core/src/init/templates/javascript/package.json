@@ -1,0 +1,16 @@
+{
+  "name": "{{ name_kebab }}",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "build": "esbuild src/index.ts --bundle --platform=browser --format=esm --outfile=dist/index.js"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "esbuild": "^0.28.0"
+  },
+  "dependencies": {
+    "@agentc-sh/tdk": "github:agentc-sh/typescript-tdk#0.1.0"
+  }
+}

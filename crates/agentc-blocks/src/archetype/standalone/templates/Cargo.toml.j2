@@ -1,0 +1,84 @@
+{%- set has_embedded_python =
+    ctx.tools
+    | dictsort
+    | selectattr("1.kind.kind", "equalto", "python")
+    | selectattr("1.kind.interpreter", "equalto", "embedded")
+    | first
+    is defined
+%}
+{%- set has_ag_ui_protocol =
+    ctx.http_server.protocols
+    | selectattr("type", "equalto", "ag_ui")
+    | first
+    is defined
+%}
+
+[package]
+name = "{{ ctx.slug }}"
+version = "{{ ctx.agent.version }}"
+edition = "2024"
+{%- if ctx.agent.description %}
+description = "{{ ctx.agent.description }}"
+{%- endif %}
+
+[dependencies]
+agentc-telemetry = { version = "{{ runtime_version }}" }
+agentc-config = { version = "{{ runtime_version }}" }
+agentc-database = { version = "{{ runtime_version }}" }
+agentc-domain-sql = { version = "{{ runtime_version }}" }
+agentc-prompt = { version = "{{ runtime_version }}", features = ["tiktoken"] }
+agentc-model = { version = "{{ runtime_version }}" }
+agentc-agent = { version = "{{ runtime_version }}" }
+agentc-mcp = { version = "{{ runtime_version }}" }
+agentc-skills = { version = "{{ runtime_version }}" }
+agentc-agent-react = { version = "{{ runtime_version }}", features = [{{ extension("agent::features") }}] }
+agentc-tools = { version = "{{ runtime_version }}", features = [{{ extension("tools::features") }}] }
+
+{%- if ctx.http_server %}
+agentc-http = { version = "{{ runtime_version }}" }
+
+{%- if has_ag_ui_protocol %}
+agentc-protocol-ag-ui = { version = "{{ runtime_version }}" }
+{%- endif %}
+
+utoipa = { version = "5.4" }
+utoipa-axum = { version = "0.2" }
+{%- endif %}
+
+tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7" }
+futures = { version = "0.3" }
+async-trait = { version = "0.1" }
+clap = { version = "4.5", features = ["env", "derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1" }
+uuid = { version = "1", features = ["v4", "serde"] }
+anyhow = { version = "1.0" }
+sea-orm-migration = { version = "1" }
+
+{%- if has_embedded_python %}
+rustpython-vm = { git = "https://github.com/RustPython/RustPython", rev = "0.5.0" }
+{%- endif %}
+
+{{ extension("cargo::dependencies") }}
+
+[patch.crates-io]
+agentc-agent = { path = "../runtime/agentc-agent" }
+agentc-agent-macros = { path = "../runtime/agentc-agent-macros" }
+agentc-agent-react = { path = "../runtime/agentc-agent-react" }
+agentc-config = { path = "../runtime/agentc-config" }
+agentc-database = { path = "../runtime/agentc-database" }
+agentc-domain = { path = "../runtime/agentc-domain" }
+agentc-domain-sql = { path = "../runtime/agentc-domain-sql" }
+agentc-mcp = { path = "../runtime/agentc-mcp" }
+agentc-model = { path = "../runtime/agentc-model" }
+agentc-prompt = { path = "../runtime/agentc-prompt" }
+agentc-skills = { path = "../runtime/agentc-skills" }
+agentc-telemetry = { path = "../runtime/agentc-telemetry" }
+agentc-tools = { path = "../runtime/agentc-tools" }
+{%- if ctx.http_server %}
+agentc-http = { path = "../runtime/agentc-http" }
+{%- if has_ag_ui_protocol %}
+agentc-protocol-ag-ui = { path = "../runtime/agentc-protocol-ag-ui" }
+{%- endif %}
+{%- endif %}

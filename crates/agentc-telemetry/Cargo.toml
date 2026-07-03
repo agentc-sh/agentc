@@ -1,0 +1,28 @@
+[package]
+name = "agentc-telemetry"
+version.workspace = true
+edition.workspace = true
+description.workspace = true
+repository.workspace = true
+license.workspace = true
+readme.workspace = true
+
+[features]
+default = []
+
+[dependencies]
+tokio = { workspace = true }
+
+anyhow = { workspace = true }
+
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+tracing-opentelemetry = { workspace = true }
+opentelemetry = { workspace = true }
+opentelemetry_sdk = { workspace = true }
+opentelemetry-otlp = { workspace = true }
+opentelemetry-semantic-conventions = { workspace = true }
+opentelemetry-appender-tracing = { workspace = true }
+sentry = { workspace = true }
+
+hostname = { version = "0.4" }

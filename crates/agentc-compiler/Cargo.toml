@@ -1,0 +1,36 @@
+[package]
+name = "agentc-compiler"
+version.workspace = true
+edition.workspace = true
+description.workspace = true
+repository.workspace = true
+license.workspace = true
+readme.workspace = true
+
+[features]
+default = ["javascript", "python"]
+javascript = []
+python = []
+
+[dependencies]
+async-trait = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+
+thiserror = { workspace = true }
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+
+cel = { workspace = true }
+minijinja = { workspace = true }
+
+sha2 = { version = "0.10" }
+syn = { version = "2", features = ["full", "extra-traits"] }
+quote = { version = "1" }
+proc-macro2 = { version = "1" }
+prettyplease = { version = "0.2" }
+
+[dev-dependencies]
+tokio = { workspace = true }

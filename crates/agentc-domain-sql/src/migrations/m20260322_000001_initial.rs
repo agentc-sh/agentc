@@ -1,0 +1,224 @@
+// SPDX-FileCopyrightText: 2026 agentc Authors
+//
+// SPDX-License-Identifier: MIT
+
+use async_trait::async_trait;
+use sea_orm_migration::prelude::*;
+
+#[derive(DeriveMigrationName)]
+pub struct Migration;
+
+#[async_trait]
+impl MigrationTrait for Migration {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .create_table(
+                Table::create()
+                    .table(Session::Table)
+                    .if_not_exists()
+                    .col(
+                        ColumnDef::new(Session::Id)
+                            .uuid()
+                            .not_null()
+                            .primary_key(),
+                    )
+                    .col(
+                        ColumnDef::new(Session::TenantId)
+                            .string()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(Session::CreatedAt)
+                            .timestamp_with_time_zone()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(Session::UpdatedAt)
+                            .timestamp_with_time_zone()
+                            .not_null(),
+                    )
+                    .index(
+                        Index::create()
+                            .name("unique_session_id_tenant_id")
+                            .col(Session::Id)
+                            .col(Session::TenantId)
+                            .unique(),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_table(
+                Table::create()
+                    .table(Run::Table)
+                    .if_not_exists()
+                    .col(
+                        ColumnDef::new(Run::Id)
+                            .uuid()
+                            .not_null()
+                            .primary_key(),
+                    )
+                    .col(
+                        ColumnDef::new(Run::TenantId)
+                            .string()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(Run::SessionId)
+                            .uuid()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(Run::Status)
+                            .string()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(Run::CurrentNode)
+                            .string()
+                            .null(),
+                    )
+                    .col(
+                        ColumnDef::new(Run::LatestCheckpointId)
+                            .uuid()
+                            .null(),
+                    )
+                    .col(
+                        ColumnDef::new(Run::LastInterruptedCheckpointId)
+                            .uuid()
+                            .null(),
+                    )
+                    .col(
+                        ColumnDef::new(Run::CreatedAt)
+                            .timestamp_with_time_zone()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(Run::UpdatedAt)
+                            .timestamp_with_time_zone()
+                            .not_null(),
+                    )
+                    .index(
+                        Index::create()
+                            .name("unique_run_id_tenant_id")
+                            .col(Run::Id)
+                            .col(Run::TenantId)
+                            .unique(),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_table(
+                Table::create()
+                    .table(CheckpointRecord::Table)
+                    .if_not_exists()
+                    .col(
+                        ColumnDef::new(CheckpointRecord::Id)
+                            .uuid()
+                            .not_null()
+                            .primary_key(),
+                    )
+                    .col(
+                        ColumnDef::new(CheckpointRecord::TenantId)
+                            .string()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(CheckpointRecord::SessionId)
+                            .uuid()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(CheckpointRecord::RunId)
+                            .uuid()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(CheckpointRecord::Node)
+                            .string()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(CheckpointRecord::Status)
+                            .string()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(CheckpointRecord::Reason)
+                            .string()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(CheckpointRecord::ParentCheckpointId)
+                            .uuid()
+                            .null(),
+                    )
+                    .col(
+                        ColumnDef::new(CheckpointRecord::Metadata)
+                            .json_binary()
+                            .null(),
+                    )
+                    .col(
+                        ColumnDef::new(CheckpointRecord::CreatedAt)
+                            .timestamp_with_time_zone()
+                            .not_null(),
+                    )
+                    .index(
+                        Index::create()
+                            .name("unique_checkpoint_record_id_tenant_id")
+                            .col(CheckpointRecord::Id)
+                            .col(CheckpointRecord::TenantId)
+                            .unique(),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    async fn down(&self, _manager: &SchemaManager) -> Result<(), DbErr> {
+        Ok(())
+    }
+}
+
+#[derive(DeriveIden)]
+enum Session {
+    Table,
+    Id,
+    TenantId,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(DeriveIden)]
+enum Run {
+    Table,
+    Id,
+    TenantId,
+    SessionId,
+    Status,
+    CurrentNode,
+    LatestCheckpointId,
+    LastInterruptedCheckpointId,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(DeriveIden)]
+enum CheckpointRecord {
+    Table,
+    Id,
+    TenantId,
+    SessionId,
+    RunId,
+    Node,
+    Status,
+    Reason,
+    ParentCheckpointId,
+    Metadata,
+    CreatedAt,
+}

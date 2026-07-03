@@ -1,0 +1,29 @@
+[package]
+name = "agentc-protocol-ag-ui"
+version.workspace = true
+edition.workspace = true
+description.workspace = true
+repository.workspace = true
+license.workspace = true
+readme.workspace = true
+
+[features]
+default = []
+
+[dependencies]
+agentc-http = { path = "../agentc-http", version = "0.0.0" }
+
+thiserror = { workspace = true }
+
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+futures = { workspace = true }
+async-trait = { workspace = true }
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+
+axum = { workspace = true }
+utoipa = { workspace = true }
+utoipa-axum = { workspace = true }

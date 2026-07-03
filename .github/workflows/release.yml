@@ -1,0 +1,444 @@
+name: release
+
+on:
+  push:
+    tags: ["*"]
+
+env:
+  IMAGE_REGISTRY: ghcr.io
+  IMAGE_NAME: agentc-sh/agentc
+  IMAGE_URI: ghcr.io/agentc-sh/agentc
+  BIN_NAME: agentc
+  RELEASE_CHANNEL: stable
+  EDITION: community
+  ENABLE_SIGNING: 'false'
+
+jobs:
+  generate-sbom:
+    if: |
+      !contains(github.event.head_commit.message, '[skip-ci]') &&
+      github.repository == 'agentc-sh/agentc'
+    name: Generate SBOM
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install Task
+        uses: arduino/setup-task@v3
+        with:
+          version: "3.43.3"
+
+      - name: Generate SBOM SPDX
+        uses: anchore/sbom-action@v0
+        with:
+          format: spdx-json
+          output-file: sbom/sbom.spdx.json
+          artifact-name: sbom.spdx.json
+
+      - name: Generate SBOM CycloneDX
+        uses: anchore/sbom-action@v0
+        with:
+          format: cyclonedx-json
+          output-file: sbom/sbom.cyclonedx.json
+          artifact-name: sbom.cyclonedx.json
+
+      - name: Upload SBOM artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: sbom
+          path: sbom/
+
+  build-binaries:
+    if: |
+      !contains(github.event.head_commit.message, '[skip-ci]') &&
+      github.repository == 'agentc-sh/agentc'
+    name: Build binaries (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            platform_name: linux-x86_64
+            artifact_suffix: linux-x86_64
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            platform_name: linux-aarch64
+            artifact_suffix: linux-aarch64
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            platform_name: darwin-x86_64
+            artifact_suffix: darwin-x86_64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            platform_name: darwin-aarch64
+            artifact_suffix: darwin-aarch64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            platform_name: windows-x86_64
+            artifact_suffix: windows-x86_64
+    permissions:
+      attestations: write
+      contents: read
+      id-token: write
+    env:
+      ASSET_TAG: ${{ github.ref_name }}
+      COSIGN_EXPERIMENTAL: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install cross
+        if: runner.os == 'Linux'
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cross
+
+      - name: Add Rust target
+        if: runner.os != 'Linux'
+        run: rustup target add "${{ matrix.target }}"
+
+      - name: Install Syft
+        id: syft
+        uses: anchore/sbom-action/download-syft@v0
+
+      - name: Install Grype
+        id: grype
+        uses: anchore/scan-action/download-grype@v7
+
+      - name: Install Cosign
+        if: env.ENABLE_SIGNING == 'true'
+        uses: sigstore/cosign-installer@v4.1.2
+
+      - name: Build binary
+        run: |
+          export BUILD_TAG="${ASSET_TAG}"
+
+          if [[ "${{ runner.os }}" == "Linux" ]]; then
+            cross build --package "${BIN_NAME}" --release --target "${{ matrix.target }}"
+          else
+            cargo build --package "${BIN_NAME}" --release --target "${{ matrix.target }}"
+          fi
+
+      - name: Prepare release files
+        run: |
+          ARTIFACT_NAME="${BIN_NAME}-${{ matrix.artifact_suffix }}"
+          SOURCE_PATH="target/${{ matrix.target }}/release/${BIN_NAME}"
+
+          if [[ "${{ matrix.target }}" == *windows-msvc ]]; then
+            SOURCE_PATH="${SOURCE_PATH}.exe"
+            ARTIFACT_NAME="${ARTIFACT_NAME}.exe"
+          fi
+
+          mkdir -p dist
+          cp "$SOURCE_PATH" "dist/${ARTIFACT_NAME}"
+
+      - name: Generate checksum
+        run: |
+          ARTIFACT_NAME="${BIN_NAME}-${{ matrix.artifact_suffix }}"
+
+          if [[ "${{ matrix.target }}" == *windows-msvc ]]; then
+            ARTIFACT_NAME="${ARTIFACT_NAME}.exe"
+          fi
+
+          cd dist
+          sha256sum "${ARTIFACT_NAME}" | awk '{ print $1 }' > "${ARTIFACT_NAME}.sha256"
+
+      - name: Generate metadata
+        run: |
+          ARTIFACT_NAME="${BIN_NAME}-${{ matrix.artifact_suffix }}"
+
+          if [[ "${{ matrix.target }}" == *windows-msvc ]]; then
+            ARTIFACT_NAME="${ARTIFACT_NAME}.exe"
+          fi
+
+          cat > "dist/${ARTIFACT_NAME}.metadata.json" <<EOF
+          {
+            "com.pogue.name": "${ARTIFACT_NAME}",
+            "com.pogue.vendor": "agentc-sh",
+            "com.pogue.version": "${ASSET_TAG}",
+            "com.pogue.revision": "${GITHUB_SHA}",
+            "com.pogue.ref": "${GITHUB_REF_NAME}",
+            "com.pogue.created": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+            "com.pogue.build-id": "${{ github.run_id }}",
+            "com.pogue.product": "agentc",
+            "com.pogue.edition": "${EDITION}",
+            "com.pogue.release-channel": "${RELEASE_CHANNEL}",
+            "com.pogue.licenses": "MIT",
+            "com.pogue.support": "https://github.com/agentc-sh/agentc/issues"
+          }
+          EOF
+
+      - name: Generate SBOM
+        run: |
+          ARTIFACT_NAME="${BIN_NAME}-${{ matrix.artifact_suffix }}"
+
+          if [[ "${{ matrix.target }}" == *windows-msvc ]]; then
+            ARTIFACT_NAME="${ARTIFACT_NAME}.exe"
+          fi
+
+          "${{ steps.syft.outputs.cmd }}" "dist/${ARTIFACT_NAME}" -o cyclonedx-json="dist/${ARTIFACT_NAME}.sbom.cdx.json" -q
+
+      - name: Generate scan report
+        run: |
+          ARTIFACT_NAME="${BIN_NAME}-${{ matrix.artifact_suffix }}"
+
+          if [[ "${{ matrix.target }}" == *windows-msvc ]]; then
+            ARTIFACT_NAME="${ARTIFACT_NAME}.exe"
+          fi
+
+          "${{ steps.grype.outputs.cmd }}" "sbom:dist/${ARTIFACT_NAME}.sbom.cdx.json" --output json > "dist/${ARTIFACT_NAME}.scan.json"
+
+      - name: Sign binary
+        if: env.ENABLE_SIGNING == 'true'
+        run: |
+          ARTIFACT_NAME="${BIN_NAME}-${{ matrix.artifact_suffix }}"
+
+          if [[ "${{ matrix.target }}" == *windows-msvc ]]; then
+            ARTIFACT_NAME="${ARTIFACT_NAME}.exe"
+          fi
+
+          cosign sign-blob \
+            --yes \
+            --bundle "dist/${ARTIFACT_NAME}.sigstore.json" \
+            "dist/${ARTIFACT_NAME}"
+
+      - name: Verify binary signature
+        if: env.ENABLE_SIGNING == 'true'
+        run: |
+          ARTIFACT_NAME="${BIN_NAME}-${{ matrix.artifact_suffix }}"
+
+          if [[ "${{ matrix.target }}" == *windows-msvc ]]; then
+            ARTIFACT_NAME="${ARTIFACT_NAME}.exe"
+          fi
+
+          cosign verify-blob \
+            --bundle "dist/${ARTIFACT_NAME}.sigstore.json" \
+            --certificate-identity-regexp "^https://github\\.com/${{ github.repository }}/\\.github/workflows/release\\.yml@.*$" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            "dist/${ARTIFACT_NAME}"
+
+      - name: Attest build provenance
+        if: env.ENABLE_SIGNING == 'true'
+        uses: actions/attest@v4
+        with:
+          subject-path: dist/${{ env.BIN_NAME }}-${{ matrix.artifact_suffix }}${{ matrix.target == 'x86_64-pc-windows-msvc' && '.exe' || '' }}
+
+      - name: Verify build provenance
+        if: env.ENABLE_SIGNING == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ARTIFACT_NAME="${BIN_NAME}-${{ matrix.artifact_suffix }}"
+
+          if [[ "${{ matrix.target }}" == *windows-msvc ]]; then
+            ARTIFACT_NAME="${ARTIFACT_NAME}.exe"
+          fi
+
+          gh attestation verify "dist/${ARTIFACT_NAME}" --repo "${{ github.repository }}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.platform_name }}
+          path: |
+            dist/${{ env.BIN_NAME }}-${{ matrix.artifact_suffix }}
+            dist/${{ env.BIN_NAME }}-${{ matrix.artifact_suffix }}.sha256
+            dist/${{ env.BIN_NAME }}-${{ matrix.artifact_suffix }}.metadata.json
+            dist/${{ env.BIN_NAME }}-${{ matrix.artifact_suffix }}.sbom.cdx.json
+            dist/${{ env.BIN_NAME }}-${{ matrix.artifact_suffix }}.scan.json
+            dist/${{ env.BIN_NAME }}-${{ matrix.artifact_suffix }}.sigstore.json
+            dist/${{ env.BIN_NAME }}-${{ matrix.artifact_suffix }}.exe
+            dist/${{ env.BIN_NAME }}-${{ matrix.artifact_suffix }}.exe.sha256
+            dist/${{ env.BIN_NAME }}-${{ matrix.artifact_suffix }}.exe.metadata.json
+            dist/${{ env.BIN_NAME }}-${{ matrix.artifact_suffix }}.exe.sbom.cdx.json
+            dist/${{ env.BIN_NAME }}-${{ matrix.artifact_suffix }}.exe.scan.json
+            dist/${{ env.BIN_NAME }}-${{ matrix.artifact_suffix }}.exe.sigstore.json
+
+  build-docker:
+    if: |
+      !contains(github.event.head_commit.message, '[skip-ci]') &&
+      github.repository == 'agentc-sh/agentc'
+    needs: [generate-sbom]
+    name: Build and push docker image (${{ matrix.image_variant.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image_variant:
+          - name: slim
+            task: docker:build:slim
+            tag_suffix: slim
+          - name: toolchain
+            task: docker:build:toolchain
+            tag_suffix: toolchain
+    permissions:
+      actions: read
+      contents: write
+      packages: write
+      id-token: write
+      security-events: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install Task
+        uses: arduino/setup-task@v3
+        with:
+          version: 3.43.3
+
+      - name: Download SBOM artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: sbom
+          path: sbom/
+
+      - name: Compute image tags
+        id: image
+        run: |
+          echo "version_tag=${{ github.ref_name }}-${{ matrix.image_variant.tag_suffix }}" >> "$GITHUB_OUTPUT"
+          echo "channel_tag=${{ matrix.image_variant.tag_suffix }}" >> "$GITHUB_OUTPUT"
+          echo "image_ref=${IMAGE_URI}:${{ github.ref_name }}-${{ matrix.image_variant.tag_suffix }}" >> "$GITHUB_OUTPUT"
+          echo "channel_ref=${IMAGE_URI}:${{ matrix.image_variant.tag_suffix }}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build OCI image
+        run: |
+          task ${{ matrix.image_variant.task }} \
+            IMAGE_NAME=${{ env.IMAGE_URI }} \
+            IMAGE_TAG=${{ steps.image.outputs.version_tag }}
+
+      - name: Generate OCI Image SBOM SPDX
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ steps.image.outputs.image_ref }}
+          format: spdx-json
+          output-file: sbom/sbom.oci.${{ matrix.image_variant.tag_suffix }}.spdx.json
+          artifact-name: sbom.oci.${{ matrix.image_variant.tag_suffix }}.spdx.json
+
+      - name: Generate OCI Image SBOM CycloneDX
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ steps.image.outputs.image_ref }}
+          format: cyclonedx-json
+          output-file: sbom/sbom.oci.${{ matrix.image_variant.tag_suffix }}.cyclonedx.json
+          artifact-name: sbom.oci.${{ matrix.image_variant.tag_suffix }}.cyclonedx.json
+
+      - name: Scan OCI image
+        uses: anchore/scan-action@v7
+        id: scan
+        with:
+          image: ${{ steps.image.outputs.image_ref }}
+          fail-build: true
+          severity-cutoff: critical
+
+      - name: Upload OCI SBOM artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: sbom-oci-${{ matrix.image_variant.tag_suffix }}
+          path: sbom/sbom.oci.${{ matrix.image_variant.tag_suffix }}.*.json
+
+      - name: Inspect SARIF report
+        if: always()
+        run: |
+          cat "${{ steps.scan.outputs.sarif }}"
+
+      - name: Upload SARIF report
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: ${{ steps.scan.outputs.sarif }}
+
+      - name: Push OCI image
+        run: |
+          docker push "${{ steps.image.outputs.image_ref }}"
+
+      - name: Tag OCI image channel alias
+        run: |
+          docker tag \
+            "${{ steps.image.outputs.image_ref }}" \
+            "${{ steps.image.outputs.channel_ref }}"
+
+      - name: Push OCI image channel alias
+        run: |
+          docker push "${{ steps.image.outputs.channel_ref }}"
+
+  make-release:
+    if: |
+      !contains(github.event.head_commit.message, '[skip-ci]') &&
+      github.repository == 'agentc-sh/agentc'
+    needs: [build-binaries]
+    name: Create GitHub release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install Task
+        uses: arduino/setup-task@v3
+        with:
+          version: 3.43.3
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v8
+        with:
+          merge-multiple: true
+          path: artifacts
+
+      - name: Extract changelog for release
+        id: changelog
+        run: |
+          TAG=$(task version:current)
+          PREV_VERSION=$(grep -E '^## \[[0-9]+\.[0-9]+\.[0-9]+\]' CHANGELOG.md | head -n 2 | tail -n 1 | sed -E 's/^## \[([^]]+)\].*/\1/')
+          
+          awk -v tag="$TAG" '
+            # Start when we hit the current version header
+            $0 ~ "^## \\[" tag "\\]" { printing=1; next }
+
+            # Stop when we hit the next version header
+            printing && $0 ~ "^## \\[" { exit }
+
+            printing
+          ' CHANGELOG.md > release_notes.md
+          
+          echo "Release notes for $TAG:"
+          cat release_notes.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ github.ref_name }}
+          body_path: release_notes.md
+          draft: true
+          files: artifacts/**/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release edit "${{ github.ref_name }}" --draft=false

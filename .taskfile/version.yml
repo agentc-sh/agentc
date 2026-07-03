@@ -1,0 +1,102 @@
+version: '3'
+
+includes:
+  devtools:
+    taskfile: devtools.yml
+
+tasks:
+  current:
+    desc: Print the version
+    deps: [devtools:install]
+    cmds:
+      - svu current --tag.prefix='' {{.CLI_ARGS}}
+
+  next:
+    desc: Get the next version given SemVer
+    deps: [devtools:install]
+    cmds:
+      - |
+        NEXT=$(svu next --v0 --tag.prefix='' {{.CLI_ARGS}})
+        if [ -n "{{.PRE_RELEASE}}" ]; then
+          NEXT="$NEXT-{{.PRE_RELEASE}}"
+        fi
+        if [ -n "{{.BUILD_NUMBER}}" ]; then
+          NEXT="$NEXT+{{.BUILD_NUMBER}}"
+        fi
+        echo $NEXT
+
+  update:crates:
+    desc: Update the version in multiple Rust crates
+    cmds:
+      - |
+        NEXT_VERSION="{{.NEXT_VERSION}}"
+        PACKAGES=({{.PACKAGES}})
+        VERSION_FILE="{{or .VERSION_FILE "Cargo.toml"}}"
+
+        if [ ${#PACKAGES[@]} -eq 0 ]; then
+          echo "PACKAGES are required"
+          exit 1
+        fi
+
+        for crate in "${PACKAGES[@]}"; do
+          vfile="$crate/$VERSION_FILE"
+
+          if [ ! -f "$vfile" ]; then
+            echo "Missing version file: $vfile"
+            exit 1
+          fi
+
+          sed -i "/^version = ".*"/c\version = \"$NEXT_VERSION\"" $vfile
+          echo $vfile
+
+          for dep in "${PACKAGES[@]}"; do
+            dep_name=$(basename "$dep")
+            sed -i -E "s|(${dep_name}.*version = \")([^\"]+)(\")|\1$NEXT_VERSION\3|" "$vfile"
+          done
+        done
+
+        if [ -f "$VERSION_FILE" ]; then
+          sed -i "/^version = ".*"/c\version = \"$NEXT_VERSION\"" $VERSION_FILE
+          echo $VERSION_FILE
+        fi
+
+  changelog:
+    desc: Generate the changelog
+    deps: [devtools:install]
+    cmds:
+      - git-cliff --offline --no-exec {{.CLI_ARGS}}
+
+  bump:
+    desc: Bump version and update all relevant files
+    deps: [devtools:install]
+    cmds:
+      - |
+        export CURRENT_VERSION=$(svu current --tag.prefix='')
+        export NEXT_VERSION=$(svu next --tag.prefix='')
+        
+        if [ "$CURRENT_VERSION" = "$NEXT_VERSION" ]; then
+          echo "CURRENT_VERSION=$CURRENT_VERSION"
+          echo "NEXT_VERSION=$NEXT_VERSION"
+          echo "Version unchanged, exiting."
+          exit 1
+        fi
+
+        [ -n "{{.PRE_RELEASE}}" ] && NEXT_VERSION="$NEXT_VERSION-{{.PRE_RELEASE}}"
+        [ -n "{{.BUILD_METADATA}}" ] && NEXT_VERSION="$NEXT_VERSION+{{.BUILD_METADATA}}"
+
+        echo "Generating changelog..."
+        git-cliff --offline --no-exec -o CHANGELOG.md --tag $NEXT_VERSION || true
+        echo "CHANGELOG.md" > .modified_files
+
+        PACKAGES=($(find crates -type f -name Cargo.toml -exec dirname {} \;))
+
+        task version:update:crates VERSION_FILE=Cargo.toml PACKAGES="${PACKAGES[*]}" >> .modified_files
+
+        while read -r file; do
+          [ -f "$file" ] && echo "Adding $file to git staging" && git add "$file"
+        done < .modified_files
+
+        echo "Committing and tagging the release..."
+        git commit -m "chore(release): Release $NEXT_VERSION"
+        git tag "$NEXT_VERSION" -m "chore(release): Release $NEXT_VERSION"
+        rm .modified_files

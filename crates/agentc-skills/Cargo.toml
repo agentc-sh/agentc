@@ -1,0 +1,29 @@
+[package]
+name = "agentc-skills"
+version.workspace = true
+edition.workspace = true
+description.workspace = true
+repository.workspace = true
+license.workspace = true
+readme.workspace = true
+
+[dependencies]
+agentc-agent = { path = "../agentc-agent", version = "0.0.0" }
+agentc-prompt = { path = "../agentc-prompt", version = "0.0.0" }
+
+async-trait = { workspace = true }
+tokio = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_norway = { workspace = true }
+validator = { workspace = true }
+sanitizer = { workspace = true }
+regex = { workspace = true }
+
+lazy_static = { workspace = true }
+indexmap = { workspace = true }
+schemars = { workspace = true }
+uuid = { workspace = true }

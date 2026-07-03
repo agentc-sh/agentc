@@ -1,0 +1,67 @@
+[changelog]
+header = """
+# Changelog\n
+"""
+body = """
+---
+{% if version %}\
+    {% if previous.version %}\
+        ## [{{ version | trim_start_matches(pat="v") }}]({{ self::compare_url(previous_version=previous.version, version=version) }}) - {{ timestamp | date(format="%Y-%m-%d") }}
+    {% else %}\
+        ## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}
+    {% endif %}\
+{% else %}\
+    ## [unreleased]
+{% endif %}\
+{% for group, commits in commits | group_by(attribute="group") %}
+    ### {{ group | striptags | trim | upper_first }}
+    {% for commit in commits
+    | filter(attribute="scope")
+    | sort(attribute="scope") %}
+        - **({{commit.scope}})**{% if commit.breaking %} [**breaking**]{% endif %} \
+            {{ commit.message }} - ([{{ commit.id | truncate(length=7, end="") }}]({{ self::commit_url(commit_id=commit.id) }})) - {{ commit.author.name }}
+    {%- endfor -%}
+    {% raw %}\n{% endraw %}\
+    {%- for commit in commits %}
+        {%- if commit.scope -%}
+        {% else -%}
+            - {% if commit.breaking %} [**breaking**]{% endif %}\
+                {{ commit.message }} - ([{{ commit.id | truncate(length=7, end="") }}]({{ self::commit_url(commit_id=commit.id) }})) - {{ commit.author.name }}
+        {% endif -%}
+    {% endfor -%}
+{% endfor %}\n
+
+{%- macro commit_url(commit_id) -%}
+    $REPO/commit/{{ commit_id }}
+{%- endmacro -%}
+
+{%- macro compare_url(previous_version, version) -%}
+    $REPO/compare/{{ previous_version }}..{{ version }}
+{%- endmacro -%}
+"""
+footer = """"""
+trim = true
+postprocessors = [
+    { pattern = '\$REPO', replace = "https://github.com/agentc-sh/agentc" },
+]
+
+[git]
+conventional_commits = true
+filter_unconventional = true
+split_commits = false
+commit_preprocessors = [{ pattern = '\((\w+\s)?#([0-9]+)\)', replace = "" }]
+commit_parsers = [
+    { message = "^feat", group = "Features" },
+    { message = "^fix", group = "Bug Fixes" },
+    { message = "^doc", group = "Documentation" },
+    { message = "^perf", group = "Performance" },
+    { message = "^refactor", group = "Refactoring" },
+    { message = "^style", group = "Style" },
+    { message = "^revert", group = "Revert" },
+    { message = "^test", group = "Tests" },
+    { message = "^chore\\(release\\):", skip = true },
+    { message = "^chore", group = "Miscellaneous" },
+]
+filter_commits = true
+topo_order = false
+sort_commits = "newest"

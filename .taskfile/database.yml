@@ -1,0 +1,37 @@
+version: '3'
+
+tasks:
+  gen:entities:
+    desc: Generate entities
+    cmds:
+      - |
+        if [ -z "{{.DSN}}" ]; then
+          echo "DSN is required"
+          exit 1
+        fi
+        ARGS=""
+        if [ -n "{{.TABLES}}" ]; then
+          ARGS="--tables {{.TABLES}}"
+        fi
+
+        sea-orm-cli generate entity $ARGS --database-url {{.DSN}} --output-dir codegen {{.CLI_ARGS}}
+
+  gen:migration:
+    desc: Generate a migration file
+    cmds:
+      - |
+        if [ -z "{{.NAME}}" ]; then
+          echo "NAME is required"
+          exit 1
+        fi
+        sea-orm-cli migrate generate {{.NAME}} --migration-dir inndx-migrations/src {{.CLI_ARGS}}
+
+  migration:up:
+    desc: Run migrations
+    cmds:
+      - |
+        if [ -z "{{.DSN}}" ]; then
+          echo "DSN is required"
+          exit 1
+        fi
+        cargo run --bin inndx-migrations -- refresh --database-url {{.DSN}} {{.CLI_ARGS}}

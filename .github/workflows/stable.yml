@@ -1,0 +1,74 @@
+name: stable
+
+on:
+  push:
+    branches: [main]
+
+env:
+  IMAGE_REGISTRY: "ghcr.io"
+  IMAGE_NAME: "agentc-sh/agentc"
+  IMAGE_URI: "ghcr.io/agentc-sh/agentc"
+
+jobs:
+  bump:
+    if: |
+      !contains(github.event.head_commit.message, '[skip-ci]') &&
+      !startsWith(github.event.head_commit.message, 'chore(release):') &&
+      github.repository == 'agentc-sh/agentc'
+    name: Bump version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      bumped: ${{ steps.bump_version.outputs.bumped }}
+      current_version: ${{ steps.version_info.outputs.current_version }}
+      next_version: ${{ steps.version_info.outputs.next_version }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+        with:
+          token: ${{ secrets.RELEASE_TOKEN }}
+          fetch-depth: 0
+
+      - name: Install Task
+        uses: arduino/setup-task@v3
+        with:
+          version: 3.43.3
+
+      - name: Set up git identity
+        run: |
+          git config --local user.name "${{ vars.RELEASE_GIT_USER }}"
+          git config --local user.email "${{ secrets.RELEASE_GIT_EMAIL }}"
+
+      - name: Get current and next versions
+        id: version_info
+        run: |
+          CURRENT_VERSION=$(task version:current)
+          NEXT_VERSION=$(task version:next)
+          echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "next_version=$NEXT_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Bump version
+        id: bump_version
+        run: |
+          set +e
+          OUTPUT=$(task version:bump 2>&1)
+          STATUS=$?
+          set -e
+          echo "$OUTPUT"
+
+          if [ $STATUS -ne 0 ]; then
+            echo "No version bump detected."
+            echo "bumped=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "bumped=true" >> $GITHUB_OUTPUT
+
+      - name: Push changes
+        if: steps.bump_version.outputs.bumped == 'true'
+        uses: ad-m/github-push-action@v1.3.0
+        with:
+          github_token: ${{ secrets.RELEASE_TOKEN }}
+          branch: main
+          tags: true

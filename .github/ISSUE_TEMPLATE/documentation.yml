@@ -1,0 +1,65 @@
+name: Documentation Request
+description: Request new, updated, or fixed documentation
+title: "[Doc]: "
+labels: ["documentation"]
+body:
+  - type: checkboxes
+    id: type
+    attributes:
+      label: Type of documentation work
+      options:
+        - label: New documentation
+        - label: Update existing documentation
+        - label: Fix documentation error
+        - label: Remove outdated documentation
+
+  - type: input
+    id: target-audience
+    attributes:
+      label: Target Audience
+      description: Who is this documentation for? (e.g., Developers, end users, administrators)
+      placeholder: e.g. Developers
+
+  - type: textarea
+    id: documentation-needed
+    attributes:
+      label: Documentation Needed
+      description: Describe what needs to be documented or what changes are needed.
+    validations:
+      required: true
+
+  - type: textarea
+    id: current-state
+    attributes:
+      label: Current State
+      description: For updates or fixes, describe the current documentation and what is wrong or missing.
+
+  - type: textarea
+    id: desired-outcome
+    attributes:
+      label: Desired Outcome
+      description: What should the documentation look like when complete? What should users be able to understand or accomplish?
+
+  - type: input
+    id: location
+    attributes:
+      label: Location
+      description: Where should this documentation live? (File paths, wiki pages, etc.)
+
+  - type: textarea
+    id: key-points
+    attributes:
+      label: Key Points to Cover
+      description: List the main topics, procedures, or concepts that must be included.
+
+  - type: textarea
+    id: references
+    attributes:
+      label: References
+      description: Link to related code, existing documentation, examples, or external resources.
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Screenshots, diagrams, examples, or any other supporting material.

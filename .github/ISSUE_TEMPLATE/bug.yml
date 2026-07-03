@@ -1,0 +1,60 @@
+name: Bug Report
+description: Report a bug or unexpected behavior
+title: "[Bug]: "
+labels: ["bug"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ### Please read this!
+        Before opening a new issue, make sure to search for keywords in the issues 
+        filtered by the "bug" label and verify the issue you're about to submit isn't a duplicate.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Bug Summary
+      description: Summarize the bug encountered concisely.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: |
+        Describe how one can reproduce the issue - this is very important.
+        Please use an ordered list.
+    validations:
+      required: true
+
+  - type: textarea
+    id: current_behavior
+    attributes:
+      label: What is the current bug behavior?
+      description: Describe what actually happens.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected_behavior
+    attributes:
+      label: What is the expected correct behavior?
+      description: Describe what you should see instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs and/or screenshots
+      description: |
+        Paste any relevant logs. Use code blocks for readability.
+
+  - type: textarea
+    id: fixes
+    attributes:
+      label: Possible fixes
+      description: |
+        If you can, link to the line of code that might be responsible for the problem.

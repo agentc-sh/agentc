@@ -1,0 +1,27 @@
+[package]
+name = "agentc-prompt"
+version.workspace = true
+edition.workspace = true
+description.workspace = true
+repository.workspace = true
+license.workspace = true
+readme.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true }
+
+[features]
+default = ["tiktoken"]
+tiktoken = ["dep:tiktoken-rs"]
+
+[dependencies]
+async-trait = { workspace = true }
+
+thiserror = { workspace = true }
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+minijinja = { workspace = true }
+
+tiktoken-rs = { version = "0.9.1", optional = true }

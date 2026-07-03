@@ -1,0 +1,48 @@
+# A list of vulnerability ignore rules, one or more property may be specified and all matching vulnerabilities will be ignored.
+# This is the full set of supported rule fields:
+#   - vulnerability: CVE-2008-4318
+#     fix-state: unknown
+#     package:
+#       name: libcurl
+#       version: 1.5.1
+#       type: npm
+#       location: "/usr/local/lib/node_modules/**"
+#
+# VEX fields apply when Grype reads vex data:
+#   - vex-status: not_affected
+#     vex-justification: vulnerable_code_not_present
+
+# ignore:
+#   # Ignore specific CVEs
+#   - vulnerability: CVE-2008-4318
+#   - vulnerability: GHSA-1234-5678-90ab
+
+#   # Ignore all vulnerabilities in a package
+#   - package:
+#       name: libcurl
+
+#   # Ignore vulnerabilities in a specific version
+#   - package:
+#       name: openssl
+#       version: 1.1.1g
+
+#   # Ignore by package type
+#   - package:
+#       type: npm
+#       name: lodash
+
+#   # Ignore by package location (supports glob patterns)
+#   - package:
+#       location: "/usr/local/lib/node_modules/**"
+
+#   # Ignore by fix state
+#   - vulnerability: CVE-2020-1234
+#     fix-state: not-fixed
+
+#   # Combine multiple criteria
+#   - vulnerability: CVE-2008-4318
+#     fix-state: unknown
+#     package:
+#       name: libcurl
+#       version: 1.5.1
+ignore: []

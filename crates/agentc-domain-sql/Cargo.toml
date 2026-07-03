@@ -1,0 +1,28 @@
+[package]
+name = "agentc-domain-sql"
+version.workspace = true
+edition.workspace = true
+description.workspace = true
+repository.workspace = true
+license.workspace = true
+readme.workspace = true
+
+[dependencies]
+agentc-database = { path = "../agentc-database", version = "0.0.0" }
+agentc-domain = { path = "../agentc-domain", version = "0.0.0" }
+
+tokio = { workspace = true }
+async-trait = { workspace = true }
+futures = { workspace = true }
+
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+chrono = { workspace = true }
+uuid = { workspace = true }
+
+sea-orm = { workspace = true }
+sea-orm-migration = { workspace = true }

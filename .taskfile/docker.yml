@@ -1,0 +1,99 @@
+version: '3'
+
+tasks:
+  build:
+    desc: Build the application in a Docker container
+    vars:
+      IMAGE_NAME: '{{ .IMAGE_NAME | default "docker-daemon:ghcr.io/agentc-sh/agentc" }}'
+      IMAGE_TAG: '{{ .IMAGE_TAG | default "local" }}'
+      BUILD_ID: '{{ .BUILD_ID | default "" }}'
+      BUILD_ARGS: '{{ .BUILD_ARGS | default "" }}'
+      VERSION: '{{ .VERSION | default "" }}'
+      REVISION: '{{ .REVISION | default "" }}'
+      RELEASE_CHANNEL: '{{ .RELEASE_CHANNEL | default "" }}'
+      EDITION: '{{ .EDITION | default "" }}'
+      BUILD_DATE: '{{ .BUILD_DATE | default "" }}'
+      DOCKERFILE: '{{ .DOCKERFILE | default "build/docker/slim.Dockerfile" }}'
+    cmds:
+      - |
+        if [ -z "{{.BUILD_ID}}" ]; then
+          TIMESTAMP=$(date +%s)
+          GIT_HASH=$(git rev-parse --short HEAD 2>/dev/null || echo "local")
+          BUILD_ID="${TIMESTAMP}${GIT_HASH}"
+        else
+          BUILD_ID="{{.BUILD_ID}}"
+        fi
+
+        if [ -z "{{.VERSION}}" ]; then
+          VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')
+        else
+          VERSION="{{.VERSION}}"
+        fi
+
+        if [ -z "{{.REVISION}}" ]; then
+          REVISION=$(git rev-parse --short HEAD 2>/dev/null || echo "local")
+        else
+          REVISION="{{.REVISION}}"
+        fi
+
+        if [ -z "{{.RELEASE_CHANNEL}}" ]; then
+          RELEASE_CHANNEL="stable"
+        else
+          RELEASE_CHANNEL="{{.RELEASE_CHANNEL}}"
+        fi
+
+        if [ -z "{{.EDITION}}" ]; then
+          EDITION="enterprise"
+        else
+          EDITION="{{.EDITION}}"
+        fi
+
+        if [ -z "{{.BUILD_DATE}}" ]; then
+          BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+        else
+          BUILD_DATE="{{.BUILD_DATE}}"
+        fi
+
+        buildah build \
+          --format docker \
+          --build-arg BUILD_ID=${BUILD_ID} \
+          --build-arg VERSION=${VERSION} \
+          --build-arg REVISION=${REVISION} \
+          --build-arg RELEASE_CHANNEL=${RELEASE_CHANNEL} \
+          --build-arg EDITION=${EDITION} \
+          --build-arg BUILD_DATE=${BUILD_DATE} \
+          --file {{.DOCKERFILE}} \
+          --tag {{.IMAGE_NAME}}:{{.IMAGE_TAG}} \
+          {{.BUILD_ARGS}} \
+          .
+
+  build:slim:
+    cmds:
+      - task: build
+        vars:
+          IMAGE_NAME: '{{ .IMAGE_NAME | default "docker-daemon:ghcr.io/agentc-sh/agentc" }}'
+          IMAGE_TAG: '{{ .IMAGE_TAG | default "local-slim" }}'
+          DOCKERFILE: '{{ .DOCKERFILE | default "build/docker/slim.Dockerfile" }}'
+
+  build:toolchain:
+    vars:
+      IMAGE_NAME: '{{ .IMAGE_NAME | default "docker-daemon:ghcr.io/agentc-sh/agentc" }}'
+      IMAGE_TAG: '{{ .IMAGE_TAG | default "local-toolchain" }}'
+      DOCKERFILE: '{{ .DOCKERFILE | default "build/docker/toolchain.Dockerfile" }}'
+      PYTHON_VERSION: '{{ .PYTHON_VERSION | default "3.14.0" }}'
+      NODE_VERSION: '{{ .NODE_VERSION | default "25.5.0" }}'
+      PNPM_VERSION: '{{ .PNPM_VERSION | default "11.1.2" }}'
+      ESBUILD_VERSION: '{{ .ESBUILD_VERSION | default "0.28.0" }}'
+      UV_VERSION: '{{ .UV_VERSION | default "0.8.0" }}'
+    cmds:
+      - task: build
+        vars:
+          IMAGE_NAME: '{{ .IMAGE_NAME }}'
+          IMAGE_TAG: '{{ .IMAGE_TAG }}'
+          DOCKERFILE: '{{ .DOCKERFILE }}'
+          BUILD_ARGS: >-
+            --build-arg PYTHON_VERSION={{.PYTHON_VERSION}}
+            --build-arg NODE_VERSION={{.NODE_VERSION}}
+            --build-arg PNPM_VERSION={{.PNPM_VERSION}}
+            --build-arg ESBUILD_VERSION={{.ESBUILD_VERSION}}
+            --build-arg UV_VERSION={{.UV_VERSION}}

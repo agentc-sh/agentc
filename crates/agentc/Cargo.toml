@@ -1,0 +1,50 @@
+[package]
+name = "agentc"
+version.workspace = true
+edition.workspace = true
+description.workspace = true
+repository.workspace = true
+license.workspace = true
+readme.workspace = true
+
+[[bin]]
+name = "agentc"
+path = "src/main.rs"
+
+[features]
+default = ["cli", "javascript"]
+cli = ["dep:clap", "dep:mimalloc", "dep:console", "dep:indicatif", "dep:syntect", "dep:once_cell"]
+javascript = ["agentc-core/javascript"]
+
+[dependencies]
+agentc-core = { path = "../agentc-core", version = "0.0.0" }
+
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+async-trait = { workspace = true }
+futures = { workspace = true }
+
+rustls = { workspace = true }
+
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_norway = { workspace = true }
+
+validator = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+
+mimalloc = { version = "0.1", optional = true }
+
+clap = { version = "4.5", features = ["env", "derive"], optional = true }
+clap-markdown = { version = "0.1" }
+clap_complete = { version = "4" }
+
+console = { version = "0.16", optional = true }
+indicatif = { version = "0.18", features = ["futures"], optional = true }
+syntect = { version = "5.3", optional = true }
+
+once_cell = { version = "1.21", optional = true }

@@ -1,0 +1,46 @@
+[package]
+name = "agentc-http"
+version.workspace = true
+edition.workspace = true
+description.workspace = true
+repository.workspace = true
+license.workspace = true
+readme.workspace = true
+
+[features]
+default = ["tls"]
+
+tls = ["dep:rustls"]
+
+[dependencies]
+agentc-domain = { path = "../agentc-domain", version = "0.0.0" }
+agentc-telemetry = { path = "../agentc-telemetry", version = "0.0.0" }
+
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+async-trait = { workspace = true }
+futures = { workspace = true }
+
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_qs = { workspace = true }
+validator = { workspace = true }
+sanitizer = { workspace = true }
+json-patch = { workspace = true }
+utoipa = { workspace = true }
+
+rustls = { workspace = true, optional = true }
+axum = { workspace = true }
+axum-server = { workspace = true }
+utoipa-axum = { workspace = true }
+utoipa-scalar = { workspace = true }
+tower-http = { workspace = true }
+tower-layer = { workspace = true }
+tower = { workspace = true }
+http = { workspace = true }
+
+tracing = { workspace = true }
+sentry = { workspace = true }

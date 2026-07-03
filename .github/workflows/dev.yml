@@ -1,0 +1,118 @@
+name: dev
+
+on:
+  push:
+    branches: [dev]
+
+jobs:
+  lint:
+    if: |
+      !contains(github.event.head_commit.message, '[skip-ci]') &&
+      github.repository == 'agentc-sh/agentc'
+    name: Lint commit message
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Lint commit message
+        run: |
+          pip install gitlint
+          git log -1 --pretty=%B | gitlint
+
+  release-candidate-pr:
+    if: |
+      !contains(github.event.head_commit.message, '[skip-ci]') &&
+      github.repository == 'agentc-sh/agentc'
+    name: Create or update dev to main PR
+    needs: [lint]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install Task
+        uses: arduino/setup-task@v3
+        with:
+          version: 3.43.3
+
+      - name: Compute PR metadata
+        id: meta
+        run: |
+          git fetch origin main
+
+          LAST_MERGE_COMMIT=$(git merge-base origin/main HEAD)
+          LATEST_COMMIT=$(git rev-parse HEAD)
+          LAST_MERGE_COMMIT_SHORT=$(git rev-parse --short "$LAST_MERGE_COMMIT")
+          LATEST_COMMIT_SHORT=$(git rev-parse --short "$LATEST_COMMIT")
+          NEXT_VERSION=$(task version:next)
+
+          {
+            echo "title=Release Candidate ${LAST_MERGE_COMMIT_SHORT}..${LATEST_COMMIT_SHORT}"
+            echo "next_version=$NEXT_VERSION"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            echo "changelog<<EOF"
+            git log "$LAST_MERGE_COMMIT".."$LATEST_COMMIT" --pretty=format:"* %s (%an)" --no-merges
+            echo
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create or update pull request
+        uses: actions/github-script@v9
+        env:
+          PR_TITLE: ${{ steps.meta.outputs.title }}
+          NEXT_VERSION: ${{ steps.meta.outputs.next_version }}
+          CHANGELOG: ${{ steps.meta.outputs.changelog }}
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            const body = [
+              '## Release Candidate',
+              '',
+              `Next version: \`${process.env.NEXT_VERSION}\``,
+              '',
+              '### Included changes',
+              '',
+              process.env.CHANGELOG || '_No changes captured._',
+            ].join('\n');
+
+            const { data: pulls } = await github.rest.pulls.list({
+              owner,
+              repo,
+              state: 'open',
+              head: `${owner}:dev`,
+              base: 'main',
+            });
+
+            if (pulls.length === 0) {
+              await github.rest.pulls.create({
+                owner,
+                repo,
+                title: process.env.PR_TITLE,
+                head: 'dev',
+                base: 'main',
+                body,
+                maintainer_can_modify: false,
+              });
+            } else {
+              await github.rest.pulls.update({
+                owner,
+                repo,
+                pull_number: pulls[0].number,
+                title: process.env.PR_TITLE,
+                body,
+              });
+            }

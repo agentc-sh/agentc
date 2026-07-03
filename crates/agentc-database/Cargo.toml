@@ -1,0 +1,26 @@
+[package]
+name = "agentc-database"
+version.workspace = true
+edition.workspace = true
+description.workspace = true
+repository.workspace = true
+license.workspace = true
+readme.workspace = true
+
+[dependencies]
+async-trait = { workspace = true }
+async-stream = { workspace = true }
+futures = { workspace = true }
+
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+bs58 = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+
+sea-orm = { version = "1.1.19", features = ["sqlx-sqlite", "sqlx-postgres", "runtime-tokio-rustls", "macros", "mock", "with-json", "with-uuid", "sqlite-use-returning-for-3_35"] }
+sea-orm-migration = { version = "1.1.9" }

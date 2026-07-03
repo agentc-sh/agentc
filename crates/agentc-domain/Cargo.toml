@@ -1,0 +1,23 @@
+[package]
+name = "agentc-domain"
+version.workspace = true
+edition.workspace = true
+description.workspace = true
+repository.workspace = true
+license.workspace = true
+readme.workspace = true
+
+[dependencies]
+async-trait = { workspace = true }
+futures = { workspace = true }
+
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+validator = { workspace = true }
+sanitizer = { workspace = true }
+schemars = { workspace = true }

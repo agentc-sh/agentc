@@ -1,0 +1,53 @@
+[package]
+name = "agentc-agent-react"
+version.workspace = true
+edition.workspace = true
+description.workspace = true
+repository.workspace = true
+license.workspace = true
+readme.workspace = true
+
+[features]
+default = ["tls"]
+
+tls = ["agentc-http/tls"]
+
+ag-ui = ["dep:agentc-protocol-ag-ui"]
+
+[dependencies]
+agentc-model = { path = "../agentc-model", version = "0.0.0" }
+agentc-agent = { path = "../agentc-agent", version = "0.0.0" }
+agentc-prompt = { path = "../agentc-prompt", version = "0.0.0" }
+agentc-database = { path = "../agentc-database", version = "0.0.0" }
+agentc-domain = { path = "../agentc-domain", version = "0.0.0" }
+agentc-domain-sql = { path = "../agentc-domain-sql", version = "0.0.0" }
+agentc-http = { path = "../agentc-http", version = "0.0.0" }
+agentc-telemetry = { path = "../agentc-telemetry", version = "0.0.0" }
+
+agentc-protocol-ag-ui = { path = "../agentc-protocol-ag-ui", version = "0.0.0", optional = true }
+
+futures = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+tokio-stream = { workspace = true }
+async-trait = { workspace = true }
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+validator = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+json-patch = { workspace = true }
+utoipa = { workspace = true }
+
+axum = { workspace = true }
+utoipa-axum = { workspace = true }
+utoipa-scalar = { workspace = true }
+
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+
+tracing = { workspace = true }
+
+sea-orm = { workspace = true }
+sea-orm-migration = { workspace = true }

@@ -1,0 +1,3 @@
+fn_call_width = 80
+struct_lit_width = 40
+chain_width = 40

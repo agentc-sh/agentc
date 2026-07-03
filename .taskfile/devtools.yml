@@ -1,0 +1,227 @@
+version: '3'
+
+tasks:
+  download-binary:
+    desc: Download a binary from GitHub releases
+    cmds:
+      - |
+        if [ -z "{{.REPO}}" ] || [ -z "{{.TAG}}" ] || [ -z "{{.BINARY}}" ]; then
+            echo "REPO TAG, and BINARY are required"
+            exit 1
+        fi
+
+        if [ -z "{{.DEBUG}}" ]; then
+            DEBUG="false"
+        else
+            DEBUG="{{.DEBUG}}"
+        fi
+
+        if [ -z "{{.EXTRACT_PATH}}" ]; then
+            EXTRACT_PATH="/usr/local/bin"
+        else
+            EXTRACT_PATH=$(echo "{{.EXTRACT_PATH}}" | sed 's:/*$::')
+        fi
+
+        if [ -z "{{.BINARY}}" ]; then
+            BASENAME=$(basename "{{.REPO}}")
+        else
+            BASENAME="{{.BINARY}}"
+        fi
+
+        if [ -z "{{.SKIP_CHECK}}" ]; then
+          if ! command -v $BASENAME > /dev/null; then
+            if [ "$DEBUG" != "false" ]; then
+              echo "No $BASENAME found, downloading"
+            fi
+          else
+              exit 0
+          fi
+        fi
+
+        OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+        ARCH=$(uname -m)
+        case $ARCH in
+          x86_64)
+            if [ "{{.PREFER_X86}}" = "true" ]; then
+              ARCH="x86_64"
+            else
+              ARCH="amd64"
+            fi
+            ;;
+          aarch64) ARCH="arm64" ;;
+          *) echo "Unsupported architecture: $ARCH"; exit 1 ;;
+        esac
+
+        DOWNLOAD_CMD=""
+        if command -v curl > /dev/null; then
+            DOWNLOAD_CMD="curl -s -L -o"
+        elif command -v wget > /dev/null; then
+            DOWNLOAD_CMD="wget -O"
+        else
+          if [ "$DEBUG" != "false" ]; then
+            echo "Neither curl nor wget is available, please install one and retry."
+          fi
+            exit 1
+        fi
+
+        if [ "{{.TAG}}" = "latest" ]; then
+            TAG=$(curl -s "https://api.github.com/repos/{{.REPO}}/releases/latest" | grep "tag_name" | cut -d '"' -f 4)
+        else
+            TAG="{{.TAG}}"
+        fi
+
+        RELEASE_INFO=$(curl -s "https://api.github.com/repos/{{.REPO}}/releases/tags/$TAG")
+        URL=$(echo $RELEASE_INFO | grep -o '"browser_download_url": *"[^"]*"' | grep -E "${OS}_${ARCH}\.(tar\.gz|gz|zip)" | cut -d '"' -f 4)
+
+        if [ -z "$URL" ]; then
+          URL=$(echo $RELEASE_INFO | grep -o '"browser_download_url": *"[^"]*"' | grep -E "${OS}_${ARCH}" | cut -d '"' -f 4)
+        fi
+
+        # Check if a URL was found
+        if [ -z "$URL" ]; then
+            echo "Failed to find a release for tag '$TAG' with filename '$FILENAME'."
+            exit 1
+        fi
+
+        if [[ "$URL" =~ \.tar.gz$ ]]; then
+          FILETYPE="tar.gz"
+        elif [[ "$URL" =~ \.zip$ ]]; then
+          FILETYPE="zip"
+        elif [[ "$URL" =~ \.gz$ ]]; then
+          FILETYPE="gz"
+        else
+          FILETYPE="binary"
+        fi
+
+        if [ "$FILETYPE" = "binary" ]; then
+          FILENAME="${BASENAME}_${TAG}_${OS}_${ARCH}"
+        else
+          FILENAME="${BASENAME}_${TAG}_${OS}_${ARCH}.${FILETYPE}"
+        fi
+
+        if [ "$DEBUG" != "false" ]; then
+          echo "Downloading $FILENAME from $URL"
+        fi
+        $DOWNLOAD_CMD $FILENAME $URL
+
+        if [ "$DEBUG" != "false" ]; then
+          echo "Extracting $BASENAME to $EXTRACT_PATH"
+        fi
+
+        if [ "$FILETYPE" = "tar.gz" ]; then
+          tar -xzf $FILENAME -C . $BASENAME
+        elif [ "$FILETYPE" = "zip" ]; then
+          unzip -o $FILENAME -d . $BASENAME
+        elif [ "$FILETYPE" = "gz" ]; then
+          gunzip -c $FILENAME > $BASENAME
+        elif [ "$FILETYPE" = "binary" ]; then
+          mv $FILENAME $BASENAME
+        else
+          echo "Unsupported filetype: $FILETYPE"
+          exit 1
+        fi
+
+        chmod +x $BASENAME
+
+        if [ -w "$EXTRACT_PATH" ]; then
+          mv "$BASENAME" "$EXTRACT_PATH/$BASENAME"
+        elif command -v sudo > /dev/null; then
+          sudo mv "$BASENAME" "$EXTRACT_PATH/$BASENAME"
+        else
+          mv "$BASENAME" "$EXTRACT_PATH/$BASENAME"
+        fi
+
+        if [ -f $FILENAME ]; then
+          rm $FILENAME
+        fi
+
+  download-git-cliff:
+    desc: Download git-cliff binary
+    cmds:
+      - |
+        if [ -z "{{.TAG}}" ]; then TAG="latest"; else TAG="{{.TAG}}"; fi
+        if [ -z "{{.EXTRACT_PATH}}" ]; then EXTRACT_PATH="/usr/local/bin"; else EXTRACT_PATH=$(echo "{{.EXTRACT_PATH}}" | sed 's:/*$::'); fi
+        if [ -z "{{.LIBC}}" ]; then LIBC="glibc"; else LIBC="{{.LIBC}}"; fi
+        if [ -z "{{.BINARY}}" ]; then BINARY="git-cliff"; else BINARY="{{.BINARY}}"; fi
+
+        if command -v $BINARY > /dev/null; then
+          exit 0
+        fi
+
+        OS=$(uname | tr '[:upper:]' '[:lower:]')
+        ARCH=$(uname -m)
+        case "$ARCH" in
+            x86_64) ARCH="x86_64" ;;
+            aarch64) ARCH="aarch64" ;;
+            *) echo "Unsupported architecture: $ARCH"; exit 1 ;;
+        esac
+
+        if [[ "$TAG" == "latest" ]]; then
+            TAG=$(curl -s https://api.github.com/repos/orhun/git-cliff/releases/latest \
+                | grep '"tag_name":' \
+                | sed -E 's/.*"([^"]+)".*/\1/')
+        fi
+
+        VERSION="${TAG#v}"
+
+        if [[ "$LIBC" == "musl" ]]; then
+            LIBC_SUFFIX="unknown-linux-musl"
+        else
+            LIBC_SUFFIX="unknown-linux-gnu"
+        fi
+
+        FILENAME="git-cliff-${VERSION}-${ARCH}-${LIBC_SUFFIX}.tar.gz"
+        DOWNLOAD_URL="https://github.com/orhun/git-cliff/releases/download/${TAG}/${FILENAME}"
+
+        if command -v curl > /dev/null; then
+            curl -sL -o "$FILENAME" "$DOWNLOAD_URL"
+        elif command -v wget > /dev/null; then
+            wget -q -O "$FILENAME" "$DOWNLOAD_URL"
+        else
+            echo "Error: curl or wget required to download files"; exit 1
+        fi
+
+        if ! file "$FILENAME" | grep -q 'gzip compressed data'; then
+            echo "Downloaded file is not a tar.gz! Check URL: $DOWNLOAD_URL"
+            exit 1
+        fi
+
+        tar -xzf "$FILENAME"
+
+        DIRNAME=$(tar -tzf "$FILENAME" | head -1 | cut -d/ -f1)
+        BINARY_PATH="$DIRNAME/git-cliff"
+        if [ ! -f "$BINARY_PATH" ]; then
+            echo "Error: git-cliff binary not found after extraction"; exit 1
+        fi
+
+        chmod +x "$BINARY_PATH"
+
+        TARGET_PATH="$EXTRACT_PATH/$BINARY"
+        if [ -w "$EXTRACT_PATH" ]; then
+            mv "$BINARY_PATH" "$TARGET_PATH"
+        elif command -v sudo > /dev/null; then
+            sudo mv "$BINARY_PATH" "$TARGET_PATH"
+        else
+            echo "Error: Cannot write to $EXTRACT_PATH and sudo is not available"; exit 1
+        fi
+
+        if [ -f "$FILENAME" ]; then
+          rm "$FILENAME"
+        fi
+        if [ -d "$DIRNAME" ]; then
+          rm -rf "$DIRNAME"
+        fi
+
+  install:
+    desc: Install development tools
+    cmds:
+      - task: download-git-cliff
+        vars:
+          TAG: v2.12.0
+          BINARY: git-cliff
+          LIBC: glibc
+      - task: download-binary
+        vars:
+          REPO: caarlos0/svu
+          TAG: v3.3.0
+          BINARY: svu

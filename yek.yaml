@@ -1,0 +1,9 @@
+max_size: "128K"
+json: false
+debug: false
+line_numbers: false
+tree_header: false
+
+output_dir: "."
+output_name: yek.output.txt
+output_template: ">>> FILE_PATH\n\n---\n\nFILE_CONTENT\n\n---\n\n<<< FILE_PATH\n\n"

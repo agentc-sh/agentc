@@ -1,0 +1,66 @@
+name: Task
+description: Track a specific piece of work
+title: "[Task]: "
+labels: ["task"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Clearly describe what needs to be done. Be specific about the work involved.
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Explain why this task is necessary. What prompted it? Is it part of a larger initiative or milestone?
+
+  - type: textarea
+    id: in-scope
+    attributes:
+      label: In Scope
+      description: What is explicitly included in this task?
+      placeholder: |
+        - Task item A
+        - Task item B
+
+  - type: textarea
+    id: out-scope
+    attributes:
+      label: Out of Scope
+      description: What is explicitly excluded from this task?
+      placeholder: |
+        - Item X
+        - Item Y
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: List any issues, tasks, or external factors that must be completed or available before this task can begin.
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Complete
+      description: Break down the task into concrete steps.
+      placeholder: |
+        - [ ] Step 1
+        - [ ] Step 2
+
+  - type: textarea
+    id: definition-of-done
+    attributes:
+      label: Definition of Done
+      description: What conditions must be met to consider this task complete?
+      placeholder: |
+        - [ ] Condition 1
+        - [ ] Condition 2
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Any additional information, constraints, or considerations.

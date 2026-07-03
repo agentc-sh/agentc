@@ -1,0 +1,19 @@
+{
+    "name": "agentc",
+    "build": {
+        "dockerfile": "devcontainer.Dockerfile",
+        "context": "..",
+		"args": {
+			"VARIANT": "1.95-bookworm"
+		}
+    },
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"rust-lang.rust-analyzer"
+			]
+		}
+	},
+	"postCreateCommand": "prek install --install-hooks",
+	"remoteUser": "dev"
+}
