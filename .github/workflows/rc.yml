@@ -88,18 +88,18 @@ jobs:
             target: aarch64-unknown-linux-gnu
             platform_name: linux-aarch64
             artifact_suffix: linux-aarch64
-          - os: macos-latest
-            target: x86_64-apple-darwin
-            platform_name: darwin-x86_64
-            artifact_suffix: darwin-x86_64
-          - os: macos-latest
-            target: aarch64-apple-darwin
-            platform_name: darwin-aarch64
-            artifact_suffix: darwin-aarch64
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            platform_name: windows-x86_64
-            artifact_suffix: windows-x86_64
+          # - os: macos-latest
+          #   target: x86_64-apple-darwin
+          #   platform_name: darwin-x86_64
+          #   artifact_suffix: darwin-x86_64
+          # - os: macos-latest
+          #   target: aarch64-apple-darwin
+          #   platform_name: darwin-aarch64
+          #   artifact_suffix: darwin-aarch64
+          # - os: windows-latest
+          #   target: x86_64-pc-windows-msvc
+          #   platform_name: windows-x86_64
+          #   artifact_suffix: windows-x86_64
     permissions:
       attestations: write
       contents: read
@@ -293,9 +293,9 @@ jobs:
       fail-fast: false
       matrix:
         image_variant:
-          - name: slim
-            task: docker:build:slim
-            tag_suffix: slim
+          # - name: slim
+          #   task: docker:build:slim
+          #   tag_suffix: slim
           - name: toolchain
             task: docker:build:toolchain
             tag_suffix: toolchain
