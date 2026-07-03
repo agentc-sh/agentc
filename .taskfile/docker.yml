@@ -4,7 +4,8 @@ tasks:
   build:
     desc: Build the application in a Docker container
     vars:
-      IMAGE_NAME: '{{ .IMAGE_NAME | default "docker-daemon:ghcr.io/agentc-sh/agentc" }}'
+      BUILD_ENGINE: '{{ .BUILD_ENGINE | default "docker" }}'
+      IMAGE_NAME: '{{ .IMAGE_NAME | default "ghcr.io/agentc-sh/agentc" }}'
       IMAGE_TAG: '{{ .IMAGE_TAG | default "local" }}'
       BUILD_ID: '{{ .BUILD_ID | default "" }}'
       BUILD_ARGS: '{{ .BUILD_ARGS | default "" }}'
@@ -54,30 +55,54 @@ tasks:
           BUILD_DATE="{{.BUILD_DATE}}"
         fi
 
-        buildah build \
-          --format docker \
-          --build-arg BUILD_ID=${BUILD_ID} \
-          --build-arg VERSION=${VERSION} \
-          --build-arg REVISION=${REVISION} \
-          --build-arg RELEASE_CHANNEL=${RELEASE_CHANNEL} \
-          --build-arg EDITION=${EDITION} \
-          --build-arg BUILD_DATE=${BUILD_DATE} \
-          --file {{.DOCKERFILE}} \
-          --tag {{.IMAGE_NAME}}:{{.IMAGE_TAG}} \
-          {{.BUILD_ARGS}} \
-          .
+        IMAGE_NAME="{{.IMAGE_NAME}}"
+        BUILD_ENGINE="{{.BUILD_ENGINE}}"
+
+        case "$BUILD_ENGINE" in
+          docker)
+            DOCKER_BUILDKIT=1 docker build \
+              --build-arg BUILD_ID=${BUILD_ID} \
+              --build-arg VERSION=${VERSION} \
+              --build-arg REVISION=${REVISION} \
+              --build-arg RELEASE_CHANNEL=${RELEASE_CHANNEL} \
+              --build-arg EDITION=${EDITION} \
+              --build-arg BUILD_DATE=${BUILD_DATE} \
+              --file {{.DOCKERFILE}} \
+              --tag ${IMAGE_NAME}:{{.IMAGE_TAG}} \
+              {{.BUILD_ARGS}} \
+              .
+            ;;
+          buildah)
+            buildah build \
+              --format docker \
+              --build-arg BUILD_ID=${BUILD_ID} \
+              --build-arg VERSION=${VERSION} \
+              --build-arg REVISION=${REVISION} \
+              --build-arg RELEASE_CHANNEL=${RELEASE_CHANNEL} \
+              --build-arg EDITION=${EDITION} \
+              --build-arg BUILD_DATE=${BUILD_DATE} \
+              --file {{.DOCKERFILE}} \
+              --tag docker-daemon:${IMAGE_NAME}:{{.IMAGE_TAG}} \
+              {{.BUILD_ARGS}} \
+              .
+            ;;
+          *)
+            echo "Unsupported BUILD_ENGINE: $BUILD_ENGINE"
+            exit 1
+            ;;
+        esac
 
   build:slim:
     cmds:
       - task: build
         vars:
-          IMAGE_NAME: '{{ .IMAGE_NAME | default "docker-daemon:ghcr.io/agentc-sh/agentc" }}'
+          IMAGE_NAME: '{{ .IMAGE_NAME | default "ghcr.io/agentc-sh/agentc" }}'
           IMAGE_TAG: '{{ .IMAGE_TAG | default "local-slim" }}'
           DOCKERFILE: '{{ .DOCKERFILE | default "build/docker/slim.Dockerfile" }}'
 
   build:toolchain:
     vars:
-      IMAGE_NAME: '{{ .IMAGE_NAME | default "docker-daemon:ghcr.io/agentc-sh/agentc" }}'
+      IMAGE_NAME: '{{ .IMAGE_NAME | default "ghcr.io/agentc-sh/agentc" }}'
       IMAGE_TAG: '{{ .IMAGE_TAG | default "local-toolchain" }}'
       DOCKERFILE: '{{ .DOCKERFILE | default "build/docker/toolchain.Dockerfile" }}'
       PYTHON_VERSION: '{{ .PYTHON_VERSION | default "3.14.0" }}'
