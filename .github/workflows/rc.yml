@@ -389,7 +389,7 @@ jobs:
       !contains(github.event.head_commit.message, '[skip-ci]') &&
       github.repository == 'agentc-sh/agentc'
     name: Create GitHub prerelease
-    needs: [prepare, build-binaries]
+    needs: [prepare, build-binaries, build-docker]
     runs-on: ubuntu-latest
     permissions:
       contents: write
