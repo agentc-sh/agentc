@@ -1,0 +1,290 @@
+name: oci
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Git ref to check out before building images
+        required: true
+        type: string
+      image_uri:
+        description: Full OCI image URI, for example ghcr.io/agentc-sh/agentc
+        required: true
+        type: string
+      version_tag:
+        description: Base version tag used before flavor and arch suffixes
+        required: true
+        type: string
+      publish:
+        description: Push arch tags and publish manifest tags after scans pass
+        required: true
+        type: boolean
+      release_channel:
+        description: Release channel embedded into image metadata
+        required: true
+        type: string
+      edition:
+        description: Edition embedded into image metadata
+        required: false
+        default: community
+        type: string
+      build_slim:
+        description: Build the slim image flavor
+        required: false
+        default: true
+        type: boolean
+      build_toolchain:
+        description: Build the toolchain image flavor
+        required: false
+        default: true
+        type: boolean
+      sbom_artifact_name:
+        description: Optional previously-uploaded sbom artifact name to restore into sbom/
+        required: false
+        default: ""
+        type: string
+      channel_alias:
+        description: Optional channel alias. Use flavor to publish plain slim/toolchain aliases.
+        required: false
+        default: ""
+        type: string
+
+jobs:
+  build-images:
+    name: Build OCI image (${{ matrix.image_variant.name }} / ${{ matrix.arch.name }})
+    if: |
+      (matrix.image_variant.name == 'slim' && inputs.build_slim) ||
+      (matrix.image_variant.name == 'toolchain' && inputs.build_toolchain)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image_variant:
+          - name: slim
+            task: docker:build:slim
+            tag_suffix: slim
+          - name: toolchain
+            task: docker:build:toolchain
+            tag_suffix: toolchain
+        arch:
+          - name: amd64
+            platform: linux/amd64
+            tag_suffix: amd64
+          - name: arm64
+            platform: linux/arm64
+            tag_suffix: arm64
+    permissions:
+      actions: read
+      contents: write
+      packages: write
+      id-token: write
+      security-events: write
+    steps:
+      - name: Free disk space
+        uses: endersonmenezes/free-disk-space@v3
+        with:
+          remove_android: true
+          remove_dotnet: true
+          remove_haskell: true
+          rm_cmd: "rmz"
+
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+
+      - name: Install Task
+        uses: arduino/setup-task@v3
+        with:
+          version: 3.43.3
+
+      - name: Download SBOM artifacts
+        if: inputs.sbom_artifact_name != ''
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.sbom_artifact_name }}
+          path: sbom/
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute image tags
+        id: image
+        run: |
+          echo "arch_tag=${{ inputs.version_tag }}-${{ matrix.image_variant.tag_suffix }}-${{ matrix.arch.tag_suffix }}" >> "$GITHUB_OUTPUT"
+          echo "image_ref=${{ inputs.image_uri }}:${{ inputs.version_tag }}-${{ matrix.image_variant.tag_suffix }}-${{ matrix.arch.tag_suffix }}" >> "$GITHUB_OUTPUT"
+
+      - name: Build OCI image
+        run: |
+          task ${{ matrix.image_variant.task }} \
+            IMAGE_NAME=${{ inputs.image_uri }} \
+            IMAGE_TAG=${{ steps.image.outputs.arch_tag }} \
+            TARGET_PLATFORM=${{ matrix.arch.platform }} \
+            RELEASE_CHANNEL=${{ inputs.release_channel }} \
+            EDITION=${{ inputs.edition }}
+
+      - name: Generate OCI Image SBOM SPDX
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ steps.image.outputs.image_ref }}
+          format: spdx-json
+          output-file: sbom/sbom.oci.${{ matrix.image_variant.tag_suffix }}.${{ matrix.arch.tag_suffix }}.spdx.json
+          artifact-name: sbom.oci.${{ matrix.image_variant.tag_suffix }}.${{ matrix.arch.tag_suffix }}.spdx.json
+
+      - name: Generate OCI Image SBOM CycloneDX
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ steps.image.outputs.image_ref }}
+          format: cyclonedx-json
+          output-file: sbom/sbom.oci.${{ matrix.image_variant.tag_suffix }}.${{ matrix.arch.tag_suffix }}.cyclonedx.json
+          artifact-name: sbom.oci.${{ matrix.image_variant.tag_suffix }}.${{ matrix.arch.tag_suffix }}.cyclonedx.json
+
+      - name: Scan OCI image
+        uses: anchore/scan-action@v7
+        id: scan
+        with:
+          image: ${{ steps.image.outputs.image_ref }}
+          fail-build: true
+          severity-cutoff: critical
+
+      - name: Upload OCI SBOM artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: sbom-oci-${{ matrix.image_variant.tag_suffix }}-${{ matrix.arch.tag_suffix }}
+          path: sbom/sbom.oci.${{ matrix.image_variant.tag_suffix }}.${{ matrix.arch.tag_suffix }}.*.json
+
+      - name: Inspect SARIF report
+        if: always()
+        run: |
+          jq -r '
+            def sev($rule):
+              (
+                $rule.help.text
+                | capture("Severity: (?<sev>[^\\n]+)").sev
+                | ascii_downcase
+              );
+
+            def fix($rule):
+              (
+                $rule.help.text
+                | capture("Fix Version: (?<fix>[^\\n]+)").fix
+              ) // "none";
+
+            [
+              .runs[] as $run
+              | ($run.tool.driver.rules // []) as $rules
+              | $run.results[]
+              | . as $result
+              | ($rules[] | select(.id == $result.ruleId)) as $rule
+              | {
+                  severity: sev($rule),
+                  rank: (
+                    if sev($rule) == "critical" then 0
+                    elif sev($rule) == "high" then 1
+                    else 9
+                    end
+                  ),
+                  vuln: ($result.ruleId | sub("-[^-]+$"; "")),
+                  package: (
+                    $rule.help.text
+                    | capture("Package: (?<pkg>[^\\n]+)").pkg
+                  ),
+                  version: (
+                    $rule.help.text
+                    | capture("Version: (?<ver>[^\\n]+)").ver
+                  ),
+                  fix: fix($rule),
+                  location: (
+                    $result.locations[0].logicalLocations[0].name
+                    // $result.locations[0].physicalLocation.artifactLocation.uri
+                    // "unknown"
+                  ),
+                  url: ($rule.helpUri // "")
+                }
+              | select(.severity == "critical")
+            ]
+            | sort_by(.rank, .package, .vuln)
+            | group_by(.severity)
+            | .[]
+            | (.[0].severity | ascii_upcase),
+              ("=" * 80),
+              (
+                .[]
+                | "\(.vuln)\n  package:  \(.package)@\(.version)\n  fix:      \(.fix)\n  location: \(.location)\n  url:      \(.url)\n"
+              )
+          ' "${{ steps.scan.outputs.sarif }}"
+
+      - name: Upload SARIF report
+        if: ${{ !github.event.repository.private }}
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: ${{ steps.scan.outputs.sarif }}
+
+      - name: Push OCI image
+        if: inputs.publish
+        run: |
+          docker push "${{ steps.image.outputs.image_ref }}"
+
+  publish-manifests:
+    name: Publish OCI manifests (${{ matrix.image_variant.name }})
+    if: |
+      inputs.publish &&
+      (
+        (matrix.image_variant.name == 'slim' && inputs.build_slim) ||
+        (matrix.image_variant.name == 'toolchain' && inputs.build_toolchain)
+      )
+    needs: [build-images]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image_variant:
+          - name: slim
+            tag_suffix: slim
+          - name: toolchain
+            tag_suffix: toolchain
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish version manifest
+        run: |
+          docker buildx imagetools create \
+            --tag "${{ inputs.image_uri }}:${{ inputs.version_tag }}-${{ matrix.image_variant.tag_suffix }}" \
+            "${{ inputs.image_uri }}:${{ inputs.version_tag }}-${{ matrix.image_variant.tag_suffix }}-amd64" \
+            "${{ inputs.image_uri }}:${{ inputs.version_tag }}-${{ matrix.image_variant.tag_suffix }}-arm64"
+
+      - name: Publish channel alias manifest
+        if: inputs.channel_alias != ''
+        run: |
+          if [[ "${{ inputs.channel_alias }}" == "flavor" ]]; then
+            ALIAS_TAG="${{ matrix.image_variant.tag_suffix }}"
+          else
+            ALIAS_TAG="${{ inputs.channel_alias }}-${{ matrix.image_variant.tag_suffix }}"
+          fi
+
+          docker buildx imagetools create \
+            --tag "${{ inputs.image_uri }}:${ALIAS_TAG}" \
+            "${{ inputs.image_uri }}:${{ inputs.version_tag }}-${{ matrix.image_variant.tag_suffix }}-amd64" \
+            "${{ inputs.image_uri }}:${{ inputs.version_tag }}-${{ matrix.image_variant.tag_suffix }}-arm64"

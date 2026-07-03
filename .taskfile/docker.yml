@@ -7,6 +7,7 @@ tasks:
       BUILD_ENGINE: '{{ .BUILD_ENGINE | default "docker" }}'
       IMAGE_NAME: '{{ .IMAGE_NAME | default "ghcr.io/agentc-sh/agentc" }}'
       IMAGE_TAG: '{{ .IMAGE_TAG | default "local" }}'
+      TARGET_PLATFORM: '{{ .TARGET_PLATFORM | default "" }}'
       BUILD_ID: '{{ .BUILD_ID | default "" }}'
       BUILD_ARGS: '{{ .BUILD_ARGS | default "" }}'
       VERSION: '{{ .VERSION | default "" }}'
@@ -57,20 +58,37 @@ tasks:
 
         IMAGE_NAME="{{.IMAGE_NAME}}"
         BUILD_ENGINE="{{.BUILD_ENGINE}}"
+        TARGET_PLATFORM="{{.TARGET_PLATFORM}}"
 
         case "$BUILD_ENGINE" in
           docker)
-            DOCKER_BUILDKIT=1 docker build \
-              --build-arg BUILD_ID=${BUILD_ID} \
-              --build-arg VERSION=${VERSION} \
-              --build-arg REVISION=${REVISION} \
-              --build-arg RELEASE_CHANNEL=${RELEASE_CHANNEL} \
-              --build-arg EDITION=${EDITION} \
-              --build-arg BUILD_DATE=${BUILD_DATE} \
-              --file {{.DOCKERFILE}} \
-              --tag ${IMAGE_NAME}:{{.IMAGE_TAG}} \
-              {{.BUILD_ARGS}} \
-              .
+            if [ -n "$TARGET_PLATFORM" ]; then
+              DOCKER_BUILDKIT=1 docker buildx build \
+                --load \
+                --platform ${TARGET_PLATFORM} \
+                --build-arg BUILD_ID=${BUILD_ID} \
+                --build-arg VERSION=${VERSION} \
+                --build-arg REVISION=${REVISION} \
+                --build-arg RELEASE_CHANNEL=${RELEASE_CHANNEL} \
+                --build-arg EDITION=${EDITION} \
+                --build-arg BUILD_DATE=${BUILD_DATE} \
+                --file {{.DOCKERFILE}} \
+                --tag ${IMAGE_NAME}:{{.IMAGE_TAG}} \
+                {{.BUILD_ARGS}} \
+                .
+            else
+              DOCKER_BUILDKIT=1 docker build \
+                --build-arg BUILD_ID=${BUILD_ID} \
+                --build-arg VERSION=${VERSION} \
+                --build-arg REVISION=${REVISION} \
+                --build-arg RELEASE_CHANNEL=${RELEASE_CHANNEL} \
+                --build-arg EDITION=${EDITION} \
+                --build-arg BUILD_DATE=${BUILD_DATE} \
+                --file {{.DOCKERFILE}} \
+                --tag ${IMAGE_NAME}:{{.IMAGE_TAG}} \
+                {{.BUILD_ARGS}} \
+                .
+            fi
             ;;
           buildah)
             buildah build \
