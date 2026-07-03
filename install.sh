@@ -586,9 +586,14 @@ main() {
     warn "Signature and provenance verification skipped (--no-verify)."
   else
     download_attestation "$BINARY_FILENAME" "$tmp_attestation"
-    download_file "$SIG_BUNDLE_FILENAME" "$tmp_bundle" "$SIG_BUNDLE_FILENAME"
-    verify_signature "$tmp_binary" "$tmp_bundle" "$tmp_attestation"
-    verify_provenance "$tmp_binary" "$tmp_attestation"
+
+    if json_has_available_true "$tmp_attestation"; then
+      download_file "$SIG_BUNDLE_FILENAME" "$tmp_bundle" "$SIG_BUNDLE_FILENAME"
+      verify_signature "$tmp_binary" "$tmp_bundle" "$tmp_attestation"
+      verify_provenance "$tmp_binary" "$tmp_attestation"
+    else
+      warn "No valid build attestation is available for this artifact. Skipping signature and provenance verification."
+    fi
   fi
 
   install_binary "$tmp_binary" "$ARG_INSTALL_DIR" "$INSTALL_BINARY"
