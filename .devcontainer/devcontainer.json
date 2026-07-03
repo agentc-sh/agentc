@@ -14,6 +14,6 @@
 			]
 		}
 	},
-	"postCreateCommand": "prek install --install-hooks",
+	"postCreateCommand": "prek install --install-hooks && prek install --install-hooks --hook-type commit-msg",
 	"remoteUser": "dev"
 }
