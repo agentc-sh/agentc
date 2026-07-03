@@ -306,6 +306,14 @@ jobs:
       id-token: write
       security-events: write
     steps:
+      - name: Free disk space
+        uses: endersonmenezes/free-disk-space@v3
+        with:
+          remove_android: true
+          remove_dotnet: true
+          remove_haskell: true
+          rm_cmd: "rmz"
+
       - name: Checkout
         uses: actions/checkout@v7
         with:

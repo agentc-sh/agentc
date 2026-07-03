@@ -35,7 +35,7 @@ ARG PNPM_VERSION
 ARG ESBUILD_VERSION
 ARG TARGETARCH
 
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install --no-install-recommends -y \
     ca-certificates \
     build-essential \
     pkg-config \
@@ -45,8 +45,6 @@ RUN apt-get update && apt-get install -y \
     libffi-dev \
     git \
     python3-dev \
-    python3-venv \
-    python3-pip \
     curl \
     # libatomic1 is required for nodejs
     libatomic1 \
@@ -71,7 +69,8 @@ RUN case "${TARGETARCH}" in \
 
 RUN npm install --global \
     pnpm@${PNPM_VERSION} \
-    esbuild@${ESBUILD_VERSION}
+    esbuild@${ESBUILD_VERSION} \
+    && npm cache clean --force
 
 RUN useradd -u 1000 -G sudo -U -m -s /bin/bash agentc \
     && echo "agentc ALL=(ALL) NOPASSWD: /bin/chown" >> /etc/sudoers \
