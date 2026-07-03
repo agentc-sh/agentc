@@ -28,44 +28,36 @@ on:
         required: false
         default: community
         type: string
-      build_slim:
-        description: Build the slim image flavor
-        required: false
-        default: true
-        type: boolean
-      build_toolchain:
-        description: Build the toolchain image flavor
-        required: false
-        default: true
-        type: boolean
+      variant:
+        description: OCI image flavor to build, for example slim or toolchain
+        required: true
+        type: string
+      task:
+        description: Taskfile task used to build the requested image flavor
+        required: true
+        type: string
+      tag_suffix:
+        description: Tag suffix used for the requested image flavor
+        required: true
+        type: string
       sbom_artifact_name:
         description: Optional previously-uploaded sbom artifact name to restore into sbom/
         required: false
         default: ""
         type: string
       channel_alias:
-        description: Optional channel alias. Use flavor to publish plain slim/toolchain aliases.
+        description: Optional literal channel alias to publish for this image flavor.
         required: false
         default: ""
         type: string
 
 jobs:
   build-images:
-    name: Build OCI image (${{ matrix.image_variant.name }} / ${{ matrix.arch.name }})
-    if: |
-      (matrix.image_variant.name == 'slim' && inputs.build_slim) ||
-      (matrix.image_variant.name == 'toolchain' && inputs.build_toolchain)
+    name: Build OCI image (${{ inputs.variant }} / ${{ matrix.arch.name }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        image_variant:
-          - name: slim
-            task: docker:build:slim
-            tag_suffix: slim
-          - name: toolchain
-            task: docker:build:toolchain
-            tag_suffix: toolchain
         arch:
           - name: amd64
             platform: linux/amd64
@@ -122,12 +114,12 @@ jobs:
       - name: Compute image tags
         id: image
         run: |
-          echo "arch_tag=${{ inputs.version_tag }}-${{ matrix.image_variant.tag_suffix }}-${{ matrix.arch.tag_suffix }}" >> "$GITHUB_OUTPUT"
-          echo "image_ref=${{ inputs.image_uri }}:${{ inputs.version_tag }}-${{ matrix.image_variant.tag_suffix }}-${{ matrix.arch.tag_suffix }}" >> "$GITHUB_OUTPUT"
+          echo "arch_tag=${{ inputs.version_tag }}-${{ inputs.tag_suffix }}-${{ matrix.arch.tag_suffix }}" >> "$GITHUB_OUTPUT"
+          echo "image_ref=${{ inputs.image_uri }}:${{ inputs.version_tag }}-${{ inputs.tag_suffix }}-${{ matrix.arch.tag_suffix }}" >> "$GITHUB_OUTPUT"
 
       - name: Build OCI image
         run: |
-          task ${{ matrix.image_variant.task }} \
+          task ${{ inputs.task }} \
             IMAGE_NAME=${{ inputs.image_uri }} \
             IMAGE_TAG=${{ steps.image.outputs.arch_tag }} \
             TARGET_PLATFORM=${{ matrix.arch.platform }} \
@@ -139,16 +131,16 @@ jobs:
         with:
           image: ${{ steps.image.outputs.image_ref }}
           format: spdx-json
-          output-file: sbom/sbom.oci.${{ matrix.image_variant.tag_suffix }}.${{ matrix.arch.tag_suffix }}.spdx.json
-          artifact-name: sbom.oci.${{ matrix.image_variant.tag_suffix }}.${{ matrix.arch.tag_suffix }}.spdx.json
+          output-file: sbom/sbom.oci.${{ inputs.tag_suffix }}.${{ matrix.arch.tag_suffix }}.spdx.json
+          artifact-name: sbom.oci.${{ inputs.tag_suffix }}.${{ matrix.arch.tag_suffix }}.spdx.json
 
       - name: Generate OCI Image SBOM CycloneDX
         uses: anchore/sbom-action@v0
         with:
           image: ${{ steps.image.outputs.image_ref }}
           format: cyclonedx-json
-          output-file: sbom/sbom.oci.${{ matrix.image_variant.tag_suffix }}.${{ matrix.arch.tag_suffix }}.cyclonedx.json
-          artifact-name: sbom.oci.${{ matrix.image_variant.tag_suffix }}.${{ matrix.arch.tag_suffix }}.cyclonedx.json
+          output-file: sbom/sbom.oci.${{ inputs.tag_suffix }}.${{ matrix.arch.tag_suffix }}.cyclonedx.json
+          artifact-name: sbom.oci.${{ inputs.tag_suffix }}.${{ matrix.arch.tag_suffix }}.cyclonedx.json
 
       - name: Scan OCI image
         uses: anchore/scan-action@v7
@@ -161,8 +153,8 @@ jobs:
       - name: Upload OCI SBOM artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: sbom-oci-${{ matrix.image_variant.tag_suffix }}-${{ matrix.arch.tag_suffix }}
-          path: sbom/sbom.oci.${{ matrix.image_variant.tag_suffix }}.${{ matrix.arch.tag_suffix }}.*.json
+          name: sbom-oci-${{ inputs.tag_suffix }}-${{ matrix.arch.tag_suffix }}
+          path: sbom/sbom.oci.${{ inputs.tag_suffix }}.${{ matrix.arch.tag_suffix }}.*.json
 
       - name: Inspect SARIF report
         if: always()
@@ -237,23 +229,10 @@ jobs:
           docker push "${{ steps.image.outputs.image_ref }}"
 
   publish-manifests:
-    name: Publish OCI manifests (${{ matrix.image_variant.name }})
-    if: |
-      inputs.publish &&
-      (
-        (matrix.image_variant.name == 'slim' && inputs.build_slim) ||
-        (matrix.image_variant.name == 'toolchain' && inputs.build_toolchain)
-      )
+    name: Publish OCI manifests (${{ inputs.variant }})
+    if: inputs.publish
     needs: [build-images]
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        image_variant:
-          - name: slim
-            tag_suffix: slim
-          - name: toolchain
-            tag_suffix: toolchain
     permissions:
       contents: read
       packages: write
@@ -271,20 +250,14 @@ jobs:
       - name: Publish version manifest
         run: |
           docker buildx imagetools create \
-            --tag "${{ inputs.image_uri }}:${{ inputs.version_tag }}-${{ matrix.image_variant.tag_suffix }}" \
-            "${{ inputs.image_uri }}:${{ inputs.version_tag }}-${{ matrix.image_variant.tag_suffix }}-amd64" \
-            "${{ inputs.image_uri }}:${{ inputs.version_tag }}-${{ matrix.image_variant.tag_suffix }}-arm64"
+            --tag "${{ inputs.image_uri }}:${{ inputs.version_tag }}-${{ inputs.tag_suffix }}" \
+            "${{ inputs.image_uri }}:${{ inputs.version_tag }}-${{ inputs.tag_suffix }}-amd64" \
+            "${{ inputs.image_uri }}:${{ inputs.version_tag }}-${{ inputs.tag_suffix }}-arm64"
 
       - name: Publish channel alias manifest
         if: inputs.channel_alias != ''
         run: |
-          if [[ "${{ inputs.channel_alias }}" == "flavor" ]]; then
-            ALIAS_TAG="${{ matrix.image_variant.tag_suffix }}"
-          else
-            ALIAS_TAG="${{ inputs.channel_alias }}-${{ matrix.image_variant.tag_suffix }}"
-          fi
-
           docker buildx imagetools create \
-            --tag "${{ inputs.image_uri }}:${ALIAS_TAG}" \
-            "${{ inputs.image_uri }}:${{ inputs.version_tag }}-${{ matrix.image_variant.tag_suffix }}-amd64" \
-            "${{ inputs.image_uri }}:${{ inputs.version_tag }}-${{ matrix.image_variant.tag_suffix }}-arm64"
+            --tag "${{ inputs.image_uri }}:${{ inputs.channel_alias }}" \
+            "${{ inputs.image_uri }}:${{ inputs.version_tag }}-${{ inputs.tag_suffix }}-amd64" \
+            "${{ inputs.image_uri }}:${{ inputs.version_tag }}-${{ inputs.tag_suffix }}-arm64"

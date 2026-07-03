@@ -282,7 +282,7 @@ jobs:
             dist/${{ env.BIN_NAME }}-${{ matrix.artifact_suffix }}.exe.scan.json
             dist/${{ env.BIN_NAME }}-${{ matrix.artifact_suffix }}.exe.sigstore.json
 
-  build-docker:
+  build-docker-toolchain:
     if: |
       !contains(github.event.head_commit.message, '[skip-ci]') &&
       github.repository == 'agentc-sh/agentc'
@@ -290,14 +290,14 @@ jobs:
     uses: ./.github/workflows/oci.yml
     with:
       ref: ${{ needs.prepare.outputs.ref_name }}
-      image_uri: ${{ env.IMAGE_URI }}
+      image_uri: ghcr.io/agentc-sh/agentc
       version_tag: ${{ needs.prepare.outputs.asset_tag }}
       publish: ${{ inputs.publish_prerelease }}
-      release_channel: ${{ env.RELEASE_CHANNEL }}
-      edition: ${{ env.EDITION }}
-      build_slim: false
-      build_toolchain: true
-      channel_alias: ""
+      release_channel: rc
+      edition: community
+      variant: toolchain
+      task: docker:build:toolchain
+      tag_suffix: toolchain
     secrets: inherit
 
   make-prerelease:
@@ -306,7 +306,7 @@ jobs:
       !contains(github.event.head_commit.message, '[skip-ci]') &&
       github.repository == 'agentc-sh/agentc'
     name: Create GitHub prerelease
-    needs: [prepare, build-binaries, build-docker]
+    needs: [prepare, build-binaries, build-docker-toolchain]
     runs-on: ubuntu-latest
     permissions:
       contents: write

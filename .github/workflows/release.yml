@@ -266,7 +266,7 @@ jobs:
             dist/${{ env.BIN_NAME }}-${{ matrix.artifact_suffix }}.exe.scan.json
             dist/${{ env.BIN_NAME }}-${{ matrix.artifact_suffix }}.exe.sigstore.json
 
-  build-docker:
+  build-docker-slim:
     if: |
       !contains(github.event.head_commit.message, '[skip-ci]') &&
       github.repository == 'agentc-sh/agentc'
@@ -274,15 +274,36 @@ jobs:
     uses: ./.github/workflows/oci.yml
     with:
       ref: ${{ github.ref_name }}
-      image_uri: ${{ env.IMAGE_URI }}
+      image_uri: ghcr.io/agentc-sh/agentc
       version_tag: ${{ github.ref_name }}
       publish: true
-      release_channel: ${{ env.RELEASE_CHANNEL }}
-      edition: ${{ env.EDITION }}
-      build_slim: true
-      build_toolchain: true
+      release_channel: stable
+      edition: community
+      variant: slim
+      task: docker:build:slim
+      tag_suffix: slim
       sbom_artifact_name: sbom
-      channel_alias: flavor
+      channel_alias: slim
+    secrets: inherit
+
+  build-docker-toolchain:
+    if: |
+      !contains(github.event.head_commit.message, '[skip-ci]') &&
+      github.repository == 'agentc-sh/agentc'
+    needs: [generate-sbom]
+    uses: ./.github/workflows/oci.yml
+    with:
+      ref: ${{ github.ref_name }}
+      image_uri: ghcr.io/agentc-sh/agentc
+      version_tag: ${{ github.ref_name }}
+      publish: true
+      release_channel: stable
+      edition: community
+      variant: toolchain
+      task: docker:build:toolchain
+      tag_suffix: toolchain
+      sbom_artifact_name: sbom
+      channel_alias: toolchain
     secrets: inherit
 
   make-release:
