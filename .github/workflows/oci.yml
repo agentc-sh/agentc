@@ -85,11 +85,13 @@ jobs:
                 ARCH_NAME="amd64"
                 ARCH_PLATFORM="linux/amd64"
                 ARCH_TAG_SUFFIX="amd64"
+                ARCH_RUNS_ON="ubuntu-latest"
                 ;;
               arm64|aarch64)
                 ARCH_NAME="arm64"
                 ARCH_PLATFORM="linux/arm64"
                 ARCH_TAG_SUFFIX="arm64"
+                ARCH_RUNS_ON="ubuntu-24.04-arm"
                 ;;
               *)
                 echo "Unsupported architecture: $requested_architecture"
@@ -102,7 +104,7 @@ jobs:
             fi
 
             SEEN_ARCHITECTURES[$ARCH_NAME]=1
-            ARCH_ENTRIES+=("{\"name\":\"${ARCH_NAME}\",\"platform\":\"${ARCH_PLATFORM}\",\"tag_suffix\":\"${ARCH_TAG_SUFFIX}\"}")
+            ARCH_ENTRIES+=("{\"name\":\"${ARCH_NAME}\",\"platform\":\"${ARCH_PLATFORM}\",\"tag_suffix\":\"${ARCH_TAG_SUFFIX}\",\"runs_on\":\"${ARCH_RUNS_ON}\"}")
           done
 
           ARCH_MATRIX="["
@@ -122,7 +124,7 @@ jobs:
   build-images:
     name: Build OCI image (${{ inputs.variant }} / ${{ matrix.arch.name }})
     needs: [prepare-matrix]
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.arch.runs_on }}
     strategy:
       fail-fast: false
       matrix:
@@ -159,9 +161,6 @@ jobs:
         with:
           name: ${{ inputs.sbom_artifact_name }}
           path: sbom/
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
