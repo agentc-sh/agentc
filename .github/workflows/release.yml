@@ -368,10 +368,66 @@ jobs:
       - name: Inspect SARIF report
         if: always()
         run: |
-          cat "${{ steps.scan.outputs.sarif }}"
+          jq -r '
+            def sev($rule):
+              (
+                $rule.help.text
+                | capture("Severity: (?<sev>[^\\n]+)").sev
+                | ascii_downcase
+              );
+
+            def fix($rule):
+              (
+                $rule.help.text
+                | capture("Fix Version: (?<fix>[^\\n]+)").fix
+              ) // "none";
+
+            [
+              .runs[] as $run
+              | ($run.tool.driver.rules // []) as $rules
+              | $run.results[]
+              | . as $result
+              | ($rules[] | select(.id == $result.ruleId)) as $rule
+              | {
+                  severity: sev($rule),
+                  rank: (
+                    if sev($rule) == "critical" then 0
+                    elif sev($rule) == "high" then 1
+                    else 9
+                    end
+                  ),
+                  vuln: ($result.ruleId | sub("-[^-]+$"; "")),
+                  package: (
+                    $rule.help.text
+                    | capture("Package: (?<pkg>[^\\n]+)").pkg
+                  ),
+                  version: (
+                    $rule.help.text
+                    | capture("Version: (?<ver>[^\\n]+)").ver
+                  ),
+                  fix: fix($rule),
+                  location: (
+                    $result.locations[0].logicalLocations[0].name
+                    // $result.locations[0].physicalLocation.artifactLocation.uri
+                    // "unknown"
+                  ),
+                  url: ($rule.helpUri // "")
+                }
+              | select(.severity == "critical")
+            ]
+            | sort_by(.rank, .package, .vuln)
+            | group_by(.severity)
+            | .[]
+            | (.[0].severity | ascii_upcase),
+              ("=" * 80),
+              (
+                .[]
+                | "\(.vuln)\n  package:  \(.package)@\(.version)\n  fix:      \(.fix)\n  location: \(.location)\n  url:      \(.url)\n"
+              )
+          ' "${{ steps.scan.outputs.sarif }}"
 
       - name: Upload SARIF report
-        if: always()
+        if: ${{ !github.event.repository.private }}
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: ${{ steps.scan.outputs.sarif }}

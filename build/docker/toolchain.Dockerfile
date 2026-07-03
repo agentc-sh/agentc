@@ -6,7 +6,7 @@ ARG PNPM_VERSION=11.1.2
 ARG ESBUILD_VERSION=0.28.0
 ARG UV_VERSION=0.8.0
 
-FROM docker.io/library/rust:${RUST_VERSION}-slim-bookworm AS build
+FROM docker.io/library/rust:${RUST_VERSION}-slim-trixie AS build
 
 ARG BUILD_TAG=""
 
@@ -27,7 +27,7 @@ RUN BUILD_TAG=$BUILD_TAG cargo build -p agentc --all-features --release
 
 FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv
 
-FROM docker.io/library/python:${PYTHON_VERSION}-slim-bookworm AS runtime
+FROM docker.io/library/python:${PYTHON_VERSION}-slim-trixie AS runtime
 
 ARG RUST_VERSION
 ARG NODE_VERSION
@@ -35,20 +35,22 @@ ARG PNPM_VERSION
 ARG ESBUILD_VERSION
 ARG TARGETARCH
 
-RUN apt-get update && apt-get install --no-install-recommends -y \
-    ca-certificates \
-    build-essential \
-    pkg-config \
-    cmake \
-    libssl-dev \
-    libz-dev \
-    libffi-dev \
-    git \
-    python3-dev \
-    curl \
-    # libatomic1 is required for nodejs
-    libatomic1 \
-    xz-utils \
+RUN apt-get update && \
+    apt-get upgrade -y && \
+    apt-get install --no-install-recommends -y \
+        ca-certificates \
+        build-essential \
+        pkg-config \
+        cmake \
+        libssl-dev \
+        libz-dev \
+        libffi-dev \
+        git \
+        python3-dev \
+        curl \
+        # libatomic1 is required for nodejs
+        libatomic1 \
+        xz-utils \
     && rm -rf /var/lib/apt/lists/*
 
 ENV RUSTUP_HOME=/usr/local/rustup \

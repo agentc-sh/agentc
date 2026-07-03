@@ -32,8 +32,6 @@ RUN apt-get update && apt-get install -y \
     libffi-dev \
     git \
     python3-dev \
-    python3-venv \
-    python3-pip \
     curl \
     xz-utils \
     && rm -rf /var/lib/apt/lists/*
