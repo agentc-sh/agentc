@@ -288,6 +288,12 @@ jobs:
       github.repository == 'agentc-sh/agentc'
     needs: [prepare]
     uses: ./.github/workflows/oci.yml
+    permissions:
+      actions: read
+      contents: write
+      packages: write
+      id-token: write
+      security-events: write
     with:
       ref: ${{ needs.prepare.outputs.ref_name }}
       image_uri: ghcr.io/agentc-sh/agentc

@@ -272,6 +272,12 @@ jobs:
       github.repository == 'agentc-sh/agentc'
     needs: [generate-sbom]
     uses: ./.github/workflows/oci.yml
+    permissions:
+      actions: read
+      contents: write
+      packages: write
+      id-token: write
+      security-events: write
     with:
       ref: ${{ github.ref_name }}
       image_uri: ghcr.io/agentc-sh/agentc
@@ -292,6 +298,12 @@ jobs:
       github.repository == 'agentc-sh/agentc'
     needs: [generate-sbom]
     uses: ./.github/workflows/oci.yml
+    permissions:
+      actions: read
+      contents: write
+      packages: write
+      id-token: write
+      security-events: write
     with:
       ref: ${{ github.ref_name }}
       image_uri: ghcr.io/agentc-sh/agentc
