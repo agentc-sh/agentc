@@ -82,7 +82,7 @@ jobs:
       release_channel: rc
       edition: community
       targets: ${{ inputs.publish_prerelease && !github.event.repository.private && 'linux-x86_64,linux-aarch64' || 'linux-x86_64' }}
-      signing_enabled: ${{ env.ENABLE_SIGNING == 'true' && inputs.publish_prerelease }}
+      signing_enabled: ${{ !github.event.repository.private && inputs.publish_prerelease }}
       signing_identity_regexp: ^https://github\.com/${{ github.repository }}/\.github/workflows/rc\.yml@.*$
     secrets: inherit
 
