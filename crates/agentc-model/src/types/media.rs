@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 use serde::{Deserialize, Serialize};
+use url::Url;
 
 /// A media object, which can be either raw data or a URL.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -11,7 +12,7 @@ pub enum MediaData {
     /// Raw binary data encoded as a base64 string.
     Base64(String),
     /// A URL pointing to the media data.
-    Url(String),
+    Url(Url),
 }
 
 /// An image media object.

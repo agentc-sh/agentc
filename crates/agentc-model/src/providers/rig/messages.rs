@@ -15,6 +15,7 @@ use rig::{
         UserContent as RigUserContent, Video as RigVideo, VideoMediaType as RigVideoMediaType,
     },
 };
+use url::Url;
 
 use crate::{
     errors::ModelError,
@@ -313,7 +314,13 @@ impl TryFrom<RigDocumentSourceKind> for MediaData {
 
     fn try_from(value: RigDocumentSourceKind) -> Result<Self, Self::Error> {
         match value {
-            RigDocumentSourceKind::Url(url) => Ok(MediaData::Url(url)),
+            RigDocumentSourceKind::Url(url) => Ok(MediaData::Url(
+                url
+                    .parse::<Url>()
+                    .map_err(|e| ModelError::Configuration {
+                        message: format!("invalid URL: {}", e),
+                    })?
+            )),
             RigDocumentSourceKind::Base64(data) => Ok(MediaData::Base64(data)),
             _ => Err(ModelError::Configuration {
                 message: format!("unsupported document source kind: {:?}", value),
@@ -327,7 +334,7 @@ impl TryFrom<MediaData> for RigDocumentSourceKind {
 
     fn try_from(value: MediaData) -> Result<Self, Self::Error> {
         match value {
-            MediaData::Url(url) => Ok(RigDocumentSourceKind::Url(url)),
+            MediaData::Url(url) => Ok(RigDocumentSourceKind::Url(url.to_string())),
             MediaData::Base64(data) => Ok(RigDocumentSourceKind::Base64(data)),
         }
     }

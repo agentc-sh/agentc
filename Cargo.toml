@@ -62,6 +62,7 @@ regex = { version = "1.12" }
 convert_case = { version = "0.11" }
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1.23", features = ["v4", "v5", "fast-rng", "zerocopy", "serde"] }
+url = { version = "2", features = ["serde"] }
 json-patch = { version = "4.2", features = ["schemars", "utoipa"] }
 schemars = { version = "1.1", features = ["derive", "chrono04", "url2", "uuid1"] }
 utoipa = { version = "5.4", features = ["axum_extras", "chrono", "uuid", "time", "url", "preserve_order", "preserve_path_order"] }
