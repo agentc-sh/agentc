@@ -18,7 +18,7 @@ pub mod message {
 
     use crate::types::message::{
         AssistantMessage, Message, MessageRole, ReasoningMessage, SystemMessage, ToolMessage,
-        UserMessage,
+        UserContent, UserMessage,
     };
 
     #[derive(Debug, Clone, PartialEq, Eq, DeriveEntityModel)]
@@ -76,7 +76,16 @@ pub mod message {
                     tenant_id: model.tenant_id,
                     session_id: model.session_id,
                     run_id: model.run_id,
-                    content: model.content.unwrap_or_default(),
+                    content: model
+                        .data
+                        .ok_or_else(|| "Missing data for user message".to_string())?
+                        .get("content")
+                        .cloned()
+                        .ok_or_else(|| "Missing content in user message data".to_string())
+                        .and_then(|value| {
+                            from_value::<Vec<UserContent>>(value)
+                                .map_err(|error| error.to_string())
+                        })?,
                     name: None,
                     created_at: model.created_at,
                 })),
@@ -158,7 +167,10 @@ pub mod message {
                 role: ActiveValue::set(message.role().to_string()),
                 content: ActiveValue::set(message.content().map(str::to_string)),
                 data: match &message {
-                    Message::System(_) | Message::User(_) => ActiveValue::set(None),
+                    Message::System(_) => ActiveValue::set(None),
+                    Message::User(message) => ActiveValue::set(Some(Json(json!({
+                        "content": message.content,
+                    })))),
                     Message::Assistant(message) => {
                         ActiveValue::set(Some(Json(json!({ "tool_calls": message.tool_calls }))))
                     }

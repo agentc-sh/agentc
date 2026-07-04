@@ -10,6 +10,39 @@ tasks:
     cmds:
       - cargo check --all-features {{.CLI_ARGS}}
 
+  check:compiler:
+    desc: Check the compiler code
+    cmds:
+      - |
+        cargo check --all-features \
+          -p agentc \
+          -p agentc-blocks \
+          -p agentc-compiler \
+          -p agentc-core \
+          {{.CLI_ARGS}}
+
+  check:runtime:
+    desc: Check the runtime code
+    cmds:
+      - |
+        cargo check --all-features \
+          -p agentc-agent \
+          -p agentc-agent-macros \
+          -p agentc-agent-react \
+          -p agentc-config \
+          -p agentc-database \
+          -p agentc-domain \
+          -p agentc-domain-sql \
+          -p agentc-http \
+          -p agentc-mcp \
+          -p agentc-model \
+          -p agentc-prompt \
+          -p agentc-protocol-ag-ui \
+          -p agentc-skills \
+          -p agentc-telemetry \
+          -p agentc-tools \
+          {{.CLI_ARGS}}
+
   fmt:
     desc: Format the code
     cmds:

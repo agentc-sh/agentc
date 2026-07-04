@@ -721,3 +721,37 @@ impl From<FindRunParams> for RepoFindRunParams {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::{
+        service::types::message::CreateUserMessageParams,
+        types::message::{MediaSource, UserContent},
+    };
+
+    #[test]
+    fn run_input_preserves_user_content() {
+        let content = vec![
+            UserContent::text("Describe this image"),
+            UserContent::image(
+                MediaSource::Base64("image-data".to_string()),
+                "image/png",
+            ),
+        ];
+        let input = RunParams::new("tenant", Uuid::new_v4())
+            .with_messages([CreateMessageParams::User(
+                CreateUserMessageParams::from_content(content.clone()),
+            )])
+            .to_input();
+
+        assert_eq!(
+            input.messages[0]
+                .as_user()
+                .expect("expected user message")
+                .content,
+            content,
+        );
+    }
+}

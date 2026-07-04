@@ -13,7 +13,7 @@ use crate::{
     types::message::{
         AssistantMessage as DomainAssistantMessage, Message as DomainMessage, MessageRole,
         ReasoningMessage as DomainReasoningMessage, SystemMessage as DomainSystemMessage,
-        ToolMessage as DomainToolMessage, UserMessage as DomainUserMessage,
+        ToolMessage as DomainToolMessage, UserContent, UserMessage as DomainUserMessage,
     },
 };
 
@@ -88,15 +88,22 @@ impl SystemMessageResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateUserMessageParams {
     pub id: Uuid,
-    pub content: String,
+    pub content: Vec<UserContent>,
     pub name: Option<String>,
 }
 
 impl CreateUserMessageParams {
     pub fn new(content: impl Into<String>) -> Self {
+        Self::from_content([UserContent::text(content)])
+    }
+
+    pub fn from_content(content: impl IntoIterator<Item = impl Into<UserContent>>) -> Self {
         Self {
             id: Uuid::new_v4(),
-            content: content.into(),
+            content: content
+                .into_iter()
+                .map(Into::into)
+                .collect(),
             name: None,
         }
     }
@@ -108,6 +115,17 @@ impl CreateUserMessageParams {
 
     pub fn with_name(mut self, name: impl Into<String>) -> Self {
         self.name = Some(name.into());
+        self
+    }
+
+    pub fn with_content(
+        mut self,
+        content: impl IntoIterator<Item = impl Into<UserContent>>,
+    ) -> Self {
+        self.content = content
+            .into_iter()
+            .map(Into::into)
+            .collect();
         self
     }
 
@@ -134,7 +152,7 @@ pub struct UserMessageResponse {
     pub tenant_id: String,
     pub session_id: Uuid,
     pub run_id: Option<Uuid>,
-    pub content: String,
+    pub content: Vec<UserContent>,
     pub name: Option<String>,
     pub created_at: DateTime<Utc>,
 }
@@ -495,5 +513,41 @@ impl From<FindMessageParams> for RepoFindMessageParams {
             created_before: params.created_before,
             created_after: params.created_after,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::types::message::MediaSource;
+
+    fn user_content() -> Vec<UserContent> {
+        vec![
+            UserContent::text("Describe this image"),
+            UserContent::image(
+                MediaSource::Base64("image-data".to_string()),
+                "image/png",
+            ),
+        ]
+    }
+
+    #[test]
+    fn user_params_preserve_content_in_entity() {
+        let content = user_content();
+        let entity = CreateUserMessageParams::from_content(content.clone())
+            .to_entity("tenant", Uuid::new_v4());
+
+        assert_eq!(entity.content, content);
+    }
+
+    #[test]
+    fn user_response_preserves_entity_content() {
+        let content = user_content();
+        let entity = CreateUserMessageParams::from_content(content.clone())
+            .to_entity("tenant", Uuid::new_v4());
+        let response = UserMessageResponse::from_entity(&entity);
+
+        assert_eq!(response.content, content);
     }
 }

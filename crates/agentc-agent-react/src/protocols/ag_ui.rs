@@ -12,6 +12,7 @@ use std::{
     str::FromStr,
 };
 use utoipa::ToSchema;
+use url::Url;
 use uuid::Uuid;
 
 use agentc_agent::types::tools::ToolDefinition;
@@ -27,10 +28,13 @@ use agentc_protocol_ag_ui::{
         },
         ids::{RunId, ThreadId},
         input::RunAgentInput,
-        message::{Message, Role},
+        message::{
+            InputContent, InputContentDataSource, InputContentSource, InputContentUrlSource,
+            Message, Role, UserMessageContent,
+        },
         tool::{FunctionCall, ToolCall},
     },
-    traits::{AgUiService, ToAgUiType},
+    traits::{AgUiService, FromAgUiType, ToAgUiType},
 };
 
 use crate::{
@@ -46,8 +50,148 @@ use crate::{
             run::{RunEvent, RunParams},
         },
     },
-    types::{context_var::ContextVar, event::ReasoningSignatureSubtype},
+    types::{
+        context_var::ContextVar,
+        event::ReasoningSignatureSubtype,
+        message::{
+            Audio as DomainAudio, Document as DomainDocument, Image as DomainImage,
+            MediaSource as DomainMediaSource, UserContent as DomainUserContent,
+            Video as DomainVideo,
+        },
+    },
 };
+
+impl ToAgUiType<InputContent> for DomainUserContent {
+    type Error = ServiceError;
+
+    fn to_ag_ui_type(self) -> Result<InputContent, Self::Error> {
+        Ok(match self {
+            DomainUserContent::Text(text) => InputContent::Text { text },
+            DomainUserContent::Image(img) => InputContent::Image {
+                source: match img.source {
+                    DomainMediaSource::Url(url) => InputContentSource::Url(InputContentUrlSource {
+                        value: url.to_string(),
+                        mime_type: Some(img.media_type),
+                    }),
+                    DomainMediaSource::Base64(data) => {
+                        InputContentSource::Data(InputContentDataSource {
+                            value: data,
+                            mime_type: img.media_type,
+                        })
+                    }
+                },
+                metadata: None,
+            },
+            DomainUserContent::Audio(audio) => InputContent::Audio {
+                source: match audio.source {
+                    DomainMediaSource::Url(url) => InputContentSource::Url(InputContentUrlSource {
+                        value: url.to_string(),
+                        mime_type: Some(audio.media_type),
+                    }),
+                    DomainMediaSource::Base64(data) => {
+                        InputContentSource::Data(InputContentDataSource {
+                            value: data,
+                            mime_type: audio.media_type,
+                        })
+                    }
+                },
+                metadata: None,
+            },
+            DomainUserContent::Video(video) => InputContent::Video {
+                source: match video.source {
+                    DomainMediaSource::Url(url) => InputContentSource::Url(InputContentUrlSource {
+                        value: url.to_string(),
+                        mime_type: Some(video.media_type),
+                    }),
+                    DomainMediaSource::Base64(data) => {
+                        InputContentSource::Data(InputContentDataSource {
+                            value: data,
+                            mime_type: video.media_type,
+                        })
+                    }
+                },
+                metadata: None,
+            },
+            DomainUserContent::Document(doc) => InputContent::Document {
+                source: match doc.source {
+                    DomainMediaSource::Url(url) => InputContentSource::Url(InputContentUrlSource {
+                        value: url.to_string(),
+                        mime_type: Some(doc.media_type),
+                    }),
+                    DomainMediaSource::Base64(data) => {
+                        InputContentSource::Data(InputContentDataSource {
+                            value: data,
+                            mime_type: doc.media_type,
+                        })
+                    }
+                },
+                metadata: None,
+            },
+        })
+    }
+}
+
+impl FromAgUiType<InputContent> for DomainUserContent {
+    type Error = ServiceError;
+
+    fn from_ag_ui_type(value: InputContent) -> Result<Self, Self::Error> {
+        Ok(match value {
+            InputContent::Text { text } => DomainUserContent::Text(text),
+            InputContent::Image { source, .. } => DomainUserContent::Image(match source {
+                InputContentSource::Url(s) => DomainImage {
+                    source: DomainMediaSource::Url(
+                        Url::parse(&s.value)
+                            .map_err(|e| ServiceError::unexpected(e.to_string()))?,
+                    ),
+                    media_type: s.mime_type.unwrap_or_default(),
+                },
+                InputContentSource::Data(s) => DomainImage {
+                    source: DomainMediaSource::Base64(s.value),
+                    media_type: s.mime_type,
+                },
+            }),
+            InputContent::Audio { source, .. } => DomainUserContent::Audio(match source {
+                InputContentSource::Url(s) => DomainAudio {
+                    source: DomainMediaSource::Url(
+                        Url::parse(&s.value)
+                            .map_err(|e| ServiceError::unexpected(e.to_string()))?,
+                    ),
+                    media_type: s.mime_type.unwrap_or_default(),
+                },
+                InputContentSource::Data(s) => DomainAudio {
+                    source: DomainMediaSource::Base64(s.value),
+                    media_type: s.mime_type,
+                },
+            }),
+            InputContent::Video { source, .. } => DomainUserContent::Video(match source {
+                InputContentSource::Url(s) => DomainVideo {
+                    source: DomainMediaSource::Url(
+                        Url::parse(&s.value)
+                            .map_err(|e| ServiceError::unexpected(e.to_string()))?,
+                    ),
+                    media_type: s.mime_type.unwrap_or_default(),
+                },
+                InputContentSource::Data(s) => DomainVideo {
+                    source: DomainMediaSource::Base64(s.value),
+                    media_type: s.mime_type,
+                },
+            }),
+            InputContent::Document { source, .. } => DomainUserContent::Document(match source {
+                InputContentSource::Url(s) => DomainDocument {
+                    source: DomainMediaSource::Url(
+                        Url::parse(&s.value)
+                            .map_err(|e| ServiceError::unexpected(e.to_string()))?,
+                    ),
+                    media_type: s.mime_type.unwrap_or_default(),
+                },
+                InputContentSource::Data(s) => DomainDocument {
+                    source: DomainMediaSource::Base64(s.value),
+                    media_type: s.mime_type,
+                },
+            }),
+        })
+    }
+}
 
 #[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord, ToSchema)]
 pub struct DeterministicUuid(Uuid);
@@ -436,7 +580,13 @@ impl ToAgUiType<Message> for MessageResponse {
             }),
             Self::User(response) => Ok(Message::User {
                 id: response.id.into(),
-                content: response.content,
+                content: UserMessageContent::Parts(
+                    response
+                        .content
+                        .into_iter()
+                        .map(ToAgUiType::to_ag_ui_type)
+                        .collect::<Result<_, _>>()?,
+                ),
                 name: response.name,
             }),
             Self::Assistant(response) => Ok(Message::Assistant {
@@ -543,8 +693,18 @@ impl AgUiService for ApplicationService {
                             Message::User { id, content, name } => {
                                 Some(CreateMessageParams::User(CreateUserMessageParams {
                                     id: id.into(),
-                                    content,
                                     name,
+                                    content: match content {
+                                        UserMessageContent::Text(text) => {
+                                            vec![DomainUserContent::Text(text)]
+                                        }
+                                        UserMessageContent::Parts(parts) => parts
+                                            .into_iter()
+                                            .filter_map(|block| {
+                                                DomainUserContent::from_ag_ui_type(block).ok()
+                                            })
+                                            .collect(),
+                                    },
                                 }))
                             }
                             Message::Tool { id, content, tool_call_id, error } => {
