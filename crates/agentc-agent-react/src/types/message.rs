@@ -27,7 +27,7 @@ use agentc_model::types::{
     reasoning::{Reasoning as ModelReasoning, ReasoningContent as ModelReasoningContent},
     tools::{ToolResult as ModelToolResult, ToolResultContent as ModelToolResultContent},
 };
-use agentc_prompt::{buffer::MessageContent, compaction::MessageGroup};
+use agentc_prompt::{buffer::TokenCount, compaction::MessageGroup};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -948,7 +948,7 @@ impl Message {
     }
 }
 
-impl MessageContent for Message {
+impl TokenCount for Message {
     fn message_content(&self) -> Option<&str> {
         self.content()
     }
