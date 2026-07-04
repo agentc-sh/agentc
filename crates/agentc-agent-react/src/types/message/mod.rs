@@ -13,21 +13,31 @@ use uuid::Uuid;
 
 use agentc_agent::{
     context::AgentContext,
-    types::{
-        conversion::{FromModelType, ToModelType},
-        tools::ToolCall,
-    },
+    types::conversion::ToModelType,
 };
-use agentc_model::types::{
-    message::{
-        AssistantContent as ModelAssistantContent, AssistantMessage as ModelAssistantMessage,
-        ChatMessage as ModelChatMessage, SystemMessage as ModelSystemMessage,
-        UserContent as ModelUserContent, UserMessage as ModelUserMessage,
-    },
-    reasoning::{Reasoning as ModelReasoning, ReasoningContent as ModelReasoningContent},
-    tools::{ToolResult as ModelToolResult, ToolResultContent as ModelToolResultContent},
+use agentc_model::types::message::{
+    AssistantMessage as ModelAssistantMessage, ChatMessage as ModelChatMessage,
+    UserMessage as ModelUserMessage,
 };
-use agentc_prompt::{buffer::TokenCount, compaction::MessageGroup};
+use agentc_prompt::{
+    buffer::TokenCount,
+    compaction::MessageGroup,
+    counter::TokenCounter,
+};
+
+mod assistant;
+mod media;
+mod reasoning;
+mod system;
+mod tool;
+mod user;
+
+pub use assistant::AssistantMessage;
+pub use media::{Audio, Document, Image, MediaSource, Video};
+pub use reasoning::ReasoningMessage;
+pub use system::SystemMessage;
+pub use tool::ToolMessage;
+pub use user::{UserContent, UserMessage};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -81,552 +91,6 @@ impl From<&str> for MessageRole {
 impl Display for MessageRole {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         write!(f, "{}", self.as_str())
-    }
-}
-
-/// A system message.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct SystemMessage {
-    pub id: Uuid,
-    pub tenant_id: String,
-    pub session_id: Uuid,
-    pub run_id: Option<Uuid>,
-    pub content: String,
-    pub name: Option<String>,
-    pub created_at: DateTime<Utc>,
-}
-
-impl SystemMessage {
-    pub fn new(content: impl Into<String>) -> Self {
-        Self {
-            id: Uuid::new_v4(),
-            tenant_id: String::new(),
-            session_id: Uuid::nil(),
-            run_id: None,
-            content: content.into(),
-            name: None,
-            created_at: Utc::now(),
-        }
-    }
-
-    pub fn id(&self) -> &Uuid {
-        &self.id
-    }
-    pub fn role(&self) -> &MessageRole {
-        &MessageRole::System
-    }
-
-    pub fn with_id(mut self, id: impl Into<Uuid>) -> Self {
-        self.id = id.into();
-        self
-    }
-
-    pub fn with_tenant_id(mut self, tenant_id: impl Into<String>) -> Self {
-        self.tenant_id = tenant_id.into();
-        self
-    }
-
-    pub fn with_session_id(mut self, session_id: impl Into<Uuid>) -> Self {
-        self.session_id = session_id.into();
-        self
-    }
-
-    pub fn with_run_id(mut self, run_id: impl Into<Uuid>) -> Self {
-        self.run_id = Some(run_id.into());
-        self
-    }
-
-    pub fn with_name(mut self, name: impl Into<String>) -> Self {
-        self.name = Some(name.into());
-        self
-    }
-
-    pub fn with_created_at(mut self, created_at: impl Into<DateTime<Utc>>) -> Self {
-        self.created_at = created_at.into();
-        self
-    }
-}
-
-impl ToModelType for SystemMessage {
-    type ModelType = ModelSystemMessage;
-
-    fn to_model_type(&self) -> Self::ModelType {
-        ModelSystemMessage { content: self.content.clone() }
-    }
-}
-
-impl FromModelType for SystemMessage {
-    type ModelType = ModelSystemMessage;
-    type Output = Self;
-
-    fn from_model_type(model: Self::ModelType) -> Self::Output {
-        Self::new(model.content)
-    }
-}
-
-/// A user message.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct UserMessage {
-    pub id: Uuid,
-    pub tenant_id: String,
-    pub session_id: Uuid,
-    pub run_id: Option<Uuid>,
-    pub content: String,
-    pub name: Option<String>,
-    pub created_at: DateTime<Utc>,
-}
-
-impl UserMessage {
-    pub fn new(content: impl Into<String>) -> Self {
-        Self {
-            id: Uuid::new_v4(),
-            tenant_id: String::new(),
-            session_id: Uuid::nil(),
-            run_id: None,
-            content: content.into(),
-            name: None,
-            created_at: Utc::now(),
-        }
-    }
-
-    pub fn id(&self) -> &Uuid {
-        &self.id
-    }
-    pub fn role(&self) -> &MessageRole {
-        &MessageRole::User
-    }
-
-    pub fn with_id(mut self, id: impl Into<Uuid>) -> Self {
-        self.id = id.into();
-        self
-    }
-
-    pub fn with_tenant_id(mut self, tenant_id: impl Into<String>) -> Self {
-        self.tenant_id = tenant_id.into();
-        self
-    }
-
-    pub fn with_session_id(mut self, session_id: impl Into<Uuid>) -> Self {
-        self.session_id = session_id.into();
-        self
-    }
-
-    pub fn with_run_id(mut self, run_id: impl Into<Uuid>) -> Self {
-        self.run_id = Some(run_id.into());
-        self
-    }
-
-    pub fn with_name(mut self, name: impl Into<String>) -> Self {
-        self.name = Some(name.into());
-        self
-    }
-
-    pub fn with_created_at(mut self, created_at: impl Into<DateTime<Utc>>) -> Self {
-        self.created_at = created_at.into();
-        self
-    }
-}
-
-impl ToModelType for UserMessage {
-    type ModelType = ModelUserMessage;
-
-    fn to_model_type(&self) -> Self::ModelType {
-        ModelUserMessage {
-            content: vec![ModelUserContent::Text(self.content.clone())],
-        }
-    }
-}
-
-impl FromModelType for UserMessage {
-    type ModelType = ModelUserMessage;
-    type Output = Self;
-
-    fn from_model_type(model: Self::ModelType) -> Self::Output {
-        Self::new(
-            model
-                .content
-                .iter()
-                .filter_map(|content| match content {
-                    ModelUserContent::Text(text) => Some(text.clone()),
-                    _ => None,
-                })
-                .collect::<Vec<_>>()
-                .join("\n"),
-        )
-    }
-}
-
-/// An assistant message.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct AssistantMessage {
-    pub id: Uuid,
-    pub tenant_id: String,
-    pub session_id: Uuid,
-    pub run_id: Uuid,
-    pub content: Option<String>,
-    pub name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tool_calls: Option<Vec<ToolCall>>,
-    pub created_at: DateTime<Utc>,
-}
-
-impl AssistantMessage {
-    pub fn new() -> Self {
-        Self {
-            id: Uuid::new_v4(),
-            tenant_id: String::new(),
-            session_id: Uuid::nil(),
-            run_id: Uuid::nil(),
-            content: None,
-            name: None,
-            tool_calls: None,
-            created_at: Utc::now(),
-        }
-    }
-
-    pub fn id(&self) -> &Uuid {
-        &self.id
-    }
-    pub fn role(&self) -> &MessageRole {
-        &MessageRole::Assistant
-    }
-
-    pub fn has_tool_calls(&self) -> bool {
-        match &self.tool_calls {
-            Some(calls) => !calls.is_empty(),
-            None => false,
-        }
-    }
-
-    pub fn with_id(mut self, id: impl Into<Uuid>) -> Self {
-        self.id = id.into();
-        self
-    }
-
-    pub fn with_tenant_id(mut self, tenant_id: impl Into<String>) -> Self {
-        self.tenant_id = tenant_id.into();
-        self
-    }
-
-    pub fn with_session_id(mut self, session_id: impl Into<Uuid>) -> Self {
-        self.session_id = session_id.into();
-        self
-    }
-
-    pub fn with_run_id(mut self, run_id: impl Into<Uuid>) -> Self {
-        self.run_id = run_id.into();
-        self
-    }
-
-    pub fn with_content(mut self, content: impl Into<String>) -> Self {
-        self.content = Some(content.into());
-        self
-    }
-
-    pub fn maybe_with_content(mut self, content: Option<impl Into<String>>) -> Self {
-        if let Some(content) = content {
-            self.content = Some(content.into());
-        }
-        self
-    }
-
-    pub fn with_name(mut self, name: impl Into<String>) -> Self {
-        self.name = Some(name.into());
-        self
-    }
-
-    pub fn with_tool_calls(mut self, tool_calls: Vec<ToolCall>) -> Self {
-        self.tool_calls = Some(tool_calls);
-        self
-    }
-
-    pub fn with_created_at(mut self, created_at: impl Into<DateTime<Utc>>) -> Self {
-        self.created_at = created_at.into();
-        self
-    }
-}
-
-impl Default for AssistantMessage {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl ToModelType for AssistantMessage {
-    type ModelType = ModelAssistantMessage;
-
-    fn to_model_type(&self) -> Self::ModelType {
-        let mut content = self
-            .content
-            .as_deref()
-            .filter(|content| !content.is_empty())
-            .map(|text| vec![ModelAssistantContent::Text(text.to_string())])
-            .unwrap_or_default();
-
-        if let Some(tool_calls) = &self.tool_calls {
-            content.extend(
-                tool_calls
-                    .iter()
-                    .map(|call| ModelAssistantContent::ToolCall(call.to_model_type())),
-            );
-        }
-
-        ModelAssistantMessage { id: Some(self.id.to_string()), content }
-    }
-}
-
-impl FromModelType for AssistantMessage {
-    type ModelType = ModelAssistantMessage;
-    type Output = (Self, Option<ReasoningMessage>);
-
-    fn from_model_type(model: Self::ModelType) -> Self::Output {
-        let mut text_parts = Vec::new();
-        let mut tool_calls = Vec::new();
-        let mut reasoning = None;
-
-        for block in model.content {
-            match block {
-                ModelAssistantContent::Text(text) => text_parts.push(text),
-                ModelAssistantContent::ToolCall(tool_call) => {
-                    tool_calls.push(ToolCall::from_model_type(tool_call))
-                }
-                ModelAssistantContent::Reasoning(reasoning_content) => {
-                    let mut visible = String::new();
-                    let mut signature = None;
-
-                    for content in reasoning_content.content {
-                        match content {
-                            ModelReasoningContent::Text { text, signature: sig } => {
-                                visible.push_str(&text);
-                                if sig.is_some() {
-                                    signature = sig;
-                                }
-                            }
-                            ModelReasoningContent::Summary(s) => visible.push_str(&s),
-                            ModelReasoningContent::Encrypted(e) => signature = Some(e),
-                            ModelReasoningContent::Redacted(r) => signature = Some(r),
-                        }
-                    }
-
-                    let message = ReasoningMessage::new(visible);
-
-                    match signature {
-                        Some(sig) => reasoning = Some(message.with_signature(sig)),
-                        None => reasoning = Some(message),
-                    }
-                }
-                _ => {}
-            }
-        }
-
-        let mut assistant = AssistantMessage::new();
-
-        if !text_parts.is_empty() {
-            assistant = assistant.with_content(text_parts.join("\n"));
-        }
-
-        if !tool_calls.is_empty() {
-            assistant = assistant.with_tool_calls(tool_calls);
-        }
-
-        (assistant, reasoning)
-    }
-}
-
-/// A tool message.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ToolMessage {
-    pub id: Uuid,
-    pub tenant_id: String,
-    pub session_id: Uuid,
-    pub run_id: Option<Uuid>,
-    pub content: Option<String>,
-    pub name: Option<String>,
-    pub tool_call_id: String,
-    pub parent_message_id: Option<Uuid>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub error: Option<String>,
-    pub created_at: DateTime<Utc>,
-}
-
-impl ToolMessage {
-    pub fn new(tool_call_id: impl Into<String>) -> Self {
-        Self {
-            id: Uuid::new_v4(),
-            tenant_id: String::new(),
-            session_id: Uuid::nil(),
-            run_id: None,
-            content: None,
-            name: None,
-            tool_call_id: tool_call_id.into(),
-            parent_message_id: None,
-            error: None,
-            created_at: Utc::now(),
-        }
-    }
-
-    pub fn id(&self) -> &Uuid {
-        &self.id
-    }
-    pub fn role(&self) -> &MessageRole {
-        &MessageRole::Tool
-    }
-
-    pub fn is_error(&self) -> bool {
-        self.error.is_some()
-    }
-
-    pub fn with_id(mut self, id: impl Into<Uuid>) -> Self {
-        self.id = id.into();
-        self
-    }
-
-    pub fn with_tenant_id(mut self, tenant_id: impl Into<String>) -> Self {
-        self.tenant_id = tenant_id.into();
-        self
-    }
-
-    pub fn with_session_id(mut self, session_id: impl Into<Uuid>) -> Self {
-        self.session_id = session_id.into();
-        self
-    }
-
-    pub fn with_run_id(mut self, run_id: impl Into<Uuid>) -> Self {
-        self.run_id = Some(run_id.into());
-        self
-    }
-
-    pub fn with_content(mut self, content: impl Into<String>) -> Self {
-        self.content = Some(content.into());
-        self
-    }
-
-    pub fn with_name(mut self, name: impl Into<String>) -> Self {
-        self.name = Some(name.into());
-        self
-    }
-
-    pub fn with_parent_message_id(mut self, parent_message_id: impl Into<Uuid>) -> Self {
-        self.parent_message_id = Some(parent_message_id.into());
-        self
-    }
-
-    pub fn with_error(mut self, error: impl Into<String>) -> Self {
-        self.error = Some(error.into());
-        self
-    }
-
-    pub fn with_created_at(mut self, created_at: impl Into<DateTime<Utc>>) -> Self {
-        self.created_at = created_at.into();
-        self
-    }
-}
-
-impl ToModelType for ToolMessage {
-    type ModelType = ModelUserMessage;
-
-    fn to_model_type(&self) -> Self::ModelType {
-        ModelUserMessage {
-            content: vec![ModelUserContent::ToolResult(ModelToolResult {
-                call_id: self.tool_call_id.clone(),
-                content: vec![ModelToolResultContent::Text(match &self.error {
-                    Some(error) => format!("Error: {}", error),
-                    None => self.content.clone().unwrap_or_default(),
-                })],
-            })],
-        }
-    }
-}
-
-/// A reasoning message.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ReasoningMessage {
-    pub id: Uuid,
-    pub tenant_id: String,
-    pub session_id: Uuid,
-    pub run_id: Uuid,
-    pub content: String,
-    /// Provider-issued opaque value needed for multi-turn continuity.
-    /// For text thinking blocks this is the provider's signature; for
-    /// encrypted/redacted blocks this is the opaque blob itself.
-    pub signature: Option<String>,
-    pub created_at: DateTime<Utc>,
-}
-
-impl ReasoningMessage {
-    pub fn new(content: impl Into<String>) -> Self {
-        Self {
-            id: Uuid::new_v4(),
-            tenant_id: String::new(),
-            session_id: Uuid::nil(),
-            run_id: Uuid::nil(),
-            content: content.into(),
-            signature: None,
-            created_at: Utc::now(),
-        }
-    }
-
-    pub fn id(&self) -> &Uuid {
-        &self.id
-    }
-    pub fn role(&self) -> &MessageRole {
-        &MessageRole::Reasoning
-    }
-
-    pub fn with_id(mut self, id: impl Into<Uuid>) -> Self {
-        self.id = id.into();
-        self
-    }
-
-    pub fn with_tenant_id(mut self, tenant_id: impl Into<String>) -> Self {
-        self.tenant_id = tenant_id.into();
-        self
-    }
-
-    pub fn with_session_id(mut self, session_id: impl Into<Uuid>) -> Self {
-        self.session_id = session_id.into();
-        self
-    }
-
-    pub fn with_run_id(mut self, run_id: impl Into<Uuid>) -> Self {
-        self.run_id = run_id.into();
-        self
-    }
-
-    pub fn with_signature(mut self, signature: impl Into<String>) -> Self {
-        self.signature = Some(signature.into());
-        self
-    }
-
-    pub fn with_created_at(mut self, created_at: impl Into<DateTime<Utc>>) -> Self {
-        self.created_at = created_at.into();
-        self
-    }
-}
-
-impl ToModelType for ReasoningMessage {
-    type ModelType = ModelAssistantMessage;
-
-    fn to_model_type(&self) -> Self::ModelType {
-        ModelAssistantMessage {
-            id: Some(self.id.to_string()),
-            content: vec![ModelAssistantContent::Reasoning(ModelReasoning {
-                id: Some(self.id.to_string()),
-                content: if self.content.is_empty() {
-                    // Encrypted/redacted block, no visible text, pass opaque blob as-is.
-                    match &self.signature {
-                        Some(sig) => vec![ModelReasoningContent::Encrypted(sig.clone())],
-                        None => vec![],
-                    }
-                } else {
-                    // Text thinking block, include the provider signature
-                    vec![ModelReasoningContent::Text {
-                        text: self.content.clone(),
-                        signature: self.signature.clone(),
-                    }]
-                },
-            })],
-        }
     }
 }
 
@@ -717,7 +181,10 @@ impl Message {
     pub fn content(&self) -> Option<&str> {
         match self {
             Message::System(m) => Some(&m.content),
-            Message::User(m) => Some(&m.content),
+            Message::User(m) => m
+                .content
+                .iter()
+                .find_map(UserContent::as_text),
             Message::Assistant(m) => m.content.as_deref(),
             Message::Tool(m) => m.content.as_deref(),
             Message::Reasoning(m) => Some(&m.content),
@@ -949,8 +416,18 @@ impl Message {
 }
 
 impl TokenCount for Message {
-    fn message_content(&self) -> Option<&str> {
-        self.content()
+    fn token_count(&self, counter: &dyn TokenCounter) -> usize {
+        match self {
+            Message::User(message) => message
+                .content
+                .iter()
+                .filter_map(UserContent::as_text)
+                .map(|content| counter.count(content))
+                .sum(),
+            _ => self
+                .content()
+                .map_or(0, |content| counter.count(content)),
+        }
     }
 }
 
@@ -1070,10 +547,18 @@ impl ToModelType for MessageList {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use agentc_agent::types::tools::ToolCall;
-    use agentc_model::types::message::ChatMessage as ModelChatMessage;
-    use agentc_model::types::message::UserContent as ModelUserContent;
+    use agentc_agent::types::{tools::ToolCall, conversion::FromModelType};
+    use agentc_model::types::{
+        media::MediaData as ModelMediaData,
+        message::{
+            ChatMessage as ModelChatMessage, UserContent as ModelUserContent,
+            UserMessage as ModelUserMessage,
+        },
+        tools::{ToolResult as ModelToolResult, ToolResultContent as ModelToolResultContent},
+    };
+    use agentc_prompt::counter::CharApproxCounter;
     use serde_json::Value;
+    use url::Url;
 
     fn assistant_with_tool_calls(call_ids: &[&str]) -> Message {
         Message::Assistant(
@@ -1170,5 +655,121 @@ mod tests {
             panic!("expected User at 3");
         };
         assert_eq!(user2.content.len(), 2);
+    }
+
+    #[test]
+    fn text_constructor_creates_one_text_block() {
+        let message = UserMessage::new("hello");
+
+        assert_eq!(message.content, vec![UserContent::Text("hello".to_string())]);
+    }
+
+    #[test]
+    fn user_content_converts_to_model_blocks_in_order() {
+        let message = UserMessage::from_content([
+            UserContent::Text("describe these files".to_string()),
+            UserContent::Image(Image {
+                source: MediaSource::Url(
+                    Url::parse("https://example.com/image.png").expect("valid URL"),
+                ),
+                media_type: "image/png".to_string(),
+            }),
+            UserContent::Audio(Audio {
+                source: MediaSource::Base64("audio-data".to_string()),
+                media_type: "audio/wav".to_string(),
+            }),
+            UserContent::Video(Video {
+                source: MediaSource::Url(
+                    Url::parse("https://example.com/video.mp4").expect("valid URL"),
+                ),
+                media_type: "video/mp4".to_string(),
+            }),
+            UserContent::Document(Document {
+                source: MediaSource::Base64("document-data".to_string()),
+                media_type: "application/pdf".to_string(),
+            }),
+        ]);
+
+        let model = message.to_model_type();
+
+        assert!(matches!(
+            &model.content[0],
+            ModelUserContent::Text(text) if text == "describe these files"
+        ));
+        assert!(matches!(
+            &model.content[1],
+            ModelUserContent::Image(image)
+                if matches!(
+                    &image.data,
+                    ModelMediaData::Url(url) if url.as_str() == "https://example.com/image.png"
+                ) && image.media_type == "image/png"
+        ));
+        assert!(matches!(
+            &model.content[2],
+            ModelUserContent::Audio(audio)
+                if matches!(
+                    &audio.data,
+                    ModelMediaData::Base64(data) if data == "audio-data"
+                ) && audio.media_type == "audio/wav"
+        ));
+        assert!(matches!(
+            &model.content[3],
+            ModelUserContent::Video(video)
+                if matches!(
+                    &video.data,
+                    ModelMediaData::Url(url) if url.as_str() == "https://example.com/video.mp4"
+                ) && video.media_type == "video/mp4"
+        ));
+        assert!(matches!(
+            &model.content[4],
+            ModelUserContent::Document(document)
+                if matches!(
+                    &document.data,
+                    ModelMediaData::Base64(data) if data == "document-data"
+                ) && document.media_type == "application/pdf"
+        ));
+    }
+
+    #[test]
+    fn model_user_content_projects_back_to_react_content() {
+        let original = UserMessage::from_content([
+            UserContent::Text("inspect".to_string()),
+            UserContent::Image(Image {
+                source: MediaSource::Base64("image-data".to_string()),
+                media_type: "image/png".to_string(),
+            }),
+        ]);
+
+        let projected = UserMessage::from_model_type(original.to_model_type());
+
+        assert_eq!(projected.content, original.content);
+    }
+
+    #[test]
+    fn model_tool_results_are_excluded_from_user_message_projection() {
+        let projected = UserMessage::from_model_type(ModelUserMessage {
+            content: vec![
+                ModelUserContent::Text("hello".to_string()),
+                ModelUserContent::ToolResult(ModelToolResult {
+                    call_id: "call-1".to_string(),
+                    content: vec![ModelToolResultContent::Text("result".to_string())],
+                }),
+            ],
+        });
+
+        assert_eq!(projected.content, vec![UserContent::Text("hello".to_string())]);
+    }
+
+    #[test]
+    fn user_token_count_excludes_media_payloads() {
+        let message = Message::User(UserMessage::from_content([
+            UserContent::Text("aaaa".to_string()),
+            UserContent::Image(Image {
+                source: MediaSource::Base64("a".repeat(100)),
+                media_type: "image/png".to_string(),
+            }),
+        ]));
+
+        assert_eq!(message.token_count(&CharApproxCounter), 1);
     }
 }
