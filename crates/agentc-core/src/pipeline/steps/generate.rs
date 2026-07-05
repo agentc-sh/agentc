@@ -8,7 +8,10 @@ use std::sync::Arc;
 use thiserror::Error;
 
 use agentc_blocks::{
-    archetype::resolver::ArchetypeResolver, context::ResolvedContext, errors::BlocksError,
+    archetype::resolver::ArchetypeResolver,
+    composition::GenerationContribution,
+    context::ResolvedContext,
+    errors::BlocksError,
     runtime::EmbeddedAsset,
 };
 use agentc_compiler::{
@@ -70,7 +73,7 @@ pub struct GenerateStepOutput {
     pub vfs: VirtualFileSystem,
     pub compiler: Box<dyn Compiler>,
     pub assets: Vec<TransformedAsset>,
-    pub embedded_assets: &'static [EmbeddedAsset],
+    pub embedded_assets: Vec<&'static EmbeddedAsset>,
 }
 
 pub struct GenerateStep {
@@ -104,11 +107,18 @@ impl Step for GenerateStep {
 
         let archetype = self
             .resolver
-            .resolve(&input.archetype_name, input.context.clone(), input.archetype_config)?
-            .with_blocks(self.blocks);
+            .resolve(&input.archetype_name, input.context.clone(), input.archetype_config)?;
+
+        let GenerationContribution {
+            mut blocks,
+            embedded_assets,
+            ..
+        } = archetype.contribution;
+
+        blocks.extend(self.blocks);
 
         let vfs = Generator::builder()
-            .with_blocks(archetype.blocks)
+            .with_blocks(blocks)
             .with_context(input.context)
             .build()
             .generate()
@@ -124,7 +134,7 @@ impl Step for GenerateStep {
             vfs,
             compiler: archetype.compiler,
             assets: input.assets,
-            embedded_assets: archetype.embedded_assets,
+            embedded_assets,
         })
     }
 }

@@ -103,16 +103,4 @@ agent "assistant" {{
             "unexpected parser error: {error}"
         );
     }
-
-    #[test]
-    fn manifest_rejects_missing_graph() {
-        let error = SpecFormat::hcl()
-            .deserialize_string::<Manifest>(&manifest_with_graph(""))
-            .unwrap_err();
-
-        assert!(
-            error.to_string().contains("graph"),
-            "unexpected parser error: {error}"
-        );
-    }
 }

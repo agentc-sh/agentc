@@ -167,6 +167,7 @@ mod tests {
     use super::*;
     use crate::{
         archetype::{traits::Archetype, types::ResolvedArchetype},
+        composition::GenerationContribution,
         context::ResolvedContext,
         graph::types::ResolvedGraph,
         protocol::types::ResolvedProtocol,
@@ -212,6 +213,8 @@ mod tests {
         ) -> Result<ResolvedGraph, BlocksError> {
             Ok(ResolvedGraph {
                 name: AgentGraph::name(self).to_string(),
+                contribution: GenerationContribution::new(),
+                integrations: Vec::new(),
             })
         }
     }
@@ -235,6 +238,7 @@ mod tests {
         ) -> Result<ResolvedProtocol, BlocksError> {
             Ok(ResolvedProtocol {
                 name: Protocol::name(self).to_string(),
+                contribution: GenerationContribution::new(),
             })
         }
     }

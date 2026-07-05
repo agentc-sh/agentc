@@ -39,6 +39,7 @@ use crate::{
         traits::Archetype,
         types::ResolvedArchetype,
     },
+    composition::GenerationContribution,
     context::ResolvedContext,
     errors::BlocksError,
     runtime::EMBEDDED_RUNTIME,
@@ -277,11 +278,12 @@ impl Archetype for StandaloneArchetype {
         Ok(ResolvedArchetype {
             name: self.name().to_string(),
             compiler: Box::new(CargoCompiler::new()),
-            blocks,
             target: config
                 .target_triple()?
                 .map(|t| t.to_string()),
-            embedded_assets: EMBEDDED_RUNTIME,
+            contribution: GenerationContribution::new()
+                .with_blocks(blocks)
+                .with_embedded_assets(EMBEDDED_RUNTIME.iter().collect()),
         })
     }
 }

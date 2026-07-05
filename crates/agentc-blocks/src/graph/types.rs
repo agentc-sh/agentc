@@ -2,6 +2,10 @@
 //
 // SPDX-License-Identifier: MIT
 
+use crate::composition::{GenerationContribution, OptionalGenerationContribution};
+
 pub struct ResolvedGraph {
     pub name: String,
+    pub contribution: GenerationContribution,
+    pub integrations: Vec<OptionalGenerationContribution>,
 }

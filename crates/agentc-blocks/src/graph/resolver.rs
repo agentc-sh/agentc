@@ -107,6 +107,7 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+    use crate::composition::GenerationContribution;
 
     #[derive(Debug, Clone, Deserialize, Serialize)]
     struct TestGraphConfig {
@@ -133,6 +134,8 @@ mod tests {
 
             Ok(ResolvedGraph {
                 name: AgentGraph::name(self).to_string(),
+                contribution: GenerationContribution::new(),
+                integrations: Vec::new(),
             })
         }
     }

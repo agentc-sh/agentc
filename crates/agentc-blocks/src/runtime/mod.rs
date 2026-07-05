@@ -100,7 +100,7 @@ impl EmbeddedAsset {
 
 /// Extract all assets into `into`, returning a map of asset name to extracted path.
 pub async fn extract_all(
-    assets: &'static [EmbeddedAsset],
+    assets: &[&'static EmbeddedAsset],
     into: PathBuf,
 ) -> Result<HashMap<String, PathBuf>, RuntimeError> {
     let mut map = HashMap::with_capacity(assets.len());

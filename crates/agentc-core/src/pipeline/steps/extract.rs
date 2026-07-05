@@ -40,7 +40,7 @@ pub struct ExtractStepInput {
     pub vfs: VirtualFileSystem,
     pub compiler: Box<dyn Compiler>,
     pub assets: Vec<TransformedAsset>,
-    pub embedded_assets: &'static [EmbeddedAsset],
+    pub embedded_assets: Vec<&'static EmbeddedAsset>,
 }
 
 impl From<GenerateStepOutput> for ExtractStepInput {
@@ -99,7 +99,7 @@ impl Step for ExtractStep {
             .await
             .map_err(|_| ExtractStepError::EventChannelClosed)?;
 
-        agentc_blocks::runtime::extract_all(input.embedded_assets, self.runtime_dir.clone())
+        agentc_blocks::runtime::extract_all(&input.embedded_assets, self.runtime_dir.clone())
             .await?;
 
         tx.send(ExtractStepEvent::Extracted { runtime_dir: self.runtime_dir.clone() })
