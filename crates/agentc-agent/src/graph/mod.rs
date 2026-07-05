@@ -6,6 +6,6 @@ pub mod checkpoint;
 pub mod command;
 pub mod context;
 pub mod errors;
-pub mod runtime;
 pub mod handler;
+pub mod runtime;
 pub mod state;

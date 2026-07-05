@@ -9,9 +9,5 @@ pub mod factory;
 pub mod model;
 
 pub use crate::providers::xai::{
-    client::XaiClient,
-    config::XaiConfig,
-    constants::Model,
-    factory::XaiFactory,
-    model::XaiModel,
+    client::XaiClient, config::XaiConfig, constants::Model, factory::XaiFactory, model::XaiModel,
 };

@@ -75,8 +75,16 @@ mod tests {
 
         let fields = FieldsSpec::collect_from(&NamedTool("mytool", &js));
 
-        assert!(fields.get(&["tool", "mytool", "enabled"]).is_some());
-        assert!(fields.get(&["tool", "mytool", "api_url"]).is_some());
+        assert!(
+            fields
+                .get(&["tool", "mytool", "enabled"])
+                .is_some()
+        );
+        assert!(
+            fields
+                .get(&["tool", "mytool", "api_url"])
+                .is_some()
+        );
         assert_eq!(fields.as_inner().len(), 2);
     }
 

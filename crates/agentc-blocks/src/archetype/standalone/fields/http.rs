@@ -29,7 +29,15 @@ mod tests {
 
         let fields = FieldsSpec::collect_from(&server);
 
-        assert!(fields.get(&["server", "host"]).is_some());
-        assert!(fields.get(&["server", "port"]).is_some());
+        assert!(
+            fields
+                .get(&["server", "host"])
+                .is_some()
+        );
+        assert!(
+            fields
+                .get(&["server", "port"])
+                .is_some()
+        );
     }
 }

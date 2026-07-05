@@ -153,7 +153,11 @@ mod tests {
             .expect("field is registered");
 
         assert_eq!(accessor.to_string().replace(' ', ""), "config.server.host");
-        assert!(fields.config_accessor(&["missing"]).is_none());
+        assert!(
+            fields
+                .config_accessor(&["missing"])
+                .is_none()
+        );
     }
 
     #[test]

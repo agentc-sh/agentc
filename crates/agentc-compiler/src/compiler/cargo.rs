@@ -60,8 +60,7 @@ impl CargoCompiler {
     }
 
     pub async fn is_installed() -> bool {
-        command_exists("cargo").await
-            && command_exists("rustup").await
+        command_exists("cargo").await && command_exists("rustup").await
     }
 
     pub async fn is_target_available(target: &str) -> Result<bool, CompilerError> {

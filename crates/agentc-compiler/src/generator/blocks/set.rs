@@ -28,11 +28,7 @@ impl<T: Serialize + Send + Sync + 'static> BlockSet<T> {
 
     /// Append a block only when `condition` is true.
     pub fn add_if(self, condition: bool, block: impl Block<T> + 'static) -> Self {
-        if condition {
-            self.add(block)
-        } else {
-            self
-        }
+        if condition { self.add(block) } else { self }
     }
 
     /// Consume the set and return the underlying vec.

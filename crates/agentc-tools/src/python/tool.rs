@@ -87,20 +87,21 @@ where
                     .positional(input.state.unwrap_or(Value::Null))
                     .keyword_callable("emit", move |args| {
                         if let Some(arc) = weak_tx.upgrade()
-                            && let Some(tx) = arc.as_ref() {
-                                let _ = tx.try_send(ActivityDelta {
-                                    activity_type: match args.positional.first() {
-                                        Some(ArgValue::Json(Value::String(s))) => s.clone(),
-                                        _ => return Ok(Value::Null),
-                                    },
-                                    patch: match args.positional.get(1) {
-                                        Some(ArgValue::Json(v)) => {
-                                            from_value(v.clone()).unwrap_or_default()
-                                        }
-                                        _ => vec![],
-                                    },
-                                });
-                            }
+                            && let Some(tx) = arc.as_ref()
+                        {
+                            let _ = tx.try_send(ActivityDelta {
+                                activity_type: match args.positional.first() {
+                                    Some(ArgValue::Json(Value::String(s))) => s.clone(),
+                                    _ => return Ok(Value::Null),
+                                },
+                                patch: match args.positional.get(1) {
+                                    Some(ArgValue::Json(v)) => {
+                                        from_value(v.clone()).unwrap_or_default()
+                                    }
+                                    _ => vec![],
+                                },
+                            });
+                        }
 
                         Ok(Value::Null)
                     }),

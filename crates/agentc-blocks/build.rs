@@ -2,14 +2,14 @@
 //
 // SPDX-License-Identifier: MIT
 
+use flate2::{Compression, write::GzEncoder};
+use ignore::WalkBuilder;
 use std::{
     collections::HashMap,
     fs,
     io::{self, Write},
     path::{Path, PathBuf},
 };
-use flate2::{write::GzEncoder, Compression};
-use ignore::WalkBuilder;
 use toml_edit::DocumentMut;
 
 /// Runtime crates that are embedded into the compiler binary.
@@ -244,8 +244,8 @@ pub fn bundle_crate(
 }
 
 fn main() {
-    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
-        .expect("Failed to read CARGO_MANIFEST_DIR");
+    let manifest_dir =
+        std::env::var("CARGO_MANIFEST_DIR").expect("Failed to read CARGO_MANIFEST_DIR");
     let root_dir = Path::new(&manifest_dir)
         .parent()
         .unwrap();

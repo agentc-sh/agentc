@@ -9,8 +9,6 @@ pub mod factory;
 pub mod model;
 
 pub use crate::providers::openrouter::{
-    client::OpenRouterClient,
-    config::OpenRouterConfig,
-    factory::OpenRouterFactory,
+    client::OpenRouterClient, config::OpenRouterConfig, factory::OpenRouterFactory,
     model::OpenRouterModel,
 };

@@ -6,6 +6,6 @@ pub mod blocks;
 pub mod context;
 pub mod errors;
 pub mod extension;
-pub mod pipeline;
 pub mod loader;
+pub mod pipeline;
 pub mod vfs;

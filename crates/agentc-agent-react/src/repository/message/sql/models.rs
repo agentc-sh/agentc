@@ -83,8 +83,7 @@ pub mod message {
                         .cloned()
                         .ok_or_else(|| "Missing content in user message data".to_string())
                         .and_then(|value| {
-                            from_value::<Vec<UserContent>>(value)
-                                .map_err(|error| error.to_string())
+                            from_value::<Vec<UserContent>>(value).map_err(|error| error.to_string())
                         })?,
                     name: None,
                     created_at: model.created_at,

@@ -9,9 +9,6 @@ pub mod factory;
 pub mod model;
 
 pub use crate::providers::gemini::{
-    client::GeminiClient,
-    config::GeminiConfig,
-    constants::Model,
-    factory::GeminiFactory,
+    client::GeminiClient, config::GeminiConfig, constants::Model, factory::GeminiFactory,
     model::GeminiModel,
 };

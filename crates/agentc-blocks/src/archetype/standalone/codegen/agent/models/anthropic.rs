@@ -9,7 +9,7 @@ use agentc_compiler::generator::blocks::codegen::ToIdent;
 
 use crate::{
     archetype::standalone::{
-        codegen::agent::models::{params::InferenceParamsFields, ModelCodeGen},
+        codegen::agent::models::{ModelCodeGen, params::InferenceParamsFields},
         fields::FieldsSpec,
     },
     context::ResolvedContextProviderAnthropic,
@@ -69,8 +69,11 @@ impl ModelCodeGen for ResolvedContextProviderAnthropic {
             .iter()
             .flatten()
             .filter_map(|model| {
-                let model_params =
-                    InferenceParamsFields::build(fields, "anthropic", model.name.to_ident().as_str());
+                let model_params = InferenceParamsFields::build(
+                    fields,
+                    "anthropic",
+                    model.name.to_ident().as_str(),
+                );
 
                 if model_params.is_empty() {
                     return None;
@@ -132,13 +135,10 @@ mod tests {
 
     #[test]
     fn imports_reference_the_anthropic_factory_and_config() {
-        let rendered = ResolvedContextProviderAnthropic {
-            config: None,
-            params: None,
-            models: None,
-        }
-        .imports()
-        .to_string();
+        let rendered =
+            ResolvedContextProviderAnthropic { config: None, params: None, models: None }
+                .imports()
+                .to_string();
 
         assert!(rendered.contains("AnthropicConfig"));
         assert!(rendered.contains("AnthropicFactory"));
@@ -190,7 +190,10 @@ mod tests {
             }]),
         };
 
-        let rendered = provider.registration(&fields).to_string().replace(' ', "");
+        let rendered = provider
+            .registration(&fields)
+            .to_string()
+            .replace(' ', "");
 
         assert!(rendered.contains("with_factory(AnthropicFactory)"));
         assert!(rendered.contains(

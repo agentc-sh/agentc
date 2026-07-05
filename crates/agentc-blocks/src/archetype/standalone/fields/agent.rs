@@ -41,9 +41,21 @@ mod tests {
     fn always_registers_the_model_provider_and_name() {
         let fields = FieldsSpec::collect_from(&agent(None));
 
-        assert!(fields.get(&["agent", "model", "provider"]).is_some());
-        assert!(fields.get(&["agent", "model", "name"]).is_some());
-        assert!(fields.get(&["agent", "capabilities"]).is_none());
+        assert!(
+            fields
+                .get(&["agent", "model", "provider"])
+                .is_some()
+        );
+        assert!(
+            fields
+                .get(&["agent", "model", "name"])
+                .is_some()
+        );
+        assert!(
+            fields
+                .get(&["agent", "capabilities"])
+                .is_none()
+        );
     }
 
     #[test]
@@ -52,6 +64,10 @@ mod tests {
             "network".to_string(),
         ]))));
 
-        assert!(fields.get(&["agent", "capabilities"]).is_some());
+        assert!(
+            fields
+                .get(&["agent", "capabilities"])
+                .is_some()
+        );
     }
 }

@@ -5,8 +5,8 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use utoipa::{IntoParams, ToSchema};
 use url::Url;
+use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 use validator::{Validate, ValidateArgs, ValidationErrors};
 
@@ -206,24 +206,16 @@ impl UserContentDTO {
             UserContentDTO::Image(image) => DomainUserContent::Image(image.to_entity()),
             UserContentDTO::Audio(audio) => DomainUserContent::Audio(audio.to_entity()),
             UserContentDTO::Video(video) => DomainUserContent::Video(video.to_entity()),
-            UserContentDTO::Document(document) => {
-                DomainUserContent::Document(document.to_entity())
-            }
+            UserContentDTO::Document(document) => DomainUserContent::Document(document.to_entity()),
         }
     }
 
     pub fn from_entity(entity: DomainUserContent) -> Self {
         match entity {
             DomainUserContent::Text(text) => UserContentDTO::Text(text),
-            DomainUserContent::Image(image) => {
-                UserContentDTO::Image(ImageDTO::from_entity(image))
-            }
-            DomainUserContent::Audio(audio) => {
-                UserContentDTO::Audio(AudioDTO::from_entity(audio))
-            }
-            DomainUserContent::Video(video) => {
-                UserContentDTO::Video(VideoDTO::from_entity(video))
-            }
+            DomainUserContent::Image(image) => UserContentDTO::Image(ImageDTO::from_entity(image)),
+            DomainUserContent::Audio(audio) => UserContentDTO::Audio(AudioDTO::from_entity(audio)),
+            DomainUserContent::Video(video) => UserContentDTO::Video(VideoDTO::from_entity(video)),
             DomainUserContent::Document(document) => {
                 UserContentDTO::Document(DocumentDTO::from_entity(document))
             }

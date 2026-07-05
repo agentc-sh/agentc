@@ -5,9 +5,7 @@
 use async_trait::async_trait;
 use futures::StreamExt;
 use rig_core::{
-    client::CompletionClient,
-    completion::CompletionModel as RigCompletionModel,
-    message::Message,
+    client::CompletionClient, completion::CompletionModel as RigCompletionModel, message::Message,
     providers::openrouter,
 };
 use serde_json::json;

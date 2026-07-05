@@ -106,9 +106,10 @@ where
             })?;
 
         if let Some(cond) = &fill.condition
-            && !evaluator.evaluate(&self.manifest.id, cond)? {
-                return Ok(String::new());
-            }
+            && !evaluator.evaluate(&self.manifest.id, cond)?
+        {
+            return Ok(String::new());
+        }
 
         let template_src = self
             .get_template(&fill.template)
@@ -136,9 +137,10 @@ where
 
         for file_spec in &self.manifest.files {
             if let Some(cond) = &file_spec.condition
-                && !evaluator.evaluate(&self.manifest.id, cond)? {
-                    continue;
-                }
+                && !evaluator.evaluate(&self.manifest.id, cond)?
+            {
+                continue;
+            }
 
             let path =
                 renderer.render(&self.manifest.id, &file_spec.path, &file_spec.path, registry)?;

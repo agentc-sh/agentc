@@ -244,34 +244,34 @@ impl Manifest {
         if let Some(openrouter) = &self.providers.openrouter {
             providers.push(ResolvedContextProvider::OpenRouter(
                 ResolvedContextProviderOpenRouter {
-                    models: openrouter.models.as_ref().map(|models| {
-                        models
-                            .iter()
-                            .map(|m| match m {
-                                ManifestProviderOpenRouterModel::Name(name) => {
-                                    ResolvedContextProviderOpenRouterModel {
-                                        name: name.clone(),
-                                        params: None,
-                                    }
-                                }
-                                ManifestProviderOpenRouterModel::Config(c) => {
-                                    ResolvedContextProviderOpenRouterModel {
-                                        name: c.name.clone(),
-                                        params: c
-                                            .params
-                                            .clone()
-                                            .map(Self::resolve_provider_params),
-                                    }
-                                }
-                            })
-                            .collect()
-                    }),
-                    config: openrouter
-                        .config
+                    models: openrouter
+                        .models
                         .as_ref()
-                        .map(|c| ResolvedContextProviderOpenRouterConfig {
-                            api_key: c.api_key.clone(),
+                        .map(|models| {
+                            models
+                                .iter()
+                                .map(|m| match m {
+                                    ManifestProviderOpenRouterModel::Name(name) => {
+                                        ResolvedContextProviderOpenRouterModel {
+                                            name: name.clone(),
+                                            params: None,
+                                        }
+                                    }
+                                    ManifestProviderOpenRouterModel::Config(c) => {
+                                        ResolvedContextProviderOpenRouterModel {
+                                            name: c.name.clone(),
+                                            params: c
+                                                .params
+                                                .clone()
+                                                .map(Self::resolve_provider_params),
+                                        }
+                                    }
+                                })
+                                .collect()
                         }),
+                    config: openrouter.config.as_ref().map(|c| {
+                        ResolvedContextProviderOpenRouterConfig { api_key: c.api_key.clone() }
+                    }),
                     params: openrouter
                         .params
                         .clone()
@@ -287,10 +287,7 @@ impl Manifest {
                         .iter()
                         .map(|m| match m {
                             ManifestProviderXaiModel::Name(name) => {
-                                ResolvedContextProviderXaiModel {
-                                    name: name.clone(),
-                                    params: None,
-                                }
+                                ResolvedContextProviderXaiModel { name: name.clone(), params: None }
                             }
                             ManifestProviderXaiModel::Config(c) => {
                                 ResolvedContextProviderXaiModel {
@@ -316,42 +313,38 @@ impl Manifest {
         }
 
         if let Some(gemini) = &self.providers.gemini {
-            providers.push(ResolvedContextProvider::Gemini(
-                ResolvedContextProviderGemini {
-                    models: gemini.models.as_ref().map(|models| {
-                        models
-                            .iter()
-                            .map(|m| match m {
-                                ManifestProviderGeminiModel::Name(name) => {
-                                    ResolvedContextProviderGeminiModel {
-                                        name: name.clone(),
-                                        params: None,
-                                    }
+            providers.push(ResolvedContextProvider::Gemini(ResolvedContextProviderGemini {
+                models: gemini.models.as_ref().map(|models| {
+                    models
+                        .iter()
+                        .map(|m| match m {
+                            ManifestProviderGeminiModel::Name(name) => {
+                                ResolvedContextProviderGeminiModel {
+                                    name: name.clone(),
+                                    params: None,
                                 }
-                                ManifestProviderGeminiModel::Config(c) => {
-                                    ResolvedContextProviderGeminiModel {
-                                        name: c.name.clone(),
-                                        params: c
-                                            .params
-                                            .clone()
-                                            .map(Self::resolve_provider_params),
-                                    }
+                            }
+                            ManifestProviderGeminiModel::Config(c) => {
+                                ResolvedContextProviderGeminiModel {
+                                    name: c.name.clone(),
+                                    params: c
+                                        .params
+                                        .clone()
+                                        .map(Self::resolve_provider_params),
                                 }
-                            })
-                            .collect()
-                    }),
-                    config: gemini
-                        .config
-                        .as_ref()
-                        .map(|c| ResolvedContextProviderGeminiConfig {
-                            api_key: c.api_key.clone(),
-                        }),
-                    params: gemini
-                        .params
-                        .clone()
-                        .map(Self::resolve_provider_params),
-                },
-            ));
+                            }
+                        })
+                        .collect()
+                }),
+                config: gemini
+                    .config
+                    .as_ref()
+                    .map(|c| ResolvedContextProviderGeminiConfig { api_key: c.api_key.clone() }),
+                params: gemini
+                    .params
+                    .clone()
+                    .map(Self::resolve_provider_params),
+            }));
         }
 
         providers
@@ -633,8 +626,7 @@ impl Manifest {
                 name.clone(),
                 ResolvedContextTool {
                     name: name.clone(),
-                    description: tool
-                        .description.clone(),
+                    description: tool.description.clone(),
                     enabled: tool.enabled.clone(),
                     capabilities: tool.capabilities.clone(),
                     config: tool.config.clone(),

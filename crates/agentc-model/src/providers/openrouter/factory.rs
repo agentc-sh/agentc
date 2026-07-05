@@ -5,9 +5,7 @@
 use crate::{
     errors::ModelError,
     providers::openrouter::{
-        client::OpenRouterClient,
-        config::OpenRouterConfig,
-        constants::PROVIDER,
+        client::OpenRouterClient, config::OpenRouterConfig, constants::PROVIDER,
     },
     traits::ClientFactory,
     types::identity::ProviderId,

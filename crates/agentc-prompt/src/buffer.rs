@@ -302,7 +302,7 @@ impl MessageBufferBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::compaction::{NoCompaction, TailWindow, MessageGroup};
+    use crate::compaction::{MessageGroup, NoCompaction, TailWindow};
 
     fn budget(input: usize, output: usize) -> TokenBudget {
         TokenBudget::new(input, output)

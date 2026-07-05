@@ -99,7 +99,7 @@ where
 impl<T> Default for CodeGenBlockBuilder<T>
 where
     T: Serialize + Send + Sync,
- {
+{
     fn default() -> Self {
         Self::new()
     }

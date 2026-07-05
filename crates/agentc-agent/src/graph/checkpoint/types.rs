@@ -11,7 +11,7 @@ use std::{
 };
 use uuid::Uuid;
 
-use crate::graph::state::{GraphNode, StateOf, InputOf};
+use crate::graph::state::{GraphNode, InputOf, StateOf};
 
 /// The status of a run, which can be used to determine if a run is active, completed, or failed.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]

@@ -2,18 +2,18 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::{error::Error, fmt::Display, marker::PhantomData, str::FromStr};
-use futures::future::BoxFuture;
 use async_trait::async_trait;
 use chrono::Utc;
+use futures::future::BoxFuture;
+use std::{error::Error, fmt::Display, marker::PhantomData, str::FromStr};
 use uuid::Uuid;
 
 use crate::graph::{
     checkpoint::{
         errors::CheckpointError,
         types::{
-            Checkpoint, CheckpointReason, CheckpointSnapshot, RunStatus,
-            LoadCheckpointParams, SaveCheckpointParams, FinishCheckpointParams,
+            Checkpoint, CheckpointReason, CheckpointSnapshot, FinishCheckpointParams,
+            LoadCheckpointParams, RunStatus, SaveCheckpointParams,
         },
     },
     state::{
@@ -129,22 +129,13 @@ pub trait CheckpointStoreHandle<N: GraphNode>: Send + Sync {
 pub trait Checkpointer<N: GraphNode>: Send + Sync {
     /// Loads a checkpoint for the given session and run.
     /// The input is used to determine if a session or run resume is possible, and to initialize state for a fresh run.
-    async fn load(
-        &self,
-        params: LoadCheckpointParams<N>,
-    ) -> Result<Checkpoint<N>, CheckpointError>;
+    async fn load(&self, params: LoadCheckpointParams<N>) -> Result<Checkpoint<N>, CheckpointError>;
 
     /// Saves a checkpoint snapshot and state after a node completes.
-    async fn save(
-        &self,
-        params: SaveCheckpointParams<N>,
-    ) -> Result<Uuid, CheckpointError>;
+    async fn save(&self, params: SaveCheckpointParams<N>) -> Result<Uuid, CheckpointError>;
 
     /// Finishes a run by writing a final snapshot and saving the final state.
-    async fn finish(
-        &self,
-        params: FinishCheckpointParams<N>,
-    ) -> Result<(), CheckpointError>;
+    async fn finish(&self, params: FinishCheckpointParams<N>) -> Result<(), CheckpointError>;
 }
 
 /// A graph checkpointer that uses a checkpoint store handle to manage checkpoints for graph nodes.
@@ -178,7 +169,7 @@ where
 {
     async fn load(
         &self,
-        params: LoadCheckpointParams<N>
+        params: LoadCheckpointParams<N>,
     ) -> Result<Checkpoint<N>, CheckpointError> {
         self.handle
             .run(|ctx| {
@@ -195,41 +186,47 @@ where
                             .load_snapshot(&params.tenant_id, cid)
                             .await
                             .map_err(|e| CheckpointError::checkpoint_store_error(e.to_string()))?
-                            && let Some(mut state) = ctx
-                                .state_store()
-                                .load(&params.tenant_id, params.session_id, params.run_id, snapshot.checkpoint_id)
-                                .await
-                                .map_err(|e| CheckpointError::state_store_error(e.to_string()))?
-                            {
-                                params.input
-                                    .into_update()
+                        && let Some(mut state) = ctx
+                            .state_store()
+                            .load(
+                                &params.tenant_id,
+                                params.session_id,
+                                params.run_id,
+                                snapshot.checkpoint_id,
+                            )
+                            .await
+                            .map_err(|e| CheckpointError::state_store_error(e.to_string()))?
+                    {
+                        params
+                            .input
+                            .into_update()
+                            .map_err(|e| {
+                                CheckpointError::unexpected_error(format!(
+                                    "Failed to convert input into state update: {e}"
+                                ))
+                            })?
+                            .ok_or_else(|| {
+                                CheckpointError::unexpected_error(
+                                    "Input cannot be converted into state update",
+                                )
+                            })?
+                            .apply(&mut state);
+
+                        return Ok(Checkpoint::resume(
+                            state,
+                            snapshot.checkpoint_id,
+                            Some(
+                                snapshot
+                                    .node
+                                    .parse::<N>()
                                     .map_err(|e| {
                                         CheckpointError::unexpected_error(format!(
-                                            "Failed to convert input into state update: {e}"
+                                            "Failed to parse node from snapshot: {e}"
                                         ))
-                                    })?
-                                    .ok_or_else(|| {
-                                        CheckpointError::unexpected_error(
-                                            "Input cannot be converted into state update",
-                                        )
-                                    })?
-                                    .apply(&mut state);
-
-                                return Ok(Checkpoint::resume(
-                                    state,
-                                    snapshot.checkpoint_id,
-                                    Some(
-                                        snapshot
-                                            .node
-                                            .parse::<N>()
-                                            .map_err(|e| {
-                                                CheckpointError::unexpected_error(format!(
-                                                    "Failed to parse node from snapshot: {e}"
-                                                ))
-                                            })?,
-                                    ),
-                                ));
-                            }
+                                    })?,
+                            ),
+                        ));
+                    }
 
                     // 2. Session resume: check for the most recent snapshot for this session, regardless of its
                     // status.
@@ -240,48 +237,54 @@ where
                         .map_err(|e| CheckpointError::checkpoint_store_error(e.to_string()))?
                         && let Some(mut state) = ctx
                             .state_store()
-                            .load(&params.tenant_id, params.session_id, params.run_id, snapshot.checkpoint_id)
+                            .load(
+                                &params.tenant_id,
+                                params.session_id,
+                                params.run_id,
+                                snapshot.checkpoint_id,
+                            )
                             .await
                             .map_err(|e| CheckpointError::state_store_error(e.to_string()))?
-                        {
-                            ctx.session_store()
-                                .save_run(&params.tenant_id, params.session_id, params.run_id)
-                                .await
-                                .map_err(|e| CheckpointError::session_store_error(e.to_string()))?;
+                    {
+                        ctx.session_store()
+                            .save_run(&params.tenant_id, params.session_id, params.run_id)
+                            .await
+                            .map_err(|e| CheckpointError::session_store_error(e.to_string()))?;
 
-                            params.input
-                                .into_update()
-                                .map_err(|e| {
-                                    CheckpointError::unexpected_error(format!(
-                                        "Failed to convert input into state update: {e}"
-                                    ))
-                                })?
-                                .ok_or_else(|| {
-                                    CheckpointError::unexpected_error(
-                                        "Input cannot be converted into state update",
-                                    )
-                                })?
-                                .apply(&mut state);
+                        params
+                            .input
+                            .into_update()
+                            .map_err(|e| {
+                                CheckpointError::unexpected_error(format!(
+                                    "Failed to convert input into state update: {e}"
+                                ))
+                            })?
+                            .ok_or_else(|| {
+                                CheckpointError::unexpected_error(
+                                    "Input cannot be converted into state update",
+                                )
+                            })?
+                            .apply(&mut state);
 
-                            return Ok(Checkpoint::resume(
-                                state,
-                                snapshot.checkpoint_id,
-                                if matches!(snapshot.reason, CheckpointReason::Interrupt) {
-                                    Some(
-                                        snapshot
-                                            .node
-                                            .parse::<N>()
-                                            .map_err(|e| {
-                                                CheckpointError::unexpected_error(format!(
-                                                    "Failed to parse node from snapshot: {e}"
-                                                ))
-                                            })?,
-                                    )
-                                } else {
-                                    None
-                                },
-                            ));
-                        }
+                        return Ok(Checkpoint::resume(
+                            state,
+                            snapshot.checkpoint_id,
+                            if matches!(snapshot.reason, CheckpointReason::Interrupt) {
+                                Some(
+                                    snapshot
+                                        .node
+                                        .parse::<N>()
+                                        .map_err(|e| {
+                                            CheckpointError::unexpected_error(format!(
+                                                "Failed to parse node from snapshot: {e}"
+                                            ))
+                                        })?,
+                                )
+                            } else {
+                                None
+                            },
+                        ));
+                    }
 
                     // Fresh run: no snapshots exist for this session, start with initial state
                     ctx.session_store()
@@ -295,10 +298,7 @@ where
             .await
     }
 
-    async fn save(
-        &self,
-        params: SaveCheckpointParams<N>
-    ) -> Result<Uuid, CheckpointError> {
+    async fn save(&self, params: SaveCheckpointParams<N>) -> Result<Uuid, CheckpointError> {
         self.handle
             .run(|ctx| {
                 Box::pin(async move {
@@ -324,7 +324,13 @@ where
                         .map_err(|e| CheckpointError::checkpoint_store_error(e.to_string()))?;
 
                     ctx.state_store()
-                        .save(&params.tenant_id, params.session_id, params.run_id, snapshot.checkpoint_id, params.state.clone())
+                        .save(
+                            &params.tenant_id,
+                            params.session_id,
+                            params.run_id,
+                            snapshot.checkpoint_id,
+                            params.state.clone(),
+                        )
                         .await
                         .map_err(|e| CheckpointError::state_store_error(e.to_string()))?;
 
@@ -334,17 +340,19 @@ where
             .await
     }
 
-    async fn finish(
-        &self,
-        params: FinishCheckpointParams<N>
-    ) -> Result<(), CheckpointError> {
+    async fn finish(&self, params: FinishCheckpointParams<N>) -> Result<(), CheckpointError> {
         self.handle
             .run(|ctx| {
                 Box::pin(async move {
                     let checkpoint_id = Uuid::new_v4();
 
                     ctx.session_store()
-                        .update_run_status(&params.tenant_id, params.session_id, params.run_id, params.status)
+                        .update_run_status(
+                            &params.tenant_id,
+                            params.session_id,
+                            params.run_id,
+                            params.status,
+                        )
                         .await
                         .map_err(|e| CheckpointError::session_store_error(e.to_string()))?;
 
@@ -368,7 +376,13 @@ where
                         .map_err(|e| CheckpointError::checkpoint_store_error(e.to_string()))?;
 
                     ctx.state_store()
-                        .save(&params.tenant_id, params.session_id, params.run_id, checkpoint_id, params.state)
+                        .save(
+                            &params.tenant_id,
+                            params.session_id,
+                            params.run_id,
+                            checkpoint_id,
+                            params.state,
+                        )
                         .await
                         .map_err(|e| CheckpointError::state_store_error(e.to_string()))?;
 

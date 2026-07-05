@@ -7,12 +7,9 @@ use agentc_compiler::generator::blocks::codegen::ToIdent;
 use crate::{
     archetype::standalone::fields::spec::{FieldsSpec, IntoFieldSpecs},
     context::{
-        ResolvedContextProviderAnthropic,
-        ResolvedContextProviderGemini,
-        ResolvedContextProviderOllama,
-        ResolvedContextProviderOpenAi,
-        ResolvedContextProviderOpenRouter,
-        ResolvedContextProviderParams,
+        ResolvedContextProviderAnthropic, ResolvedContextProviderGemini,
+        ResolvedContextProviderOllama, ResolvedContextProviderOpenAi,
+        ResolvedContextProviderOpenRouter, ResolvedContextProviderParams,
         ResolvedContextProviderXai,
     },
 };
@@ -145,7 +142,11 @@ impl IntoFieldSpecs for ResolvedContextProviderOpenRouter {
         if let Some(models) = &self.models {
             for model in models {
                 if let Some(params) = &model.params {
-                    params.extend_param_fields(fields, "openrouter", model.name.to_ident().as_str());
+                    params.extend_param_fields(
+                        fields,
+                        "openrouter",
+                        model.name.to_ident().as_str(),
+                    );
                 }
             }
         }
@@ -243,15 +244,27 @@ mod tests {
 
         let fields = FieldsSpec::collect_from(&provider);
 
-        assert!(fields.get(&["provider", "anthropic", "api_key"]).is_some());
-        assert!(fields.get(&["provider", "anthropic", "base_url"]).is_some());
-        assert!(fields
-            .get(&["provider", "anthropic", "params", "max_tokens"])
-            .is_some());
+        assert!(
+            fields
+                .get(&["provider", "anthropic", "api_key"])
+                .is_some()
+        );
+        assert!(
+            fields
+                .get(&["provider", "anthropic", "base_url"])
+                .is_some()
+        );
+        assert!(
+            fields
+                .get(&["provider", "anthropic", "params", "max_tokens"])
+                .is_some()
+        );
         // The model name is slugged into an identifier before it becomes a path segment.
-        assert!(fields
-            .get(&["provider", "anthropic", "claude_3_5", "temperature"])
-            .is_some());
+        assert!(
+            fields
+                .get(&["provider", "anthropic", "claude_3_5", "temperature"])
+                .is_some()
+        );
     }
 
     #[test]
@@ -266,8 +279,16 @@ mod tests {
 
         let fields = FieldsSpec::collect_from(&provider);
 
-        assert!(fields.get(&["provider", "ollama", "base_url"]).is_some());
-        assert!(fields.get(&["provider", "ollama", "api_key"]).is_none());
+        assert!(
+            fields
+                .get(&["provider", "ollama", "base_url"])
+                .is_some()
+        );
+        assert!(
+            fields
+                .get(&["provider", "ollama", "api_key"])
+                .is_none()
+        );
     }
 
     #[test]
@@ -282,7 +303,15 @@ mod tests {
 
         let fields = FieldsSpec::collect_from(&provider);
 
-        assert!(fields.get(&["provider", "xai", "api_key"]).is_some());
-        assert!(fields.get(&["provider", "xai", "base_url"]).is_none());
+        assert!(
+            fields
+                .get(&["provider", "xai", "api_key"])
+                .is_some()
+        );
+        assert!(
+            fields
+                .get(&["provider", "xai", "base_url"])
+                .is_none()
+        );
     }
 }

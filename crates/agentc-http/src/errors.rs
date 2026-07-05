@@ -187,10 +187,9 @@ impl From<PathRejection> for ApiError {
                 ErrorKind::InvalidUtf8InPathParam { key } => {
                     ApiError::bad_request(format!("Invalid UTF-8 in path parameter '{}'", key))
                 }
-                ErrorKind::UnsupportedType { name } => ApiError::bad_request(format!(
-                    "Unsupported type for path parameter '{}'",
-                    name
-                )),
+                ErrorKind::UnsupportedType { name } => {
+                    ApiError::bad_request(format!("Unsupported type for path parameter '{}'", name))
+                }
                 ErrorKind::Message(msg) => ApiError::bad_request(&msg),
                 ErrorKind::DeserializeError { message, .. } => {
                     ApiError::bad_request(message.as_str())

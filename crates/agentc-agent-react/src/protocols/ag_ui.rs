@@ -11,8 +11,8 @@ use std::{
     ops::Deref,
     str::FromStr,
 };
-use utoipa::ToSchema;
 use url::Url;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use agentc_agent::types::tools::ToolDefinition;
@@ -681,45 +681,48 @@ impl AgUiService for ApplicationService {
                                 parameters: tool.parameters,
                             }),
                     )
-                    .with_messages(input.messages.into_iter().filter_map(
-                        |message| match message {
-                            Message::System { id, content, name } => {
-                                Some(CreateMessageParams::System(CreateSystemMessageParams {
-                                    id: id.into(),
-                                    content,
-                                    name,
-                                }))
-                            }
-                            Message::User { id, content, name } => {
-                                Some(CreateMessageParams::User(CreateUserMessageParams {
-                                    id: id.into(),
-                                    name,
-                                    content: match content {
-                                        UserMessageContent::Text(text) => {
-                                            vec![DomainUserContent::Text(text)]
-                                        }
-                                        UserMessageContent::Parts(parts) => parts
-                                            .into_iter()
-                                            .filter_map(|block| {
-                                                DomainUserContent::from_ag_ui_type(block).ok()
-                                            })
-                                            .collect(),
-                                    },
-                                }))
-                            }
-                            Message::Tool { id, content, tool_call_id, error } => {
-                                Some(CreateMessageParams::Tool(CreateToolMessageParams {
-                                    id: id.into(),
-                                    content: Some(content),
-                                    tool_call_id: tool_call_id.into(),
-                                    parent_message_id: None,
-                                    error,
-                                    name: None,
-                                }))
-                            }
-                            _ => None,
-                        },
-                    )),
+                    .with_messages(
+                        input
+                            .messages
+                            .into_iter()
+                            .filter_map(|message| match message {
+                                Message::System { id, content, name } => {
+                                    Some(CreateMessageParams::System(CreateSystemMessageParams {
+                                        id: id.into(),
+                                        content,
+                                        name,
+                                    }))
+                                }
+                                Message::User { id, content, name } => {
+                                    Some(CreateMessageParams::User(CreateUserMessageParams {
+                                        id: id.into(),
+                                        name,
+                                        content: match content {
+                                            UserMessageContent::Text(text) => {
+                                                vec![DomainUserContent::Text(text)]
+                                            }
+                                            UserMessageContent::Parts(parts) => parts
+                                                .into_iter()
+                                                .filter_map(|block| {
+                                                    DomainUserContent::from_ag_ui_type(block).ok()
+                                                })
+                                                .collect(),
+                                        },
+                                    }))
+                                }
+                                Message::Tool { id, content, tool_call_id, error } => {
+                                    Some(CreateMessageParams::Tool(CreateToolMessageParams {
+                                        id: id.into(),
+                                        content: Some(content),
+                                        tool_call_id: tool_call_id.into(),
+                                        parent_message_id: None,
+                                        error,
+                                        name: None,
+                                    }))
+                                }
+                                _ => None,
+                            }),
+                    ),
             )
             .await?;
 

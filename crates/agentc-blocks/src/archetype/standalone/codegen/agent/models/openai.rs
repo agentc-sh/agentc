@@ -9,7 +9,7 @@ use agentc_compiler::generator::blocks::codegen::ToIdent;
 
 use crate::{
     archetype::standalone::{
-        codegen::agent::models::{params::InferenceParamsFields, ModelCodeGen},
+        codegen::agent::models::{ModelCodeGen, params::InferenceParamsFields},
         fields::FieldsSpec,
     },
     context::ResolvedContextProviderOpenAi,
@@ -111,13 +111,14 @@ mod tests {
 
     #[test]
     fn imports_and_registration_reference_the_openai_factory() {
-        let provider = ResolvedContextProviderOpenAi {
-            config: None,
-            params: None,
-            models: None,
-        };
+        let provider = ResolvedContextProviderOpenAi { config: None, params: None, models: None };
 
-        assert!(provider.imports().to_string().contains("OpenAiFactory"));
+        assert!(
+            provider
+                .imports()
+                .to_string()
+                .contains("OpenAiFactory")
+        );
 
         let rendered = provider
             .registration(&FieldsSpec::new(vec![]))

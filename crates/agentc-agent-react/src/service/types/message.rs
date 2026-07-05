@@ -525,10 +525,7 @@ mod tests {
     fn user_content() -> Vec<UserContent> {
         vec![
             UserContent::text("Describe this image"),
-            UserContent::image(
-                MediaSource::Base64("image-data".to_string()),
-                "image/png",
-            ),
+            UserContent::image(MediaSource::Base64("image-data".to_string()), "image/png"),
         ]
     }
 

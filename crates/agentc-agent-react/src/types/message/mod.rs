@@ -11,19 +11,12 @@ use std::{
 };
 use uuid::Uuid;
 
-use agentc_agent::{
-    context::AgentContext,
-    types::conversion::ToModelType,
-};
+use agentc_agent::{context::AgentContext, types::conversion::ToModelType};
 use agentc_model::types::message::{
     AssistantMessage as ModelAssistantMessage, ChatMessage as ModelChatMessage,
     UserMessage as ModelUserMessage,
 };
-use agentc_prompt::{
-    buffer::TokenCount,
-    compaction::MessageGroup,
-    counter::TokenCounter,
-};
+use agentc_prompt::{buffer::TokenCount, compaction::MessageGroup, counter::TokenCounter};
 
 mod assistant;
 mod media;
@@ -547,7 +540,7 @@ impl ToModelType for MessageList {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use agentc_agent::types::{tools::ToolCall, conversion::FromModelType};
+    use agentc_agent::types::{conversion::FromModelType, tools::ToolCall};
     use agentc_model::types::{
         media::MediaData as ModelMediaData,
         message::{

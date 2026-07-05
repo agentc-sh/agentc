@@ -45,8 +45,7 @@ impl ToolCodeGen for JavascriptTools<'_> {
         let mut registrations = Vec::new();
 
         // Group tools by bundle path so each unique bundle shares one runtime.
-        let mut by_bundle =
-            HashMap::<&str, Vec<(&str, &ResolvedContextToolJavascript)>>::new();
+        let mut by_bundle = HashMap::<&str, Vec<(&str, &ResolvedContextToolJavascript)>>::new();
         for (tool_name, tool) in &ctx.tools {
             if let ResolvedContextToolKind::Javascript(js) = &tool.kind {
                 by_bundle

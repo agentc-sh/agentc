@@ -11,7 +11,9 @@ use agentc_compiler::{
         blocks::{
             BlockSet,
             codegen::CodeGenBlock,
-            template::{ExtensionPointSpec, FileSpec, Reducer, TemplateBlock, TemplateBlockManifest},
+            template::{
+                ExtensionPointSpec, FileSpec, Reducer, TemplateBlock, TemplateBlockManifest,
+            },
         },
         extension::{Contribution, reducers},
     },
@@ -24,11 +26,8 @@ use crate::{
                 agent::AgentCodeGen,
                 build_script::BuildScriptCodeGen,
                 cli::{
-                    CliModCodeGen,
-                    config::CliConfigCodeGen,
-                    run::CliRunCodeGen,
-                    serve::CliServeCodeGen,
-                    shutdown::CliShutdownCodeGen,
+                    CliModCodeGen, config::CliConfigCodeGen, run::CliRunCodeGen,
+                    serve::CliServeCodeGen, shutdown::CliShutdownCodeGen,
                 },
                 config::ConfigCodeGen,
                 entrypoint::EntrypointCodeGen,
@@ -109,8 +108,7 @@ impl From<(Os, Arch)> for TargetTriple {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct StandaloneArchetypeConfig {
     pub os: Option<Os>,
     pub arch: Option<Arch>,
@@ -146,7 +144,8 @@ impl Archetype for StandaloneArchetype {
             .http_server
             .as_ref()
             .and_then(|server| {
-                server.protocols
+                server
+                    .protocols
                     .iter()
                     .filter_map(|p| p.as_ag_ui())
                     .next()
@@ -184,7 +183,11 @@ impl Archetype for StandaloneArchetype {
                     .with_var("runtime_version", env!("CARGO_PKG_VERSION"))
                     .build(),
             )
-            .add(CodeGenBlock::builder().id("build_rs").build(BuildScriptCodeGen))
+            .add(
+                CodeGenBlock::builder()
+                    .id("build_rs")
+                    .build(BuildScriptCodeGen),
+            )
             .add(
                 CodeGenBlock::builder()
                     .id("migrator_rs")
@@ -220,9 +223,21 @@ impl Archetype for StandaloneArchetype {
                     .extension_point("cli::mod::arms", reducers::concat)
                     .build(CliModCodeGen),
             )
-            .add(CodeGenBlock::builder().id("cli_shutdown").build(CliShutdownCodeGen))
-            .add(CodeGenBlock::builder().id("cli_run").build(CliRunCodeGen))
-            .add(CodeGenBlock::builder().id("cli_config").build(CliConfigCodeGen))
+            .add(
+                CodeGenBlock::builder()
+                    .id("cli_shutdown")
+                    .build(CliShutdownCodeGen),
+            )
+            .add(
+                CodeGenBlock::builder()
+                    .id("cli_run")
+                    .build(CliRunCodeGen),
+            )
+            .add(
+                CodeGenBlock::builder()
+                    .id("cli_config")
+                    .build(CliConfigCodeGen),
+            )
             .add(
                 CodeGenBlock::builder()
                     .id("main_rs")

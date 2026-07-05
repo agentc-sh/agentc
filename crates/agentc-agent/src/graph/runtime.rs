@@ -8,8 +8,8 @@ use uuid::Uuid;
 
 use crate::graph::{
     checkpoint::{
-        Checkpoint, CheckpointReason, Checkpointer, RunStatus,
-        LoadCheckpointParams, SaveCheckpointParams, FinishCheckpointParams,
+        Checkpoint, CheckpointReason, Checkpointer, FinishCheckpointParams, LoadCheckpointParams,
+        RunStatus, SaveCheckpointParams,
     },
     command::GraphTransition,
     context::RuntimeContext,
@@ -140,23 +140,24 @@ where
         };
 
         if let Some(checkpointer) = &self.checkpointer
-            && let GraphTransition::Node(ref node) = current_node {
-                parent_checkpoint_id = Some(
-                    checkpointer
-                        .save(SaveCheckpointParams {
-                            tenant_id: config.tenant_id.clone(),
-                            session_id: config.session_id,
-                            run_id: config.run_id,
-                            node: node.to_string(),
-                            state: state.clone(),
-                            reason: CheckpointReason::Input,
-                            parent_checkpoint_id,
-                            metadata: None,
-                        })
-                        .await
-                        .map_err(GraphError::checkpoint_error)?,
-                );
-            }
+            && let GraphTransition::Node(ref node) = current_node
+        {
+            parent_checkpoint_id = Some(
+                checkpointer
+                    .save(SaveCheckpointParams {
+                        tenant_id: config.tenant_id.clone(),
+                        session_id: config.session_id,
+                        run_id: config.run_id,
+                        node: node.to_string(),
+                        state: state.clone(),
+                        reason: CheckpointReason::Input,
+                        parent_checkpoint_id,
+                        metadata: None,
+                    })
+                    .await
+                    .map_err(GraphError::checkpoint_error)?,
+            );
+        }
 
         let mut resume_payload = config.resume_payload;
         let mut last_node = self.entrypoint.to_string();
@@ -224,7 +225,9 @@ where
                 );
             }
 
-            current_node = command.goto.unwrap_or(GraphTransition::End);
+            current_node = command
+                .goto
+                .unwrap_or(GraphTransition::End);
         }
 
         if let Some(checkpointer) = &self.checkpointer {

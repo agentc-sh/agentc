@@ -21,7 +21,10 @@ use crate::{
     errors::ModelError,
     types::{
         media::{Audio, Document, Image, MediaData, Video},
-        message::{AssistantContent, AssistantMessage, ChatMessage, UserContent, UserMessage, SystemMessage},
+        message::{
+            AssistantContent, AssistantMessage, ChatMessage, SystemMessage, UserContent,
+            UserMessage,
+        },
         reasoning::{Reasoning, ReasoningContent},
         tools::{ToolCall, ToolResult, ToolResultContent},
     },
@@ -314,13 +317,9 @@ impl TryFrom<RigDocumentSourceKind> for MediaData {
 
     fn try_from(value: RigDocumentSourceKind) -> Result<Self, Self::Error> {
         match value {
-            RigDocumentSourceKind::Url(url) => Ok(MediaData::Url(
-                url
-                    .parse::<Url>()
-                    .map_err(|e| ModelError::Configuration {
-                        message: format!("invalid URL: {}", e),
-                    })?
-            )),
+            RigDocumentSourceKind::Url(url) => Ok(MediaData::Url(url.parse::<Url>().map_err(
+                |e| ModelError::Configuration { message: format!("invalid URL: {}", e) },
+            )?)),
             RigDocumentSourceKind::Base64(data) => Ok(MediaData::Base64(data)),
             _ => Err(ModelError::Configuration {
                 message: format!("unsupported document source kind: {:?}", value),
@@ -356,7 +355,9 @@ impl TryFrom<ToolResultContent> for RigToolResultContent {
 
     fn try_from(value: ToolResultContent) -> Result<Self, Self::Error> {
         match value {
-            ToolResultContent::Text(text) => Ok(RigToolResultContent::Text(RigText { text, additional_params: None })),
+            ToolResultContent::Text(text) => {
+                Ok(RigToolResultContent::Text(RigText { text, additional_params: None }))
+            }
             ToolResultContent::Image(image) => Ok(RigToolResultContent::Image(image.try_into()?)),
         }
     }
@@ -531,7 +532,9 @@ impl TryFrom<UserContent> for RigUserContent {
 
     fn try_from(value: UserContent) -> Result<Self, Self::Error> {
         match value {
-            UserContent::Text(text) => Ok(RigUserContent::Text(RigText { text, additional_params: None })),
+            UserContent::Text(text) => {
+                Ok(RigUserContent::Text(RigText { text, additional_params: None }))
+            }
             UserContent::ToolResult(result) => Ok(RigUserContent::ToolResult(result.try_into()?)),
             UserContent::Image(image) => Ok(RigUserContent::Image(image.try_into()?)),
             UserContent::Audio(audio) => Ok(RigUserContent::Audio(audio.try_into()?)),
@@ -565,7 +568,9 @@ impl TryFrom<AssistantContent> for RigAssistantContent {
 
     fn try_from(value: AssistantContent) -> Result<Self, Self::Error> {
         match value {
-            AssistantContent::Text(text) => Ok(RigAssistantContent::Text(RigText { text, additional_params: None })),
+            AssistantContent::Text(text) => {
+                Ok(RigAssistantContent::Text(RigText { text, additional_params: None }))
+            }
             AssistantContent::Image(image) => Ok(RigAssistantContent::Image(image.try_into()?)),
             AssistantContent::Reasoning(reasoning) => {
                 Ok(RigAssistantContent::Reasoning(reasoning.try_into()?))

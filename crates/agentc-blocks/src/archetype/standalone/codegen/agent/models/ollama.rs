@@ -9,7 +9,7 @@ use agentc_compiler::generator::blocks::codegen::ToIdent;
 
 use crate::{
     archetype::standalone::{
-        codegen::agent::models::{params::InferenceParamsFields, ModelCodeGen},
+        codegen::agent::models::{ModelCodeGen, params::InferenceParamsFields},
         fields::FieldsSpec,
     },
     context::ResolvedContextProviderOllama,
@@ -102,13 +102,14 @@ mod tests {
 
     #[test]
     fn imports_and_registration_reference_the_ollama_factory() {
-        let provider = ResolvedContextProviderOllama {
-            config: None,
-            params: None,
-            models: None,
-        };
+        let provider = ResolvedContextProviderOllama { config: None, params: None, models: None };
 
-        assert!(provider.imports().to_string().contains("OllamaFactory"));
+        assert!(
+            provider
+                .imports()
+                .to_string()
+                .contains("OllamaFactory")
+        );
 
         let rendered = provider
             .registration(&FieldsSpec::new(vec![]))

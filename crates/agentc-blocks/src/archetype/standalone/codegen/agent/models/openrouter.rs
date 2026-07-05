@@ -9,7 +9,7 @@ use agentc_compiler::generator::blocks::codegen::ToIdent;
 
 use crate::{
     archetype::standalone::{
-        codegen::agent::models::{params::InferenceParamsFields, ModelCodeGen},
+        codegen::agent::models::{ModelCodeGen, params::InferenceParamsFields},
         fields::FieldsSpec,
     },
     context::ResolvedContextProviderOpenRouter,
@@ -61,8 +61,11 @@ impl ModelCodeGen for ResolvedContextProviderOpenRouter {
             .iter()
             .flatten()
             .filter_map(|model| {
-                let model_params =
-                    InferenceParamsFields::build(fields, "openrouter", model.name.to_ident().as_str());
+                let model_params = InferenceParamsFields::build(
+                    fields,
+                    "openrouter",
+                    model.name.to_ident().as_str(),
+                );
 
                 if model_params.is_empty() {
                     return None;
@@ -102,13 +105,15 @@ mod tests {
 
     #[test]
     fn imports_and_registration_reference_the_openrouter_factory() {
-        let provider = ResolvedContextProviderOpenRouter {
-            config: None,
-            params: None,
-            models: None,
-        };
+        let provider =
+            ResolvedContextProviderOpenRouter { config: None, params: None, models: None };
 
-        assert!(provider.imports().to_string().contains("OpenRouterFactory"));
+        assert!(
+            provider
+                .imports()
+                .to_string()
+                .contains("OpenRouterFactory")
+        );
 
         let rendered = provider
             .registration(&FieldsSpec::new(vec![]))

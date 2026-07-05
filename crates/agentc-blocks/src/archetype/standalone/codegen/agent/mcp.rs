@@ -31,11 +31,7 @@ impl McpCodeGen {
                         )
                     });
 
-                    Self::push_rv_loader(
-                        &["mcp", "servers", name, "command"],
-                        command,
-                        &mut calls,
-                    );
+                    Self::push_rv_loader(&["mcp", "servers", name, "command"], command, &mut calls);
 
                     for (i, arg) in args.iter().enumerate() {
                         Self::push_rv_loader_indexed(

@@ -97,18 +97,20 @@ impl<U: Ui> StreamRenderer<GenerateEvent> for GenerateStreamRenderer<U> {
             }
             GenerateEvent::TransformerStdout(line) => {
                 if self.verbose
-                    && let Some(vp) = &self.current_viewport {
-                        vp.push(line);
-                    }
+                    && let Some(vp) = &self.current_viewport
+                {
+                    vp.push(line);
+                }
             }
             GenerateEvent::TransformerStderr(line) => {
                 self.transformer_output.push_str(line);
                 self.transformer_output.push('\n');
 
                 if self.verbose
-                    && let Some(vp) = &self.current_viewport {
-                        vp.push(line);
-                    }
+                    && let Some(vp) = &self.current_viewport
+                {
+                    vp.push(line);
+                }
             }
             GenerateEvent::ManifestResolved { tool_count, .. } => {
                 self.tool_count = Some(*tool_count);

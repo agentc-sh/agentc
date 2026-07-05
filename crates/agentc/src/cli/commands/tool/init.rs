@@ -56,17 +56,18 @@ impl Cmd for CliCommandToolInit {
             .clone()
             .unwrap_or_else(|| PathBuf::from(&self.name));
 
-        if dir.exists() && !self.force
+        if dir.exists()
+            && !self.force
             && !dir
                 .read_dir()
                 .map(|mut d| d.next().is_none())
                 .unwrap_or(false)
-            {
-                return Err(CliError::invalid_parameters(format!(
-                    "'{}' already exists and is non-empty; pass --force to overwrite",
-                    dir.display()
-                )));
-            }
+        {
+            return Err(CliError::invalid_parameters(format!(
+                "'{}' already exists and is non-empty; pass --force to overwrite",
+                dir.display()
+            )));
+        }
 
         InitTool::scaffold(InitToolParams {
             name: self.name.clone(),

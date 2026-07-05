@@ -175,8 +175,8 @@ where
     N: GraphNode<Context = AgentContext<E, M>> + 'static,
     E: From<AgentEvent<StateOf<N>>> + Send + Clone + 'static,
     M: Send + Clone + 'static,
-NoCompaction: CompactionStrategy<M>,
- {
+    NoCompaction: CompactionStrategy<M>,
+{
     fn default() -> Self {
         Self::new()
     }
@@ -307,10 +307,20 @@ where
     /// Build the [`Agent`](crate::agent::Agent) with the provided configuration. Returns an error if any required fields are missing.
     pub fn build(self) -> Result<Agent<N, E, M>, AgentError> {
         Ok(Agent {
-            graph: Arc::new(self.graph.ok_or(AgentError::configuration("Graph is required"))?),
-            identity: self.identity.ok_or(AgentError::configuration("Identity is required"))?,
-            model_registry: self.model_registry.ok_or(AgentError::configuration("Model registry is required"))?,
-            tool_registry: self.tool_registries.into_iter().fold(self.tool_registry, |acc, r| acc.merged_with(r)),
+            graph: Arc::new(
+                self.graph
+                    .ok_or(AgentError::configuration("Graph is required"))?,
+            ),
+            identity: self
+                .identity
+                .ok_or(AgentError::configuration("Identity is required"))?,
+            model_registry: self
+                .model_registry
+                .ok_or(AgentError::configuration("Model registry is required"))?,
+            tool_registry: self
+                .tool_registries
+                .into_iter()
+                .fold(self.tool_registry, |acc, r| acc.merged_with(r)),
             prompt_env: self.prompt_env,
             token_counter: self.token_counter,
             compaction_strategy: self.compaction_strategy,

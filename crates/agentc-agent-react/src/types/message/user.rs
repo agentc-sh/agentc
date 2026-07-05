@@ -110,9 +110,7 @@ impl ToModelType for UserContent {
             UserContent::Image(image) => ModelUserContent::Image(image.to_model_type()),
             UserContent::Audio(audio) => ModelUserContent::Audio(audio.to_model_type()),
             UserContent::Video(video) => ModelUserContent::Video(video.to_model_type()),
-            UserContent::Document(document) => {
-                ModelUserContent::Document(document.to_model_type())
-            }
+            UserContent::Document(document) => ModelUserContent::Document(document.to_model_type()),
         }
     }
 }
@@ -133,9 +131,9 @@ impl FromModelType for UserContent {
             ModelUserContent::Video(video) => {
                 Some(UserContent::Video(Video::from_model_type(video)))
             }
-            ModelUserContent::Document(document) => Some(UserContent::Document(
-                Document::from_model_type(document),
-            )),
+            ModelUserContent::Document(document) => {
+                Some(UserContent::Document(Document::from_model_type(document)))
+            }
             ModelUserContent::ToolResult(_) => None,
         }
     }

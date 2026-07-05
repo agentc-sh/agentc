@@ -141,8 +141,7 @@ impl ToolCodeGen for EmbeddedPythonTools<'_> {
         let mut registrations = Vec::new();
 
         // Group embedded tools by site_packages_path so each unique venv shares one runtime.
-        let mut by_site_packages =
-            HashMap::<&str, Vec<(&str, &ResolvedContextToolPython)>>::new();
+        let mut by_site_packages = HashMap::<&str, Vec<(&str, &ResolvedContextToolPython)>>::new();
         for (tool_name, tool) in &ctx.tools {
             if let ResolvedContextToolKind::Python(py) = &tool.kind
                 && matches!(py.interpreter, ResolvedContextToolPythonInterpreter::Embedded)
@@ -174,12 +173,7 @@ impl ToolCodeGen for EmbeddedPythonTools<'_> {
                 &project_paths,
                 &runtime_ident,
             ));
-            registrations.extend(Self::tool_registrations(
-                tools,
-                &runtime_ident,
-                ctx,
-                fields,
-            ));
+            registrations.extend(Self::tool_registrations(tools, &runtime_ident, ctx, fields));
         }
 
         Ok(registrations)

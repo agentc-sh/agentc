@@ -26,7 +26,11 @@ mod tests {
 
         let fields = FieldsSpec::collect_from(&runtime);
 
-        assert!(fields.get(&["default_tenant_id"]).is_some());
+        assert!(
+            fields
+                .get(&["default_tenant_id"])
+                .is_some()
+        );
         assert_eq!(fields.as_inner().len(), 1);
     }
 }

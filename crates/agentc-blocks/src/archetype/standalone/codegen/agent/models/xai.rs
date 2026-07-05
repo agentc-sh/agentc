@@ -9,7 +9,7 @@ use agentc_compiler::generator::blocks::codegen::ToIdent;
 
 use crate::{
     archetype::standalone::{
-        codegen::agent::models::{params::InferenceParamsFields, ModelCodeGen},
+        codegen::agent::models::{ModelCodeGen, params::InferenceParamsFields},
         fields::FieldsSpec,
     },
     context::ResolvedContextProviderXai,
@@ -102,13 +102,14 @@ mod tests {
 
     #[test]
     fn imports_and_registration_reference_the_xai_factory() {
-        let provider = ResolvedContextProviderXai {
-            config: None,
-            params: None,
-            models: None,
-        };
+        let provider = ResolvedContextProviderXai { config: None, params: None, models: None };
 
-        assert!(provider.imports().to_string().contains("XaiFactory"));
+        assert!(
+            provider
+                .imports()
+                .to_string()
+                .contains("XaiFactory")
+        );
 
         let rendered = provider
             .registration(&FieldsSpec::new(vec![]))

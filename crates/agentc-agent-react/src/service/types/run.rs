@@ -735,10 +735,7 @@ mod tests {
     fn run_input_preserves_user_content() {
         let content = vec![
             UserContent::text("Describe this image"),
-            UserContent::image(
-                MediaSource::Base64("image-data".to_string()),
-                "image/png",
-            ),
+            UserContent::image(MediaSource::Base64("image-data".to_string()), "image/png"),
         ];
         let input = RunParams::new("tenant", Uuid::new_v4())
             .with_messages([CreateMessageParams::User(

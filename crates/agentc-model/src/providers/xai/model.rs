@@ -5,9 +5,7 @@
 use async_trait::async_trait;
 use futures::StreamExt;
 use rig_core::{
-    client::CompletionClient,
-    completion::CompletionModel as RigCompletionModel,
-    message::Message,
+    client::CompletionClient, completion::CompletionModel as RigCompletionModel, message::Message,
     providers::xai,
 };
 use serde_json::json;
@@ -33,11 +31,7 @@ pub struct XaiModel {
 }
 
 impl XaiModel {
-    pub fn new(
-        client: xai::Client,
-        model_id: ModelId,
-        inference_params: InferenceParams,
-    ) -> Self {
+    pub fn new(client: xai::Client, model_id: ModelId, inference_params: InferenceParams) -> Self {
         Self {
             model: client.completion_model(model_id.as_str()),
             model_id,
