@@ -32,3 +32,9 @@ jobs:
 
       - name: Lint code
         run: task rust:lint
+
+      - name: Unit tests - Compiler
+        run: task rust:test:compiler
+
+      - name: Unit tests - Runtime
+        run: task rust:test:runtime
