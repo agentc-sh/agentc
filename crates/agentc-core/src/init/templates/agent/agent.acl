@@ -17,6 +17,10 @@ agent "{{ name }}" {
   description = "A helpful assistant."
   prompt      = "You are a helpful assistant."
 
+  graph {
+    type = "react"
+  }
+
   model {
     provider = "anthropic"
     name     = "claude-haiku-4-5"

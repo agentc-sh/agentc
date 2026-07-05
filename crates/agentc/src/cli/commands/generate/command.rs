@@ -86,7 +86,8 @@ impl Cmd for CliCommandGenerate {
             .archetype_resolver(
                 ArchetypeResolver::builder()
                     .with_archetype(StandaloneArchetype)
-                    .build(),
+                    .build()
+                    .map_err(|e| CliError::unexpected_error(e.to_string()))?,
             )
             .transformer_registry(TransformerRegistry::default())
             .runtime_dir(

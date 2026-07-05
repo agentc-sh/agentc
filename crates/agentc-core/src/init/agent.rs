@@ -58,6 +58,17 @@ mod tests {
     }
 
     #[test]
+    fn agent_acl_contains_react_graph_block() {
+        let vfs = InitAgent::scaffold(InitAgentParams { name: "my_agent".into() }).unwrap();
+        let content = vfs.get("agent.acl").unwrap();
+
+        assert!(
+            content.contains("graph {\n    type = \"react\"\n  }"),
+            "agent.acl missing graph block: {content}"
+        );
+    }
+
+    #[test]
     fn gitignore_is_present() {
         let vfs = InitAgent::scaffold(InitAgentParams { name: "my_agent".into() }).unwrap();
         assert!(vfs.get(".gitignore").is_some());

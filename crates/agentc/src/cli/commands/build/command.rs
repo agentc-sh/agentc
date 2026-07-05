@@ -120,7 +120,8 @@ impl Cmd for CliCommandBuild {
             .archetype_resolver(
                 ArchetypeResolver::builder()
                     .with_archetype(StandaloneArchetype)
-                    .build(),
+                    .build()
+                    .map_err(|e| CliError::unexpected_error(e.to_string()))?,
             )
             .transformer_registry(TransformerRegistry::default())
             .skip_cleanup(self.no_cleanup)
