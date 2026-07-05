@@ -241,6 +241,45 @@ impl Manifest {
             }));
         }
 
+        if let Some(openrouter) = &self.providers.openrouter {
+            providers.push(ResolvedContextProvider::OpenRouter(
+                ResolvedContextProviderOpenRouter {
+                    models: openrouter.models.as_ref().map(|models| {
+                        models
+                            .iter()
+                            .map(|m| match m {
+                                ManifestProviderOpenRouterModel::Name(name) => {
+                                    ResolvedContextProviderOpenRouterModel {
+                                        name: name.clone(),
+                                        params: None,
+                                    }
+                                }
+                                ManifestProviderOpenRouterModel::Config(c) => {
+                                    ResolvedContextProviderOpenRouterModel {
+                                        name: c.name.clone(),
+                                        params: c
+                                            .params
+                                            .clone()
+                                            .map(Self::resolve_provider_params),
+                                    }
+                                }
+                            })
+                            .collect()
+                    }),
+                    config: openrouter
+                        .config
+                        .as_ref()
+                        .map(|c| ResolvedContextProviderOpenRouterConfig {
+                            api_key: c.api_key.clone(),
+                        }),
+                    params: openrouter
+                        .params
+                        .clone()
+                        .map(Self::resolve_provider_params),
+                },
+            ));
+        }
+
         providers
     }
 
