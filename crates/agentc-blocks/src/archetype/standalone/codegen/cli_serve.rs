@@ -50,6 +50,7 @@ impl CodeGen<ResolvedContext> for CliServeCodeGen {
             use agentc_telemetry::info;
             use agentc_agent_react::service::ApplicationService;
 
+            use crate::cli::shutdown::ShutdownSignal;
             use crate::config::Config;
             use crate::agent::build_agent;
             use crate::server;
@@ -96,7 +97,7 @@ impl CodeGen<ResolvedContext> for CliServeCodeGen {
                     address = ?server.address()
                 );
 
-                super::shutdown_signal(shutdown).await;
+                shutdown.shutdown_signal().await;
 
                 info!(
                     event = "ShuttingDown",

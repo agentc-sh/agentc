@@ -6,6 +6,7 @@ pub mod agent_rs;
 pub mod build_rs;
 pub mod cli_config;
 pub mod cli_mod;
+pub mod cli_shutdown;
 pub mod cli_run;
 pub mod cli_serve;
 pub mod config_rs;

@@ -24,9 +24,9 @@ use crate::{
         standalone::{
             codegen::{
                 agent_rs::AgentRsCodeGen, build_rs::BuildRsCodeGen, cli_config::CliConfigCodeGen,
-                cli_mod::CliModCodeGen, cli_run::CliRunCodeGen, cli_serve::CliServeCodeGen,
-                config_rs::ConfigRsCodeGen, main_rs::MainRsCodeGen, migrator_rs::MigratorRsCodeGen,
-                protocol_ag_ui::ProtocolAgUiCodeGen, server_rs::ServerRsCodeGen,
+                cli_mod::CliModCodeGen, cli_shutdown::CliShutdownCodeGen, cli_run::CliRunCodeGen,
+                cli_serve::CliServeCodeGen, config_rs::ConfigRsCodeGen, main_rs::MainRsCodeGen,
+                migrator_rs::MigratorRsCodeGen, protocol_ag_ui::ProtocolAgUiCodeGen, server_rs::ServerRsCodeGen,
             },
             fields::{FieldSpec, FieldsSpec},
         },
@@ -177,6 +177,12 @@ impl StandaloneArchetype {
             .extension_point("cli::mod::variants", reducers::concat)
             .extension_point("cli::mod::arms", reducers::concat)
             .build(CliModCodeGen)
+    }
+
+    fn cli_shutdown() -> CodeGenBlock<ResolvedContext> {
+        CodeGenBlock::builder()
+            .id("cli_shutdown")
+            .build(CliShutdownCodeGen)
     }
 
     fn cli_run() -> CodeGenBlock<ResolvedContext> {
@@ -728,6 +734,7 @@ impl Archetype for StandaloneArchetype {
             Box::new(Self::config_rs(&fields)),
             Box::new(Self::agent_rs(&fields)),
             Box::new(Self::cli_mod()),
+            Box::new(Self::cli_shutdown()),
             Box::new(Self::cli_run()),
             Box::new(Self::cli_config()),
             Box::new(Self::main_rs()),

@@ -65,7 +65,6 @@ uuid = { version = "1.23", features = ["v4", "v5", "fast-rng", "zerocopy", "serd
 url = { version = "2", features = ["serde"] }
 json-patch = { version = "4.2", features = ["schemars", "utoipa"] }
 schemars = { version = "1.1", features = ["derive", "chrono04", "url2", "uuid1"] }
-utoipa = { version = "5.4", features = ["axum_extras", "chrono", "uuid", "time", "url", "preserve_order", "preserve_path_order"] }
 
 cel = { version = "0.14", features = ["chrono", "regex", "json"] }
 minijinja = { version = "2", features = ["json"] }
@@ -86,6 +85,7 @@ sentry = { version = "0.48", features = ["anyhow", "tracing", "tower-http", "ope
 axum = { version = "0.8", features = ["tracing"] }
 axum-server = { version = "0.8", features = ["tls-rustls"] }
 serde_qs = { version = "1.1", features = ["axum"] }
+utoipa = { version = "5.4", features = ["axum_extras", "chrono", "uuid", "time", "url", "preserve_order", "preserve_path_order"] }
 utoipa-axum = { version = "0.2" }
 utoipa-scalar = { version = "0.3", features = ["axum"] }
 tower-http = { version = "0.7", features = ["trace"] }
