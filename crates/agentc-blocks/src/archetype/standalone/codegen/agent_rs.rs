@@ -557,6 +557,334 @@ impl AgentRsCodeGen {
                         #(#with_model_params)*
                     });
                 }
+                ResolvedContextProvider::Xai(xai) => {
+                    imports.push(quote! {
+                        use agentc_model::providers::xai::{XaiConfig, XaiFactory};
+                    });
+
+                    let api_key = xai
+                        .config
+                        .as_ref()
+                        .and_then(|c| c.api_key.as_ref())
+                        .and_then(|_| {
+                            Self::config_path(fields, &["provider", "xai", "api_key"])
+                        })
+                        .map(|path| quote! { Some(#path.clone().into_inner()) })
+                        .unwrap_or(quote! { None });
+
+                    let constraints = xai.models.as_ref().map(|models| {
+                        let names = models
+                            .iter()
+                            .map(|m| m.name.as_str())
+                            .collect::<Vec<_>>();
+                        quote! {
+                            .with_constraints(XaiFactory::provider(), [#(#names),*])
+                        }
+                    });
+
+                    let provider_param_fields = [
+                        Self::config_path(fields, &["provider", "xai", "params", "max_tokens"])
+                            .map(|p| quote! { max_tokens: Some(#p), }),
+                        Self::config_path(fields, &["provider", "xai", "params", "temperature"])
+                            .map(|p| quote! { temperature: Some(#p), }),
+                        Self::config_path(fields, &["provider", "xai", "params", "top_p"])
+                            .map(|p| quote! { top_p: Some(#p), }),
+                        Self::config_path(fields, &["provider", "xai", "params", "top_k"])
+                            .map(|p| quote! { top_k: Some(#p), }),
+                        Self::config_path(fields, &["provider", "xai", "params", "stop_sequences"])
+                            .map(|p| quote! { stop_sequences: Some(#p.clone()), }),
+                        Self::config_path(
+                            fields,
+                            &["provider", "xai", "params", "frequency_penalty"],
+                        )
+                        .map(|p| quote! { frequency_penalty: Some(#p), }),
+                        Self::config_path(
+                            fields,
+                            &["provider", "xai", "params", "presence_penalty"],
+                        )
+                        .map(|p| quote! { presence_penalty: Some(#p), }),
+                        Self::config_path(fields, &["provider", "xai", "params", "seed"])
+                            .map(|p| quote! { seed: Some(#p), }),
+                        Self::config_path(
+                            fields,
+                            &["provider", "xai", "params", "provider_params"],
+                        )
+                        .map(|p| quote! { provider_params: Some(#p.clone()), }),
+                    ]
+                    .into_iter()
+                    .flatten()
+                    .collect::<Vec<_>>();
+
+                    let with_provider_params = if provider_param_fields.is_empty() {
+                        quote! {}
+                    } else {
+                        quote! {
+                            .with_provider_params(
+                                XaiFactory::provider(),
+                                agentc_model::types::inference::InferenceParams {
+                                    #(#provider_param_fields)*
+                                    ..Default::default()
+                                },
+                            )
+                        }
+                    };
+
+                    let with_model_params = xai
+                        .models
+                        .iter()
+                        .flatten()
+                        .filter_map(|model| {
+                            let slug = model
+                                .name
+                                .chars()
+                                .map(|c| if c.is_alphanumeric() { c } else { '_' })
+                                .collect::<String>();
+
+                            let model_param_fields = [
+                                Self::config_path(
+                                    fields,
+                                    &["provider", "xai", &slug, "max_tokens"],
+                                )
+                                .map(|p| quote! { max_tokens: Some(#p), }),
+                                Self::config_path(
+                                    fields,
+                                    &["provider", "xai", &slug, "temperature"],
+                                )
+                                .map(|p| quote! { temperature: Some(#p), }),
+                                Self::config_path(fields, &["provider", "xai", &slug, "top_p"])
+                                    .map(|p| quote! { top_p: Some(#p), }),
+                                Self::config_path(fields, &["provider", "xai", &slug, "top_k"])
+                                    .map(|p| quote! { top_k: Some(#p), }),
+                                Self::config_path(
+                                    fields,
+                                    &["provider", "xai", &slug, "stop_sequences"],
+                                )
+                                .map(|p| quote! { stop_sequences: Some(#p.clone()), }),
+                                Self::config_path(
+                                    fields,
+                                    &["provider", "xai", &slug, "frequency_penalty"],
+                                )
+                                .map(|p| quote! { frequency_penalty: Some(#p), }),
+                                Self::config_path(
+                                    fields,
+                                    &["provider", "xai", &slug, "presence_penalty"],
+                                )
+                                .map(|p| quote! { presence_penalty: Some(#p), }),
+                                Self::config_path(fields, &["provider", "xai", &slug, "seed"])
+                                    .map(|p| quote! { seed: Some(#p), }),
+                                Self::config_path(
+                                    fields,
+                                    &["provider", "xai", &slug, "provider_params"],
+                                )
+                                .map(|p| quote! { provider_params: Some(#p.clone()), }),
+                            ]
+                            .into_iter()
+                            .flatten()
+                            .collect::<Vec<_>>();
+
+                            if model_param_fields.is_empty() {
+                                return None;
+                            }
+
+                            let name = &model.name;
+
+                            Some(quote! {
+                                .with_model_params(
+                                    XaiFactory::provider(),
+                                    #name,
+                                    agentc_model::types::inference::InferenceParams {
+                                        #(#model_param_fields)*
+                                        ..Default::default()
+                                    },
+                                )
+                            })
+                        })
+                        .collect::<Vec<_>>();
+
+                    registrations.push(quote! {
+                        .with_factory(XaiFactory)
+                        .with_config(XaiFactory::provider(), XaiConfig {
+                            api_key: #api_key,
+                            ..Default::default()
+                        })?
+                        #constraints
+                        #with_provider_params
+                        #(#with_model_params)*
+                    });
+                }
+                ResolvedContextProvider::Gemini(gemini) => {
+                    imports.push(quote! {
+                        use agentc_model::providers::gemini::{GeminiConfig, GeminiFactory};
+                    });
+
+                    let api_key = gemini
+                        .config
+                        .as_ref()
+                        .and_then(|c| c.api_key.as_ref())
+                        .and_then(|_| {
+                            Self::config_path(fields, &["provider", "gemini", "api_key"])
+                        })
+                        .map(|path| quote! { Some(#path.clone().into_inner()) })
+                        .unwrap_or(quote! { None });
+
+                    let constraints = gemini.models.as_ref().map(|models| {
+                        let names = models
+                            .iter()
+                            .map(|m| m.name.as_str())
+                            .collect::<Vec<_>>();
+                        quote! {
+                            .with_constraints(GeminiFactory::provider(), [#(#names),*])
+                        }
+                    });
+
+                    let provider_param_fields = [
+                        Self::config_path(
+                            fields,
+                            &["provider", "gemini", "params", "max_tokens"],
+                        )
+                        .map(|p| quote! { max_tokens: Some(#p), }),
+                        Self::config_path(
+                            fields,
+                            &["provider", "gemini", "params", "temperature"],
+                        )
+                        .map(|p| quote! { temperature: Some(#p), }),
+                        Self::config_path(fields, &["provider", "gemini", "params", "top_p"])
+                            .map(|p| quote! { top_p: Some(#p), }),
+                        Self::config_path(fields, &["provider", "gemini", "params", "top_k"])
+                            .map(|p| quote! { top_k: Some(#p), }),
+                        Self::config_path(
+                            fields,
+                            &["provider", "gemini", "params", "stop_sequences"],
+                        )
+                        .map(|p| quote! { stop_sequences: Some(#p.clone()), }),
+                        Self::config_path(
+                            fields,
+                            &["provider", "gemini", "params", "frequency_penalty"],
+                        )
+                        .map(|p| quote! { frequency_penalty: Some(#p), }),
+                        Self::config_path(
+                            fields,
+                            &["provider", "gemini", "params", "presence_penalty"],
+                        )
+                        .map(|p| quote! { presence_penalty: Some(#p), }),
+                        Self::config_path(fields, &["provider", "gemini", "params", "seed"])
+                            .map(|p| quote! { seed: Some(#p), }),
+                        Self::config_path(
+                            fields,
+                            &["provider", "gemini", "params", "provider_params"],
+                        )
+                        .map(|p| quote! { provider_params: Some(#p.clone()), }),
+                    ]
+                    .into_iter()
+                    .flatten()
+                    .collect::<Vec<_>>();
+
+                    let with_provider_params = if provider_param_fields.is_empty() {
+                        quote! {}
+                    } else {
+                        quote! {
+                            .with_provider_params(
+                                GeminiFactory::provider(),
+                                agentc_model::types::inference::InferenceParams {
+                                    #(#provider_param_fields)*
+                                    ..Default::default()
+                                },
+                            )
+                        }
+                    };
+
+                    let with_model_params = gemini
+                        .models
+                        .iter()
+                        .flatten()
+                        .filter_map(|model| {
+                            let slug = model
+                                .name
+                                .chars()
+                                .map(|c| if c.is_alphanumeric() { c } else { '_' })
+                                .collect::<String>();
+
+                            let model_param_fields = [
+                                Self::config_path(
+                                    fields,
+                                    &["provider", "gemini", &slug, "max_tokens"],
+                                )
+                                .map(|p| quote! { max_tokens: Some(#p), }),
+                                Self::config_path(
+                                    fields,
+                                    &["provider", "gemini", &slug, "temperature"],
+                                )
+                                .map(|p| quote! { temperature: Some(#p), }),
+                                Self::config_path(
+                                    fields,
+                                    &["provider", "gemini", &slug, "top_p"],
+                                )
+                                .map(|p| quote! { top_p: Some(#p), }),
+                                Self::config_path(
+                                    fields,
+                                    &["provider", "gemini", &slug, "top_k"],
+                                )
+                                .map(|p| quote! { top_k: Some(#p), }),
+                                Self::config_path(
+                                    fields,
+                                    &["provider", "gemini", &slug, "stop_sequences"],
+                                )
+                                .map(|p| quote! { stop_sequences: Some(#p.clone()), }),
+                                Self::config_path(
+                                    fields,
+                                    &["provider", "gemini", &slug, "frequency_penalty"],
+                                )
+                                .map(|p| quote! { frequency_penalty: Some(#p), }),
+                                Self::config_path(
+                                    fields,
+                                    &["provider", "gemini", &slug, "presence_penalty"],
+                                )
+                                .map(|p| quote! { presence_penalty: Some(#p), }),
+                                Self::config_path(
+                                    fields,
+                                    &["provider", "gemini", &slug, "seed"],
+                                )
+                                .map(|p| quote! { seed: Some(#p), }),
+                                Self::config_path(
+                                    fields,
+                                    &["provider", "gemini", &slug, "provider_params"],
+                                )
+                                .map(|p| quote! { provider_params: Some(#p.clone()), }),
+                            ]
+                            .into_iter()
+                            .flatten()
+                            .collect::<Vec<_>>();
+
+                            if model_param_fields.is_empty() {
+                                return None;
+                            }
+
+                            let name = &model.name;
+
+                            Some(quote! {
+                                .with_model_params(
+                                    GeminiFactory::provider(),
+                                    #name,
+                                    agentc_model::types::inference::InferenceParams {
+                                        #(#model_param_fields)*
+                                        ..Default::default()
+                                    },
+                                )
+                            })
+                        })
+                        .collect::<Vec<_>>();
+
+                    registrations.push(quote! {
+                        .with_factory(GeminiFactory)
+                        .with_config(GeminiFactory::provider(), GeminiConfig {
+                            api_key: #api_key,
+                            ..Default::default()
+                        })?
+                        #constraints
+                        #with_provider_params
+                        #(#with_model_params)*
+                    });
+                }
                 ResolvedContextProvider::OpenRouter(openrouter) => {
                     imports.push(quote! {
                         use agentc_model::providers::openrouter::{OpenRouterConfig, OpenRouterFactory};
