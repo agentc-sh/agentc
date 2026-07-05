@@ -20,6 +20,8 @@ thiserror = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 
+convert_case = { workspace = true }
+
 flate2 = { version = "1.0" }
 tar = { version = "0.4" }
 

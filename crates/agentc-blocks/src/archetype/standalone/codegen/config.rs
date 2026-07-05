@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
+use convert_case::{Case, Casing};
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 use std::{collections::BTreeMap, iter::once, path::PathBuf};
@@ -15,24 +16,6 @@ use crate::{
     archetype::standalone::fields::{FieldSpec, FieldValue, FieldsSpec},
     context::ResolvedContext,
 };
-
-fn to_pascal_case(value: &str) -> String {
-    let mut result = String::new();
-    let mut capitalize_next = true;
-
-    for c in value.chars() {
-        if c == '_' {
-            capitalize_next = true;
-        } else if capitalize_next {
-            result.extend(c.to_uppercase());
-            capitalize_next = false;
-        } else {
-            result.push(c);
-        }
-    }
-
-    result
-}
 
 enum StructNode {
     Leaf {
@@ -82,8 +65,7 @@ impl StructTree {
     }
 
     fn generate_structs(&self, name_parts: &[String], out: &mut Vec<TokenStream>) {
-        let struct_name = name_parts.join("");
-        let struct_ident = Ident::new(&struct_name, Span::call_site());
+        let struct_ident = Ident::new(&name_parts.join(""), Span::call_site());
 
         let fields = self
             .as_inner()
@@ -103,12 +85,14 @@ impl StructTree {
                         quote! { pub #field_ident: #ty, }
                     }
                     StructNode::Interior(_) => {
-                        let child_name: String = name_parts
-                            .iter()
-                            .cloned()
-                            .chain(once(to_pascal_case(field_name)))
-                            .collect();
-                        let child_ident = Ident::new(&child_name, Span::call_site());
+                        let child_ident = Ident::new(
+                            &name_parts
+                                .iter()
+                                .cloned()
+                                .chain(once(field_name.to_case(Case::Pascal)))
+                                .collect::<String>(),
+                            Span::call_site(),
+                        );
 
                         quote! { pub #field_ident: #child_ident, }
                     }
@@ -130,7 +114,7 @@ impl StructTree {
                     &name_parts
                         .iter()
                         .cloned()
-                        .chain(once(to_pascal_case(field_name)))
+                        .chain(once(field_name.to_case(Case::Pascal)))
                         .collect::<Vec<_>>(),
                     out,
                 );
@@ -156,8 +140,10 @@ impl StructTree {
                         quote! { pub #field_ident: #ty, }
                     }
                     StructNode::Interior(_) => {
-                        let child_name = format!("{}{}", name_prefix, to_pascal_case(field_name));
-                        let child_ident = Ident::new(&child_name, Span::call_site());
+                        let child_ident = Ident::new(
+                            &format!("{}{}", name_prefix, field_name.to_case(Case::Pascal)),
+                            Span::call_site(),
+                        );
 
                         quote! { pub #field_ident: #child_ident, }
                     }
@@ -231,11 +217,11 @@ impl FromIterator<FieldSpec> for StructTree {
     }
 }
 
-pub struct ConfigRsCodeGen {
+pub struct ConfigCodeGen {
     pub fields: FieldsSpec,
 }
 
-impl CodeGen<ResolvedContext> for ConfigRsCodeGen {
+impl CodeGen<ResolvedContext> for ConfigCodeGen {
     fn generate_files(
         &self,
         _ctx: &GenerationContext<ResolvedContext>,
@@ -278,12 +264,12 @@ impl CodeGen<ResolvedContext> for ConfigRsCodeGen {
             })
             .collect::<StructTree>();
 
-        let mut generated_structs: Vec<TokenStream> = Vec::new();
+        let mut generated_structs = Vec::new();
 
         for (field_name, node) in tree.as_inner() {
             if let StructNode::Interior(subtree) = node {
                 subtree.generate_structs(
-                    &[format!("Config{}", to_pascal_case(field_name))],
+                    &[format!("Config{}", field_name.to_case(Case::Pascal))],
                     &mut generated_structs,
                 );
             }
@@ -412,5 +398,32 @@ impl CodeGen<ResolvedContext> for ConfigRsCodeGen {
         };
 
         Ok(vec![("src/config.rs".into(), source)])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::RuntimeValue;
+
+    #[test]
+    fn nested_field_references_a_pascal_cased_struct_name() {
+        // convert_case splits on digit boundaries, so the "gpt_4o" segment becomes
+        // "Gpt4O". The field name itself keeps the raw slug, only the generated
+        // struct type is PascalCased.
+        let tree = StructTree::from_iter(vec![FieldSpec::new(
+            &["gpt_4o", "temperature"],
+            &RuntimeValue::constant(0.5f64),
+        )]);
+
+        let rendered = tree
+            .generate_config_fields("Config")
+            .iter()
+            .map(|t| t.to_string())
+            .collect::<Vec<_>>()
+            .join(" ")
+            .replace(' ', "");
+
+        assert!(rendered.contains("gpt_4o:ConfigGpt4O"));
     }
 }

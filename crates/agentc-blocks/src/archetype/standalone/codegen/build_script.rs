@@ -13,9 +13,9 @@ use agentc_compiler::generator::{
 
 use crate::context::ResolvedContext;
 
-pub struct BuildRsCodeGen;
+pub struct BuildScriptCodeGen;
 
-impl CodeGen<ResolvedContext> for BuildRsCodeGen {
+impl CodeGen<ResolvedContext> for BuildScriptCodeGen {
     fn generate_files(
         &self,
         ctx: &GenerationContext<ResolvedContext>,

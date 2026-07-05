@@ -32,3 +32,26 @@ jobs:
 
       - name: Lint code
         run: task rust:lint
+
+
+  tests:
+    if: "!contains(github.event.head_commit.message, '[skip-ci]')"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install Task
+        uses: arduino/setup-task@v3
+        with:
+          version: 3.43.3
+
+      - name: Unit tests - Compiler
+        run: task rust:test:compiler
+
+      - name: Unit tests - Runtime
+        run: task rust:test:runtime
