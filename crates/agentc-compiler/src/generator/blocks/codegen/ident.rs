@@ -19,3 +19,20 @@ impl ToIdent for str {
             .collect()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn leaves_alphanumerics_untouched() {
+        assert_eq!("plain123".to_ident(), "plain123");
+    }
+
+    #[test]
+    fn replaces_every_non_alphanumeric_with_underscore() {
+        assert_eq!("gpt-4o".to_ident(), "gpt_4o");
+        assert_eq!("llama3.1".to_ident(), "llama3_1");
+        assert_eq!("/abs/path/bundle.js".to_ident(), "_abs_path_bundle_js");
+    }
+}

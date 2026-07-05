@@ -195,3 +195,94 @@ impl IntoFieldSpecs for ResolvedContextProviderGemini {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        context::{
+            ResolvedContextProviderAnthropicConfig, ResolvedContextProviderAnthropicModel,
+            ResolvedContextProviderOllamaConfig, ResolvedContextProviderXaiConfig,
+        },
+        types::RuntimeValue,
+    };
+
+    fn empty_params() -> ResolvedContextProviderParams {
+        ResolvedContextProviderParams {
+            max_tokens: None,
+            temperature: None,
+            top_p: None,
+            top_k: None,
+            stop_sequences: None,
+            frequency_penalty: None,
+            presence_penalty: None,
+            seed: None,
+            provider_params: None,
+        }
+    }
+
+    #[test]
+    fn anthropic_registers_config_provider_params_and_model_params() {
+        let provider = ResolvedContextProviderAnthropic {
+            config: Some(ResolvedContextProviderAnthropicConfig {
+                api_key: Some(RuntimeValue::secret_runtime("ANTHROPIC_KEY")),
+                base_url: Some(RuntimeValue::constant("https://api".to_string())),
+            }),
+            params: Some(ResolvedContextProviderParams {
+                max_tokens: Some(RuntimeValue::constant(1024u64)),
+                ..empty_params()
+            }),
+            models: Some(vec![ResolvedContextProviderAnthropicModel {
+                name: "claude-3.5".to_string(),
+                params: Some(ResolvedContextProviderParams {
+                    temperature: Some(RuntimeValue::constant(0.7f64)),
+                    ..empty_params()
+                }),
+            }]),
+        };
+
+        let fields = FieldsSpec::collect_from(&provider);
+
+        assert!(fields.get(&["provider", "anthropic", "api_key"]).is_some());
+        assert!(fields.get(&["provider", "anthropic", "base_url"]).is_some());
+        assert!(fields
+            .get(&["provider", "anthropic", "params", "max_tokens"])
+            .is_some());
+        // The model name is slugged into an identifier before it becomes a path segment.
+        assert!(fields
+            .get(&["provider", "anthropic", "claude_3_5", "temperature"])
+            .is_some());
+    }
+
+    #[test]
+    fn ollama_registers_only_base_url_from_config() {
+        let provider = ResolvedContextProviderOllama {
+            config: Some(ResolvedContextProviderOllamaConfig {
+                base_url: Some(RuntimeValue::constant("http://localhost:11434".to_string())),
+            }),
+            params: None,
+            models: None,
+        };
+
+        let fields = FieldsSpec::collect_from(&provider);
+
+        assert!(fields.get(&["provider", "ollama", "base_url"]).is_some());
+        assert!(fields.get(&["provider", "ollama", "api_key"]).is_none());
+    }
+
+    #[test]
+    fn xai_registers_api_key_but_has_no_base_url() {
+        let provider = ResolvedContextProviderXai {
+            config: Some(ResolvedContextProviderXaiConfig {
+                api_key: Some(RuntimeValue::secret_runtime("XAI_KEY")),
+            }),
+            params: None,
+            models: None,
+        };
+
+        let fields = FieldsSpec::collect_from(&provider);
+
+        assert!(fields.get(&["provider", "xai", "api_key"]).is_some());
+        assert!(fields.get(&["provider", "xai", "base_url"]).is_none());
+    }
+}

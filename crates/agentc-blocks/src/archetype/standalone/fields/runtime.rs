@@ -12,3 +12,21 @@ impl IntoFieldSpecs for ResolvedContextRuntime {
         fields.push(&["default_tenant_id"], &self.default_tenant_id);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::RuntimeValue;
+
+    #[test]
+    fn registers_the_default_tenant_id() {
+        let runtime = ResolvedContextRuntime {
+            default_tenant_id: RuntimeValue::constant("public".to_string()),
+        };
+
+        let fields = FieldsSpec::collect_from(&runtime);
+
+        assert!(fields.get(&["default_tenant_id"]).is_some());
+        assert_eq!(fields.as_inner().len(), 1);
+    }
+}

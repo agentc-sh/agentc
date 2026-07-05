@@ -95,3 +95,26 @@ impl ModelCodeGen for ResolvedContextProviderOllama {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn imports_and_registration_reference_the_ollama_factory() {
+        let provider = ResolvedContextProviderOllama {
+            config: None,
+            params: None,
+            models: None,
+        };
+
+        assert!(provider.imports().to_string().contains("OllamaFactory"));
+
+        let rendered = provider
+            .registration(&FieldsSpec::new(vec![]))
+            .to_string()
+            .replace(' ', "");
+        assert!(rendered.contains("with_factory(OllamaFactory)"));
+        assert!(rendered.contains("OllamaConfig{"));
+    }
+}

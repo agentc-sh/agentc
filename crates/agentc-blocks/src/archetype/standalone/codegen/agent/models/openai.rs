@@ -104,3 +104,26 @@ impl ModelCodeGen for ResolvedContextProviderOpenAi {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn imports_and_registration_reference_the_openai_factory() {
+        let provider = ResolvedContextProviderOpenAi {
+            config: None,
+            params: None,
+            models: None,
+        };
+
+        assert!(provider.imports().to_string().contains("OpenAiFactory"));
+
+        let rendered = provider
+            .registration(&FieldsSpec::new(vec![]))
+            .to_string()
+            .replace(' ', "");
+        assert!(rendered.contains("with_factory(OpenAiFactory)"));
+        assert!(rendered.contains("OpenAiConfig{"));
+    }
+}

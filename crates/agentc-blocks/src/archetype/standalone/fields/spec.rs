@@ -128,3 +128,49 @@ impl IntoIterator for FieldsSpec {
         self.into_inner().into_iter()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn get_matches_only_the_exact_path() {
+        let mut fields = FieldsSpec::new(vec![]);
+        fields.push(&["a", "b"], &RuntimeValue::constant("x".to_string()));
+
+        assert!(fields.get(&["a", "b"]).is_some());
+        assert!(fields.get(&["a"]).is_none());
+        assert!(fields.get(&["a", "b", "c"]).is_none());
+    }
+
+    #[test]
+    fn config_accessor_builds_a_nested_field_expression() {
+        let mut fields = FieldsSpec::new(vec![]);
+        fields.push(&["server", "host"], &RuntimeValue::constant("h".to_string()));
+
+        let accessor = fields
+            .config_accessor(&["server", "host"])
+            .expect("field is registered");
+
+        assert_eq!(accessor.to_string().replace(' ', ""), "config.server.host");
+        assert!(fields.config_accessor(&["missing"]).is_none());
+    }
+
+    #[test]
+    fn collect_from_gathers_fields_from_the_source() {
+        struct Source;
+
+        impl IntoFieldSpecs for Source {
+            fn extend_fields(&self, fields: &mut FieldsSpec) {
+                fields.push(&["one"], &RuntimeValue::constant(1u64));
+                fields.push(&["two"], &RuntimeValue::constant(2u64));
+            }
+        }
+
+        let fields = FieldsSpec::collect_from(&Source);
+
+        assert_eq!(fields.as_inner().len(), 2);
+        assert!(fields.get(&["one"]).is_some());
+        assert!(fields.get(&["two"]).is_some());
+    }
+}

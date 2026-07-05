@@ -55,3 +55,41 @@ impl InferenceParamsFields {
         .collect()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::RuntimeValue;
+
+    #[test]
+    fn builds_an_entry_only_for_each_present_parameter() {
+        let mut fields = FieldsSpec::new(vec![]);
+        fields.push(
+            &["provider", "anthropic", "params", "max_tokens"],
+            &RuntimeValue::constant(256u64),
+        );
+        fields.push(
+            &["provider", "anthropic", "params", "temperature"],
+            &RuntimeValue::constant(0.5f64),
+        );
+
+        let built = InferenceParamsFields::build(&fields, "anthropic", "params");
+
+        assert_eq!(built.len(), 2);
+
+        let rendered = built
+            .iter()
+            .map(|t| t.to_string())
+            .collect::<Vec<_>>()
+            .join(" ");
+        assert!(rendered.contains("max_tokens"));
+        assert!(rendered.contains("temperature"));
+    }
+
+    #[test]
+    fn builds_nothing_when_no_parameters_are_registered() {
+        let fields = FieldsSpec::new(vec![]);
+
+        assert!(InferenceParamsFields::build(&fields, "anthropic", "params").is_empty());
+    }
+}

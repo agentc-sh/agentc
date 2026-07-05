@@ -95,3 +95,26 @@ impl ModelCodeGen for ResolvedContextProviderXai {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn imports_and_registration_reference_the_xai_factory() {
+        let provider = ResolvedContextProviderXai {
+            config: None,
+            params: None,
+            models: None,
+        };
+
+        assert!(provider.imports().to_string().contains("XaiFactory"));
+
+        let rendered = provider
+            .registration(&FieldsSpec::new(vec![]))
+            .to_string()
+            .replace(' ', "");
+        assert!(rendered.contains("with_factory(XaiFactory)"));
+        assert!(rendered.contains("XaiConfig{"));
+    }
+}

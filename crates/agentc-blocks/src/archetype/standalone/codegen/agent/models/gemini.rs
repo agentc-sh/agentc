@@ -95,3 +95,26 @@ impl ModelCodeGen for ResolvedContextProviderGemini {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn imports_and_registration_reference_the_gemini_factory() {
+        let provider = ResolvedContextProviderGemini {
+            config: None,
+            params: None,
+            models: None,
+        };
+
+        assert!(provider.imports().to_string().contains("GeminiFactory"));
+
+        let rendered = provider
+            .registration(&FieldsSpec::new(vec![]))
+            .to_string()
+            .replace(' ', "");
+        assert!(rendered.contains("with_factory(GeminiFactory)"));
+        assert!(rendered.contains("GeminiConfig{"));
+    }
+}

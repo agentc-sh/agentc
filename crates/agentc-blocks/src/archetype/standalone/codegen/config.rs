@@ -400,3 +400,30 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
         Ok(vec![("src/config.rs".into(), source)])
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::RuntimeValue;
+
+    #[test]
+    fn nested_field_references_a_pascal_cased_struct_name() {
+        // convert_case splits on digit boundaries, so the "gpt_4o" segment becomes
+        // "Gpt4O". The field name itself keeps the raw slug, only the generated
+        // struct type is PascalCased.
+        let tree = StructTree::from_iter(vec![FieldSpec::new(
+            &["gpt_4o", "temperature"],
+            &RuntimeValue::constant(0.5f64),
+        )]);
+
+        let rendered = tree
+            .generate_config_fields("Config")
+            .iter()
+            .map(|t| t.to_string())
+            .collect::<Vec<_>>()
+            .join(" ")
+            .replace(' ', "");
+
+        assert!(rendered.contains("gpt_4o:ConfigGpt4O"));
+    }
+}

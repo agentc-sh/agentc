@@ -95,3 +95,26 @@ impl ModelCodeGen for ResolvedContextProviderOpenRouter {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn imports_and_registration_reference_the_openrouter_factory() {
+        let provider = ResolvedContextProviderOpenRouter {
+            config: None,
+            params: None,
+            models: None,
+        };
+
+        assert!(provider.imports().to_string().contains("OpenRouterFactory"));
+
+        let rendered = provider
+            .registration(&FieldsSpec::new(vec![]))
+            .to_string()
+            .replace(' ', "");
+        assert!(rendered.contains("with_factory(OpenRouterFactory)"));
+        assert!(rendered.contains("OpenRouterConfig{"));
+    }
+}
