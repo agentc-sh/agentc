@@ -20,6 +20,15 @@ pub struct ManifestProvider {
     #[serde(default)]
     #[validate(nested)]
     pub ollama: Option<ManifestProviderOllama>,
+    #[serde(default)]
+    #[validate(nested)]
+    pub openrouter: Option<ManifestProviderOpenRouter>,
+    #[serde(default)]
+    #[validate(nested)]
+    pub xai: Option<ManifestProviderXai>,
+    #[serde(default)]
+    #[validate(nested)]
+    pub gemini: Option<ManifestProviderGemini>,
 }
 
 /// Common inference parameters shared across all providers. All fields are optional
@@ -142,4 +151,97 @@ pub struct ManifestProviderOllamaModelConfig {
 pub struct ManifestProviderOllamaConfig {
     #[serde(default)]
     pub base_url: Option<RuntimeValue<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Validate, Sanitizer)]
+pub struct ManifestProviderOpenRouter {
+    #[serde(default)]
+    pub models: Option<Vec<ManifestProviderOpenRouterModel>>,
+    #[serde(default)]
+    pub config: Option<ManifestProviderOpenRouterConfig>,
+    #[serde(default)]
+    pub params: Option<ManifestProviderParams>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+#[allow(clippy::large_enum_variant)]
+pub enum ManifestProviderOpenRouterModel {
+    Name(String),
+    Config(ManifestProviderOpenRouterModelConfig),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ManifestProviderOpenRouterModelConfig {
+    pub name: String,
+    #[serde(default)]
+    pub params: Option<ManifestProviderParams>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Validate, Sanitizer)]
+pub struct ManifestProviderOpenRouterConfig {
+    #[serde(default)]
+    pub api_key: Option<RuntimeValue<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Validate, Sanitizer)]
+pub struct ManifestProviderXai {
+    #[serde(default)]
+    pub models: Option<Vec<ManifestProviderXaiModel>>,
+    #[serde(default)]
+    pub config: Option<ManifestProviderXaiConfig>,
+    #[serde(default)]
+    pub params: Option<ManifestProviderParams>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+#[allow(clippy::large_enum_variant)]
+pub enum ManifestProviderXaiModel {
+    Name(String),
+    Config(ManifestProviderXaiModelConfig),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ManifestProviderXaiModelConfig {
+    pub name: String,
+    #[serde(default)]
+    pub params: Option<ManifestProviderParams>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Validate, Sanitizer)]
+pub struct ManifestProviderXaiConfig {
+    #[serde(default)]
+    pub api_key: Option<RuntimeValue<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Validate, Sanitizer)]
+pub struct ManifestProviderGemini {
+    #[serde(default)]
+    pub models: Option<Vec<ManifestProviderGeminiModel>>,
+    #[serde(default)]
+    pub config: Option<ManifestProviderGeminiConfig>,
+    #[serde(default)]
+    pub params: Option<ManifestProviderParams>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+#[allow(clippy::large_enum_variant)]
+pub enum ManifestProviderGeminiModel {
+    Name(String),
+    Config(ManifestProviderGeminiModelConfig),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ManifestProviderGeminiModelConfig {
+    pub name: String,
+    #[serde(default)]
+    pub params: Option<ManifestProviderParams>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Validate, Sanitizer)]
+pub struct ManifestProviderGeminiConfig {
+    #[serde(default)]
+    pub api_key: Option<RuntimeValue<String>>,
 }

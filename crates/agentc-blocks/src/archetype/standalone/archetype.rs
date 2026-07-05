@@ -669,6 +669,408 @@ impl StandaloneArchetype {
                         }
                     }
                 }
+                ResolvedContextProvider::Xai(xai) => {
+                    if let Some(config) = &xai.config {
+                        if let Some(api_key) = &config.api_key {
+                            fields.push(FieldSpec::new(
+                                &["provider", "xai", "api_key"],
+                                api_key,
+                            ));
+                        }
+                    }
+
+                    if let Some(params) = &xai.params {
+                        if let Some(v) = &params.max_tokens {
+                            fields.push(FieldSpec::new(
+                                &["provider", "xai", "params", "max_tokens"],
+                                v,
+                            ));
+                        }
+                        if let Some(v) = &params.temperature {
+                            fields.push(FieldSpec::new(
+                                &["provider", "xai", "params", "temperature"],
+                                v,
+                            ));
+                        }
+                        if let Some(v) = &params.top_p {
+                            fields.push(FieldSpec::new(
+                                &["provider", "xai", "params", "top_p"],
+                                v,
+                            ));
+                        }
+                        if let Some(v) = &params.top_k {
+                            fields.push(FieldSpec::new(
+                                &["provider", "xai", "params", "top_k"],
+                                v,
+                            ));
+                        }
+                        if let Some(v) = &params.stop_sequences {
+                            fields.push(FieldSpec::new(
+                                &["provider", "xai", "params", "stop_sequences"],
+                                v,
+                            ));
+                        }
+                        if let Some(v) = &params.frequency_penalty {
+                            fields.push(FieldSpec::new(
+                                &["provider", "xai", "params", "frequency_penalty"],
+                                v,
+                            ));
+                        }
+                        if let Some(v) = &params.presence_penalty {
+                            fields.push(FieldSpec::new(
+                                &["provider", "xai", "params", "presence_penalty"],
+                                v,
+                            ));
+                        }
+                        if let Some(v) = &params.seed {
+                            fields.push(FieldSpec::new(
+                                &["provider", "xai", "params", "seed"],
+                                v,
+                            ));
+                        }
+                        if let Some(v) = &params.provider_params {
+                            fields.push(FieldSpec::new(
+                                &["provider", "xai", "params", "provider_params"],
+                                v,
+                            ));
+                        }
+                    }
+
+                    if let Some(models) = &xai.models {
+                        for model in models {
+                            if let Some(params) = &model.params {
+                                let slug: String = model
+                                    .name
+                                    .chars()
+                                    .map(|c| if c.is_alphanumeric() { c } else { '_' })
+                                    .collect();
+                                let slug = slug.as_str();
+                                if let Some(v) = &params.max_tokens {
+                                    fields.push(FieldSpec::new(
+                                        &["provider", "xai", slug, "max_tokens"],
+                                        v,
+                                    ));
+                                }
+                                if let Some(v) = &params.temperature {
+                                    fields.push(FieldSpec::new(
+                                        &["provider", "xai", slug, "temperature"],
+                                        v,
+                                    ));
+                                }
+                                if let Some(v) = &params.top_p {
+                                    fields.push(FieldSpec::new(
+                                        &["provider", "xai", slug, "top_p"],
+                                        v,
+                                    ));
+                                }
+                                if let Some(v) = &params.top_k {
+                                    fields.push(FieldSpec::new(
+                                        &["provider", "xai", slug, "top_k"],
+                                        v,
+                                    ));
+                                }
+                                if let Some(v) = &params.stop_sequences {
+                                    fields.push(FieldSpec::new(
+                                        &["provider", "xai", slug, "stop_sequences"],
+                                        v,
+                                    ));
+                                }
+                                if let Some(v) = &params.frequency_penalty {
+                                    fields.push(FieldSpec::new(
+                                        &["provider", "xai", slug, "frequency_penalty"],
+                                        v,
+                                    ));
+                                }
+                                if let Some(v) = &params.presence_penalty {
+                                    fields.push(FieldSpec::new(
+                                        &["provider", "xai", slug, "presence_penalty"],
+                                        v,
+                                    ));
+                                }
+                                if let Some(v) = &params.seed {
+                                    fields.push(FieldSpec::new(
+                                        &["provider", "xai", slug, "seed"],
+                                        v,
+                                    ));
+                                }
+                                if let Some(v) = &params.provider_params {
+                                    fields.push(FieldSpec::new(
+                                        &["provider", "xai", slug, "provider_params"],
+                                        v,
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                }
+                ResolvedContextProvider::Gemini(gemini) => {
+                    if let Some(config) = &gemini.config {
+                        if let Some(api_key) = &config.api_key {
+                            fields.push(FieldSpec::new(
+                                &["provider", "gemini", "api_key"],
+                                api_key,
+                            ));
+                        }
+                    }
+
+                    if let Some(params) = &gemini.params {
+                        if let Some(v) = &params.max_tokens {
+                            fields.push(FieldSpec::new(
+                                &["provider", "gemini", "params", "max_tokens"],
+                                v,
+                            ));
+                        }
+                        if let Some(v) = &params.temperature {
+                            fields.push(FieldSpec::new(
+                                &["provider", "gemini", "params", "temperature"],
+                                v,
+                            ));
+                        }
+                        if let Some(v) = &params.top_p {
+                            fields.push(FieldSpec::new(
+                                &["provider", "gemini", "params", "top_p"],
+                                v,
+                            ));
+                        }
+                        if let Some(v) = &params.top_k {
+                            fields.push(FieldSpec::new(
+                                &["provider", "gemini", "params", "top_k"],
+                                v,
+                            ));
+                        }
+                        if let Some(v) = &params.stop_sequences {
+                            fields.push(FieldSpec::new(
+                                &["provider", "gemini", "params", "stop_sequences"],
+                                v,
+                            ));
+                        }
+                        if let Some(v) = &params.frequency_penalty {
+                            fields.push(FieldSpec::new(
+                                &["provider", "gemini", "params", "frequency_penalty"],
+                                v,
+                            ));
+                        }
+                        if let Some(v) = &params.presence_penalty {
+                            fields.push(FieldSpec::new(
+                                &["provider", "gemini", "params", "presence_penalty"],
+                                v,
+                            ));
+                        }
+                        if let Some(v) = &params.seed {
+                            fields.push(FieldSpec::new(
+                                &["provider", "gemini", "params", "seed"],
+                                v,
+                            ));
+                        }
+                        if let Some(v) = &params.provider_params {
+                            fields.push(FieldSpec::new(
+                                &["provider", "gemini", "params", "provider_params"],
+                                v,
+                            ));
+                        }
+                    }
+
+                    if let Some(models) = &gemini.models {
+                        for model in models {
+                            if let Some(params) = &model.params {
+                                let slug: String = model
+                                    .name
+                                    .chars()
+                                    .map(|c| if c.is_alphanumeric() { c } else { '_' })
+                                    .collect();
+                                let slug = slug.as_str();
+                                if let Some(v) = &params.max_tokens {
+                                    fields.push(FieldSpec::new(
+                                        &["provider", "gemini", slug, "max_tokens"],
+                                        v,
+                                    ));
+                                }
+                                if let Some(v) = &params.temperature {
+                                    fields.push(FieldSpec::new(
+                                        &["provider", "gemini", slug, "temperature"],
+                                        v,
+                                    ));
+                                }
+                                if let Some(v) = &params.top_p {
+                                    fields.push(FieldSpec::new(
+                                        &["provider", "gemini", slug, "top_p"],
+                                        v,
+                                    ));
+                                }
+                                if let Some(v) = &params.top_k {
+                                    fields.push(FieldSpec::new(
+                                        &["provider", "gemini", slug, "top_k"],
+                                        v,
+                                    ));
+                                }
+                                if let Some(v) = &params.stop_sequences {
+                                    fields.push(FieldSpec::new(
+                                        &["provider", "gemini", slug, "stop_sequences"],
+                                        v,
+                                    ));
+                                }
+                                if let Some(v) = &params.frequency_penalty {
+                                    fields.push(FieldSpec::new(
+                                        &["provider", "gemini", slug, "frequency_penalty"],
+                                        v,
+                                    ));
+                                }
+                                if let Some(v) = &params.presence_penalty {
+                                    fields.push(FieldSpec::new(
+                                        &["provider", "gemini", slug, "presence_penalty"],
+                                        v,
+                                    ));
+                                }
+                                if let Some(v) = &params.seed {
+                                    fields.push(FieldSpec::new(
+                                        &["provider", "gemini", slug, "seed"],
+                                        v,
+                                    ));
+                                }
+                                if let Some(v) = &params.provider_params {
+                                    fields.push(FieldSpec::new(
+                                        &["provider", "gemini", slug, "provider_params"],
+                                        v,
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                }
+                ResolvedContextProvider::OpenRouter(openrouter) => {
+                    if let Some(config) = &openrouter.config {
+                        if let Some(api_key) = &config.api_key {
+                            fields.push(FieldSpec::new(
+                                &["provider", "openrouter", "api_key"],
+                                api_key,
+                            ));
+                        }
+                    }
+
+                    if let Some(params) = &openrouter.params {
+                        if let Some(v) = &params.max_tokens {
+                            fields.push(FieldSpec::new(
+                                &["provider", "openrouter", "params", "max_tokens"],
+                                v,
+                            ));
+                        }
+                        if let Some(v) = &params.temperature {
+                            fields.push(FieldSpec::new(
+                                &["provider", "openrouter", "params", "temperature"],
+                                v,
+                            ));
+                        }
+                        if let Some(v) = &params.top_p {
+                            fields.push(FieldSpec::new(
+                                &["provider", "openrouter", "params", "top_p"],
+                                v,
+                            ));
+                        }
+                        if let Some(v) = &params.top_k {
+                            fields.push(FieldSpec::new(
+                                &["provider", "openrouter", "params", "top_k"],
+                                v,
+                            ));
+                        }
+                        if let Some(v) = &params.stop_sequences {
+                            fields.push(FieldSpec::new(
+                                &["provider", "openrouter", "params", "stop_sequences"],
+                                v,
+                            ));
+                        }
+                        if let Some(v) = &params.frequency_penalty {
+                            fields.push(FieldSpec::new(
+                                &["provider", "openrouter", "params", "frequency_penalty"],
+                                v,
+                            ));
+                        }
+                        if let Some(v) = &params.presence_penalty {
+                            fields.push(FieldSpec::new(
+                                &["provider", "openrouter", "params", "presence_penalty"],
+                                v,
+                            ));
+                        }
+                        if let Some(v) = &params.seed {
+                            fields.push(FieldSpec::new(
+                                &["provider", "openrouter", "params", "seed"],
+                                v,
+                            ));
+                        }
+                        if let Some(v) = &params.provider_params {
+                            fields.push(FieldSpec::new(
+                                &["provider", "openrouter", "params", "provider_params"],
+                                v,
+                            ));
+                        }
+                    }
+
+                    if let Some(models) = &openrouter.models {
+                        for model in models {
+                            if let Some(params) = &model.params {
+                                let slug: String = model
+                                    .name
+                                    .chars()
+                                    .map(|c| if c.is_alphanumeric() { c } else { '_' })
+                                    .collect();
+                                let slug = slug.as_str();
+                                if let Some(v) = &params.max_tokens {
+                                    fields.push(FieldSpec::new(
+                                        &["provider", "openrouter", slug, "max_tokens"],
+                                        v,
+                                    ));
+                                }
+                                if let Some(v) = &params.temperature {
+                                    fields.push(FieldSpec::new(
+                                        &["provider", "openrouter", slug, "temperature"],
+                                        v,
+                                    ));
+                                }
+                                if let Some(v) = &params.top_p {
+                                    fields.push(FieldSpec::new(
+                                        &["provider", "openrouter", slug, "top_p"],
+                                        v,
+                                    ));
+                                }
+                                if let Some(v) = &params.top_k {
+                                    fields.push(FieldSpec::new(
+                                        &["provider", "openrouter", slug, "top_k"],
+                                        v,
+                                    ));
+                                }
+                                if let Some(v) = &params.stop_sequences {
+                                    fields.push(FieldSpec::new(
+                                        &["provider", "openrouter", slug, "stop_sequences"],
+                                        v,
+                                    ));
+                                }
+                                if let Some(v) = &params.frequency_penalty {
+                                    fields.push(FieldSpec::new(
+                                        &["provider", "openrouter", slug, "frequency_penalty"],
+                                        v,
+                                    ));
+                                }
+                                if let Some(v) = &params.presence_penalty {
+                                    fields.push(FieldSpec::new(
+                                        &["provider", "openrouter", slug, "presence_penalty"],
+                                        v,
+                                    ));
+                                }
+                                if let Some(v) = &params.seed {
+                                    fields.push(FieldSpec::new(
+                                        &["provider", "openrouter", slug, "seed"],
+                                        v,
+                                    ));
+                                }
+                                if let Some(v) = &params.provider_params {
+                                    fields.push(FieldSpec::new(
+                                        &["provider", "openrouter", slug, "provider_params"],
+                                        v,
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
 
