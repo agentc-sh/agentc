@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-use rig::providers::anthropic;
+use rig_core::providers::anthropic;
 
 use crate::{
     providers::anthropic::{constants::PROVIDER, model::AnthropicModel},

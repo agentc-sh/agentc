@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-use rig::providers::ollama;
+use rig_core::providers::ollama;
 
 use crate::{
     providers::ollama::{constants::PROVIDER, model::OllamaModel},

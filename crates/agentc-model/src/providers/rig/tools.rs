@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-use rig::completion::ToolDefinition;
+use rig_core::completion::ToolDefinition;
 
 use crate::{errors::ModelError, types::tools::ToolSpec};
 

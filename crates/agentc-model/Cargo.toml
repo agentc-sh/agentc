@@ -20,4 +20,4 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 url = { workspace = true }
 
-rig-core = { version = "0.32", features = ["derive", "rayon", "rmcp"] }
+rig-core = { version = "0.39", features = ["derive", "rayon", "rmcp"] }
