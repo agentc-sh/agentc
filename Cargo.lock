@@ -273,6 +273,7 @@ dependencies = [
  "agentc-compiler",
  "anyhow",
  "async-trait",
+ "convert_case 0.11.0",
  "flate2",
  "futures",
  "ignore",

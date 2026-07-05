@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: MIT
 
+use agentc_compiler::generator::blocks::codegen::ToIdent;
+
 use crate::{
     archetype::standalone::fields::spec::{FieldsSpec, IntoFieldSpecs},
     context::{
@@ -15,44 +17,44 @@ use crate::{
     },
 };
 
-fn model_slug(name: &str) -> String {
-    name.chars()
-        .map(|c| if c.is_alphanumeric() { c } else { '_' })
-        .collect()
+/// Registers every set inference parameter under `["provider", provider, slug, <field>]`.
+///
+/// The `slug` is either `"params"` for provider-level defaults or a model's slug for
+/// per-model overrides. Kept as an extension trait so the provider impls below stay
+/// focused on their own config shape.
+trait ExtendParamFields {
+    fn extend_param_fields(&self, fields: &mut FieldsSpec, provider: &str, slug: &str);
 }
 
-fn push_params(
-    fields: &mut FieldsSpec,
-    provider: &str,
-    slug: &str,
-    params: &ResolvedContextProviderParams,
-) {
-    if let Some(v) = &params.max_tokens {
-        fields.push(&["provider", provider, slug, "max_tokens"], v);
-    }
-    if let Some(v) = &params.temperature {
-        fields.push(&["provider", provider, slug, "temperature"], v);
-    }
-    if let Some(v) = &params.top_p {
-        fields.push(&["provider", provider, slug, "top_p"], v);
-    }
-    if let Some(v) = &params.top_k {
-        fields.push(&["provider", provider, slug, "top_k"], v);
-    }
-    if let Some(v) = &params.stop_sequences {
-        fields.push(&["provider", provider, slug, "stop_sequences"], v);
-    }
-    if let Some(v) = &params.frequency_penalty {
-        fields.push(&["provider", provider, slug, "frequency_penalty"], v);
-    }
-    if let Some(v) = &params.presence_penalty {
-        fields.push(&["provider", provider, slug, "presence_penalty"], v);
-    }
-    if let Some(v) = &params.seed {
-        fields.push(&["provider", provider, slug, "seed"], v);
-    }
-    if let Some(v) = &params.provider_params {
-        fields.push(&["provider", provider, slug, "provider_params"], v);
+impl ExtendParamFields for ResolvedContextProviderParams {
+    fn extend_param_fields(&self, fields: &mut FieldsSpec, provider: &str, slug: &str) {
+        if let Some(v) = &self.max_tokens {
+            fields.push(&["provider", provider, slug, "max_tokens"], v);
+        }
+        if let Some(v) = &self.temperature {
+            fields.push(&["provider", provider, slug, "temperature"], v);
+        }
+        if let Some(v) = &self.top_p {
+            fields.push(&["provider", provider, slug, "top_p"], v);
+        }
+        if let Some(v) = &self.top_k {
+            fields.push(&["provider", provider, slug, "top_k"], v);
+        }
+        if let Some(v) = &self.stop_sequences {
+            fields.push(&["provider", provider, slug, "stop_sequences"], v);
+        }
+        if let Some(v) = &self.frequency_penalty {
+            fields.push(&["provider", provider, slug, "frequency_penalty"], v);
+        }
+        if let Some(v) = &self.presence_penalty {
+            fields.push(&["provider", provider, slug, "presence_penalty"], v);
+        }
+        if let Some(v) = &self.seed {
+            fields.push(&["provider", provider, slug, "seed"], v);
+        }
+        if let Some(v) = &self.provider_params {
+            fields.push(&["provider", provider, slug, "provider_params"], v);
+        }
     }
 }
 
@@ -68,13 +70,13 @@ impl IntoFieldSpecs for ResolvedContextProviderAnthropic {
         }
 
         if let Some(params) = &self.params {
-            push_params(fields, "anthropic", "params", params);
+            params.extend_param_fields(fields, "anthropic", "params");
         }
 
         if let Some(models) = &self.models {
             for model in models {
                 if let Some(params) = &model.params {
-                    push_params(fields, "anthropic", model_slug(&model.name).as_str(), params);
+                    params.extend_param_fields(fields, "anthropic", model.name.to_ident().as_str());
                 }
             }
         }
@@ -93,13 +95,13 @@ impl IntoFieldSpecs for ResolvedContextProviderOpenAi {
         }
 
         if let Some(params) = &self.params {
-            push_params(fields, "openai", "params", params);
+            params.extend_param_fields(fields, "openai", "params");
         }
 
         if let Some(models) = &self.models {
             for model in models {
                 if let Some(params) = &model.params {
-                    push_params(fields, "openai", model_slug(&model.name).as_str(), params);
+                    params.extend_param_fields(fields, "openai", model.name.to_ident().as_str());
                 }
             }
         }
@@ -115,13 +117,13 @@ impl IntoFieldSpecs for ResolvedContextProviderOllama {
         }
 
         if let Some(params) = &self.params {
-            push_params(fields, "ollama", "params", params);
+            params.extend_param_fields(fields, "ollama", "params");
         }
 
         if let Some(models) = &self.models {
             for model in models {
                 if let Some(params) = &model.params {
-                    push_params(fields, "ollama", model_slug(&model.name).as_str(), params);
+                    params.extend_param_fields(fields, "ollama", model.name.to_ident().as_str());
                 }
             }
         }
@@ -137,13 +139,13 @@ impl IntoFieldSpecs for ResolvedContextProviderOpenRouter {
         }
 
         if let Some(params) = &self.params {
-            push_params(fields, "openrouter", "params", params);
+            params.extend_param_fields(fields, "openrouter", "params");
         }
 
         if let Some(models) = &self.models {
             for model in models {
                 if let Some(params) = &model.params {
-                    push_params(fields, "openrouter", model_slug(&model.name).as_str(), params);
+                    params.extend_param_fields(fields, "openrouter", model.name.to_ident().as_str());
                 }
             }
         }
@@ -159,13 +161,13 @@ impl IntoFieldSpecs for ResolvedContextProviderXai {
         }
 
         if let Some(params) = &self.params {
-            push_params(fields, "xai", "params", params);
+            params.extend_param_fields(fields, "xai", "params");
         }
 
         if let Some(models) = &self.models {
             for model in models {
                 if let Some(params) = &model.params {
-                    push_params(fields, "xai", model_slug(&model.name).as_str(), params);
+                    params.extend_param_fields(fields, "xai", model.name.to_ident().as_str());
                 }
             }
         }
@@ -181,13 +183,13 @@ impl IntoFieldSpecs for ResolvedContextProviderGemini {
         }
 
         if let Some(params) = &self.params {
-            push_params(fields, "gemini", "params", params);
+            params.extend_param_fields(fields, "gemini", "params");
         }
 
         if let Some(models) = &self.models {
             for model in models {
                 if let Some(params) = &model.params {
-                    push_params(fields, "gemini", model_slug(&model.name).as_str(), params);
+                    params.extend_param_fields(fields, "gemini", model.name.to_ident().as_str());
                 }
             }
         }

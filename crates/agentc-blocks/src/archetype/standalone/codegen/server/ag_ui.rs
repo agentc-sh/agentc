@@ -13,11 +13,11 @@ use agentc_compiler::generator::{
 
 use crate::context::{ResolvedContext, ResolvedContextHttpServerProtocolAgUi};
 
-pub struct ProtocolAgUiCodeGen {
+pub struct AgUiCodeGen {
     pub config: ResolvedContextHttpServerProtocolAgUi,
 }
 
-impl CodeGen<ResolvedContext> for ProtocolAgUiCodeGen {
+impl CodeGen<ResolvedContext> for AgUiCodeGen {
     fn generate_contribution(
         &self,
         _ctx: &GenerationContext<ResolvedContext>,

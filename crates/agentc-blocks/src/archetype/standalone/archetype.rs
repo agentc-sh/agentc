@@ -21,18 +21,19 @@ use crate::{
     archetype::{
         standalone::{
             codegen::{
-                agent_rs::AgentRsCodeGen,
-                build_rs::BuildRsCodeGen,
-                cli_config::CliConfigCodeGen,
-                cli_mod::CliModCodeGen,
-                cli_run::CliRunCodeGen,
-                cli_serve::CliServeCodeGen,
-                cli_shutdown::CliShutdownCodeGen,
-                config_rs::ConfigRsCodeGen,
-                main_rs::MainRsCodeGen,
-                migrator_rs::MigratorRsCodeGen,
-                protocol_ag_ui::ProtocolAgUiCodeGen,
-                server_rs::ServerRsCodeGen,
+                agent::AgentCodeGen,
+                build_script::BuildScriptCodeGen,
+                cli::{
+                    CliModCodeGen,
+                    config::CliConfigCodeGen,
+                    run::CliRunCodeGen,
+                    serve::CliServeCodeGen,
+                    shutdown::CliShutdownCodeGen,
+                },
+                config::ConfigCodeGen,
+                entrypoint::EntrypointCodeGen,
+                migrator::MigratorCodeGen,
+                server::{ServerCodeGen, ag_ui::AgUiCodeGen},
             },
             fields::FieldsSpec,
         },
@@ -183,13 +184,13 @@ impl Archetype for StandaloneArchetype {
                     .with_var("runtime_version", env!("CARGO_PKG_VERSION"))
                     .build(),
             )
-            .add(CodeGenBlock::builder().id("build_rs").build(BuildRsCodeGen))
+            .add(CodeGenBlock::builder().id("build_rs").build(BuildScriptCodeGen))
             .add(
                 CodeGenBlock::builder()
                     .id("migrator_rs")
                     .extension_point("migrator::use", reducers::concat)
                     .extension_point("migrator::migrations", reducers::concat)
-                    .build(MigratorRsCodeGen),
+                    .build(MigratorCodeGen),
             )
             .add(
                 CodeGenBlock::builder()
@@ -199,7 +200,7 @@ impl Archetype for StandaloneArchetype {
                     .extension_point("config::impls", reducers::concat)
                     .extension_point("config::loader", reducers::concat)
                     .extension_point("config::mapper", reducers::concat)
-                    .build(ConfigRsCodeGen { fields: fields.clone() }),
+                    .build(ConfigCodeGen { fields: fields.clone() }),
             )
             .add(
                 CodeGenBlock::builder()
@@ -209,7 +210,7 @@ impl Archetype for StandaloneArchetype {
                     .contribute(Contribution::strict("config::loader"))
                     .contribute(Contribution::strict("config::mapper"))
                     .contribute(Contribution::lenient("tools::features"))
-                    .build(AgentRsCodeGen { fields: fields.clone() }),
+                    .build(AgentCodeGen { fields: fields.clone() }),
             )
             .add(
                 CodeGenBlock::builder()
@@ -226,7 +227,7 @@ impl Archetype for StandaloneArchetype {
                 CodeGenBlock::builder()
                     .id("main_rs")
                     .extension_point("main::modules", reducers::concat)
-                    .build(MainRsCodeGen),
+                    .build(EntrypointCodeGen),
             )
             .add_if(
                 context.http_server.is_some(),
@@ -235,7 +236,7 @@ impl Archetype for StandaloneArchetype {
                     .extension_point("server::use", reducers::concat)
                     .extension_point("server::routers", reducers::concat)
                     .contribute(Contribution::strict("main::modules"))
-                    .build(ServerRsCodeGen { fields: fields.clone() }),
+                    .build(ServerCodeGen { fields: fields.clone() }),
             )
             .add_if(
                 context.http_server.is_some(),
@@ -254,7 +255,7 @@ impl Archetype for StandaloneArchetype {
                     .id("protocol_ag_ui")
                     .contribute(Contribution::strict("server::routers"))
                     .contribute(Contribution::strict("agent::features"))
-                    .build(ProtocolAgUiCodeGen { config: ag_ui }),
+                    .build(AgUiCodeGen { config: ag_ui }),
             ));
         }
 

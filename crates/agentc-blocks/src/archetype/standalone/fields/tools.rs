@@ -26,7 +26,7 @@ impl IntoFieldSpecs for NamedTool<'_> {
                 }
             }
 
-            // MCP loader calls are contributed to `config::loader` by AgentRsCodeGen.
+            // MCP loader calls are contributed to `config::loader` by AgentCodeGen.
             ResolvedContextToolKind::Mcp(_) => {}
 
             // Bash tools have no runtime-configurable fields beyond what is baked at compile time.

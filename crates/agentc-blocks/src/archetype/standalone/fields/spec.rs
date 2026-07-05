@@ -2,7 +2,8 @@
 //
 // SPDX-License-Identifier: MIT
 
-use proc_macro2::TokenStream;
+use proc_macro2::{Ident, Span, TokenStream};
+use quote::quote;
 use std::ops::Deref;
 
 use crate::{
@@ -86,6 +87,21 @@ impl FieldsSpec {
                     .iter()
                     .zip(path.iter())
                     .all(|(a, b)| a == b.as_ref())
+        })
+    }
+
+    /// Builds a `config.<segment>...` accessor expression for the field registered
+    /// at `path`, or `None` when no field lives there. Code generators use this to
+    /// read resolved values out of the generated `Config` struct.
+    pub fn config_accessor(&self, path: &[&str]) -> Option<TokenStream> {
+        self.get(path).map(|field| {
+            field
+                .path
+                .iter()
+                .fold(quote! { config }, |acc, segment| {
+                    let ident = Ident::new(segment, Span::call_site());
+                    quote! { #acc.#ident }
+                })
         })
     }
 }
