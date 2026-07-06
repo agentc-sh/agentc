@@ -39,7 +39,6 @@ impl CodeGen<ResolvedContext> for CliModCodeGen {
         let source = quote! {
             use anyhow::Result;
             use clap::{Parser, Subcommand};
-            use tokio::signal;
             use agentc_telemetry::Telemetry;
 
             mod shutdown;

@@ -7,7 +7,11 @@ use quote::quote;
 use std::path::PathBuf;
 
 use agentc_compiler::generator::{
-    blocks::{BlockSet, codegen::{CodeGen, CodeGenBlock}},
+    blocks::{
+        BlockSet,
+        codegen::{CodeGen, CodeGenBlock},
+        template::{TemplateFragment, TemplateFragmentBlock},
+    },
     context::GenerationContext,
     errors::GeneratorError,
     extension::{Contribution, ExtensionRegistry},
@@ -24,6 +28,8 @@ use crate::{
 pub struct AgUiCodeGen {
     pub config: ResolvedContextHttpServerProtocolAgUi,
 }
+
+pub struct AgUiCargoFragment;
 
 impl CodeGen<ResolvedContext> for AgUiCodeGen {
     fn generate_contribution(
@@ -55,6 +61,28 @@ impl CodeGen<ResolvedContext> for AgUiCodeGen {
     }
 }
 
+impl TemplateFragment<ResolvedContext> for AgUiCargoFragment {
+    fn generate_contribution(
+        &self,
+        _ctx: &GenerationContext<ResolvedContext>,
+        point: &str,
+    ) -> Result<String, GeneratorError> {
+        match point {
+            "cargo::dependencies" => {
+                Ok(format!(
+                    "agentc-protocol-ag-ui = {{ version = \"{}\" }}",
+                    env!("CARGO_PKG_VERSION"),
+                ))
+            }
+            "cargo::patches" => Ok(
+                "agentc-protocol-ag-ui = { path = \"../runtime/agentc-protocol-ag-ui\" }"
+                    .to_string(),
+            ),
+            _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
+        }
+    }
+}
+
 /// The AG-UI protocol contribution. Requires an archetype-provided `HttpServer` and a
 /// `Streaming`- and `GraphReAct`-providing graph, since AG-UI is currently only
 /// compatible with the ReAct graph's service and event types.
@@ -82,6 +110,13 @@ impl Protocol for AgUiProtocol {
                                 .id("protocol_ag_ui")
                                 .contribute(Contribution::strict("server::routers"))
                                 .build(AgUiCodeGen { config }),
+                        )
+                        .add(
+                            TemplateFragmentBlock::builder()
+                                .id("protocol_ag_ui_cargo")
+                                .contribute(Contribution::strict("cargo::dependencies"))
+                                .contribute(Contribution::strict("cargo::patches"))
+                                .build(AgUiCargoFragment),
                         )
                         .into_inner(),
                 )
