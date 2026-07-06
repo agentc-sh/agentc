@@ -2,12 +2,6 @@
 //
 // SPDX-License-Identifier: MIT
 
-pub mod identity;
-pub mod mcp;
-pub mod models;
-pub mod skills;
-pub mod tools;
-
 use proc_macro2::TokenStream;
 use quote::quote;
 use std::path::PathBuf;
@@ -18,14 +12,12 @@ use agentc_compiler::generator::{
 };
 
 use crate::{
-    archetype::standalone::{
-        codegen::agent::{
-            identity::IdentityCodeGen, mcp::McpCodeGen, models::ModelRegistryCodeGen,
-            skills::SkillsCodeGen, tools::ToolsCodeGen,
-        },
-        fields::FieldsSpec,
-    },
     context::ResolvedContext,
+    fields::FieldsSpec,
+    graph::codegen::{
+        identity::IdentityCodeGen, mcp::McpCodeGen, models::ModelRegistryCodeGen,
+        skills::SkillsCodeGen, tools::ToolsCodeGen,
+    },
 };
 
 pub struct AgentCodeGen {

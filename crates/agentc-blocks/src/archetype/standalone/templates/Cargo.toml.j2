@@ -6,12 +6,6 @@
     | first
     is defined
 %}
-{%- set has_ag_ui_protocol =
-    ctx.http_server.protocols
-    | selectattr("type", "equalto", "ag_ui")
-    | first
-    is defined
-%}
 
 [package]
 name = "{{ ctx.slug }}"
@@ -31,15 +25,10 @@ agentc-model = { version = "{{ runtime_version }}" }
 agentc-agent = { version = "{{ runtime_version }}" }
 agentc-mcp = { version = "{{ runtime_version }}" }
 agentc-skills = { version = "{{ runtime_version }}" }
-agentc-agent-react = { version = "{{ runtime_version }}", features = [{{ extension("agent::features") }}] }
 agentc-tools = { version = "{{ runtime_version }}", features = [{{ extension("tools::features") }}] }
 
 {%- if ctx.http_server %}
 agentc-http = { version = "{{ runtime_version }}" }
-
-{%- if has_ag_ui_protocol %}
-agentc-protocol-ag-ui = { version = "{{ runtime_version }}" }
-{%- endif %}
 
 utoipa = { version = "5.4" }
 utoipa-axum = { version = "0.2" }
@@ -65,7 +54,6 @@ rustpython-vm = { git = "https://github.com/RustPython/RustPython", rev = "0.5.0
 [patch.crates-io]
 agentc-agent = { path = "../runtime/agentc-agent" }
 agentc-agent-macros = { path = "../runtime/agentc-agent-macros" }
-agentc-agent-react = { path = "../runtime/agentc-agent-react" }
 agentc-config = { path = "../runtime/agentc-config" }
 agentc-database = { path = "../runtime/agentc-database" }
 agentc-domain = { path = "../runtime/agentc-domain" }
@@ -78,7 +66,6 @@ agentc-telemetry = { path = "../runtime/agentc-telemetry" }
 agentc-tools = { path = "../runtime/agentc-tools" }
 {%- if ctx.http_server %}
 agentc-http = { path = "../runtime/agentc-http" }
-{%- if has_ag_ui_protocol %}
-agentc-protocol-ag-ui = { path = "../runtime/agentc-protocol-ag-ui" }
 {%- endif %}
-{%- endif %}
+
+{{ extension("cargo::patches") }}

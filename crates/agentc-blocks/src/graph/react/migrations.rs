@@ -11,32 +11,25 @@ use agentc_compiler::generator::{
     extension::ExtensionRegistry,
 };
 
-use crate::context::{ResolvedContext, ResolvedContextHttpServerProtocolAgUi};
+use crate::context::ResolvedContext;
 
-pub struct AgUiCodeGen {
-    pub config: ResolvedContextHttpServerProtocolAgUi,
-}
+/// Contributes ReAct's own migrations into the generic `Migrator` that standalone
+/// generates, through the `migrator::use` and `migrator::migrations` extension points.
+pub struct ReActMigrationsCodeGen;
 
-impl CodeGen<ResolvedContext> for AgUiCodeGen {
+impl CodeGen<ResolvedContext> for ReActMigrationsCodeGen {
     fn generate_contribution(
         &self,
         _ctx: &GenerationContext<ResolvedContext>,
         point: &str,
     ) -> Result<TokenStream, GeneratorError> {
         match point {
-            "agent::features" => Ok(quote! {
-                "ag-ui"
+            "migrator::use" => Ok(quote! {
+                use agentc_agent_react::migrations::all as react_migrations;
             }),
-            "server::routers" => {
-                let config_path = &self.config.path;
-
-                Ok(quote! {
-                    builder = builder.with_router(
-                        utoipa_axum::router::OpenApiRouter::new()
-                            .nest(#config_path, agentc_protocol_ag_ui::router::router(state.clone()))
-                    );
-                })
-            }
+            "migrator::migrations" => Ok(quote! {
+                react_migrations(),
+            }),
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
     }

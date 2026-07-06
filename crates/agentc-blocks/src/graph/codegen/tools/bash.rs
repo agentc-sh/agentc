@@ -8,11 +8,12 @@ use quote::quote;
 use agentc_compiler::generator::errors::GeneratorError;
 
 use crate::{
-    archetype::standalone::{codegen::agent::tools::ToolCodeGen, fields::FieldsSpec},
     context::{
         ResolvedContext, ResolvedContextToolBashEnv, ResolvedContextToolBashFsKind,
         ResolvedContextToolKind,
     },
+    fields::FieldsSpec,
+    graph::codegen::tools::ToolCodeGen,
 };
 
 /// All bash sandbox tools in the context. Each bash tool is registered independently

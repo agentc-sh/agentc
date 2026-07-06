@@ -2,8 +2,6 @@
 //
 // SPDX-License-Identifier: MIT
 
-pub mod ag_ui;
-
 use proc_macro2::TokenStream;
 use quote::quote;
 use std::path::PathBuf;
@@ -13,7 +11,7 @@ use agentc_compiler::generator::{
     extension::ExtensionRegistry,
 };
 
-use crate::{archetype::standalone::fields::FieldsSpec, context::ResolvedContext};
+use crate::{context::ResolvedContext, fields::FieldsSpec};
 
 pub struct ServerCodeGen {
     pub fields: FieldsSpec,

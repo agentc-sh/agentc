@@ -29,6 +29,24 @@ impl GenerationFeatureSet {
             .insert(TypeId::of::<T>(), T::NAME);
     }
 
+    pub fn with<T>(mut self) -> Self
+    where
+        T: GenerationFeature,
+    {
+        self.insert::<T>();
+        self
+    }
+
+    pub fn with_if<T>(mut self, condition: bool) -> Self
+    where
+        T: GenerationFeature,
+    {
+        if condition {
+            self.insert::<T>();
+        }
+        self
+    }
+
     pub fn contains<T>(&self) -> bool
     where
         T: GenerationFeature,
@@ -80,7 +98,12 @@ builtin_feature!(Cli, "cli");
 builtin_feature!(LongLivedProcess, "long_lived_process");
 builtin_feature!(HttpServer, "http_server");
 builtin_feature!(Streaming, "streaming");
-builtin_feature!(AgUiService, "ag_ui_service");
+
+builtin_feature!(ProtocolAgUi, "protocol_ag_ui");
+
+builtin_feature!(GraphReAct, "graph_react");
+
+builtin_feature!(ArchetypeStandalone, "archetype_standalone");
 
 #[cfg(test)]
 mod tests {
@@ -102,6 +125,38 @@ mod tests {
         assert!(features.contains::<Cli>());
         assert!(features.contains::<TestFeature>());
         assert!(!features.contains::<Streaming>());
+    }
+
+    #[test]
+    fn with_chains_inline_construction() {
+        let features = GenerationFeatureSet::new()
+            .with::<Cli>()
+            .with::<TestFeature>();
+
+        assert!(features.contains::<Cli>());
+        assert!(features.contains::<TestFeature>());
+        assert!(!features.contains::<Streaming>());
+    }
+
+    #[test]
+    fn with_if_only_inserts_when_true() {
+        let features = GenerationFeatureSet::new()
+            .with_if::<Cli>(true)
+            .with_if::<Streaming>(false);
+
+        assert!(features.contains::<Cli>());
+        assert!(!features.contains::<Streaming>());
+    }
+
+    #[test]
+    fn component_identity_markers_are_independently_addressable() {
+        let features = GenerationFeatureSet::new()
+            .with::<ArchetypeStandalone>()
+            .with::<GraphReAct>();
+
+        assert!(features.contains::<ArchetypeStandalone>());
+        assert!(features.contains::<GraphReAct>());
+        assert!(!features.contains::<ProtocolAgUi>());
     }
 
     #[test]

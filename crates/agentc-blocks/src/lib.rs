@@ -11,6 +11,7 @@ pub mod composition;
 pub mod context;
 pub mod errors;
 pub mod feature;
+pub mod fields;
 pub mod graph;
 pub mod protocol;
 pub mod runtime;

@@ -15,26 +15,18 @@ use agentc_compiler::{
                 ExtensionPointSpec, FileSpec, Reducer, TemplateBlock, TemplateBlockManifest,
             },
         },
-        extension::{Contribution, reducers},
+        extension::reducers,
     },
 };
 
 use crate::{
     archetype::{
-        standalone::{
-            codegen::{
-                agent::AgentCodeGen,
-                build_script::BuildScriptCodeGen,
-                cli::{
-                    CliModCodeGen, config::CliConfigCodeGen, run::CliRunCodeGen,
-                    serve::CliServeCodeGen, shutdown::CliShutdownCodeGen,
-                },
-                config::ConfigCodeGen,
-                entrypoint::EntrypointCodeGen,
-                migrator::MigratorCodeGen,
-                server::{ServerCodeGen, ag_ui::AgUiCodeGen},
-            },
-            fields::FieldsSpec,
+        standalone::codegen::{
+            build_script::BuildScriptCodeGen,
+            cli::{CliModCodeGen, config::CliConfigCodeGen, shutdown::CliShutdownCodeGen},
+            config::ConfigCodeGen,
+            entrypoint::EntrypointCodeGen,
+            migrator::MigratorCodeGen,
         },
         traits::Archetype,
         types::ResolvedArchetype,
@@ -42,6 +34,8 @@ use crate::{
     composition::GenerationContribution,
     context::ResolvedContext,
     errors::BlocksError,
+    feature::{ArchetypeStandalone, Cli, GenerationFeatureSet, HttpServer, LongLivedProcess},
+    fields::FieldsSpec,
     runtime::EMBEDDED_RUNTIME,
 };
 
@@ -141,140 +135,6 @@ impl Archetype for StandaloneArchetype {
     ) -> Result<ResolvedArchetype, BlocksError> {
         let fields = FieldsSpec::collect_from(&context);
 
-        let ag_ui = context
-            .http_server
-            .as_ref()
-            .and_then(|server| {
-                server
-                    .protocols
-                    .iter()
-                    .filter_map(|p| p.as_ag_ui())
-                    .next()
-                    .cloned()
-            });
-
-        let mut blocks = BlockSet::new()
-            .add(
-                TemplateBlock::builder()
-                    .with_manifest(TemplateBlockManifest {
-                        id: "cargo_toml".to_string(),
-                        files: vec![FileSpec {
-                            path: "Cargo.toml".to_string(),
-                            template: "cargo_toml".to_string(),
-                            condition: None,
-                        }],
-                        extension_points: vec![
-                            ExtensionPointSpec {
-                                name: "cargo::dependencies".to_string(),
-                                reducer: Reducer::Concat,
-                            },
-                            ExtensionPointSpec {
-                                name: "agent::features".to_string(),
-                                reducer: Reducer::JoinComma,
-                            },
-                            ExtensionPointSpec {
-                                name: "tools::features".to_string(),
-                                reducer: Reducer::JoinComma,
-                            },
-                        ],
-                        slot_fills: vec![],
-                        description: None,
-                    })
-                    .with_template("cargo_toml", include_str!("templates/Cargo.toml.j2"))
-                    .with_var("runtime_version", env!("CARGO_PKG_VERSION"))
-                    .build(),
-            )
-            .add(
-                CodeGenBlock::builder()
-                    .id("build_rs")
-                    .build(BuildScriptCodeGen),
-            )
-            .add(
-                CodeGenBlock::builder()
-                    .id("migrator_rs")
-                    .extension_point("migrator::use", reducers::concat)
-                    .extension_point("migrator::migrations", reducers::concat)
-                    .build(MigratorCodeGen),
-            )
-            .add(
-                CodeGenBlock::builder()
-                    .id("config_rs")
-                    .extension_point("config::use", reducers::concat)
-                    .extension_point("config::fields", reducers::concat)
-                    .extension_point("config::impls", reducers::concat)
-                    .extension_point("config::loader", reducers::concat)
-                    .extension_point("config::mapper", reducers::concat)
-                    .build(ConfigCodeGen { fields: fields.clone() }),
-            )
-            .add(
-                CodeGenBlock::builder()
-                    .id("agent_rs")
-                    .extension_point("agent::use", reducers::concat)
-                    .extension_point("agent::tools", reducers::concat)
-                    .contribute(Contribution::strict("config::loader"))
-                    .contribute(Contribution::strict("config::mapper"))
-                    .contribute(Contribution::lenient("tools::features"))
-                    .build(AgentCodeGen { fields: fields.clone() }),
-            )
-            .add(
-                CodeGenBlock::builder()
-                    .id("cli_mod")
-                    .extension_point("cli::mod::use", reducers::concat)
-                    .extension_point("cli::mod::variants", reducers::concat)
-                    .extension_point("cli::mod::arms", reducers::concat)
-                    .build(CliModCodeGen),
-            )
-            .add(
-                CodeGenBlock::builder()
-                    .id("cli_shutdown")
-                    .build(CliShutdownCodeGen),
-            )
-            .add(
-                CodeGenBlock::builder()
-                    .id("cli_run")
-                    .build(CliRunCodeGen),
-            )
-            .add(
-                CodeGenBlock::builder()
-                    .id("cli_config")
-                    .build(CliConfigCodeGen),
-            )
-            .add(
-                CodeGenBlock::builder()
-                    .id("main_rs")
-                    .extension_point("main::modules", reducers::concat)
-                    .build(EntrypointCodeGen),
-            )
-            .add_if(
-                context.http_server.is_some(),
-                CodeGenBlock::builder()
-                    .id("server_rs")
-                    .extension_point("server::use", reducers::concat)
-                    .extension_point("server::routers", reducers::concat)
-                    .contribute(Contribution::strict("main::modules"))
-                    .build(ServerCodeGen { fields: fields.clone() }),
-            )
-            .add_if(
-                context.http_server.is_some(),
-                CodeGenBlock::builder()
-                    .id("cli_serve")
-                    .contribute(Contribution::strict("cli::mod::use"))
-                    .contribute(Contribution::strict("cli::mod::variants"))
-                    .contribute(Contribution::strict("cli::mod::arms"))
-                    .build(CliServeCodeGen),
-            )
-            .into_inner();
-
-        if let Some(ag_ui) = ag_ui {
-            blocks.push(Box::new(
-                CodeGenBlock::builder()
-                    .id("protocol_ag_ui")
-                    .contribute(Contribution::strict("server::routers"))
-                    .contribute(Contribution::strict("agent::features"))
-                    .build(AgUiCodeGen { config: ag_ui }),
-            ));
-        }
-
         Ok(ResolvedArchetype {
             name: self.name().to_string(),
             compiler: Box::new(CargoCompiler::new()),
@@ -282,8 +142,195 @@ impl Archetype for StandaloneArchetype {
                 .target_triple()?
                 .map(|t| t.to_string()),
             contribution: GenerationContribution::new()
-                .with_blocks(blocks)
-                .with_embedded_assets(EMBEDDED_RUNTIME.iter().collect()),
+                .with_blocks(
+                    BlockSet::new()
+                        .add(
+                            TemplateBlock::builder()
+                                .with_manifest(TemplateBlockManifest {
+                                    id: "cargo_toml".to_string(),
+                                    files: vec![FileSpec {
+                                        path: "Cargo.toml".to_string(),
+                                        template: "cargo_toml".to_string(),
+                                        condition: None,
+                                    }],
+                                    extension_points: vec![
+                                        ExtensionPointSpec {
+                                            name: "cargo::dependencies".to_string(),
+                                            reducer: Reducer::Concat,
+                                        },
+                                        ExtensionPointSpec {
+                                            name: "cargo::patches".to_string(),
+                                            reducer: Reducer::Concat,
+                                        },
+                                        ExtensionPointSpec {
+                                            name: "tools::features".to_string(),
+                                            reducer: Reducer::JoinComma,
+                                        },
+                                    ],
+                                    slot_fills: vec![],
+                                    description: None,
+                                })
+                                .with_template("cargo_toml", include_str!("templates/Cargo.toml.j2"))
+                                .with_var("runtime_version", env!("CARGO_PKG_VERSION"))
+                                .build(),
+                        )
+                        .add(
+                            CodeGenBlock::builder()
+                                .id("build_rs")
+                                .build(BuildScriptCodeGen),
+                        )
+                        .add(
+                            CodeGenBlock::builder()
+                                .id("migrator_rs")
+                                .extension_point("migrator::use", reducers::concat)
+                                .extension_point("migrator::migrations", reducers::concat)
+                                .build(MigratorCodeGen),
+                        )
+                        .add(
+                            CodeGenBlock::builder()
+                                .id("config_rs")
+                                .extension_point("config::use", reducers::concat)
+                                .extension_point("config::fields", reducers::concat)
+                                .extension_point("config::impls", reducers::concat)
+                                .extension_point("config::loader", reducers::concat)
+                                .extension_point("config::mapper", reducers::concat)
+                                .build(ConfigCodeGen { fields: fields.clone() }),
+                        )
+                        .add(
+                            CodeGenBlock::builder()
+                                .id("cli_mod")
+                                .extension_point("cli::mod::use", reducers::concat)
+                                .extension_point("cli::mod::variants", reducers::concat)
+                                .extension_point("cli::mod::arms", reducers::concat)
+                                .build(CliModCodeGen),
+                        )
+                        .add(
+                            CodeGenBlock::builder()
+                                .id("cli_shutdown")
+                                .build(CliShutdownCodeGen),
+                        )
+                        .add(
+                            CodeGenBlock::builder()
+                                .id("cli_config")
+                                .build(CliConfigCodeGen),
+                        )
+                        .add(
+                            CodeGenBlock::builder()
+                                .id("main_rs")
+                                .extension_point("main::modules", reducers::concat)
+                                .build(EntrypointCodeGen),
+                        )
+                        .into_inner(),
+                )
+                .with_embedded_assets(EMBEDDED_RUNTIME.iter().collect())
+                .with_provides(
+                    GenerationFeatureSet::new()
+                        .with::<ArchetypeStandalone>()
+                        .with::<Cli>()
+                        .with::<LongLivedProcess>()
+                        .with_if::<HttpServer>(context.http_server.is_some()),
+                ),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+    use agentc_compiler::generator::{
+        context::GenerationContext, extension::ExtensionRegistry, vfs::VirtualFileSystem,
+    };
+
+    fn context(http_server: Option<serde_json::Value>) -> ResolvedContext {
+        serde_json::from_value(json!({
+            "slug": "assistant",
+            "agent_name": "assistant",
+            "runtime": { "default_tenant_id": "default" },
+            "providers": [],
+            "agent": {
+                "version": "0.1.0",
+                "description": null,
+                "prompt": null,
+                "capabilities": null,
+                "capability_policy": null,
+                "model": { "provider": "anthropic", "name": "claude" }
+            },
+            "blocks": {},
+            "tools": {},
+            "skills": {},
+            "http_server": http_server
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn provides_cli_and_long_lived_process_always() {
+        let resolved = StandaloneArchetype
+            .resolve(context(None), StandaloneArchetypeConfig::default())
+            .unwrap();
+
+        assert!(
+            resolved
+                .contribution
+                .provides
+                .contains::<ArchetypeStandalone>()
+        );
+        assert!(resolved.contribution.provides.contains::<Cli>());
+        assert!(
+            resolved
+                .contribution
+                .provides
+                .contains::<LongLivedProcess>()
+        );
+        assert!(!resolved.contribution.provides.contains::<HttpServer>());
+    }
+
+    #[test]
+    fn provides_http_server_only_when_configured() {
+        let resolved = StandaloneArchetype
+            .resolve(
+                context(Some(json!({ "host": "0.0.0.0", "port": 8080, "protocols": [] }))),
+                StandaloneArchetypeConfig::default(),
+            )
+            .unwrap();
+
+        assert!(resolved.contribution.provides.contains::<HttpServer>());
+    }
+
+    #[tokio::test]
+    async fn generated_cargo_toml_has_no_react_or_ag_ui_references() {
+        let resolved = StandaloneArchetype
+            .resolve(
+                context(Some(json!({ "host": "0.0.0.0", "port": 8080, "protocols": [] }))),
+                StandaloneArchetypeConfig::default(),
+            )
+            .unwrap();
+
+        let cargo_toml_block = resolved
+            .contribution
+            .blocks
+            .iter()
+            .find(|block| block.id() == "cargo_toml")
+            .expect("cargo_toml block is registered");
+
+        let ctx = GenerationContext::new(context(Some(
+            json!({ "host": "0.0.0.0", "port": 8080, "protocols": [] }),
+        )));
+        let mut vfs = VirtualFileSystem::new();
+
+        cargo_toml_block
+            .render(&ctx, &ExtensionRegistry::empty(), &mut vfs)
+            .await
+            .unwrap();
+
+        let content = vfs
+            .get("Cargo.toml")
+            .expect("Cargo.toml is generated");
+
+        assert!(!content.contains("agentc-agent-react"));
+        assert!(!content.contains("agentc-protocol-ag-ui"));
+        assert!(!content.contains("has_ag_ui_protocol"));
     }
 }

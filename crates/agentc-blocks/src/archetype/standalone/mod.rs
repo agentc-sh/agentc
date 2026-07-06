@@ -4,6 +4,5 @@
 
 pub mod archetype;
 pub mod codegen;
-pub mod fields;
 
 pub use archetype::{StandaloneArchetype, StandaloneArchetypeConfig};

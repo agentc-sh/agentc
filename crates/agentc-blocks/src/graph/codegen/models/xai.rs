@@ -8,17 +8,15 @@ use quote::quote;
 use agentc_compiler::generator::blocks::codegen::ToIdent;
 
 use crate::{
-    archetype::standalone::{
-        codegen::agent::models::{ModelCodeGen, params::InferenceParamsFields},
-        fields::FieldsSpec,
-    },
-    context::ResolvedContextProviderOpenAi,
+    context::ResolvedContextProviderXai,
+    fields::FieldsSpec,
+    graph::codegen::models::{ModelCodeGen, params::InferenceParamsFields},
 };
 
-impl ModelCodeGen for ResolvedContextProviderOpenAi {
+impl ModelCodeGen for ResolvedContextProviderXai {
     fn imports(&self) -> TokenStream {
         quote! {
-            use agentc_model::providers::openai::{OpenAiConfig, OpenAiFactory};
+            use agentc_model::providers::xai::{XaiConfig, XaiFactory};
         }
     }
 
@@ -27,16 +25,8 @@ impl ModelCodeGen for ResolvedContextProviderOpenAi {
             .config
             .as_ref()
             .and_then(|c| c.api_key.as_ref())
-            .and_then(|_| fields.config_accessor(&["provider", "openai", "api_key"]))
+            .and_then(|_| fields.config_accessor(&["provider", "xai", "api_key"]))
             .map(|path| quote! { Some(#path.clone().into_inner()) })
-            .unwrap_or(quote! { None });
-
-        let base_url = self
-            .config
-            .as_ref()
-            .and_then(|c| c.base_url.as_ref())
-            .and_then(|_| fields.config_accessor(&["provider", "openai", "base_url"]))
-            .map(|path| quote! { Some(#path.clone()) })
             .unwrap_or(quote! { None });
 
         let constraints = self.models.as_ref().map(|models| {
@@ -45,17 +35,17 @@ impl ModelCodeGen for ResolvedContextProviderOpenAi {
                 .map(|m| m.name.as_str())
                 .collect::<Vec<_>>();
             quote! {
-                .with_constraints(OpenAiFactory::provider(), [#(#names),*])
+                .with_constraints(XaiFactory::provider(), [#(#names),*])
             }
         });
 
-        let provider_params = InferenceParamsFields::build(fields, "openai", "params");
+        let provider_params = InferenceParamsFields::build(fields, "xai", "params");
         let with_provider_params = if provider_params.is_empty() {
             quote! {}
         } else {
             quote! {
                 .with_provider_params(
-                    OpenAiFactory::provider(),
+                    XaiFactory::provider(),
                     agentc_model::types::inference::InferenceParams {
                         #(#provider_params)*
                         ..Default::default()
@@ -70,7 +60,7 @@ impl ModelCodeGen for ResolvedContextProviderOpenAi {
             .flatten()
             .filter_map(|model| {
                 let model_params =
-                    InferenceParamsFields::build(fields, "openai", model.name.to_ident().as_str());
+                    InferenceParamsFields::build(fields, "xai", model.name.to_ident().as_str());
 
                 if model_params.is_empty() {
                     return None;
@@ -80,7 +70,7 @@ impl ModelCodeGen for ResolvedContextProviderOpenAi {
 
                 Some(quote! {
                     .with_model_params(
-                        OpenAiFactory::provider(),
+                        XaiFactory::provider(),
                         #name,
                         agentc_model::types::inference::InferenceParams {
                             #(#model_params)*
@@ -92,10 +82,9 @@ impl ModelCodeGen for ResolvedContextProviderOpenAi {
             .collect::<Vec<_>>();
 
         quote! {
-            .with_factory(OpenAiFactory)
-            .with_config(OpenAiFactory::provider(), OpenAiConfig {
+            .with_factory(XaiFactory)
+            .with_config(XaiFactory::provider(), XaiConfig {
                 api_key: #api_key,
-                base_url: #base_url,
                 ..Default::default()
             })?
             #constraints
@@ -110,21 +99,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn imports_and_registration_reference_the_openai_factory() {
-        let provider = ResolvedContextProviderOpenAi { config: None, params: None, models: None };
+    fn imports_and_registration_reference_the_xai_factory() {
+        let provider = ResolvedContextProviderXai { config: None, params: None, models: None };
 
         assert!(
             provider
                 .imports()
                 .to_string()
-                .contains("OpenAiFactory")
+                .contains("XaiFactory")
         );
 
         let rendered = provider
             .registration(&FieldsSpec::new(vec![]))
             .to_string()
             .replace(' ', "");
-        assert!(rendered.contains("with_factory(OpenAiFactory)"));
-        assert!(rendered.contains("OpenAiConfig{"));
+        assert!(rendered.contains("with_factory(XaiFactory)"));
+        assert!(rendered.contains("XaiConfig{"));
     }
 }

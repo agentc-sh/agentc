@@ -3,8 +3,6 @@
 // SPDX-License-Identifier: MIT
 
 pub mod config;
-pub mod run;
-pub mod serve;
 pub mod shutdown;
 
 use proc_macro2::TokenStream;

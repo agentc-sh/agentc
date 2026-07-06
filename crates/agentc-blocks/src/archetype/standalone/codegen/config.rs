@@ -13,8 +13,8 @@ use agentc_compiler::generator::{
 };
 
 use crate::{
-    archetype::standalone::fields::{FieldSpec, FieldValue, FieldsSpec},
     context::ResolvedContext,
+    fields::{FieldSpec, FieldValue, FieldsSpec},
 };
 
 enum StructNode {

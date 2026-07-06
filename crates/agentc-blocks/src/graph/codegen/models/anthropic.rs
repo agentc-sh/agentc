@@ -8,11 +8,9 @@ use quote::quote;
 use agentc_compiler::generator::blocks::codegen::ToIdent;
 
 use crate::{
-    archetype::standalone::{
-        codegen::agent::models::{ModelCodeGen, params::InferenceParamsFields},
-        fields::FieldsSpec,
-    },
     context::ResolvedContextProviderAnthropic,
+    fields::FieldsSpec,
+    graph::codegen::models::{ModelCodeGen, params::InferenceParamsFields},
 };
 
 impl ModelCodeGen for ResolvedContextProviderAnthropic {

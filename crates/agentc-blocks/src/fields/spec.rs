@@ -7,7 +7,7 @@ use quote::quote;
 use std::ops::Deref;
 
 use crate::{
-    archetype::standalone::fields::types::{FieldValue, IntoTypeTokens},
+    fields::types::{FieldValue, IntoTypeTokens},
     types::RuntimeValue,
 };
 

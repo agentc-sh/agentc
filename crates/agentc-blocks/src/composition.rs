@@ -270,7 +270,7 @@ mod tests {
         },
     };
     use crate::{
-        feature::{AgUiService, Cli, HttpServer, Streaming},
+        feature::{Cli, GraphReAct, HttpServer, Streaming},
         runtime::ExtractionMode,
     };
 
@@ -465,7 +465,7 @@ mod tests {
                         .with_requires({
                             let mut features = provides::<HttpServer>();
 
-                            features.insert::<AgUiService>();
+                            features.insert::<GraphReAct>();
                             features
                         }),
                 )],

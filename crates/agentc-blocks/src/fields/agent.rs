@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: MIT
 
 use crate::{
-    archetype::standalone::fields::spec::{FieldsSpec, IntoFieldSpecs},
     context::ResolvedContextAgent,
+    fields::spec::{FieldsSpec, IntoFieldSpecs},
 };
 
 impl IntoFieldSpecs for ResolvedContextAgent {

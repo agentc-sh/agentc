@@ -9,8 +9,9 @@ use std::collections::{HashMap, HashSet};
 use agentc_compiler::generator::{blocks::codegen::ToIdent, errors::GeneratorError};
 
 use crate::{
-    archetype::standalone::{codegen::agent::tools::ToolCodeGen, fields::FieldsSpec},
     context::{ResolvedContext, ResolvedContextToolJavascript, ResolvedContextToolKind},
+    fields::FieldsSpec,
+    graph::codegen::tools::ToolCodeGen,
 };
 
 /// All JavaScript tools in the context. Tools that share a bundle path share a single

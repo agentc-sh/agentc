@@ -9,11 +9,12 @@ use std::collections::HashMap;
 use agentc_compiler::generator::{blocks::codegen::ToIdent, errors::GeneratorError};
 
 use crate::{
-    archetype::standalone::{codegen::agent::tools::ToolCodeGen, fields::FieldsSpec},
     context::{
         ResolvedContext, ResolvedContextToolKind, ResolvedContextToolPython,
         ResolvedContextToolPythonInterpreter,
     },
+    fields::FieldsSpec,
+    graph::codegen::tools::ToolCodeGen,
 };
 
 /// All embedded-interpreter Python tools in the context. Tools that share a

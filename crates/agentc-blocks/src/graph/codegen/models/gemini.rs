@@ -8,17 +8,15 @@ use quote::quote;
 use agentc_compiler::generator::blocks::codegen::ToIdent;
 
 use crate::{
-    archetype::standalone::{
-        codegen::agent::models::{ModelCodeGen, params::InferenceParamsFields},
-        fields::FieldsSpec,
-    },
-    context::ResolvedContextProviderOpenRouter,
+    context::ResolvedContextProviderGemini,
+    fields::FieldsSpec,
+    graph::codegen::models::{ModelCodeGen, params::InferenceParamsFields},
 };
 
-impl ModelCodeGen for ResolvedContextProviderOpenRouter {
+impl ModelCodeGen for ResolvedContextProviderGemini {
     fn imports(&self) -> TokenStream {
         quote! {
-            use agentc_model::providers::openrouter::{OpenRouterConfig, OpenRouterFactory};
+            use agentc_model::providers::gemini::{GeminiConfig, GeminiFactory};
         }
     }
 
@@ -27,7 +25,7 @@ impl ModelCodeGen for ResolvedContextProviderOpenRouter {
             .config
             .as_ref()
             .and_then(|c| c.api_key.as_ref())
-            .and_then(|_| fields.config_accessor(&["provider", "openrouter", "api_key"]))
+            .and_then(|_| fields.config_accessor(&["provider", "gemini", "api_key"]))
             .map(|path| quote! { Some(#path.clone().into_inner()) })
             .unwrap_or(quote! { None });
 
@@ -37,17 +35,17 @@ impl ModelCodeGen for ResolvedContextProviderOpenRouter {
                 .map(|m| m.name.as_str())
                 .collect::<Vec<_>>();
             quote! {
-                .with_constraints(OpenRouterFactory::provider(), [#(#names),*])
+                .with_constraints(GeminiFactory::provider(), [#(#names),*])
             }
         });
 
-        let provider_params = InferenceParamsFields::build(fields, "openrouter", "params");
+        let provider_params = InferenceParamsFields::build(fields, "gemini", "params");
         let with_provider_params = if provider_params.is_empty() {
             quote! {}
         } else {
             quote! {
                 .with_provider_params(
-                    OpenRouterFactory::provider(),
+                    GeminiFactory::provider(),
                     agentc_model::types::inference::InferenceParams {
                         #(#provider_params)*
                         ..Default::default()
@@ -61,11 +59,8 @@ impl ModelCodeGen for ResolvedContextProviderOpenRouter {
             .iter()
             .flatten()
             .filter_map(|model| {
-                let model_params = InferenceParamsFields::build(
-                    fields,
-                    "openrouter",
-                    model.name.to_ident().as_str(),
-                );
+                let model_params =
+                    InferenceParamsFields::build(fields, "gemini", model.name.to_ident().as_str());
 
                 if model_params.is_empty() {
                     return None;
@@ -75,7 +70,7 @@ impl ModelCodeGen for ResolvedContextProviderOpenRouter {
 
                 Some(quote! {
                     .with_model_params(
-                        OpenRouterFactory::provider(),
+                        GeminiFactory::provider(),
                         #name,
                         agentc_model::types::inference::InferenceParams {
                             #(#model_params)*
@@ -87,8 +82,8 @@ impl ModelCodeGen for ResolvedContextProviderOpenRouter {
             .collect::<Vec<_>>();
 
         quote! {
-            .with_factory(OpenRouterFactory)
-            .with_config(OpenRouterFactory::provider(), OpenRouterConfig {
+            .with_factory(GeminiFactory)
+            .with_config(GeminiFactory::provider(), GeminiConfig {
                 api_key: #api_key,
                 ..Default::default()
             })?
@@ -104,22 +99,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn imports_and_registration_reference_the_openrouter_factory() {
-        let provider =
-            ResolvedContextProviderOpenRouter { config: None, params: None, models: None };
+    fn imports_and_registration_reference_the_gemini_factory() {
+        let provider = ResolvedContextProviderGemini { config: None, params: None, models: None };
 
         assert!(
             provider
                 .imports()
                 .to_string()
-                .contains("OpenRouterFactory")
+                .contains("GeminiFactory")
         );
 
         let rendered = provider
             .registration(&FieldsSpec::new(vec![]))
             .to_string()
             .replace(' ', "");
-        assert!(rendered.contains("with_factory(OpenRouterFactory)"));
-        assert!(rendered.contains("OpenRouterConfig{"));
+        assert!(rendered.contains("with_factory(GeminiFactory)"));
+        assert!(rendered.contains("GeminiConfig{"));
     }
 }

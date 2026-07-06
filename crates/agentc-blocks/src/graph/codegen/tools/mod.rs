@@ -12,13 +12,11 @@ use quote::quote;
 use agentc_compiler::generator::errors::GeneratorError;
 
 use crate::{
-    archetype::standalone::{
-        codegen::agent::tools::{
-            bash::BashTools, javascript::JavascriptTools, python::EmbeddedPythonTools,
-        },
-        fields::FieldsSpec,
-    },
     context::ResolvedContext,
+    fields::FieldsSpec,
+    graph::codegen::tools::{
+        bash::BashTools, javascript::JavascriptTools, python::EmbeddedPythonTools,
+    },
 };
 
 /// Code generation for a single tool kind.

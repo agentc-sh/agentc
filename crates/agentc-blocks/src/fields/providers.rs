@@ -5,13 +5,13 @@
 use agentc_compiler::generator::blocks::codegen::ToIdent;
 
 use crate::{
-    archetype::standalone::fields::spec::{FieldsSpec, IntoFieldSpecs},
     context::{
         ResolvedContextProviderAnthropic, ResolvedContextProviderGemini,
         ResolvedContextProviderOllama, ResolvedContextProviderOpenAi,
         ResolvedContextProviderOpenRouter, ResolvedContextProviderParams,
         ResolvedContextProviderXai,
     },
+    fields::spec::{FieldsSpec, IntoFieldSpecs},
 };
 
 /// Registers every set inference parameter under `["provider", provider, slug, <field>]`.

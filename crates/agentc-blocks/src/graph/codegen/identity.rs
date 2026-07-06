@@ -8,8 +8,8 @@ use quote::quote;
 use agentc_compiler::generator::errors::GeneratorError;
 
 use crate::{
-    archetype::standalone::fields::FieldsSpec,
     context::{ResolvedContext, ResolvedContextAgentPromptMessageRole},
+    fields::FieldsSpec,
 };
 
 /// Generates the `AgentIdentity { ... }` literal wired into the agent builder.
