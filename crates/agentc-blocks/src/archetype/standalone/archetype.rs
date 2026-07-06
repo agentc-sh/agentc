@@ -175,6 +175,22 @@ impl Archetype for StandaloneArchetype {
                                 .build(),
                         )
                         .add(
+                            TemplateBlock::builder()
+                                .with_manifest(TemplateBlockManifest {
+                                    id: "rust-toolchain_toml".to_string(),
+                                    files: vec![FileSpec {
+                                        path: "rust-toolchain.toml".to_string(),
+                                        template: "rust-toolchain_toml".to_string(),
+                                        condition: None,
+                                    }],
+                                    extension_points: vec![],
+                                    slot_fills: vec![],
+                                    description: None,
+                                })
+                                .with_template("rust-toolchain_toml", include_str!("templates/rust-toolchain.toml.j2"))
+                                .build(),
+                        )
+                        .add(
                             CodeGenBlock::builder()
                                 .id("build_rs")
                                 .build(BuildScriptCodeGen),
