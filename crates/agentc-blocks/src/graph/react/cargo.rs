@@ -2,50 +2,40 @@
 //
 // SPDX-License-Identifier: MIT
 
-use proc_macro2::TokenStream;
-use quote::quote;
-use std::path::PathBuf;
-
 use agentc_compiler::generator::{
-    blocks::codegen::CodeGen, context::GenerationContext, errors::GeneratorError,
+    blocks::template::TemplateFragment, context::GenerationContext, errors::GeneratorError,
     extension::ExtensionRegistry,
 };
 
 use crate::context::ResolvedContext;
 
-/// Contributes the `agentc-agent-react` dependency and patch entries into the generic
-/// Cargo project shell that standalone generates, through the `cargo::dependencies`
-/// and `cargo::patches` extension points.
-///
-/// ReAct knows its own "ag-ui" cargo feature and enables it directly when an AG-UI
-/// protocol is configured, rather than requiring AG-UI to know ReAct's crate name.
-pub struct ReActCargoCodeGen {
+pub struct ReActCargoFragment {
     pub has_ag_ui: bool,
 }
 
-impl CodeGen<ResolvedContext> for ReActCargoCodeGen {
+impl TemplateFragment<ResolvedContext> for ReActCargoFragment {
     fn generate_contribution(
         &self,
         _ctx: &GenerationContext<ResolvedContext>,
         point: &str,
-    ) -> Result<TokenStream, GeneratorError> {
+    ) -> Result<String, GeneratorError> {
         let version = env!("CARGO_PKG_VERSION");
 
         match point {
             "cargo::dependencies" => {
-                let features = if self.has_ag_ui {
-                    quote! { "ag-ui" }
+                if self.has_ag_ui {
+                    Ok(format!(
+                        "agentc-agent-react = {{ version = \"{version}\", features = [\"ag-ui\"] }}"
+                    ))
                 } else {
-                    quote! {}
-                };
-
-                Ok(quote! {
-                    agentc-agent-react = { version = #version, features = [#features] }
-                })
+                    Ok(format!(
+                        "agentc-agent-react = {{ version = \"{version}\" }}"
+                    ))
+                }
             }
-            "cargo::patches" => Ok(quote! {
-                agentc-agent-react = { path = "../runtime/agentc-agent-react" }
-            }),
+            "cargo::patches" => {
+                Ok("agentc-agent-react = { path = \"../runtime/agentc-agent-react\" }".to_string())
+            }
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
     }
@@ -54,7 +44,7 @@ impl CodeGen<ResolvedContext> for ReActCargoCodeGen {
         &self,
         _ctx: &GenerationContext<ResolvedContext>,
         _registry: &ExtensionRegistry,
-    ) -> Result<Vec<(PathBuf, TokenStream)>, GeneratorError> {
+    ) -> Result<Vec<(std::path::PathBuf, String)>, GeneratorError> {
         Ok(vec![])
     }
 }

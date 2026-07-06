@@ -12,7 +12,11 @@ pub mod server;
 use serde::{Deserialize, Serialize};
 
 use agentc_compiler::generator::{
-    blocks::{BlockSet, codegen::CodeGenBlock},
+    blocks::{
+        BlockSet,
+        codegen::CodeGenBlock,
+        template::TemplateFragmentBlock,
+    },
     extension::{Contribution, reducers},
 };
 
@@ -24,7 +28,7 @@ use crate::{
     fields::FieldsSpec,
     graph::{
         react::{
-            agent::AgentCodeGen, cargo::ReActCargoCodeGen, cli_run::CliRunCodeGen,
+            agent::AgentCodeGen, cargo::ReActCargoFragment, cli_run::CliRunCodeGen,
             cli_serve::CliServeCodeGen, migrations::ReActMigrationsCodeGen, server::ServerCodeGen,
         },
         traits::AgentGraph,
@@ -80,11 +84,11 @@ impl AgentGraph for ReActGraph {
                     .build(ReActMigrationsCodeGen),
             )
             .add(
-                CodeGenBlock::builder()
+                TemplateFragmentBlock::builder()
                     .id("react_cargo")
                     .contribute(Contribution::strict("cargo::dependencies"))
                     .contribute(Contribution::strict("cargo::patches"))
-                    .build(ReActCargoCodeGen { has_ag_ui }),
+                    .build(ReActCargoFragment { has_ag_ui }),
             )
             .into_inner();
 
