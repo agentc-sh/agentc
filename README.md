@@ -192,7 +192,9 @@ Don't forget to give the project a star! Thanks again!
 <!-- LICENSE -->
 ## License
 
-Distributed under the MIT License. See `LICENSE` for more information.
+The code is distributed under the MIT License. See `LICENSE` for more information.
+
+The documentation under `docs/` is distributed under CC-BY-4.0.
 
 <!-- CONTACT -->
 ## Contact
