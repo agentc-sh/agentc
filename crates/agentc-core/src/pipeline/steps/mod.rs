@@ -4,6 +4,7 @@
 
 pub mod cleanup;
 pub mod compile;
+pub mod compose;
 pub mod extract;
 pub mod fetch;
 pub mod generate;

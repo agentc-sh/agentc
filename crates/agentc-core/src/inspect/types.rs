@@ -5,7 +5,8 @@
 use agentc_blocks::context::ResolvedContext;
 
 use crate::pipeline::steps::{
-    fetch::FetchStepEvent, resolve::ResolveStepEvent, transform::TransformStepEvent,
+    compose::ComposeStepEvent, fetch::FetchStepEvent, resolve::ResolveStepEvent,
+    transform::TransformStepEvent,
 };
 
 #[derive(Debug, Clone)]
@@ -45,12 +46,27 @@ pub enum InspectEvent {
         /// The number of custom blocks defined in the manifest.
         block_count: usize,
     },
+    /// Emitted when the selected archetype, graph, and protocols are being composed.
+    Composing,
+    /// Emitted when the selected archetype, graph, and protocols have been composed.
+    Composed {
+        /// Archetype name used for this composition.
+        archetype_name: String,
+        /// Graph name used for this composition.
+        graph_name: String,
+        /// Protocol names used for this composition, in manifest order.
+        protocol_names: Vec<String>,
+        /// The total number of blocks that would be rendered.
+        block_count: usize,
+    },
     /// Emitted when the resolution process has completed successfully.
     Success {
         /// The name of the agent being generated.
         agent_name: String,
         /// The name of the archetype being used for generation.
         archetype_name: String,
+        /// The name of the graph being used for generation.
+        graph_name: String,
         /// Resolved context containing all information about the agent and archetype configuration.
         context: Box<ResolvedContext>,
     },
@@ -72,6 +88,8 @@ impl InspectEvent {
             InspectEvent::AssetsTransformed { .. } => "AssetsTransformed",
             InspectEvent::ResolvingManifest => "ResolvingManifest",
             InspectEvent::ManifestResolved { .. } => "ManifestResolved",
+            InspectEvent::Composing => "Composing",
+            InspectEvent::Composed { .. } => "Composed",
             InspectEvent::Success { .. } => "Success",
             InspectEvent::Failure { .. } => "Failure",
         }
@@ -117,6 +135,20 @@ impl From<ResolveStepEvent> for InspectEvent {
     }
 }
 
+impl From<ComposeStepEvent> for InspectEvent {
+    fn from(event: ComposeStepEvent) -> Self {
+        match event {
+            ComposeStepEvent::Started => InspectEvent::Composing,
+            ComposeStepEvent::Completed {
+                archetype_name,
+                graph_name,
+                protocol_names,
+                block_count,
+            } => InspectEvent::Composed { archetype_name, graph_name, protocol_names, block_count },
+        }
+    }
+}
+
 /// The successful result of a completed [`InspectPipeline`](crate::inspect::pipeline::InspectPipeline) run.
 #[derive(Debug, Clone)]
 pub struct InspectResult {
@@ -124,6 +156,10 @@ pub struct InspectResult {
     pub agent_name: String,
     /// The name of the archetype being used for inspection.
     pub archetype_name: String,
+    /// The name of the graph being used for inspection.
+    pub graph_name: String,
+    /// The names of the protocols being used for inspection, in manifest order.
+    pub protocol_names: Vec<String>,
     /// The resolved context containing all information about the agent and archetype configuration.
     pub context: ResolvedContext,
 }

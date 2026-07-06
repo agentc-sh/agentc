@@ -37,6 +37,7 @@ pub enum ExtractStepEvent {
 pub struct ExtractStepInput {
     pub agent_name: String,
     pub archetype_name: String,
+    pub graph_name: String,
     pub vfs: VirtualFileSystem,
     pub compiler: Box<dyn Compiler>,
     pub assets: Vec<TransformedAsset>,
@@ -48,6 +49,7 @@ impl From<GenerateStepOutput> for ExtractStepInput {
         ExtractStepInput {
             agent_name: output.agent_name,
             archetype_name: output.archetype_name,
+            graph_name: output.graph_name,
             vfs: output.vfs,
             compiler: output.compiler,
             assets: output.assets,
@@ -59,6 +61,7 @@ impl From<GenerateStepOutput> for ExtractStepInput {
 pub struct ExtractStepOutput {
     pub agent_name: String,
     pub archetype_name: String,
+    pub graph_name: String,
     pub vfs: VirtualFileSystem,
     pub compiler: Box<dyn Compiler>,
     pub assets: Vec<TransformedAsset>,
@@ -120,6 +123,7 @@ impl Step for ExtractStep {
         Ok(ExtractStepOutput {
             agent_name: input.agent_name,
             archetype_name: input.archetype_name,
+            graph_name: input.graph_name,
             vfs: input.vfs,
             compiler: input.compiler,
             assets: input.assets,

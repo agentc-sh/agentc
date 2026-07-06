@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 pub mod args;
+pub mod catalog;
 pub mod commands;
 pub mod context;
 pub mod errors;

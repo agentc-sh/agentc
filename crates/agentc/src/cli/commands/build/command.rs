@@ -7,7 +7,6 @@ use clap::{ArgAction, Args};
 use std::path::PathBuf;
 
 use agentc_core::{
-    blocks::archetype::{resolver::ArchetypeResolver, standalone::StandaloneArchetype},
     build::{pipeline::BuildPipeline, types::BuildParams},
     compiler::{
         asset::{ArtifactStore, AssetResolver, LocalFileHandler},
@@ -19,6 +18,7 @@ use agentc_core::{
 };
 
 use crate::cli::{
+    catalog::DefaultCompilationCatalog,
     commands::build::renderer::BuildStreamRenderer,
     context::Ctx,
     errors::CliError,
@@ -117,10 +117,8 @@ impl Cmd for CliCommandBuild {
                     .build(),
             )
             .loader(FileSystemLoader::new(context.clone()))
-            .archetype_resolver(
-                ArchetypeResolver::builder()
-                    .with_archetype(StandaloneArchetype)
-                    .build()
+            .catalog(
+                DefaultCompilationCatalog::build()
                     .map_err(|e| CliError::unexpected_error(e.to_string()))?,
             )
             .transformer_registry(TransformerRegistry::default())

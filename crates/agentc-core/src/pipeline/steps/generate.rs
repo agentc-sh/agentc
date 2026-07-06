@@ -3,17 +3,9 @@
 // SPDX-License-Identifier: MIT
 
 use async_trait::async_trait;
-use serde_json::Value;
-use std::sync::Arc;
 use thiserror::Error;
 
-use agentc_blocks::{
-    archetype::resolver::ArchetypeResolver,
-    composition::GenerationContribution,
-    context::ResolvedContext,
-    errors::BlocksError,
-    runtime::EmbeddedAsset,
-};
+use agentc_blocks::{context::ResolvedContext, runtime::EmbeddedAsset};
 use agentc_compiler::{
     compiler::Compiler,
     generator::{
@@ -22,21 +14,12 @@ use agentc_compiler::{
     transformer::types::TransformedAsset,
 };
 
-use crate::{
-    manifest::errors::ManifestError,
-    pipeline::{sender::Tx, steps::resolve::ResolveStepOutput, traits::Step},
-};
+use crate::pipeline::{sender::Tx, steps::compose::ComposeStepOutput, traits::Step};
 
 #[derive(Debug, Error)]
 pub enum GenerateStepError {
     #[error("generator error: {0}")]
     Generator(#[from] GeneratorError),
-
-    #[error("manifest error: {0}")]
-    Manifest(#[from] ManifestError),
-
-    #[error("blocks error: {0}")]
-    Blocks(#[from] BlocksError),
 
     #[error("event channel closed")]
     EventChannelClosed,
@@ -50,19 +33,25 @@ pub enum GenerateStepEvent {
 pub struct GenerateStepInput {
     pub agent_name: String,
     pub archetype_name: String,
+    pub graph_name: String,
     pub context: ResolvedContext,
-    pub archetype_config: Value,
+    pub blocks: Vec<Box<dyn Block<ResolvedContext>>>,
+    pub compiler: Box<dyn Compiler>,
     pub assets: Vec<TransformedAsset>,
+    pub embedded_assets: Vec<&'static EmbeddedAsset>,
 }
 
-impl From<ResolveStepOutput> for GenerateStepInput {
-    fn from(output: ResolveStepOutput) -> Self {
+impl From<ComposeStepOutput> for GenerateStepInput {
+    fn from(output: ComposeStepOutput) -> Self {
         GenerateStepInput {
             agent_name: output.agent_name,
             archetype_name: output.archetype_name,
+            graph_name: output.graph_name,
             context: output.context,
-            archetype_config: output.archetype_config,
+            blocks: output.blocks,
+            compiler: output.compiler,
             assets: output.assets,
+            embedded_assets: output.embedded_assets,
         }
     }
 }
@@ -70,23 +59,24 @@ impl From<ResolveStepOutput> for GenerateStepInput {
 pub struct GenerateStepOutput {
     pub agent_name: String,
     pub archetype_name: String,
+    pub graph_name: String,
     pub vfs: VirtualFileSystem,
     pub compiler: Box<dyn Compiler>,
     pub assets: Vec<TransformedAsset>,
     pub embedded_assets: Vec<&'static EmbeddedAsset>,
 }
 
-pub struct GenerateStep {
-    resolver: Arc<ArchetypeResolver>,
-    blocks: Vec<Box<dyn Block<ResolvedContext>>>,
-}
+pub struct GenerateStep;
 
 impl GenerateStep {
-    pub fn new(
-        resolver: Arc<ArchetypeResolver>,
-        blocks: Vec<Box<dyn Block<ResolvedContext>>>,
-    ) -> Self {
-        Self { resolver, blocks }
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl Default for GenerateStep {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -101,24 +91,12 @@ impl Step for GenerateStep {
     where
         S: Tx<Item = Self::Event> + Send,
     {
-        tx.send(GenerateStepEvent::Started { block_count: self.blocks.len() })
+        tx.send(GenerateStepEvent::Started { block_count: input.blocks.len() })
             .await
             .map_err(|_| GenerateStepError::EventChannelClosed)?;
 
-        let archetype = self
-            .resolver
-            .resolve(&input.archetype_name, input.context.clone(), input.archetype_config)?;
-
-        let GenerationContribution {
-            mut blocks,
-            embedded_assets,
-            ..
-        } = archetype.contribution;
-
-        blocks.extend(self.blocks);
-
         let vfs = Generator::builder()
-            .with_blocks(blocks)
+            .with_blocks(input.blocks)
             .with_context(input.context)
             .build()
             .generate()
@@ -131,10 +109,11 @@ impl Step for GenerateStep {
         Ok(GenerateStepOutput {
             agent_name: input.agent_name,
             archetype_name: input.archetype_name,
+            graph_name: input.graph_name,
             vfs,
-            compiler: archetype.compiler,
+            compiler: input.compiler,
             assets: input.assets,
-            embedded_assets,
+            embedded_assets: input.embedded_assets,
         })
     }
 }
