@@ -17,7 +17,9 @@ use agentc_core::{
     parser::{SpecFormat, SpecParser, middleware::hcl::RuntimeFunctionDeserialize},
 };
 
-use crate::cli::{context::Ctx, errors::CliError, traits::Cmd, ui::UiFormat};
+use crate::cli::{
+    catalog::DefaultCompilationCatalog, context::Ctx, errors::CliError, traits::Cmd, ui::UiFormat,
+};
 
 #[derive(Clone, Args, Debug)]
 pub struct CliCommandInspect {
@@ -72,6 +74,10 @@ impl Cmd for CliCommandInspect {
                     .build(),
             )
             .loader(FileSystemLoader::new(context.clone()))
+            .catalog(
+                DefaultCompilationCatalog::build()
+                    .map_err(|e| CliError::unexpected_error(e.to_string()))?,
+            )
             .transformer_registry(TransformerRegistry::default())
             .build()
             .map_err(|e| CliError::unexpected_error(e.to_string()))?;
@@ -87,7 +93,14 @@ impl Cmd for CliCommandInspect {
         );
 
         match result {
-            Ok(res) => println!("{:#?}", res.context),
+            Ok(res) => {
+                println!("archetype: {}", res.archetype_name);
+                println!("graph: {}", res.graph_name);
+                if !res.protocol_names.is_empty() {
+                    println!("protocols: {}", res.protocol_names.join(", "));
+                }
+                println!("{:#?}", res.context);
+            }
             Err(e) => self
                 .format
                 .ui()

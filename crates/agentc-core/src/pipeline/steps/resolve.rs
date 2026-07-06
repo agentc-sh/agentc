@@ -51,8 +51,11 @@ impl From<TransformStepOutput> for ResolveStepInput {
 pub struct ResolveStepOutput {
     pub agent_name: String,
     pub archetype_name: String,
-    pub context: ResolvedContext,
     pub archetype_config: Value,
+    pub graph_name: String,
+    pub graph_config: Value,
+    pub protocol_selections: Vec<(String, Value)>,
+    pub context: ResolvedContext,
     pub assets: Vec<TransformedAsset>,
 }
 
@@ -93,10 +96,31 @@ impl Step for ResolveStep {
             .build
             .archetype()
             .to_string();
+        let graph = &input
+            .manifest
+            .agent
+            .get(&agent_name)
+            .ok_or_else(|| ManifestError::resolution("manifest must define an agent"))?
+            .graph;
+        let graph_name = graph.graph().to_string();
+        let graph_config = graph.config();
+
         let (context, archetype_config) = input
             .manifest
             .resolve(&*self.loader, &input.assets)
             .await?;
+
+        let protocol_selections = context
+            .http_server
+            .as_ref()
+            .map(|server| {
+                server
+                    .protocols
+                    .iter()
+                    .map(|protocol| (protocol.name().to_string(), protocol.config()))
+                    .collect()
+            })
+            .unwrap_or_default();
 
         tx.send(ResolveStepEvent::Completed {
             agent_name: agent_name.clone(),
@@ -110,8 +134,11 @@ impl Step for ResolveStep {
         Ok(ResolveStepOutput {
             agent_name,
             archetype_name,
-            context,
             archetype_config,
+            graph_name,
+            graph_config,
+            protocol_selections,
+            context,
             assets: input.assets,
         })
     }

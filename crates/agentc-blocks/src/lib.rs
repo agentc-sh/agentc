@@ -6,7 +6,13 @@
 extern crate self as agentc_blocks;
 
 pub mod archetype;
+pub mod catalog;
+pub mod composition;
 pub mod context;
 pub mod errors;
+pub mod feature;
+pub mod fields;
+pub mod graph;
+pub mod protocol;
 pub mod runtime;
 pub mod types;

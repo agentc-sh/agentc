@@ -7,7 +7,8 @@ use thiserror::Error;
 use crate::{
     manifest::errors::ManifestError,
     pipeline::steps::{
-        fetch::FetchStepError, resolve::ResolveStepError, transform::TransformStepError,
+        compose::ComposeStepError, fetch::FetchStepError, resolve::ResolveStepError,
+        transform::TransformStepError,
     },
 };
 
@@ -30,6 +31,9 @@ pub enum InspectError {
 
     #[error("resolve step error: {0}")]
     Resolve(#[from] ResolveStepError),
+
+    #[error("compose step error: {0}")]
+    Compose(#[from] ComposeStepError),
 
     #[error("build event receiver was dropped before pipeline finished")]
     EventChannelClosed,

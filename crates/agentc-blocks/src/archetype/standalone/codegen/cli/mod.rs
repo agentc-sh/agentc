@@ -3,8 +3,6 @@
 // SPDX-License-Identifier: MIT
 
 pub mod config;
-pub mod run;
-pub mod serve;
 pub mod shutdown;
 
 use proc_macro2::TokenStream;
@@ -41,7 +39,6 @@ impl CodeGen<ResolvedContext> for CliModCodeGen {
         let source = quote! {
             use anyhow::Result;
             use clap::{Parser, Subcommand};
-            use tokio::signal;
             use agentc_telemetry::Telemetry;
 
             mod shutdown;

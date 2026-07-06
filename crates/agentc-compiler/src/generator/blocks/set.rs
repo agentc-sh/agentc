@@ -31,6 +31,17 @@ impl<T: Serialize + Send + Sync + 'static> BlockSet<T> {
         if condition { self.add(block) } else { self }
     }
 
+    /// Append a block built from `value` only when it is `Some`.
+    pub fn add_some<V, B>(self, value: Option<V>, block: impl FnOnce(V) -> B) -> Self
+    where
+        B: Block<T> + 'static,
+    {
+        match value {
+            Some(value) => self.add(block(value)),
+            None => self,
+        }
+    }
+
     /// Consume the set and return the underlying vec.
     pub fn into_inner(self) -> Vec<Box<dyn Block<T>>> {
         self.0
@@ -40,5 +51,61 @@ impl<T: Serialize + Send + Sync + 'static> BlockSet<T> {
 impl<T: Serialize + Send + Sync + 'static> Default for BlockSet<T> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use async_trait::async_trait;
+
+    use super::*;
+    use crate::generator::{
+        context::GenerationContext, errors::GeneratorError, extension::ExtensionRegistry,
+        vfs::VirtualFileSystem,
+    };
+
+    struct StubBlock {
+        id: &'static str,
+    }
+
+    #[async_trait]
+    impl Block<()> for StubBlock {
+        fn id(&self) -> &str {
+            self.id
+        }
+
+        async fn render(
+            &self,
+            _ctx: &GenerationContext<()>,
+            _registry: &ExtensionRegistry,
+            _vfs: &mut VirtualFileSystem,
+        ) -> Result<(), GeneratorError> {
+            Ok(())
+        }
+    }
+
+    fn ids(set: BlockSet<()>) -> Vec<String> {
+        set.into_inner()
+            .iter()
+            .map(|block| block.id().to_string())
+            .collect()
+    }
+
+    #[test]
+    fn add_if_appends_only_when_true() {
+        let set = BlockSet::new()
+            .add_if(true, StubBlock { id: "a" })
+            .add_if(false, StubBlock { id: "b" });
+
+        assert_eq!(ids(set), vec!["a"]);
+    }
+
+    #[test]
+    fn add_some_appends_only_when_some() {
+        let set = BlockSet::new()
+            .add_some(Some("config"), |value| StubBlock { id: value })
+            .add_some(None::<&'static str>, |value| StubBlock { id: value });
+
+        assert_eq!(ids(set), vec!["config"]);
     }
 }

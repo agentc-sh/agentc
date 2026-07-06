@@ -5,7 +5,7 @@
 use std::sync::Arc;
 use tokio::sync::mpsc::{self, error::SendError};
 
-use agentc_blocks::{archetype::resolver::ArchetypeResolver, context::ResolvedContext};
+use agentc_blocks::{catalog::CompilationCatalog, context::ResolvedContext};
 use agentc_compiler::{
     asset::AssetResolver,
     generator::{blocks::traits::Block, loader::ResourceLoader},
@@ -22,6 +22,7 @@ use crate::{
         steps::{
             cleanup::CleanupStep,
             compile::{CompileStep, CompileStepOutput},
+            compose::ComposeStep,
             extract::ExtractStep,
             fetch::{FetchStep, FetchStepInput},
             generate::GenerateStep,
@@ -43,7 +44,7 @@ pub struct BuildPipeline {
     params: BuildParams,
     asset_resolver: AssetResolver,
     loader: Arc<dyn ResourceLoader>,
-    archetype_resolver: Arc<ArchetypeResolver>,
+    catalog: Arc<CompilationCatalog>,
     transformer_registry: TransformerRegistry,
     blocks: Vec<Box<dyn Block<ResolvedContext>>>,
     skip_cleanup: bool,
@@ -65,7 +66,8 @@ impl BuildPipeline {
             .step(FetchStep::new(self.asset_resolver))
             .step(TransformStep::new(self.transformer_registry))
             .step(ResolveStep::new(self.loader))
-            .step(GenerateStep::new(self.archetype_resolver, self.blocks))
+            .step(ComposeStep::new(self.catalog, self.blocks))
+            .step(GenerateStep::new())
             .step(ExtractStep::new(self.params.runtime_dir.clone(), true))
             .step(CompileStep::new(
                 self.params.target_dir,
@@ -100,7 +102,7 @@ pub struct BuildPipelineBuilder {
     params: Option<BuildParams>,
     asset_resolver: Option<AssetResolver>,
     loader: Option<Arc<dyn ResourceLoader>>,
-    archetype_resolver: Option<Arc<ArchetypeResolver>>,
+    catalog: Option<Arc<CompilationCatalog>>,
     transformer_registry: TransformerRegistry,
     blocks: Vec<Box<dyn Block<ResolvedContext>>>,
     skip_cleanup: bool,
@@ -114,7 +116,7 @@ impl BuildPipelineBuilder {
             params: None,
             asset_resolver: None,
             loader: None,
-            archetype_resolver: None,
+            catalog: None,
             transformer_registry: TransformerRegistry::new(),
             blocks: Vec::new(),
             skip_cleanup: false,
@@ -150,13 +152,13 @@ impl BuildPipelineBuilder {
         self
     }
 
-    pub fn archetype_resolver(mut self, resolver: ArchetypeResolver) -> Self {
-        self.archetype_resolver = Some(Arc::new(resolver));
+    pub fn catalog(mut self, catalog: CompilationCatalog) -> Self {
+        self.catalog = Some(Arc::new(catalog));
         self
     }
 
-    pub fn archetype_resolver_arc(mut self, resolver: Arc<ArchetypeResolver>) -> Self {
-        self.archetype_resolver = Some(resolver);
+    pub fn catalog_arc(mut self, catalog: Arc<CompilationCatalog>) -> Self {
+        self.catalog = Some(catalog);
         self
     }
 
@@ -213,8 +215,8 @@ impl BuildPipelineBuilder {
                 loader: self.loader.ok_or_else(|| {
                     BuildError::pipeline_configuration("resource loader is required")
                 })?,
-                archetype_resolver: self.archetype_resolver.ok_or_else(|| {
-                    BuildError::pipeline_configuration("archetype resolver is required")
+                catalog: self.catalog.ok_or_else(|| {
+                    BuildError::pipeline_configuration("compilation catalog is required")
                 })?,
                 transformer_registry: self.transformer_registry,
                 blocks: self.blocks,

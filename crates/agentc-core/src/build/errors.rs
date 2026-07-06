@@ -7,9 +7,9 @@ use thiserror::Error;
 use crate::{
     manifest::errors::ManifestError,
     pipeline::steps::{
-        cleanup::CleanupStepError, compile::CompileStepError, extract::ExtractStepError,
-        fetch::FetchStepError, generate::GenerateStepError, resolve::ResolveStepError,
-        transform::TransformStepError,
+        cleanup::CleanupStepError, compile::CompileStepError, compose::ComposeStepError,
+        extract::ExtractStepError, fetch::FetchStepError, generate::GenerateStepError,
+        resolve::ResolveStepError, transform::TransformStepError,
     },
 };
 
@@ -29,6 +29,9 @@ pub enum BuildError {
 
     #[error("resolve step error: {0}")]
     Resolve(#[from] ResolveStepError),
+
+    #[error("compose step error: {0}")]
+    Compose(#[from] ComposeStepError),
 
     #[error("generate step error: {0}")]
     Generate(#[from] GenerateStepError),

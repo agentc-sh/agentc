@@ -33,7 +33,6 @@ impl CodeGen<ResolvedContext> for MigratorCodeGen {
             use sea_orm_migration::prelude::*;
 
             use agentc_domain_sql::migrations::all as domain_migrations;
-            use agentc_agent_react::migrations::all as react_migrations;
 
             #extra_use
 
@@ -44,7 +43,6 @@ impl CodeGen<ResolvedContext> for MigratorCodeGen {
                 fn migrations() -> Vec<Box<dyn MigrationTrait>> {
                     [
                         domain_migrations(),
-                        react_migrations(),
                         #extra_migrations
                     ]
                     .into_iter()
@@ -55,5 +53,61 @@ impl CodeGen<ResolvedContext> for MigratorCodeGen {
         };
 
         Ok(vec![("src/migrator.rs".into(), source)])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use agentc_compiler::generator::extension::{ExtensionPoint, reducers};
+    use serde_json::json;
+
+    fn context() -> GenerationContext<ResolvedContext> {
+        GenerationContext::new(
+            serde_json::from_value(json!({
+                "slug": "assistant",
+                "agent_name": "assistant",
+                "runtime": { "default_tenant_id": "default" },
+                "providers": [],
+                "agent": {
+                    "version": "0.1.0",
+                    "description": null,
+                    "prompt": null,
+                    "capabilities": null,
+                    "capability_policy": null,
+                    "model": { "provider": "anthropic", "name": "claude" }
+                },
+                "blocks": {},
+                "tools": {},
+                "skills": {},
+                "http_server": null
+            }))
+            .unwrap(),
+        )
+    }
+
+    #[test]
+    fn generic_migrator_has_no_react_references() {
+        let files = MigratorCodeGen
+            .generate_files(&context(), &ExtensionRegistry::empty())
+            .unwrap();
+        let source = files[0].1.to_string();
+
+        assert!(source.contains("domain_migrations"));
+        assert!(!source.contains("react"));
+        assert!(!source.contains("agentc_agent_react"));
+    }
+
+    #[test]
+    fn extra_migrations_extension_point_is_still_honored() {
+        let mut point = ExtensionPoint::new("migrator::migrations", reducers::concat);
+        point.contribute("fake_migrations(),");
+
+        let files = MigratorCodeGen
+            .generate_files(&context(), &ExtensionRegistry::resolve(vec![point]))
+            .unwrap();
+        let source = files[0].1.to_string();
+
+        assert!(source.contains("fake_migrations"));
     }
 }
