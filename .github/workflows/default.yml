@@ -26,11 +26,11 @@ jobs:
           version: 3.43.3
 
       - name: Lint DCO
-        uses: KineticCafe/actions-dco@v3.1.0
+        uses: cpanato/dco-check-action@main
         with:
-          config: |
-            comment = true
-            trailer-parsing = "lenient"
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          pull_request_number: ${{ github.event.number }}
 
       - name: Lint commit message
         run: |
