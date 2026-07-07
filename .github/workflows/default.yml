@@ -25,6 +25,13 @@ jobs:
         with:
           version: 3.43.3
 
+      - name: Lint DCO
+        uses: KineticCafe/actions-dco@v3.1.0
+        with:
+          config: |
+            comment = true
+            trailer-parsing = "lenient"
+
       - name: Lint commit message
         run: |
           pip install gitlint
