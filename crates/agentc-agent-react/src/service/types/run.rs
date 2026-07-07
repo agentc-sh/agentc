@@ -14,7 +14,7 @@ use std::{
 use uuid::Uuid;
 
 use agentc_agent::{
-    stream::EventStream,
+    stream::RunStream as AgentRunStream,
     types::{capability::CapabilityOverride, tools::ToolDefinition},
 };
 use agentc_domain::{
@@ -377,11 +377,11 @@ impl RunEvent {
 }
 
 pub struct RunStream {
-    inner: EventStream<Event>,
+    inner: AgentRunStream<Event>,
 }
 
 impl RunStream {
-    pub fn new(inner: EventStream<Event>) -> Self {
+    pub fn new(inner: AgentRunStream<Event>) -> Self {
         Self { inner }
     }
 }

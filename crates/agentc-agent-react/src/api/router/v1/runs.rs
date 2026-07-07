@@ -156,7 +156,7 @@ async fn create_run_endpoint(
         ))
         .await
     {
-        Ok((stream, _)) => Sse::new(stream.map(|event| {
+        Ok(stream) => Sse::new(stream.map(|event| {
             Ok::<_, Infallible>(
                 Event::default()
                     .event(event.kind())

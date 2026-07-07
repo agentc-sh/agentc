@@ -87,7 +87,7 @@ impl CodeGen<ResolvedContext> for CliRunCodeGen {
                     .with_database(database)
                     .build();
 
-                let (mut stream, handle) = service
+                let mut stream = service
                     .run(
                         RunParams::new(tenant_id, session_id)
                             .with_run_id(run_id)
@@ -156,8 +156,6 @@ impl CodeGen<ResolvedContext> for CliRunCodeGen {
                         },
                     }
                 }
-
-                handle.await?;
 
                 Ok(())
             }
