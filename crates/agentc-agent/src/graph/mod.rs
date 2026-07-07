@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
+pub mod cancel;
 pub mod checkpoint;
 pub mod command;
 pub mod context;

@@ -4,6 +4,7 @@
 
 use anyhow::Result;
 use std::sync::Arc;
+use uuid::Uuid;
 
 use agentc_model::registry::ModelRegistry;
 use agentc_prompt::{
@@ -64,6 +65,15 @@ where
     /// Get a reference to the identity of this agent.
     pub fn identity(&self) -> &AgentIdentity {
         &self.identity
+    }
+
+    /// Cancel an in-flight run. Returns `true` if this call performed the
+    /// transition, `false` if the run was already terminal or absent.
+    pub async fn cancel(&self, tenant_id: &str, run_id: Uuid) -> Result<bool, AgentError> {
+        self.graph
+            .cancel(tenant_id, run_id)
+            .await
+            .map_err(AgentError::from)
     }
 
     /// Run the agent with the given input, returning a self-driving stream of events that
@@ -131,10 +141,12 @@ where
                                         match &result {
                                             RunOutcome::Completed(_) => RunStatus::Completed,
                                             RunOutcome::Interrupted { .. } => RunStatus::Interrupted,
+                                            RunOutcome::Cancelled { .. } => RunStatus::Cancelled,
                                         },
                                         match &result {
                                             RunOutcome::Completed(_) => None,
                                             RunOutcome::Interrupted { payload, .. } => payload.clone(),
+                                            RunOutcome::Cancelled { .. } => None,
                                         },
                                         Some(result.into_state()),
                                     )

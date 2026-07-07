@@ -31,6 +31,7 @@ pub trait RunOperations: Send + Sync {
     async fn find_runs(&self, params: FindRunParams) -> Result<Page<RunResponse>, ServiceError>;
     async fn delete_runs(&self, tenant_id: &str, ids: &[Uuid]) -> Result<(), ServiceError>;
     async fn run(&self, params: RunParams) -> Result<BoxStream<'static, RunEvent>, ServiceError>;
+    async fn cancel_run(&self, tenant_id: &str, run_id: Uuid) -> Result<bool, ServiceError>;
 }
 
 #[async_trait]
@@ -165,5 +166,20 @@ impl RunOperations for ApplicationService {
                     })
                     .boxed()
             })
+    }
+
+    #[instrument(
+        level = Level::TRACE,
+        skip(self, tenant_id, run_id),
+        fields(
+            tenant_id = tenant_id,
+            run_id = ?run_id,
+        )
+    )]
+    async fn cancel_run(&self, tenant_id: &str, run_id: Uuid) -> Result<bool, ServiceError> {
+        self.agent
+            .cancel(tenant_id, run_id)
+            .await
+            .map_err(ServiceError::from)
     }
 }

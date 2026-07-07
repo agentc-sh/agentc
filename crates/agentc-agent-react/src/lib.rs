@@ -6,6 +6,7 @@
 extern crate self as agentc_agent_react;
 
 pub mod api;
+pub mod cancel;
 pub mod checkpoint;
 pub mod graph;
 pub mod migrations;

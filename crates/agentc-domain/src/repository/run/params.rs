@@ -126,3 +126,57 @@ impl DeleteRunParams {
         }
     }
 }
+
+/// A column-agnostic comparison operator, reused by any run condition.
+#[derive(Debug, Clone)]
+pub enum Comparison<T> {
+    Eq(T),
+    NotEq(T),
+    In(Vec<T>),
+}
+
+/// One column assignment: the variant names the column, the payload is the
+/// value to set it to. Nullable columns carry `Option<T>` directly.
+#[derive(Debug, Clone)]
+pub enum UpdateRunParamsSet {
+    Status(RunStatus),
+    CurrentNode(Option<String>),
+    LatestCheckpointId(Option<Uuid>),
+    LastInterruptedCheckpointId(Option<Uuid>),
+}
+
+/// One predicate a run row must satisfy to be updated: the variant names the
+/// column, the payload is how to compare it.
+#[derive(Debug, Clone)]
+pub enum UpdateRunParamsCondition {
+    Status(Comparison<RunStatus>),
+}
+
+#[derive(Debug, Clone)]
+pub struct UpdateRunParams {
+    pub tenant_id: String,
+    pub run_id: Uuid,
+    pub set: Vec<UpdateRunParamsSet>,
+    pub conditions: Vec<UpdateRunParamsCondition>,
+}
+
+impl UpdateRunParams {
+    pub fn new(tenant_id: impl Into<String>, run_id: impl Into<Uuid>) -> Self {
+        Self {
+            tenant_id: tenant_id.into(),
+            run_id: run_id.into(),
+            set: Vec::new(),
+            conditions: Vec::new(),
+        }
+    }
+
+    pub fn set(mut self, set: UpdateRunParamsSet) -> Self {
+        self.set.push(set);
+        self
+    }
+
+    pub fn condition(mut self, condition: UpdateRunParamsCondition) -> Self {
+        self.conditions.push(condition);
+        self
+    }
+}

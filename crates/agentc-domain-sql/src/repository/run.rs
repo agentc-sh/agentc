@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 use async_trait::async_trait;
+use chrono::Utc;
 use std::str::FromStr;
 use uuid::Uuid;
 
@@ -10,12 +11,16 @@ use agentc_database::{
     connection::ConnectionContext,
     orm::{ActiveValue, ColumnTrait, EntityTrait, Iden, QueryFilter, QueryTrait},
     paginate::CursorPaginatorExt,
-    query::OnConflict,
+    query::{OnConflict, Expr},
 };
 use agentc_domain::{
     repository::run::{
         errors::RunRepoError,
-        params::{DeleteRunParams, FindRunParams},
+        params::{
+            Comparison, DeleteRunParams, FindRunParams,
+            UpdateRunParams, UpdateRunParamsCondition,
+            UpdateRunParamsSet,
+        },
         traits::RunRepository,
     },
     types::{Page, Run, RunStatus},
@@ -227,5 +232,58 @@ impl<'a> RunRepository for SqlRunRepository<'a> {
             .await
             .map_err(RunRepoError::sourced_storage)
             .map(|_| ())
+    }
+
+    async fn update(&self, params: UpdateRunParams) -> Result<bool, RunRepoError> {
+        if params.set.is_empty() {
+            return Ok(false);
+        }
+
+        let mut query = models::run::Entity::update_many()
+            .col_expr(models::run::Column::UpdatedAt, Expr::value(Utc::now()))
+            .filter(models::run::Column::TenantId.eq(params.tenant_id))
+            .filter(models::run::Column::Id.eq(params.run_id));
+
+        for set in params.set {
+            query = match set {
+                UpdateRunParamsSet::Status(status) => {
+                    query.col_expr(models::run::Column::Status, Expr::value(status.to_string()))
+                }
+                UpdateRunParamsSet::CurrentNode(node) => {
+                    query.col_expr(models::run::Column::CurrentNode, Expr::value(node))
+                }
+                UpdateRunParamsSet::LatestCheckpointId(id) => {
+                    query.col_expr(models::run::Column::LatestCheckpointId, Expr::value(id))
+                }
+                UpdateRunParamsSet::LastInterruptedCheckpointId(id) => query
+                    .col_expr(models::run::Column::LastInterruptedCheckpointId, Expr::value(id)),
+            };
+        }
+
+        for condition in params.conditions {
+            query = match condition {
+                UpdateRunParamsCondition::Status(Comparison::Eq(status)) => {
+                    query.filter(models::run::Column::Status.eq(status.to_string()))
+                }
+                UpdateRunParamsCondition::Status(Comparison::NotEq(status)) => {
+                    query.filter(models::run::Column::Status.ne(status.to_string()))
+                }
+                UpdateRunParamsCondition::Status(Comparison::In(statuses)) => query.filter(
+                    models::run::Column::Status.is_in(
+                        statuses
+                            .into_iter()
+                            .map(|s| s.to_string())
+                            .collect::<Vec<_>>(),
+                    ),
+                ),
+            };
+        }
+
+        Ok(query
+            .exec(&self.ctx)
+            .await
+            .map_err(RunRepoError::sourced_storage)?
+            .rows_affected
+            > 0)
     }
 }
