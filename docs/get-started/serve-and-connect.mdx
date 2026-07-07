@@ -1,0 +1,57 @@
+---
+title: Serve and connect
+description: Start the HTTP server and send your agent its first request.
+---
+
+You have run your agent from the command line. Now you will start its HTTP server and talk to it over
+the network, the way a real client would. This continues from the `my-agent` project you built in the
+previous guides.
+
+## Start the server
+
+The scaffolded manifest already defines an `http_server` block, so the binary can serve. Set your API
+key and start it:
+
+```bash
+export ANTHROPIC_API_KEY=your_key_here
+./artifacts/build/my-agent serve
+```
+
+The agent starts, connects to its database, registers its tools, and begins listening on
+`127.0.0.1:8080`. The process stays in the foreground, so leave it running and open a second terminal
+for the next step.
+
+<Callout type="note" title="Where the data goes">
+On first start the agent creates a local SQLite database file for session and checkpoint storage, so
+runs are durable with no extra setup. Moving to PostgreSQL for production is covered in
+[Deploy with Docker and PostgreSQL](/guides/deploy-with-docker-and-postgres).
+</Callout>
+
+## Send a request
+
+The manifest enabled the AG-UI protocol, which exposes a `/ag-ui/run` endpoint. From your second
+terminal, send it a message:
+
+```bash
+curl -X POST http://localhost:8080/ag-ui/run \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messages": [{ "role": "user", "content": "What is 21 plus 21?" }]
+  }'
+```
+
+The response is a stream of Server-Sent Events. You will see the run start, the agent call the `adder`
+tool you added earlier, the streamed text of the answer, and finally the run finishing. That event
+stream is what a frontend consumes to render the conversation as it happens.
+
+## What you have done
+
+You installed agentc, described an agent in a manifest, gave it a tool, compiled it to a single binary,
+and served it over HTTP. That is the full loop from an empty directory to a running agent.
+
+## Where to go next
+
+- [Author a manifest](/guides/author-a-manifest): build a manifest deliberately, block by block.
+- [Connect a CopilotKit frontend](/guides/connect-a-copilotkit-frontend): put a UI in front of the AG-UI endpoint.
+- [Deploy a standalone binary](/guides/deploy-standalone): take the binary to production.
+- [HTTP reference](/reference/graph/react/http): the native endpoints behind the server.

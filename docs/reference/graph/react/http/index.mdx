@@ -1,0 +1,99 @@
+---
+title: HTTP reference
+description: The native HTTP endpoints for ReAct sessions, messages, and runs, and their shared conventions.
+---
+
+When the ReAct graph is served with an `http_server` block, the agent exposes a native HTTP API
+under `/v1`. These endpoints are specific to the ReAct graph. The API is session-based: a session is
+the durable conversation boundary, and a run is one execution of the graph within a session.
+Messages, runs, and state are persisted so a client can inspect them later without keeping the
+original stream open.
+
+This page describes the conventions shared by every endpoint. The endpoints themselves are grouped
+by resource on their own pages.
+
+## Endpoints
+
+- [Sessions](/reference/graph/react/http/sessions): create, find, read, and delete sessions.
+- [Messages](/reference/graph/react/http/messages): create, find, read, and delete messages.
+- [Runs](/reference/graph/react/http/runs): create runs and stream their events, and read run history.
+- [Types](/reference/graph/react/http/types): the named object types shared across the endpoints.
+
+## Conventions
+
+### Tenancy
+
+Requests may include an `X-Tenant-ID` header to scope the data to a tenant. When the header is
+absent, the agent uses the default tenant configured by `default_tenant_id` in the
+[`runtime`](/reference/manifest/runtime) block.
+
+```bash
+curl http://localhost:8080/v1/sessions \
+  -H "X-Tenant-ID: acme"
+```
+
+### Pagination
+
+List endpoints are cursor-paginated. They accept these query parameters:
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `per_page` | integer | `100` | Maximum page size. |
+| `page` | string | | Opaque cursor for the next page. Pass the `next_page` value from a previous response. |
+
+List responses share the same envelope:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `items` | array | The returned records for this page. |
+| `count` | integer | The total number of matching records. |
+| `next_page` | string or null | Cursor for the next page, or `null` when there are no more pages. |
+
+### Errors
+
+The API uses standard HTTP status codes. Error responses carry a JSON body in one of two shapes. A
+generic error reports a code and a message:
+
+```json
+{ "code": 404001, "message": "Session not found" }
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `code` | integer | Numeric error code. See the code scheme below. |
+| `message` | string | Human-readable error message. |
+
+A validation error reports the failing fields instead of a single message:
+
+```json
+{
+  "code": 422000,
+  "fields": [
+    {
+      "field": "per_page",
+      "errors": [
+        { "code": "range", "message": "must be between 1 and 1000", "params": { "min": 1, "max": 1000 } }
+      ]
+    }
+  ]
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `code` | integer | Numeric error code. See the code scheme below. |
+| `fields` | array | One entry per field that failed validation. |
+
+Each entry in `fields` has a `field` name and a list of `errors`, where each error has a `code`
+string, an optional human-readable `message`, and an optional `params` object with details about the
+failed rule.
+
+The numeric `code` encodes the HTTP status: it is the status multiplied by 1000 plus a sub-index, so
+the HTTP status is `code / 1000`. For example `404001` and `404002` are both `404` responses with
+distinct causes, validation errors start at `422000`, and internal server errors start at `500000`.
+
+### Server-Sent Events
+
+Run creation streams its result as Server-Sent Events. Each event is a text frame with an `event`
+line naming the event kind and a `data` line carrying the JSON payload. An empty line separates
+consecutive events. The event kinds are documented under [Runs](/reference/graph/react/http/runs).

@@ -1,0 +1,9 @@
+{
+  "title": "Get started",
+  "pages": [
+    "concepts-in-5-minutes",
+    "build-your-first-agent",
+    "add-your-first-tool",
+    "serve-and-connect"
+  ]
+}

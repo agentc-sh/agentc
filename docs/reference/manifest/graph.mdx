@@ -1,0 +1,32 @@
+---
+title: graph
+description: The graph block selects the graph implementation that drives the agent.
+---
+
+The `graph` block chooses which graph implementation drives an `agent` block. It lives inside the
+`agent` block because the graph is part of the agent's definition, not a separate top-level build
+choice. In this distribution, the only shipped graph is `react`.
+
+```hcl title="agent.acl"
+agent "assistant" {
+  graph {
+    type = "react"
+  }
+}
+```
+
+## Fields
+
+| Field | Type | Required | runtime() | Description |
+|-------|------|----------|-----------|-------------|
+| `type` | string | yes | no | Graph implementation name. Currently this must be `react`. |
+
+## Usage
+
+Graph selection is explicit. If a manifest omits the `graph` block, the compiler rejects it. That
+keeps the selected graph visible in the manifest and makes it possible for the compiler to compose
+the correct runtime pieces around it.
+
+See [The graph](/concepts/the-graph) for the conceptual model,
+[agent](/reference/manifest/agent) for the `agent` block that contains this block, and
+[ReAct](/reference/graph/react) for the behavior and prompt variables of the shipped graph.

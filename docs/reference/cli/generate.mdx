@@ -1,0 +1,59 @@
+---
+title: agentc generate
+description: Generate the project without compiling it.
+---
+
+`agentc generate` runs the manifest processing, tool transform, and code generation stages and
+stops before invoking `cargo build`. The result is a complete Rust project on disk that you can
+inspect, modify, or build manually.
+
+```bash
+agentc generate [CONTEXT] [OPTIONS]
+```
+
+## Arguments
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `CONTEXT` | `.` | Path to the directory containing `agent.acl`. |
+
+## Options
+
+| Flag | Short | Default | Description |
+|------|-------|---------|-------------|
+| `--output <DIR>` | `-o` | `<CONTEXT>/artifacts/generated` | Directory to write the generated project into. |
+| `--dry-run` | | `false` | Run all pipeline stages but print the generated file contents to stdout instead of writing them to disk. |
+| `--verbose` | `-v` | `false` | Print detailed output from each pipeline stage, including transformer subprocess output. |
+| `--format <FORMAT>` | | `auto` | Output format. `auto` selects TTY or plain based on the terminal. `plain` disables colors and progress indicators. |
+| `--cleanup` | | `false` | Delete ephemeral build artifacts (for example, temporary virtual environments) after generation completes. |
+
+## When to use it
+
+**Debugging a failed build.** If `agentc build` fails during the compile stage, run
+`agentc generate` first. The generated Rust project will be on disk so you can read the generated
+source and understand what the compiler produced before `cargo` tried to build it.
+
+**Customising generated code.** The generated project is a complete Rust workspace. You can
+modify it by hand, add files, or adjust generated source before building. Run `agentc generate`
+to produce the project, make your changes, then build it directly with `cargo build --release`.
+
+**Inspecting what the compiler produces.** Use `--dry-run` to print all generated files to
+stdout without writing anything to disk.
+
+## Example
+
+Generate the project in the current directory:
+
+```bash
+agentc generate
+ls artifacts/generated/
+```
+
+Dry-run to inspect generated files:
+
+```bash
+agentc generate --dry-run
+```
+
+For the `standalone` archetype, the output directory contains a complete Rust workspace that you
+can open in any Rust-aware IDE or build directly with `cargo`.

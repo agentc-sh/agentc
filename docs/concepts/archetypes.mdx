@@ -1,0 +1,61 @@
+---
+title: Archetypes
+description: Archetypes define the shape of the compiled artifact and the toolchain required to build it.
+---
+
+An archetype defines two things: what the compiler generates and what toolchain is needed to build
+it. Choosing an archetype means choosing a deployment target. The same `agent.acl` manifest can
+target different archetypes to produce different kinds of artifacts.
+
+The archetype is declared in the `build` block:
+
+```hcl title="agent.acl"
+build {
+  archetype = "standalone"
+}
+```
+
+## standalone
+
+The `standalone` archetype produces a single, self-contained binary. The binary embeds all tool
+code, skill content, and runtime configuration. Deployment means copying the binary and setting
+environment variables; there are no other runtime dependencies.
+
+Building it requires the Rust toolchain (`cargo`), which you can install at
+[rustup.rs](https://rustup.rs). The output is a compiled binary at `artifacts/build/<agent_name>`.
+
+The standalone binary includes a CLI with a `run` command for single-shot execution and a `serve`
+command for starting the HTTP server (when `http_server` is defined in the manifest). It reads
+configuration from environment variables at startup and requires a database connection for session
+and checkpoint persistence.
+
+### Cross-compilation
+
+The `standalone` archetype can cross-compile to other platforms. Specify the target platform in
+the `build` block:
+
+```hcl title="agent.acl"
+build {
+  archetype = "standalone"
+  os        = "linux"
+  arch      = "aarch64"
+}
+```
+
+`os` accepts `"linux"`, `"mac_os"`, or `"windows"`, and `arch` accepts `"x86_64"` or `"aarch64"`.
+Both must be specified together. If neither is specified, the binary is compiled for the host
+platform. The full `build` block reference is on the [build reference page](/reference/manifest/build).
+
+## Future archetypes
+
+The archetype system is designed to be extended. Future archetypes will target different deployment
+models without requiring changes to how you write your manifest or your tools.
+
+When a new archetype is available, you switch to it by changing the `archetype` field and ensuring
+you have the required toolchain installed.
+
+## Where to go next
+
+- [The compilation pipeline](/concepts/the-compilation-pipeline): how an archetype turns the manifest into an artifact.
+- [Deploy a standalone binary](/guides/deploy-standalone): run the standalone artifact in production.
+- [build reference](/reference/manifest/build): every field of the `build` block, including cross-compilation.

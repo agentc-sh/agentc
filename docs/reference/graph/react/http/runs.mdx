@@ -1,0 +1,704 @@
+---
+title: Runs
+description: The native HTTP endpoints for creating runs, streaming run events, and reading run history.
+---
+
+A run is one execution of the graph within a session. These endpoints list and read runs, and create
+a new run whose events stream back as Server-Sent Events.
+
+## Find runs for a session
+
+Find runs for a session with optional filtering and pagination.
+
+<Endpoint method="GET" path="/v1/sessions/{session_id}/runs">
+  Find runs for a session with optional filtering and pagination.
+</Endpoint>
+
+<Parameters in="path">
+  <Field name="session_id" type="string">
+    The session ID.
+  </Field>
+</Parameters>
+
+<Parameters in="query">
+  <Field name="per_page" type="integer | null" default="100">
+    Maximum page size.
+  </Field>
+  <Field name="page" type="string | null">
+    Opaque cursor for the next page.
+  </Field>
+  <Field name="ids" type="string[] | null">
+    Run IDs to filter on.
+  </Field>
+  <Field name="session_ids" type="string[] | null">
+    Session IDs to filter on.
+  </Field>
+  <Field name="statuses" type="string[] | null">
+    Run statuses to filter on.
+  </Field>
+  <Field name="created_before" type="string | null">
+    Filter by creation time.
+  </Field>
+  <Field name="created_after" type="string | null">
+    Filter by creation time.
+  </Field>
+  <Field name="updated_before" type="string | null">
+    Filter by update time.
+  </Field>
+  <Field name="updated_after" type="string | null">
+    Filter by update time.
+  </Field>
+</Parameters>
+
+<Responses>
+  <Response status="200" description="Runs retrieved successfully.">
+    <Variants label="PaginatedRunResponse">
+      <Variant label="Run">
+        <Field name="items" type={<>{<Link href="/reference/graph/react/http/runs">Run</Link>}[]</>}>
+          The returned runs.
+        </Field>
+        <Field name="count" type="integer">
+          The total number of matching runs.
+        </Field>
+        <Field name="next_page" type="string | null">
+          Cursor for the next page, if any.
+        </Field>
+        <Field name="id" type="string">
+          The run ID.
+        </Field>
+        <Field name="session_id" type="string">
+          The session ID.
+        </Field>
+        <Field name="status" type="string">
+          The run status.
+        </Field>
+        <Field name="created_at" type="string">
+          The creation timestamp.
+        </Field>
+        <Field name="updated_at" type="string">
+          The last update timestamp.
+        </Field>
+      </Variant>
+    </Variants>
+  </Response>
+  <Response status="400" description="Bad request." />
+  <Response status="404" description="Session not found." />
+  <Response status="500" description="Internal server error." />
+</Responses>
+
+## Get a run by ID
+
+Get a run by ID.
+
+<Endpoint method="GET" path="/v1/runs/{run_id}">
+  Get a run by ID.
+</Endpoint>
+
+<Parameters in="path">
+  <Field name="run_id" type="string">
+    The run ID.
+  </Field>
+</Parameters>
+
+<Responses>
+  <Response status="200" description="Run retrieved successfully.">
+    <Fields label="Run">
+      <Field name="id" type="string">
+        The run ID.
+      </Field>
+      <Field name="session_id" type="string">
+        The session ID.
+      </Field>
+      <Field name="status" type="string">
+        The run status.
+      </Field>
+      <Field name="created_at" type="string">
+        The creation timestamp.
+      </Field>
+      <Field name="updated_at" type="string">
+        The last update timestamp.
+      </Field>
+    </Fields>
+  </Response>
+  <Response status="400" description="Bad request." />
+  <Response status="404" description="Run not found." />
+  <Response status="500" description="Internal server error." />
+</Responses>
+
+## Create a new run
+
+Create a new run and stream its events back as Server-Sent Events (SSE).
+
+<Endpoint method="POST" path="/v1/runs">
+  Create a new run and stream its events back as Server-Sent Events (SSE).
+</Endpoint>
+
+<Parameters in="body">
+  <Field name="session_id" type="string">
+    The session the run belongs to.
+  </Field>
+  <Field name="run_id" type="string | null">
+    Optional run ID. If omitted, one is generated automatically.
+  </Field>
+  <Field name="checkpoint_id" type="string | null">
+    Optional checkpoint to resume from.
+  </Field>
+  <Field name="resume_payload" type="object | null">
+    Opaque resume data supplied by the graph.
+  </Field>
+  <Field name="model_override" type={<>{<Link href="#modeloverride">ModelOverride</Link>} | null</>}>
+    Optional model override for this run.
+  </Field>
+  <Field name="capability_override" type={<>{<Link href="#capabilityoverride">CapabilityOverride</Link>} | null</>}>
+    Optional capability override for this run.
+  </Field>
+  <Field name="messages" type={<>{<Link href="/reference/graph/react/http/messages">Message</Link>}[]</>}>
+    Messages that seed the run.
+  </Field>
+  <Field name="context_vars" type={<>{<Link href="#contextvar">ContextVar</Link>}[]</>}>
+    Client-supplied context variables.
+  </Field>
+  <Field name="context" type="object | null">
+    Initial context object.
+  </Field>
+  <Field name="tools" type={<>{<Link href="#tooldefinition">ToolDefinition</Link>}[]</>}>
+    Client-defined tools available to the run.
+  </Field>
+</Parameters>
+
+<Responses>
+  <Response status="200" description="A stream of events (text/event-stream).">
+    <Variants label="RunEvent">
+      <Variant label="run_started">
+        <Field name="kind" type="string" enum={["run_started"]}>
+          Identifies the start of a run.
+        </Field>
+        <Field name="timestamp" type="float">
+          The timestamp of the event.
+        </Field>
+        <Field name="session_id" type="string">
+          The session ID.
+        </Field>
+        <Field name="run_id" type="string">
+          The run ID.
+        </Field>
+      </Variant>
+      <Variant label="run_finished">
+        <Field name="kind" type="string" enum={["run_finished"]}>
+          Identifies the end of a run.
+        </Field>
+        <Field name="timestamp" type="float">
+          The timestamp of the event.
+        </Field>
+        <Field name="session_id" type="string">
+          The session ID.
+        </Field>
+        <Field name="run_id" type="string">
+          The run ID.
+        </Field>
+        <Field name="status" type="string">
+          The final run status.
+        </Field>
+        <Field name="interrupt_payload" type="object | null">
+          Optional interrupt payload.
+        </Field>
+        <Field name="result" type="object | null">
+          The final state payload, if any.
+        </Field>
+      </Variant>
+      <Variant label="run_error">
+        <Field name="kind" type="string" enum={["run_error"]}>
+          Identifies a run failure.
+        </Field>
+        <Field name="timestamp" type="float">
+          The timestamp of the event.
+        </Field>
+        <Field name="session_id" type="string">
+          The session ID.
+        </Field>
+        <Field name="run_id" type="string">
+          The run ID.
+        </Field>
+        <Field name="error" type="string">
+          The error message.
+        </Field>
+        <Field name="code" type="string | null">
+          Optional machine-readable error code.
+        </Field>
+      </Variant>
+      <Variant label="text_message_start">
+        <Field name="kind" type="string" enum={["text_message_start"]}>
+          Identifies the start of a streamed text message.
+        </Field>
+        <Field name="timestamp" type="float">
+          The timestamp of the event.
+        </Field>
+        <Field name="message_id" type="string">
+          The message ID.
+        </Field>
+      </Variant>
+      <Variant label="text_message_content">
+        <Field name="kind" type="string" enum={["text_message_content"]}>
+          Identifies streamed text content.
+        </Field>
+        <Field name="timestamp" type="float">
+          The timestamp of the event.
+        </Field>
+        <Field name="message_id" type="string">
+          The message ID.
+        </Field>
+        <Field name="delta" type="string">
+          A chunk of text content.
+        </Field>
+      </Variant>
+      <Variant label="text_message_end">
+        <Field name="kind" type="string" enum={["text_message_end"]}>
+          Identifies the end of a streamed text message.
+        </Field>
+        <Field name="timestamp" type="float">
+          The timestamp of the event.
+        </Field>
+        <Field name="message_id" type="string">
+          The message ID.
+        </Field>
+      </Variant>
+      <Variant label="tool_call_start">
+        <Field name="kind" type="string" enum={["tool_call_start"]}>
+          Identifies the start of a tool call.
+        </Field>
+        <Field name="timestamp" type="float">
+          The timestamp of the event.
+        </Field>
+        <Field name="tool_call_id" type="string">
+          The tool call ID.
+        </Field>
+        <Field name="tool_name" type="string">
+          The tool name.
+        </Field>
+      </Variant>
+      <Variant label="tool_call_args">
+        <Field name="kind" type="string" enum={["tool_call_args"]}>
+          Identifies streamed tool-call arguments.
+        </Field>
+        <Field name="timestamp" type="float">
+          The timestamp of the event.
+        </Field>
+        <Field name="tool_call_id" type="string">
+          The tool call ID.
+        </Field>
+        <Field name="delta" type="string">
+          A chunk of streamed tool-call JSON.
+        </Field>
+      </Variant>
+      <Variant label="tool_call_end">
+        <Field name="kind" type="string" enum={["tool_call_end"]}>
+          Identifies the end of a tool call.
+        </Field>
+        <Field name="timestamp" type="float">
+          The timestamp of the event.
+        </Field>
+        <Field name="tool_call_id" type="string">
+          The tool call ID.
+        </Field>
+      </Variant>
+      <Variant label="tool_call_error">
+        <Field name="kind" type="string" enum={["tool_call_error"]}>
+          Identifies a failed tool call.
+        </Field>
+        <Field name="timestamp" type="float">
+          The timestamp of the event.
+        </Field>
+        <Field name="tool_call_id" type="string">
+          The tool call ID.
+        </Field>
+        <Field name="message_id" type="string">
+          The message ID.
+        </Field>
+        <Field name="error" type="string">
+          The error message.
+        </Field>
+        <Field name="code" type="string | null">
+          Optional machine-readable error code.
+        </Field>
+      </Variant>
+      <Variant label="tool_call_result">
+        <Field name="kind" type="string" enum={["tool_call_result"]}>
+          Identifies a successful tool call.
+        </Field>
+        <Field name="timestamp" type="float">
+          The timestamp of the event.
+        </Field>
+        <Field name="tool_call_id" type="string">
+          The tool call ID.
+        </Field>
+        <Field name="message_id" type="string">
+          The message ID.
+        </Field>
+        <Field name="content" type="object">
+          The tool result payload.
+        </Field>
+      </Variant>
+      <Variant label="activity_delta">
+        <Field name="kind" type="string" enum={["activity_delta"]}>
+          Identifies a streamed activity update from a tool.
+        </Field>
+        <Field name="timestamp" type="float">
+          The timestamp of the event.
+        </Field>
+        <Field name="tool_call_id" type="string">
+          The tool call ID.
+        </Field>
+        <Field name="activity_type" type="string">
+          The activity type.
+        </Field>
+        <Field name="patch" type={<>{<Link href="#patchoperation">PatchOperation</Link>}[]</>}>
+          RFC 6902 JSON Patch operations.
+        </Field>
+      </Variant>
+      <Variant label="reasoning_start">
+        <Field name="kind" type="string" enum={["reasoning_start"]}>
+          Identifies the start of a reasoning span.
+        </Field>
+        <Field name="timestamp" type="float">
+          The timestamp of the event.
+        </Field>
+        <Field name="message_id" type="string">
+          The message ID.
+        </Field>
+      </Variant>
+      <Variant label="reasoning_end">
+        <Field name="kind" type="string" enum={["reasoning_end"]}>
+          Identifies the end of a reasoning span.
+        </Field>
+        <Field name="timestamp" type="float">
+          The timestamp of the event.
+        </Field>
+        <Field name="message_id" type="string">
+          The message ID.
+        </Field>
+      </Variant>
+      <Variant label="reasoning_message_start">
+        <Field name="kind" type="string" enum={["reasoning_message_start"]}>
+          Identifies the start of a reasoning message.
+        </Field>
+        <Field name="timestamp" type="float">
+          The timestamp of the event.
+        </Field>
+        <Field name="message_id" type="string">
+          The message ID.
+        </Field>
+      </Variant>
+      <Variant label="reasoning_message_content">
+        <Field name="kind" type="string" enum={["reasoning_message_content"]}>
+          Identifies streamed reasoning text.
+        </Field>
+        <Field name="timestamp" type="float">
+          The timestamp of the event.
+        </Field>
+        <Field name="message_id" type="string">
+          The message ID.
+        </Field>
+        <Field name="delta" type="string">
+          A chunk of reasoning content.
+        </Field>
+      </Variant>
+      <Variant label="reasoning_message_end">
+        <Field name="kind" type="string" enum={["reasoning_message_end"]}>
+          Identifies the end of a reasoning message.
+        </Field>
+        <Field name="timestamp" type="float">
+          The timestamp of the event.
+        </Field>
+        <Field name="message_id" type="string">
+          The message ID.
+        </Field>
+      </Variant>
+      <Variant label="reasoning_signature">
+        <Field name="kind" type="string" enum={["reasoning_signature"]}>
+          Identifies a reasoning signature.
+        </Field>
+        <Field name="timestamp" type="float">
+          The timestamp of the event.
+        </Field>
+        <Field name="message_id" type="string">
+          The message ID.
+        </Field>
+        <Field name="subtype" type="string">
+          The signature subtype.
+        </Field>
+        <Field name="entity_id" type="string">
+          The signed entity ID.
+        </Field>
+        <Field name="value" type="string">
+          The signature value.
+        </Field>
+      </Variant>
+      <Variant label="state_snapshot">
+        <Field name="kind" type="string" enum={["state_snapshot"]}>
+          Identifies a full state snapshot.
+        </Field>
+        <Field name="timestamp" type="float">
+          The timestamp of the event.
+        </Field>
+        <Field name="state" type="object">
+          The current agent state.
+        </Field>
+      </Variant>
+      <Variant label="state_delta">
+        <Field name="kind" type="string" enum={["state_delta"]}>
+          Identifies a state patch.
+        </Field>
+        <Field name="timestamp" type="float">
+          The timestamp of the event.
+        </Field>
+        <Field name="delta" type={<>{<Link href="#patchoperation">PatchOperation</Link>}[]</>}>
+          RFC 6902 JSON Patch operations.
+        </Field>
+      </Variant>
+      <Variant label="messages_snapshot">
+        <Field name="kind" type="string" enum={["messages_snapshot"]}>
+          Identifies the persisted conversation messages.
+        </Field>
+        <Field name="timestamp" type="float">
+          The timestamp of the event.
+        </Field>
+        <Field name="messages" type={<>{<Link href="/reference/graph/react/http/messages">Message</Link>}[]</>}>
+          The persisted conversation messages.
+        </Field>
+      </Variant>
+    </Variants>
+  </Response>
+  <Response status="400" description="Bad request." />
+  <Response status="404" description="Session not found." />
+  <Response status="500" description="Internal server error." />
+</Responses>
+
+<Tabs defaultValue="curl">
+  <TabsList>
+    <TabsTrigger value="curl">cURL</TabsTrigger>
+  </TabsList>
+  <TabsContent value="curl">
+```bash
+curl -X POST http://localhost:8080/v1/runs \
+  -H "Content-Type: application/json" \
+  -H "X-Tenant-ID: acme" \
+  -d '{
+    "session_id": "8f3e19d8-3bc0-4fd5-bb02-7ac89af9d7bc",
+    "messages": [
+      {
+        "role": "user",
+        "content": [
+          { "type": "text", "value": "What is 42 plus 7?" }
+        ]
+      }
+    ]
+  }'
+```
+  </TabsContent>
+</Tabs>
+
+The stream keeps the connection alive with periodic `keep-alive` comments between events. A full run
+looks like this on the wire:
+
+```text
+event: run_started
+data: {"kind":"run_started","timestamp":1710000000.0,"session_id":"...","run_id":"..."}
+
+event: messages_snapshot
+data: {"kind":"messages_snapshot","timestamp":1710000000.1,"messages":[...]}
+
+event: text_message_start
+data: {"kind":"text_message_start","timestamp":1710000000.2,"message_id":"..."}
+
+event: text_message_content
+data: {"kind":"text_message_content","timestamp":1710000000.3,"message_id":"...","delta":"Hello"}
+
+event: text_message_end
+data: {"kind":"text_message_end","timestamp":1710000000.4,"message_id":"..."}
+
+event: run_finished
+data: {"kind":"run_finished","timestamp":1710000000.5,"session_id":"...","run_id":"...","status":"completed","interrupt_payload":null,"result":null}
+```
+
+## Types
+
+### ContextVar
+
+A single client-supplied context variable made available to a run.
+
+<Fields label="ContextVar">
+  <Field name="description" type="string">
+    What the variable represents.
+  </Field>
+  <Field name="value" type="string">
+    The variable value.
+  </Field>
+</Fields>
+
+### ToolDefinition
+
+A client-defined tool made available to a run.
+
+<Fields label="ToolDefinition">
+  <Field name="name" type="string">
+    The tool name.
+  </Field>
+  <Field name="description" type="string">
+    What the tool does.
+  </Field>
+  <Field name="parameters" type="object">
+    A JSON Schema object describing the tool's parameters.
+  </Field>
+</Fields>
+
+### InferenceParams
+
+Inference parameters for a model request. Every field is optional; omitted fields use the provider or
+model defaults.
+
+<Fields label="InferenceParams">
+  <Field name="max_tokens" type="integer | null">
+    Maximum number of tokens to generate.
+  </Field>
+  <Field name="temperature" type="float | null">
+    Sampling temperature.
+  </Field>
+  <Field name="top_p" type="float | null">
+    Nucleus sampling probability mass.
+  </Field>
+  <Field name="top_k" type="integer | null">
+    Top-k sampling cutoff.
+  </Field>
+  <Field name="stop_sequences" type="string[] | null">
+    Sequences that stop generation when produced.
+  </Field>
+  <Field name="frequency_penalty" type="float | null">
+    Penalty applied in proportion to how often a token has appeared.
+  </Field>
+  <Field name="presence_penalty" type="float | null">
+    Penalty applied to tokens that have already appeared at all.
+  </Field>
+  <Field name="seed" type="integer | null">
+    Seed for deterministic sampling.
+  </Field>
+  <Field name="provider_params" type="object | null">
+    Provider-specific parameters passed through unchanged.
+  </Field>
+</Fields>
+
+### ModelOverride
+
+Per-run overrides for the agent's configured model. Any omitted field falls back to the manifest
+configuration.
+
+<Fields label="ModelOverride">
+  <Field name="provider" type="string | null">
+    Provider name to use instead of the configured one.
+  </Field>
+  <Field name="model" type="string | null">
+    Model identifier to use instead of the configured one.
+  </Field>
+  <Field name="inference_params" type={<>{<Link href="#inferenceparams">InferenceParams</Link>} | null</>}>
+    Inference parameter overrides.
+  </Field>
+</Fields>
+
+### CapabilityOverride
+
+Per-run override for the agent's capability set. The `strategy` field selects how the supplied
+capabilities combine with the agent's configured capabilities.
+
+<Variants label="CapabilityOverride">
+  <Variant label="inherit">
+    <Field name="strategy" type="string" enum={["inherit"]}>
+      Use the agent's configured capabilities unchanged.
+    </Field>
+  </Variant>
+  <Variant label="extend">
+    <Field name="strategy" type="string" enum={["extend"]}>
+      Add the listed capabilities to the configured set.
+    </Field>
+    <Field name="capabilities" type="string[]">
+      Capabilities to add.
+    </Field>
+  </Variant>
+  <Variant label="replace">
+    <Field name="strategy" type="string" enum={["replace"]}>
+      Use only the listed capabilities.
+    </Field>
+    <Field name="capabilities" type="string[]">
+      Capabilities to use.
+    </Field>
+  </Variant>
+</Variants>
+
+### PatchOperation
+
+A single RFC 6902 JSON Patch operation, discriminated by `op`. State deltas and tool activity updates
+are expressed as arrays of these operations.
+
+<Variants label="PatchOperation">
+  <Variant label="add">
+    <Field name="op" type="string" enum={["add"]}>
+      Adds a value at the target location.
+    </Field>
+    <Field name="path" type="string">
+      JSON Pointer to the target location.
+    </Field>
+    <Field name="value" type="any">
+      The value to add.
+    </Field>
+  </Variant>
+  <Variant label="remove">
+    <Field name="op" type="string" enum={["remove"]}>
+      Removes the value at the target location.
+    </Field>
+    <Field name="path" type="string">
+      JSON Pointer to the target location.
+    </Field>
+  </Variant>
+  <Variant label="replace">
+    <Field name="op" type="string" enum={["replace"]}>
+      Replaces the value at the target location.
+    </Field>
+    <Field name="path" type="string">
+      JSON Pointer to the target location.
+    </Field>
+    <Field name="value" type="any">
+      The replacement value.
+    </Field>
+  </Variant>
+  <Variant label="move">
+    <Field name="op" type="string" enum={["move"]}>
+      Moves a value from one location to another.
+    </Field>
+    <Field name="from" type="string">
+      JSON Pointer to the source location.
+    </Field>
+    <Field name="path" type="string">
+      JSON Pointer to the target location.
+    </Field>
+  </Variant>
+  <Variant label="copy">
+    <Field name="op" type="string" enum={["copy"]}>
+      Copies a value from one location to another.
+    </Field>
+    <Field name="from" type="string">
+      JSON Pointer to the source location.
+    </Field>
+    <Field name="path" type="string">
+      JSON Pointer to the target location.
+    </Field>
+  </Variant>
+  <Variant label="test">
+    <Field name="op" type="string" enum={["test"]}>
+      Asserts that the target location holds the given value.
+    </Field>
+    <Field name="path" type="string">
+      JSON Pointer to the target location.
+    </Field>
+    <Field name="value" type="any">
+      The value to compare against.
+    </Field>
+  </Variant>
+</Variants>

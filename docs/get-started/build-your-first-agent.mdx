@@ -1,0 +1,124 @@
+---
+title: Build your first agent
+description: Install agentc, scaffold a project, and compile your first agent.
+---
+
+In this guide you will install the compiler, scaffold a project, build it, and run your agent for the
+first time. By the end you will have a working binary that answers a question. It should take about ten
+minutes.
+
+## Prerequisites
+
+You need two things before you start:
+
+- The **Rust toolchain**, installed with `rustup`. The default `standalone` archetype compiles your agent with `cargo`, so Rust must be available on your build machine. Install it at [rustup.rs](https://rustup.rs).
+- An **Anthropic API key**. The scaffolded agent uses Anthropic as its model provider.
+
+## Install agentc
+
+Run the installer script. It places the `agentc` binary in the directory you pass with
+`--install-dir`.
+
+<Callout type="warning" title="Review scripts before running them">
+Always verify the contents of any script you execute from the internet. Pass the `--dry-run` flag to
+print the steps the installer would take without performing them.
+</Callout>
+
+```bash
+curl -sSfL https://install.agentc.sh | bash -s -- --install-dir ~/.local/bin
+```
+
+Verify the installation:
+
+```bash
+agentc --version
+```
+
+## Scaffold a project
+
+Create a new project with `agentc init`:
+
+```bash
+agentc init my-agent
+cd my-agent
+```
+
+You should see:
+
+```
+ ✓ Created my-agent
+```
+
+This creates a ready-to-build project. The important file is `agent.acl`, the manifest. Open it to see
+what was generated:
+
+```hcl title="agent.acl"
+build {
+  archetype = "standalone"
+}
+
+providers {
+  anthropic {
+    models = ["claude-haiku-4-5"]
+    config {
+      api_key = secret(runtime("ANTHROPIC_API_KEY"))
+    }
+  }
+}
+
+agent "my-agent" {
+  graph {
+    type = "react"
+  }
+
+  version     = "0.1.0"
+  description = "A helpful assistant."
+  prompt      = "You are a helpful assistant."
+
+  model {
+    provider = "anthropic"
+    name     = "claude-haiku-4-5"
+  }
+}
+
+http_server {
+  host = runtime("HTTP_HOST", "127.0.0.1")
+  port = runtime("HTTP_PORT", 8080)
+
+  protocol {
+    ag_ui {}
+  }
+}
+```
+
+This manifest defines a minimal agent with no tools. It uses the `standalone` archetype, runs on the
+ReAct graph, connects to Anthropic, and defines an HTTP server with the AG-UI protocol for later. The
+`runtime()` values, including the API key, are read from the environment when the binary starts, not
+baked in at build time.
+
+## Build
+
+Compile the agent:
+
+```bash
+agentc build
+```
+
+The compiler processes the manifest, prepares any tools, generates a project, and compiles it. When it
+finishes, the binary is at `artifacts/build/my-agent`.
+
+## Run it
+
+Set your API key and ask the agent a question with the binary's `run` command:
+
+```bash
+export ANTHROPIC_API_KEY=your_key_here
+./artifacts/build/my-agent run "Hello, who are you?"
+```
+
+The agent calls the model and prints its answer, then exits. You have a working agent.
+
+## What you will do next
+
+Right now the agent can only talk. In [Add your first tool](/get-started/add-your-first-tool) you will
+give it a tool and watch it get called during a run.

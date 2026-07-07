@@ -1,0 +1,69 @@
+---
+title: agentc build
+description: Compile a manifest into a deployable artifact.
+---
+
+`agentc build` runs the full compilation pipeline: it parses the manifest, fetches and transforms
+tool sources, generates a complete project, and compiles it into a deployable artifact.
+
+```bash
+agentc build [CONTEXT] [OPTIONS]
+```
+
+## Arguments
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `CONTEXT` | `.` | Path to the directory containing `agent.acl`. |
+
+## Options
+
+| Flag | Short | Default | Description |
+|------|-------|---------|-------------|
+| `--output <DIR>` | `-o` | `<CONTEXT>/artifacts/build` | Directory to write the compiled artifact into. |
+| `--release` | | `false` | Compile in release mode (optimized, slower to build). |
+| `--verbose` | `-v` | `false` | Print detailed output from each pipeline stage, including compiler output and transformer subprocess output. |
+| `--format <FORMAT>` | | `auto` | Output format. `auto` selects TTY or plain based on the terminal. `plain` disables colors and progress indicators. |
+| `--cache-dir <DIR>` | | `<CONTEXT>/artifacts/cache` | Directory used to cache compiler artifacts between builds. Reusing this directory avoids a full recompile on every invocation. |
+| `--no-cache` | | `false` | Disable the build cache. The compiler will not read from or write to the cache directory. |
+| `--no-cleanup` | | `false` | Skip deletion of ephemeral build artifacts (for example, temporary virtual environments created during tool transforms). |
+| `-- <ARGS>...` | | | Additional arguments forwarded verbatim to `cargo build`. |
+
+## Examples
+
+Build the agent in the current directory:
+
+```bash
+agentc build
+```
+
+Build from a specific directory and output to a custom path:
+
+```bash
+agentc build ./agents/support --output ./dist
+```
+
+Build a release binary and forward a cargo target flag:
+
+```bash
+agentc build --release -- --target x86_64-unknown-linux-gnu
+```
+
+## Output
+
+On success, the compiled artifact is written to the output directory (default:
+`<CONTEXT>/artifacts/build/`). For the `standalone` archetype, this is an executable binary named
+after the agent block in your manifest.
+
+The generated project files are written to `<CONTEXT>/artifacts/generated/` during the build and
+can be inspected or modified there.
+
+## Troubleshooting
+
+If the build fails during the compile stage, run `agentc generate` first. The generated Rust
+project will be on disk at `artifacts/generated/` so you can read the generated source and
+understand what the compiler produced before `cargo` tried to build it.
+
+If the build fails during a tool transform, check that your tool source directories contain valid
+`package.json` (JavaScript) or `pyproject.toml` (Python) files, and that the required toolchain
+(`node`/`esbuild` for JavaScript, `uv` for Python) is available on your `PATH`.

@@ -1,0 +1,58 @@
+---
+title: agentc inspect
+description: Print the fully resolved manifest configuration.
+---
+
+`agentc inspect` parses your `agent.acl` manifest and resolves it into a fully expanded context.
+No pipeline stages run and no files are generated. It is the fastest way to verify that your
+manifest is structurally valid and that all values resolve as expected.
+
+```bash
+agentc inspect [CONTEXT] [OPTIONS]
+```
+
+## Arguments
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `CONTEXT` | `.` | Path to the directory containing `agent.acl`. |
+
+## Options
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--format <FORMAT>` | `auto` | Output format. `auto` selects TTY or plain based on the terminal. |
+| `--raw` | `false` | Print the parsed manifest as a raw debug struct instead of the resolved context. Useful for checking how HCL was deserialized before resolution runs. |
+
+## What it shows
+
+By default, the command prints the **resolved context**: the manifest after all build-time
+processing has been applied.
+
+- `locals` values are substituted wherever they are referenced in string fields.
+- `runtime(ENV_VAR, default)` fields display their compile-time default value. The environment
+  variable itself is not read during inspection.
+- `secret(runtime(...))` values are not read or displayed.
+- Provider and tool configurations are shown in their resolved form.
+
+With `--raw`, the command prints the raw deserialized manifest struct before resolution. This is
+useful for checking that `runtime()` and `secret()` calls were parsed correctly.
+
+## When to use it
+
+Use `agentc inspect` to verify your manifest before starting a build. It catches structural errors
+and lets you confirm that interpolation, defaults, and field references are wired up correctly,
+without triggering any tool transforms or code generation.
+
+It is also helpful for understanding what defaults a deployed binary will fall back to for each
+`runtime()` field.
+
+## Example
+
+```bash
+agentc inspect
+```
+
+```bash
+agentc inspect ./agents/support
+```

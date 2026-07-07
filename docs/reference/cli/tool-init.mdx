@@ -1,0 +1,55 @@
+---
+title: agentc tool init
+description: Scaffold a new tool source directory.
+---
+
+`agentc tool init` scaffolds a new tool package for the given language with the correct structure,
+dependencies, and TDK integration pre-configured.
+
+```bash
+agentc tool init <NAME> --language <LANGUAGE> [OPTIONS]
+```
+
+## Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `NAME` | Name of the tool package. Used as the package name and as the default directory name. |
+
+## Options
+
+| Flag | Short | Default | Description |
+|------|-------|---------|-------------|
+| `--language <LANGUAGE>` | `-l` | required | Language for the tool package. Accepted values: `python`, `javascript`. |
+| `--directory <DIR>` | `-d` | `./<NAME>` | Directory to create the package in. |
+| `--force` | | `false` | Overwrite if the target directory already exists and is non-empty. |
+| `--format <FORMAT>` | | `auto` | Output format. `auto` selects TTY or plain based on the terminal. |
+
+## Examples
+
+Scaffold a Python tool:
+
+```bash
+agentc tool init weather --language python
+```
+
+Scaffold a TypeScript tool:
+
+```bash
+agentc tool init math --language javascript
+```
+
+## Output
+
+On success, the command prints:
+
+```
+ ✓ Created weather
+```
+
+The generated package is immediately usable. For Python, install dependencies with `uv sync`. For
+JavaScript, install with `pnpm install`. The TDK dependency is pre-configured in both cases so you
+can start implementing tool logic right away.
+
+See [Write a tool](/guides/write-a-tool) for details on the tool API and how to declare the tool in
+your manifest.

@@ -1,0 +1,10 @@
+{
+  "title": "Reference",
+  "pages": [
+    "cli",
+    "manifest",
+    "graph",
+    "http-api",
+    "observability"
+  ]
+}

@@ -1,0 +1,90 @@
+---
+title: OpenRouter
+description: Configuration for the OpenRouter model provider.
+---
+
+The `openrouter` sub-block configures the [OpenRouter](https://openrouter.ai) provider, which
+proxies hundreds of models from many providers through a single unified API. This is useful when
+you want to switch between models from different providers without managing multiple API keys or
+changing your agent configuration.
+
+Unlike the `openai` provider, OpenRouter does not have a fixed model catalogue. The `models` list
+accepts any model identifier that OpenRouter supports, in the form `provider/model-name`, such as
+`openai/gpt-4o` or `anthropic/claude-3.5-sonnet`.
+
+## Fields
+
+| Field | Type | Required | runtime() | Description |
+|-------|------|----------|-----------|-------------|
+| `models` | list | no | no | Allowlist of models for this provider. Each entry is a plain string or a config object with `name` and `params`. When omitted, no allowlist is enforced. |
+| `config` | block | no | | Connection configuration. |
+| `config.api_key` | string | no | yes | OpenRouter API key. Wrap in `secret(runtime(...))` to keep it out of build artifacts. |
+| `params` | block | no | | Provider-level inference parameter defaults. Applied to every request unless overridden at the model level. |
+
+The `config` block is optional. When omitted, the client reads credentials from the
+`OPENROUTER_API_KEY` environment variable.
+
+## params
+
+The `params` block sets inference parameter defaults for all models under this provider. All fields
+are optional and support `runtime()`.
+
+| Field | Type | runtime() | Description |
+|-------|------|-----------|-------------|
+| `max_tokens` | integer | yes | Maximum number of tokens to generate. |
+| `temperature` | float | yes | Sampling temperature. |
+| `top_p` | float | yes | Nucleus sampling probability. |
+| `stop_sequences` | list of strings | yes | Sequences that stop generation. |
+| `frequency_penalty` | float | yes | Penalty for token frequency. |
+| `presence_penalty` | float | yes | Penalty for token presence. |
+| `seed` | integer | yes | Seed for deterministic sampling. |
+| `provider_params` | object | yes | Provider-specific parameters passed directly to the API. |
+
+<Callout type="note">
+  `top_k` is not part of the OpenAI-compatible wire format that OpenRouter uses. Setting it has no
+  effect and it will be ignored.
+</Callout>
+
+## Example
+
+```hcl title="agent.acl"
+providers {
+  openrouter {
+    models = [
+      "openai/gpt-4o-mini",
+      {
+        name = "anthropic/claude-3.5-sonnet"
+        params {
+          max_tokens  = 8192
+          temperature = 0.7
+        }
+      }
+    ]
+
+    config {
+      api_key = secret(runtime("OPENROUTER_API_KEY"))
+    }
+
+    params {
+      max_tokens  = 2048
+      temperature = 0.5
+    }
+  }
+}
+
+agent "assistant" {
+  graph {
+    type = "react"
+  }
+
+  model {
+    provider = "openrouter"
+    name     = "openai/gpt-4o-mini"
+  }
+}
+```
+
+<Callout type="tip">
+  Always wrap API keys in `secret(runtime(...))`. This prevents the key from appearing in build
+  artifacts and the output of `agentc inspect`.
+</Callout>

@@ -1,0 +1,12 @@
+{
+  "title": "providers",
+  "pages": [
+    "...index",
+    "anthropic",
+    "openai",
+    "ollama",
+    "openrouter",
+    "xai",
+    "gemini"
+  ]
+}

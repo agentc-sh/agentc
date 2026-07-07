@@ -1,0 +1,96 @@
+---
+title: Control tool access with capabilities
+description: Use capability tags to control which tools an agent is allowed to invoke.
+---
+
+Capabilities decide which tools an agent is permitted to call. Each tool declares the capability tags
+it requires, and the agent declares the tags it holds. A tool is callable only when the agent holds
+every tag the tool requires. This guide shows how to set that up. For the underlying idea, see
+[Tools and capabilities](/concepts/tools-and-capabilities).
+
+## Tag your tools
+
+Add a `capabilities` list to each tool that should be gated. The convention is `namespace::operation`,
+but the tags are arbitrary strings you choose:
+
+```hcl title="agent.acl"
+tool "adder" {
+  kind         = "javascript"
+  source       = "./tools/math"
+  capabilities = ["math::add"]
+}
+
+tool "get_weather" {
+  kind         = "python"
+  source       = "./tools/weather"
+  capabilities = ["weather::get"]
+}
+```
+
+A tool with no `capabilities` is always available. Grant tags only to the tools you want to gate, and
+leave freely available tools untagged.
+
+## Grant capabilities to the agent
+
+The agent's `capabilities` list declares what it holds. Matching is prefix-based over the `::`
+namespace, so granting `math` satisfies any tool requiring `math::add` or `math::subtract`, while
+granting `math::add` satisfies only that one:
+
+```hcl
+agent "assistant" {
+  graph {
+    type = "react"
+  }
+
+  capabilities = ["math", "weather::get"]
+
+  model {
+    provider = "anthropic"
+    name     = "claude-haiku-4-5"
+  }
+}
+```
+
+Here the agent can call any `math` tool and the specific `weather::get` tool, but not a tool requiring,
+say, `filesystem::write`.
+
+## Decide whether clients may change the set
+
+By default the agent's capability set is fixed to the manifest. The `capability_policy` field controls
+whether a client may change it for a single session:
+
+```hcl
+agent "assistant" {
+  graph {
+    type = "react"
+  }
+
+  capabilities      = ["math", "weather::get"]
+  capability_policy = "extensible"
+
+  model {
+    provider = "anthropic"
+    name     = "claude-haiku-4-5"
+  }
+}
+```
+
+`locked`, the default, ignores any capability override a client sends. `extensible` lets a client add
+to the set, or replace it, for that session. Use `extensible` when different callers should reach
+different tools; keep `locked` when the manifest is the sole authority. Untagged tools stay available
+under either policy.
+
+## Remember the skills capability
+
+Skills are exposed to the agent through built-in skill tools, which are gated like any other tool. For
+an agent to use skills at all, grant it the `skills` capability:
+
+```hcl
+capabilities = ["skills", "math"]
+```
+
+## Where to go next
+
+- [Tools and capabilities](/concepts/tools-and-capabilities): the model behind capability matching.
+- [agent reference](/reference/manifest/agent): the `capabilities` and `capability_policy` fields.
+- [tool reference](/reference/manifest/tool): the `capabilities` field on each tool kind.

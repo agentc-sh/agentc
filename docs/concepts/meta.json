@@ -1,0 +1,15 @@
+{
+  "title": "Concepts",
+  "pages": [
+    "architecture-overview",
+    "the-manifest",
+    "the-compilation-pipeline",
+    "archetypes",
+    "the-graph",
+    "tools-and-capabilities",
+    "skills",
+    "agents-and-prompts",
+    "serving-and-protocols",
+    "observability"
+  ]
+}

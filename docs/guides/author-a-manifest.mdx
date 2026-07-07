@@ -1,0 +1,136 @@
+---
+title: Author a manifest
+description: Build an agent.acl manifest from the ground up, block by block.
+---
+
+This guide walks through writing an `agent.acl` manifest one block at a time, explaining the choice at
+each step, so you can assemble a manifest for a real agent rather than copying an example. For the
+exhaustive field reference, see the [manifest reference](/reference/manifest/build). For the concepts
+behind the file, see [The manifest](/concepts/the-manifest).
+
+A manifest is a set of top-level blocks. Order does not matter. The sections below build one up from
+the smallest agent that runs to a complete one.
+
+## Start with an archetype, a provider, and an agent
+
+Every agent needs three things: an archetype that sets the output shape, a provider that supplies a
+model, and the agent itself. This is the smallest manifest that builds and runs:
+
+```hcl title="agent.acl"
+build {
+  archetype = "standalone"
+}
+
+providers {
+  anthropic {
+    models = ["claude-haiku-4-5"]
+    config {
+      api_key = secret(runtime("ANTHROPIC_API_KEY"))
+    }
+  }
+}
+
+agent "assistant" {
+  graph {
+    type = "react"
+  }
+
+  prompt = "You are a helpful assistant."
+
+  model {
+    provider = "anthropic"
+    name     = "claude-haiku-4-5"
+  }
+}
+```
+
+The `build` block selects the `standalone` archetype, which produces a single binary. The `providers`
+block declares Anthropic and reads its API key from the environment at startup. The `agent` block runs
+on the ReAct graph and points its model at the provider. This already compiles and answers questions.
+
+## Shape the system prompt
+
+The `prompt` is the agent's standing instructions. It is a Jinja2 template rendered before each run,
+so it can adapt to the agent's identity and to per-request context. Keep it plain to start, and reach
+for [Write dynamic prompts](/guides/write-dynamic-prompts) when you want it to change per run.
+
+```hcl
+prompt = "You are {{ agent_name }}, a concise and helpful assistant."
+```
+
+## Give the agent a tool
+
+An agent with no tools can only talk. Add a `tool` block to let it act. This declares a tool
+implemented in a local package:
+
+```hcl
+tool "adder" {
+  kind   = "javascript"
+  source = "./tools/math"
+}
+```
+
+The recipe for writing the tool source is [Write a tool](/guides/write-a-tool). To connect tools that
+already exist elsewhere, see [Connect external tools via MCP](/guides/connect-external-tools-via-mcp).
+To restrict which tools the agent may call, see
+[Control tool access with capabilities](/guides/control-tool-access-with-capabilities).
+
+## Serve it over HTTP
+
+To expose the agent to clients, add an `http_server` block. Both `host` and `port` read from the
+environment so one binary serves in any environment:
+
+```hcl
+http_server {
+  host = runtime("HTTP_HOST", "127.0.0.1")
+  port = runtime("HTTP_PORT", 8080)
+
+  protocol {
+    ag_ui {}
+  }
+}
+```
+
+The `protocol` block mounts the AG-UI add-on alongside the native contract. Without an `http_server`
+block, the agent still runs from the command line but exposes no network interface.
+
+## Factor out repeated values with locals
+
+When a value appears in several places, lift it into a `locals` block. Locals are build-time
+constants referenced with `locals.name` or `${locals.name}` interpolation:
+
+```hcl
+locals {
+  version = "1.0.0"
+}
+
+agent "assistant" {
+  graph {
+    type = "react"
+  }
+
+  version = locals.version
+  # ...
+}
+```
+
+## Validate and build
+
+Before compiling, print the fully resolved configuration to check it is what you expect. `agentc
+inspect` expands locals, fills in `runtime()` defaults, and redacts secrets:
+
+```bash
+agentc inspect
+```
+
+When it looks right, build the artifact:
+
+```bash
+agentc build
+```
+
+## Where to go next
+
+- [The manifest](/concepts/the-manifest): build-time versus runtime values and secrets, explained.
+- [Configure a model provider](/guides/configure-a-model-provider): add providers and set inference parameters.
+- [Manifest reference](/reference/manifest/build): every field of every block.
