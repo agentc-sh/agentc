@@ -1,0 +1,52 @@
+---
+title: locals
+description: The locals block defines build-time constants.
+---
+
+The `locals` block defines named constants that are resolved once at build time and can be referenced
+elsewhere in the manifest. Use locals for values that appear in multiple places or that you want to
+give a meaningful name.
+
+```hcl title="agent.acl"
+locals {
+  version = "1.0.0"
+  region  = "us-east-1"
+}
+
+agent "my_agent" {
+  graph {
+    type = "react"
+  }
+
+  version     = locals.version
+  description = "Deployed in ${locals.region}."
+}
+```
+
+## Referencing locals
+
+Locals are referenced with `locals.<name>` syntax. They can be used anywhere in the manifest that
+accepts a constant value.
+
+In string fields, you can use `${locals.name}` for inline interpolation:
+
+```hcl
+description = "Version ${locals.version} running in ${locals.region}."
+```
+
+## Constraints
+
+Locals are always build-time constants. They cannot contain `runtime()` or `secret()` expressions.
+If you need a value to be configurable at deployment, use `runtime()` directly in the field instead.
+
+```hcl
+# This does not work. locals cannot use runtime().
+locals {
+  port = runtime("PORT", 8080)  # invalid
+}
+
+# Do this instead.
+http_server {
+  port = runtime("PORT", 8080)
+}
+```

@@ -1,0 +1,48 @@
+---
+title: skill
+description: The skill block declares a skill from a directory or inline content.
+---
+
+The `skill` block makes a skill available to the agent at runtime. Skills are Markdown documents that
+teach the agent how to use a capability or follow a process. A manifest can contain any number of
+`skill` blocks.
+
+## Source-based skill
+
+```hcl title="agent.acl"
+skill "git-review" {
+  source = "./skills/git-review"
+}
+```
+
+The `source` field points to a directory containing a `SKILL.md` file. The compiler reads the skill
+content and embeds it in the artifact.
+
+| Field | Type | Required | runtime() | Description |
+|-------|------|----------|-----------|-------------|
+| `source` | string | yes (if no inline content) | no | Path to the skill directory. |
+
+## Inline skill
+
+```hcl title="agent.acl"
+skill "data-analysis" {
+  description = "Guides the agent through analysing tabular data."
+  content     = <<-EOT
+    # Data Analysis
+
+    When asked to analyse data, follow these steps...
+  EOT
+  resources   = {
+    "helpers/summarise.py" = "def summarise(df): ..."
+  }
+}
+```
+
+| Field | Type | Required | runtime() | Description |
+|-------|------|----------|-----------|-------------|
+| `description` | string | yes (for inline) | no | Short description shown to the agent. |
+| `content` | string | yes (for inline) | no | The skill body in Markdown. |
+| `resources` | map | no | no | Named resource files embedded alongside the skill. |
+
+See [Skills](/concepts/skills) for the conceptual model, including the requirement that the agent
+hold the `skills` capability in order to use skills.

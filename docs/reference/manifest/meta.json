@@ -1,0 +1,15 @@
+{
+  "title": "Manifest",
+  "pages": [
+    "...index",
+    "build",
+    "locals",
+    "runtime",
+    "providers",
+    "agent",
+    "graph",
+    "tool",
+    "skill",
+    "http-server"
+  ]
+}

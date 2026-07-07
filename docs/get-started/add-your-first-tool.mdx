@@ -1,0 +1,106 @@
+---
+title: Add your first tool
+description: Give your agent a tool and watch it get called during a run.
+---
+
+Your agent can talk, but it cannot do anything yet. In this guide you will add a small tool, declare
+it in the manifest, and watch the agent call it to answer a question. This continues from
+[Build your first agent](/get-started/build-your-first-agent), so start from that `my-agent` project.
+
+## Prerequisites
+
+The tool you will write is a TypeScript package, so you need **Node.js** and **pnpm** installed. The
+compiler uses them to bundle the tool at build time.
+
+## Scaffold the tool
+
+From the project root, scaffold a JavaScript tool package named `math`:
+
+```bash
+agentc tool init math --language javascript
+```
+
+You should see:
+
+```
+ ✓ Created math
+```
+
+This creates a `math/` directory with a `package.json`, a `tsconfig.json`, and a `src/index.ts` entry
+point, with the tool development kit already configured. Install its dependencies:
+
+```bash
+cd math
+pnpm install
+cd ..
+```
+
+## Write the tool
+
+A tool is an object with a name, a description, a JSON Schema for its inputs, and an `execute`
+function. Replace the contents of `math/src/index.ts` with a single tool that adds two numbers:
+
+```typescript title="math/src/index.ts"
+import type { Tool, ToolInput, ToolOutput } from "@agentc-sh/tdk";
+
+type AddArgs = { a: number; b: number };
+
+export const adder: Tool<AddArgs, number> = {
+  name: "adder",
+  description: "Adds two numbers together.",
+  parameters: {
+    type: "object",
+    properties: {
+      a: { type: "number", description: "The first number." },
+      b: { type: "number", description: "The second number." }
+    },
+    required: ["a", "b"]
+  },
+  async execute(input: ToolInput<AddArgs>): Promise<ToolOutput<number>> {
+    return { output: input.args.a + input.args.b };
+  }
+};
+```
+
+The `description` and the parameter descriptions matter: they are what the model reads to decide when
+and how to call the tool.
+
+## Declare the tool in the manifest
+
+The tool package exists, but the agent does not know about it until you declare it. Add a `tool` block
+to `agent.acl`, pointing `source` at the package directory:
+
+```hcl title="agent.acl"
+tool "adder" {
+  kind   = "javascript"
+  source = "./math"
+}
+```
+
+The block name `adder` matches the export name in `src/index.ts`. Because this tool declares no
+capabilities, it is available to the agent without any further configuration. Controlling access with
+capabilities comes later, in
+[Control tool access with capabilities](/guides/control-tool-access-with-capabilities).
+
+## Rebuild and run
+
+Rebuild so the tool is bundled into the binary:
+
+```bash
+agentc build
+```
+
+Then ask the agent something that needs the tool:
+
+```bash
+./artifacts/build/my-agent run "What is 21 plus 21?"
+```
+
+The agent calls `adder` with `a: 21` and `b: 21`, reads the result, and answers 42. You have given your
+agent its first capability.
+
+## What you will do next
+
+So far you have run the agent from the command line. In
+[Serve and connect](/get-started/serve-and-connect) you will start the HTTP server and send your agent
+a request over the network.

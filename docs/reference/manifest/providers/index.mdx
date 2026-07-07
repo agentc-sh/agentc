@@ -1,0 +1,88 @@
+---
+title: providers
+description: The providers block declares model providers and their configuration.
+---
+
+The `providers` block declares which model providers the agent may use and how to connect to them.
+The value of `agent.model.provider` must match one of the sub-block names declared here.
+
+```hcl title="agent.acl"
+providers {
+  anthropic {
+    models = ["claude-haiku-4-5"]
+
+    config {
+      api_key = secret(runtime("ANTHROPIC_API_KEY"))
+    }
+  }
+}
+
+agent "assistant" {
+  graph {
+    type = "react"
+  }
+
+  model {
+    provider = "anthropic"
+    name     = "claude-haiku-4-5"
+  }
+}
+```
+
+## Shared structure
+
+All provider sub-blocks follow the same general shape. The details of which fields are available
+inside `config` differ per provider and are documented on each provider's reference page.
+
+**`models`** is an optional list of model entries. When present it acts as an allowlist: only the
+named models may be used in `agent.model.name` when this provider is selected. When absent, any
+model name is accepted. Each entry is either a plain model name string, or a config object with a
+`name` field and an optional `params` block for model-specific inference parameter overrides:
+
+```hcl
+models = [
+  "claude-haiku-4-5",
+  {
+    name = "claude-sonnet-4-6"
+    params {
+      max_tokens  = 8192
+      temperature = 0.7
+    }
+  }
+]
+```
+
+**`config`** is an optional block containing connection settings such as API keys and base URLs. When
+omitted entirely, the provider falls back to its SDK defaults, typically by reading well-known
+environment variables. See each provider's page for the specific fallback behavior.
+
+**`params`** is an optional block that sets inference parameter defaults for every model request made
+through this provider. These defaults are baked into every model instance at startup. Individual
+model entries in the `models` list can override specific fields by declaring their own `params`
+block; model-level values take precedence over provider-level values.
+
+```hcl
+params {
+  max_tokens  = 4096
+  temperature = 0.5
+}
+```
+
+**`runtime()`** may wrap any config or params value to defer its resolution to deployment time. This
+lets you supply keys, URLs, and parameter values via environment variables without hardcoding them in
+the manifest.
+
+**`secret()`** should additionally wrap any value that is sensitive. Marking a value as secret
+prevents it from appearing in build artifacts and in the output of `agentc inspect`. API keys should
+always be written as `secret(runtime("ENV_VAR_NAME"))`.
+
+## Supported providers
+
+| Provider | Description | Reference |
+|----------|-------------|-----------|
+| `anthropic` | Anthropic cloud API. Supports Claude models. | [anthropic](/reference/manifest/providers/anthropic) |
+| `openai` | OpenAI cloud API and compatible endpoints. | [openai](/reference/manifest/providers/openai) |
+| `ollama` | Local Ollama runtime. No API key required. | [ollama](/reference/manifest/providers/ollama) |
+| `openrouter` | OpenRouter API. Proxies hundreds of models from many providers through a single API key. | [openrouter](/reference/manifest/providers/openrouter) |
+| `xai` | xAI cloud API. Supports Grok models. | [xai](/reference/manifest/providers/xai) |
+| `gemini` | Google Gemini API. Supports Gemini models. | [gemini](/reference/manifest/providers/gemini) |

@@ -1,0 +1,68 @@
+---
+title: Pass context from the client
+description: Send per-request context variables from a client into a run.
+---
+
+Context variables let a client tell the agent about the current user or request at the start of a run:
+a name, an account tier, a locale, or anything else that should shape the response. They become part of
+the agent's state and are available to the prompt and to tools. This guide shows how to send them and
+put them to use.
+
+## Send context variables in the run request
+
+A client includes context variables in the body of a run request. Each variable has a `description`,
+which is the human-readable label the agent sees, and a `value`, which is the data:
+
+```json
+{
+  "messages": [
+    { "role": "user", "content": "Help me with my order." }
+  ],
+  "context_vars": [
+    { "description": "Customer name", "value": "Alice" },
+    { "description": "Account tier", "value": "premium" },
+    { "description": "Locale", "value": "en-US" }
+  ]
+}
+```
+
+The exact request shape depends on the surface you call. See the [run request shape](/reference/graph/react/http/runs)
+for the native endpoints.
+
+## Read them in the prompt
+
+Loop over `context_vars` in the system prompt to fold the values into the agent's instructions:
+
+```hcl title="agent.acl"
+agent "support" {
+  graph {
+    type = "react"
+  }
+
+  prompt = <<-EOT
+    You are a customer support agent.
+
+    {%- if context_vars %}
+    Context about the customer you are helping:
+    {%- for var in context_vars %}
+    - {{ var.description }} is {{ var.value }}
+    {%- endfor %}
+    {%- endif %}
+  EOT
+}
+```
+
+The `{%- if context_vars %}` guard skips the block cleanly when a run sends no context variables. The
+mechanics of prompt templating are covered in [Write dynamic prompts](/guides/write-dynamic-prompts).
+
+## Read them in a tool
+
+Context variables are part of the graph state, so a tool that receives a state snapshot can read them
+too. This is the right place to put information a tool needs about who the user is, for example to
+branch on their permissions or account tier.
+
+## Where to go next
+
+- [Write dynamic prompts](/guides/write-dynamic-prompts): the templating syntax for the prompt.
+- [Write a tool](/guides/write-a-tool): read state, including context, inside a tool.
+- [Runs](/reference/graph/react/http/runs): the run request shape that carries context variables.

@@ -1,0 +1,96 @@
+---
+title: Deploy a standalone binary
+description: Deploy a compiled standalone agent binary in production.
+---
+
+The `standalone` archetype produces a single self-contained binary that embeds your tools, skills, and
+runtime. Deploying it means copying the binary to a machine and setting environment variables. There is
+no runtime dependency on the agentc CLI or on the source used to build it. This guide covers running
+the binary in production. Packaging it in a container is covered in
+[Deploy with Docker and PostgreSQL](/guides/deploy-with-docker-and-postgres).
+
+The binary is produced at `artifacts/build/<agent-name>` after `agentc build`.
+
+## Run the binary
+
+Every standalone binary ships a small command-line interface:
+
+```bash
+# Run a single interaction and exit
+./artifacts/build/my_agent run "Summarise the contents of README.md"
+
+# Stream individual events as JSON, one per line, for automation
+./artifacts/build/my_agent run --format json "What is 2 + 2?"
+
+# Start the HTTP server (only when http_server is defined in the manifest)
+./artifacts/build/my_agent serve
+```
+
+The `serve` command starts the agent, connects to its database, registers tools and skills, and begins
+listening for requests.
+
+## Configure with environment variables
+
+The binary reads its configuration from environment variables at startup. Every variable is prefixed
+with `AGENT__` followed by a path through the config structure:
+
+```bash
+# Provider credentials
+export AGENT__PROVIDER__ANTHROPIC__API_KEY=your_key_here
+
+# HTTP server overrides
+export AGENT__SERVER__HOST=0.0.0.0
+export AGENT__SERVER__PORT=8080
+
+# Agent model override
+export AGENT__AGENT__MODEL__NAME=claude-opus-4-7
+
+# Default tenant
+export AGENT__DEFAULT_TENANT_ID=my_tenant
+```
+
+<Callout type="warning">
+If a `runtime()` expression in the manifest has no default and its environment variable is not set, the
+binary exits at startup with an error naming the missing variable.
+</Callout>
+
+## Provide a database
+
+The agent needs a database for session, run, and checkpoint persistence. Configure it with
+`AGENT__DATABASE__PRIMARY`:
+
+```bash
+# SQLite, for development and single-machine deployments
+export AGENT__DATABASE__PRIMARY=sqlite://./agent.db?mode=rwc
+
+# PostgreSQL, recommended for production
+export AGENT__DATABASE__PRIMARY=postgresql://user:password@host:5432/dbname
+```
+
+The default is `sqlite://database.db?mode=rwc`. The binary runs migrations automatically at startup, so
+there is no manual migration step. Prefer PostgreSQL in production, especially with concurrent requests
+or when the data must be reachable from multiple processes.
+
+## Attribute requests to tenants
+
+Each request accepts an optional `X-Tenant-Id` header. When it is absent, the request is attributed to
+the default tenant, set with `default_tenant_id` in the manifest's `runtime` block or with
+`AGENT__DEFAULT_TENANT_ID` at startup.
+
+## Shut down gracefully
+
+The agent handles `SIGTERM` and begins a graceful shutdown when it receives one. In-flight requests are
+given up to thirty seconds to finish before the process exits.
+
+## Manage secrets
+
+Inject secrets with your platform's secret mechanism rather than hardcoding them in environment files.
+Use Kubernetes `Secret` objects mounted as environment variables, Docker secrets, or a cloud secret
+store such as AWS Secrets Manager, GCP Secret Manager, or Azure Key Vault. The agent reads every secret
+from an environment variable at startup, so it never needs direct access to a secrets service.
+
+## Where to go next
+
+- [Deploy with Docker and PostgreSQL](/guides/deploy-with-docker-and-postgres): containerize the binary and run it against Postgres.
+- [Instrument with OpenTelemetry](/guides/instrument-with-opentelemetry): export telemetry from the running agent.
+- [Observability reference](/reference/observability): every environment variable for logging and telemetry.

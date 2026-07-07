@@ -1,0 +1,61 @@
+---
+title: Tools and capabilities
+description: How tools work in agentc and how capabilities control which ones an agent may use.
+---
+
+Tools are executable components that the agent can invoke during a run. When the model decides to
+call a tool, the runtime looks up the tool by name, runs it, and feeds the result back into the
+conversation. From the model's perspective, a tool is a function with a name, a description, and a
+typed input schema.
+
+Tools are declared in the manifest and implemented in source files or external processes. The
+compiler handles bundling and embedding at build time. At runtime, the agent registers all enabled
+tools into a registry before the first run.
+
+## Kinds of tool
+
+Every tool has a `kind` that decides how it is built and executed. The kinds available today fall
+into three groups:
+
+- Tools you write in code. `javascript` runs a TypeScript or JavaScript package, bundled with esbuild and executed in an embedded JS runtime. `python` runs a Python package, installed with `uv` and executed in an embedded Python interpreter. See [Write a tool](/guides/write-a-tool).
+- Built-in tools you configure rather than author. `bash` provides a sandboxed shell environment with configurable access to host programs, the filesystem, and the network. See [Use the bash tool](/guides/use-the-bash-tool).
+- Tools that live elsewhere. `mcp` connects tools served by a Model Context Protocol server over stdio or HTTP, rather than embedding tool code. See [Connect external tools via MCP](/guides/connect-external-tools-via-mcp).
+
+More kinds may be added over time; the `kind` field on the [tool reference](/reference/manifest/tool)
+is the authoritative list of what is currently supported.
+
+## Capabilities
+
+Capabilities are how you control which tools the agent is permitted to use. Every tool declares the
+capability tags it requires, and the agent declares the capabilities it holds. A tool can only be
+invoked if the agent holds all of the capabilities that the tool requires. Tools that declare no
+capabilities are always available.
+
+Capability matching is prefix-based, using a `namespace::operation` convention. An agent that holds
+`math` satisfies a tool that requires `math::add`, because `math::add` falls under the `math`
+namespace. The tags themselves are arbitrary strings you define.
+
+By default the agent's capability set is locked to what the manifest declares. A policy field can
+instead allow clients to extend or replace that set per session, which is useful when different
+callers should have different reach. The practical recipe for setting all of this up is in
+[Control tool access with capabilities](/guides/control-tool-access-with-capabilities).
+
+## State and activity
+
+Tools are aware of the agent's state. When invoked, a tool can receive a snapshot of the current
+run state and read it to make context-aware decisions.
+
+Tools can also return a state update alongside their output. State updates are
+[RFC 6902 JSON Patch](https://jsonpatch.com/) operations that are applied to the agent's state,
+persisted, and emitted to the client as state delta events. What fields are patchable depends on the
+graph implementation. For ReAct, patches target paths under `/context/`.
+
+Additionally, tools can emit activity events during execution. These deliver stateless updates to
+the client as custom events and are intended for generative UI. Activity events are not persisted.
+
+## Where to go next
+
+- [Write a tool](/guides/write-a-tool): author a tool in TypeScript or Python.
+- [Control tool access with capabilities](/guides/control-tool-access-with-capabilities): the capability recipe end to end.
+- [The graph](/concepts/the-graph): how tool state updates flow through a run.
+- [tool reference](/reference/manifest/tool): every field of the `tool` block.

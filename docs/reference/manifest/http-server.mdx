@@ -1,0 +1,52 @@
+---
+title: http_server
+description: The http_server block enables and configures the built-in HTTP server.
+---
+
+The `http_server` block enables the built-in HTTP server. It is optional. If omitted, the agent
+runs as a process without an HTTP interface.
+
+```hcl title="agent.acl"
+http_server {
+  host = runtime("HTTP_HOST", "127.0.0.1")
+  port = runtime("HTTP_PORT", 8080)
+
+  protocol {
+    ag_ui {}
+  }
+}
+```
+
+## Fields
+
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `host` | string | no | yes | `"127.0.0.1"` | Host address to bind the server to. Overridable via the `HTTP_HOST` environment variable. |
+| `port` | integer | no | yes | `8080` | Port to listen on. Overridable via the `HTTP_PORT` environment variable. |
+| `protocol` | block | no | | | Enables optional protocol implementations. |
+
+## protocol block
+
+The `protocol` block enables specific protocol implementations on the HTTP server. Currently only
+`ag_ui` is supported.
+
+### ag_ui
+
+```hcl
+protocol {
+  ag_ui {
+    path = "/ag-ui"
+  }
+}
+```
+
+Enabling `ag_ui` mounts the AG-UI streaming protocol on the server. This allows frontend UIs and
+clients to connect to the agent and receive real-time execution events as a Server-Sent Events
+stream.
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `path` | string | no | `"/ag-ui"` | Base URL path at which the AG-UI endpoint is mounted. The run endpoint is served at `<path>/run`. |
+
+See [AG-UI](/reference/http-api/ag-ui) for the full protocol documentation, event types, and client
+connection examples.

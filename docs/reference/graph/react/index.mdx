@@ -1,0 +1,34 @@
+---
+title: ReAct
+description: The ReAct graph, its runtime contract, and the reference pages that describe it.
+---
+
+The ReAct (Reason + Act) graph is the graph implementation shipped in this distribution. It runs a
+reasoning loop: receive input, call the model, the model may request tools, tools execute and
+return results, the loop repeats until the model produces a final response. Every step is
+checkpointed so the agent can survive crashes and resume from where it left off.
+
+The graph is selected explicitly in the manifest with `graph { type = "react" }`. Once selected,
+ReAct defines the runtime contract for the agent: durable sessions and runs, persisted messages, a
+client-visible `context` object, a set of prompt variables, and the event stream that drives the
+HTTP surface.
+
+Because this contract is specific to the graph, its reference lives here rather than in a shared
+location. A different graph would expose a different set of endpoints, prompt variables, and state.
+
+## Sessions and runs
+
+A session is the durable container for a conversation. A run is one execution of the graph inside a
+session. The runtime persists both, so a client can return later and inspect history without having
+to replay the original request immediately. Messages are persisted separately from run state, so a
+client can read conversation history outside of an active run.
+
+## Reference in this section
+
+- [HTTP reference](/reference/graph/react/http): the native `/v1` endpoints for sessions, messages, and runs, plus the run event stream.
+- [Prompt templates](/reference/graph/react/prompt-templates): the variables the ReAct graph injects into the system prompt.
+- [State](/reference/graph/react/state): the run state structure, how tools update it, and what clients can see.
+
+The AG-UI add-on translates the same underlying graph behavior into the AG-UI event schema. It is a
+protocol wrapper rather than part of the graph, so it is documented separately under
+[AG-UI](/reference/http-api/ag-ui).

@@ -1,0 +1,75 @@
+---
+title: Agents and prompts
+description: How an agent's identity, prompt, model, and capabilities come together.
+---
+
+An agent is the center of a manifest. Everything else exists to serve it: the providers give it a
+model to think with, the tools give it actions to take, the skills give it judgement, and the graph
+gives it a loop to run in. This page explains how the pieces of the agent itself fit together, so the
+guides that configure each one have a shared frame.
+
+## Identity
+
+The `agent` block names the agent and describes it. The name is more than a label: it is available to
+the system prompt at runtime and is used as the service name in traces. The version and description
+travel with the artifact and appear in diagnostics. A manifest defines a single agent.
+
+## The prompt
+
+The system prompt is the agent's standing instructions. In agentc the prompt is not a static string
+baked in and forgotten; it is a template rendered before every run. That lets one prompt adapt to the
+agent's identity, the skills currently registered, per-request context sent by the client, and the
+current time.
+
+```hcl title="agent.acl"
+agent "assistant" {
+  graph {
+    type = "react"
+  }
+
+  prompt = <<-EOT
+    You are {{ agent_name }}, a helpful assistant.
+    {%- if context_vars %}
+    Some context about who you are helping:
+    {%- for var in context_vars %}
+    - {{ var.description }} is {{ var.value }}
+    {%- endfor %}
+    {%- endif %}
+  EOT
+}
+```
+
+Here `{{ agent_name }}` and the `context_vars` loop are filled in at runtime. Context variables are
+values the client attaches to a run, so the same prompt can greet a signed-in customer by name or note
+their account tier without any change to the manifest. A client might send a context variable whose
+description is "the user's name" and whose value is "Ada", and the loop above renders it into the
+prompt. You can also provide several messages instead of one, seeding the conversation with more than a
+single system instruction.
+
+The set of variables you can reference is not fixed by agentc as a whole; it is defined by the graph
+the agent runs on, because the graph decides what state exists during a run. The variables available
+to the ReAct graph, such as `agent_name`, `skills`, `context_vars`, and `current_datetime`, are listed
+in the [ReAct prompt templates reference](/reference/graph/react/prompt-templates). The mechanics of writing these templates are
+covered in [Write dynamic prompts](/guides/write-dynamic-prompts), and sending per-request values from
+a client is covered in [Pass context from the client](/guides/pass-context-from-the-client).
+
+## The model
+
+The agent selects a model by naming a provider and a model identifier. The provider must be one
+declared in the `providers` block, which is also where inference parameters such as temperature and
+token limits live. Separating the provider configuration from the agent's model selection means the
+same agent can point at different models by changing one field. See
+[Configure a model provider](/guides/configure-a-model-provider).
+
+## Capabilities
+
+The agent declares which capabilities it holds, and those capabilities decide which tools it may
+invoke. This is the boundary between what the agent could call and what it is allowed to call. The
+concept is covered in [Tools and capabilities](/concepts/tools-and-capabilities), and the setup recipe
+in [Control tool access with capabilities](/guides/control-tool-access-with-capabilities).
+
+## Where to go next
+
+- [Write dynamic prompts](/guides/write-dynamic-prompts): make the system prompt adapt at runtime.
+- [Configure a model provider](/guides/configure-a-model-provider): choose a model and set inference parameters.
+- [agent reference](/reference/manifest/agent): every field of the `agent` block.

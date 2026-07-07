@@ -1,0 +1,55 @@
+---
+title: build
+description: The build block selects the archetype and target platform.
+---
+
+The `build` block tells the compiler which archetype to target and sets archetype-specific
+options. It is optional; if omitted, the compiler defaults to the `standalone` archetype with
+host-platform settings.
+
+```hcl title="agent.acl"
+build {
+  archetype = "standalone"
+}
+```
+
+## Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `archetype` | string | no | The archetype to compile for. Defaults to `"standalone"`. |
+
+## standalone options
+
+When `archetype = "standalone"` (the default), the following additional fields control
+cross-compilation targeting:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `os` | string | no | Target operating system. One of `"linux"`, `"mac_os"`, `"windows"`. |
+| `arch` | string | no | Target CPU architecture. One of `"x86_64"`, `"aarch64"`. |
+
+`os` and `arch` must always be specified together. When both are omitted, the binary is compiled
+for the host platform. Specifying only one of them is an error.
+
+The `os` and `arch` combination maps to a Rust target triple:
+
+| `os` | `arch` | Target triple |
+|------|--------|---------------|
+| `linux` | `x86_64` | `x86_64-unknown-linux-gnu` |
+| `linux` | `aarch64` | `aarch64-unknown-linux-gnu` |
+| `mac_os` | `x86_64` | `x86_64-apple-darwin` |
+| `mac_os` | `aarch64` | `aarch64-apple-darwin` |
+| `windows` | `x86_64` | `x86_64-pc-windows-msvc` |
+| `windows` | `aarch64` | `aarch64-pc-windows-msvc` |
+
+```hcl
+build {
+  archetype = "standalone"
+  os        = "linux"
+  arch      = "aarch64"
+}
+```
+
+See [Archetypes](/concepts/archetypes) for a full description of the standalone archetype
+and its requirements.

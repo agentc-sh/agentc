@@ -1,0 +1,92 @@
+---
+title: Deploy with Docker and PostgreSQL
+description: Package a standalone agent in a container and run it against PostgreSQL.
+---
+
+Once you can run the binary directly (see [Deploy a standalone binary](/guides/deploy-standalone)), the
+next step for most deployments is a container backed by PostgreSQL. The binary is statically linked and
+has no system dependencies beyond standard C libraries and TLS certificates, so the image can be
+minimal.
+
+## Write a Dockerfile
+
+Build the binary first, then copy it into a slim base image:
+
+```dockerfile title="Dockerfile"
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+
+COPY artifacts/build/my_agent /usr/local/bin/my_agent
+RUN chmod +x /usr/local/bin/my_agent
+
+EXPOSE 8080
+
+CMD ["my_agent", "serve"]
+```
+
+Build the binary and the image:
+
+```bash
+agentc build
+docker build -t my_agent:latest .
+```
+
+## Run it with PostgreSQL
+
+This compose file runs the agent against a PostgreSQL container and waits for the database to be healthy
+before starting:
+
+```yaml title="compose.yaml"
+services:
+  agent:
+    image: my_agent:latest
+    ports:
+      - "8080:8080"
+    environment:
+      AGENT__PROVIDER__ANTHROPIC__API_KEY: ${ANTHROPIC_API_KEY}
+      AGENT__DATABASE__PRIMARY: postgresql://agent:agent@db:5432/agent
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: agent
+      POSTGRES_PASSWORD: agent
+      POSTGRES_DB: agent
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agent"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
+```
+
+The agent runs its database migrations automatically at startup, so no migration step is needed.
+
+## Add a health check
+
+The HTTP server exposes a health endpoint at `GET /health`, which returns `200 OK` when the agent is
+ready. Use it for container and orchestrator probes:
+
+```yaml
+# Kubernetes readiness probe
+readinessProbe:
+  httpGet:
+    path: /health
+    port: 8080
+  initialDelaySeconds: 5
+  periodSeconds: 10
+```
+
+## Where to go next
+
+- [Deploy a standalone binary](/guides/deploy-standalone): environment variables, database, and graceful shutdown.
+- [Instrument with OpenTelemetry](/guides/instrument-with-opentelemetry): wire the container's telemetry to a backend.
+- [Observability reference](/reference/observability): the telemetry environment variables.

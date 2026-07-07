@@ -1,0 +1,44 @@
+---
+title: Observability
+description: Environment variables that configure logging, tracing, and error reporting.
+---
+
+Observability is configured entirely through environment variables read at startup. No manifest
+changes or recompilation are required. For what is instrumented and why, see
+[Observability](/concepts/observability).
+
+## Logging
+
+The agent writes structured JSON logs to stdout.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `LOG_LEVEL` | `info` | Log level. Accepts `trace`, `debug`, `info`, `warn`, or `error`. |
+
+## OpenTelemetry
+
+The agent exports traces, metrics, and logs via OpenTelemetry over OTLP/HTTP. Export is enabled when
+`OTLP_ENDPOINT` is set and disabled when it is absent.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OTLP_ENDPOINT` | none | Base URL of the OTLP HTTP endpoint, for example `http://localhost:4318`. |
+| `APP_ENV` | `production` | Environment tag attached to all OTLP resource attributes. |
+
+The service name is the agent name from the manifest and is baked in at compile time. The OTLP
+protocol is always HTTP; the `/v1/traces`, `/v1/metrics`, and `/v1/logs` paths are appended
+automatically. Any OTLP-compatible backend works, including the OpenTelemetry Collector, Jaeger,
+Grafana Tempo, Honeycomb, and Datadog.
+
+## Sentry
+
+Error tracking via Sentry catches and reports unhandled errors and panics. When `SENTRY_DSN` is not
+set, Sentry is not initialised and has no runtime overhead.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SENTRY_DSN` | none | Your Sentry DSN. When set, Sentry is initialised automatically at startup. |
+| `APP_ENV` | `production` | Environment tag attached to all Sentry events, for example `production` or `staging`. |
+
+The release version reported to Sentry is the agent version from the manifest, baked in at compile
+time.

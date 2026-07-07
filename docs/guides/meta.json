@@ -1,0 +1,18 @@
+{
+  "title": "Guides",
+  "pages": [
+    "author-a-manifest",
+    "write-a-tool",
+    "connect-external-tools-via-mcp",
+    "use-the-bash-tool",
+    "control-tool-access-with-capabilities",
+    "write-dynamic-prompts",
+    "pass-context-from-the-client",
+    "configure-a-model-provider",
+    "connect-a-copilotkit-frontend",
+    "deploy-standalone",
+    "deploy-with-docker-and-postgres",
+    "instrument-with-opentelemetry",
+    "extend-codegen-with-blocks"
+  ]
+}
