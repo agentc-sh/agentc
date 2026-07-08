@@ -42,7 +42,6 @@ pub trait SessionStore: Send + Sync {
     async fn update_run_status(
         &self,
         tenant_id: &str,
-        session_id: Uuid,
         run_id: Uuid,
         status: RunStatus,
     ) -> Result<(), Self::Error>;
@@ -349,7 +348,6 @@ where
                     ctx.session_store()
                         .update_run_status(
                             &params.tenant_id,
-                            params.session_id,
                             params.run_id,
                             params.status,
                         )
@@ -556,12 +554,10 @@ mod tests {
         async fn update_run_status(
             &self,
             _tenant_id: &str,
-            _session_id: Uuid,
             run_id: Uuid,
             status: RunStatus,
         ) -> Result<(), Self::Error> {
-            if let Some(s) = self
-                .runs
+            if let Some(s) = self.runs
                 .lock()
                 .unwrap()
                 .get_mut(&run_id)

@@ -4,7 +4,6 @@
 
 use async_trait::async_trait;
 use futures::stream::{BoxStream, StreamExt};
-use tokio::task::JoinHandle;
 use uuid::Uuid;
 
 use agentc_agent::types::params::RunParams as AgentRunParams;
@@ -31,10 +30,8 @@ pub trait RunOperations: Send + Sync {
     async fn get_run(&self, tenant_id: &str, id: Uuid) -> Result<RunResponse, ServiceError>;
     async fn find_runs(&self, params: FindRunParams) -> Result<Page<RunResponse>, ServiceError>;
     async fn delete_runs(&self, tenant_id: &str, ids: &[Uuid]) -> Result<(), ServiceError>;
-    async fn run(
-        &self,
-        params: RunParams,
-    ) -> Result<(BoxStream<'static, RunEvent>, JoinHandle<()>), ServiceError>;
+    async fn run(&self, params: RunParams) -> Result<BoxStream<'static, RunEvent>, ServiceError>;
+    async fn cancel_run(&self, tenant_id: &str, run_id: Uuid) -> Result<bool, ServiceError>;
 }
 
 #[async_trait]
@@ -133,10 +130,7 @@ impl RunOperations for ApplicationService {
             run_id = ?params.run_id,
         )
     )]
-    async fn run(
-        &self,
-        params: RunParams,
-    ) -> Result<(BoxStream<'static, RunEvent>, JoinHandle<()>), ServiceError> {
+    async fn run(&self, params: RunParams) -> Result<BoxStream<'static, RunEvent>, ServiceError> {
         self.agent
             .run(
                 AgentRunParams::new(params.to_input(), params.tenant_id.clone())
@@ -145,35 +139,47 @@ impl RunOperations for ApplicationService {
             )
             .await
             .map_err(ServiceError::from)
-            .map(move |(stream, handle)| {
-                (
-                    RunStream::new(stream)
-                        .inspect(move |event| match event {
-                            RunEvent::RunStarted { session_id, run_id, .. } => info!(
-                                event = "RunStarted",
-                                tenant_id = &params.tenant_id,
-                                session_id = ?session_id,
-                                run_id = ?run_id,
-                            ),
-                            RunEvent::RunFinished { session_id, run_id, .. } => info!(
-                                event = "RunFinished",
-                                tenant_id = &params.tenant_id,
-                                session_id = ?session_id,
-                                run_id = ?run_id,
-                            ),
-                            RunEvent::RunError { session_id, run_id, error, code, .. } => error!(
-                                event = "RunError",
-                                tenant_id = &params.tenant_id,
-                                session_id = ?session_id,
-                                run_id = ?run_id,
-                                error = ?error,
-                                code = code.as_deref().unwrap_or("none"),
-                            ),
-                            _ => {}
-                        })
-                        .boxed(),
-                    handle,
-                )
+            .map(move |stream| {
+                RunStream::new(stream)
+                    .inspect(move |event| match event {
+                        RunEvent::RunStarted { session_id, run_id, .. } => info!(
+                            event = "RunStarted",
+                            tenant_id = &params.tenant_id,
+                            session_id = ?session_id,
+                            run_id = ?run_id,
+                        ),
+                        RunEvent::RunFinished { session_id, run_id, .. } => info!(
+                            event = "RunFinished",
+                            tenant_id = &params.tenant_id,
+                            session_id = ?session_id,
+                            run_id = ?run_id,
+                        ),
+                        RunEvent::RunError { session_id, run_id, error, code, .. } => error!(
+                            event = "RunError",
+                            tenant_id = &params.tenant_id,
+                            session_id = ?session_id,
+                            run_id = ?run_id,
+                            error = ?error,
+                            code = code.as_deref().unwrap_or("none"),
+                        ),
+                        _ => {}
+                    })
+                    .boxed()
             })
+    }
+
+    #[instrument(
+        level = Level::TRACE,
+        skip(self, tenant_id, run_id),
+        fields(
+            tenant_id = tenant_id,
+            run_id = ?run_id,
+        )
+    )]
+    async fn cancel_run(&self, tenant_id: &str, run_id: Uuid) -> Result<bool, ServiceError> {
+        self.agent
+            .cancel(tenant_id, run_id)
+            .await
+            .map_err(ServiceError::from)
     }
 }

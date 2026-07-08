@@ -4,7 +4,7 @@
 
 use anyhow::Result;
 use std::sync::Arc;
-use tokio::task::JoinHandle;
+use uuid::Uuid;
 
 use agentc_model::registry::ModelRegistry;
 use agentc_prompt::{
@@ -22,7 +22,7 @@ use crate::{
         runtime::{Graph, RunOutcome, SessionConfig},
         state::{GraphNode, InputOf, StateOf},
     },
-    stream::{EventEmitter, EventStream},
+    stream::{EventEmitter, RunStream},
     tools::{
         registry::ToolRegistry,
         traits::{Tool, TypedTool},
@@ -67,11 +67,22 @@ where
         &self.identity
     }
 
-    /// Run the agent with the given input, returning a stream of events that represent the execution.
+    /// Cancel an in-flight run. Returns `true` if this call performed the
+    /// transition, `false` if the run was already terminal or absent.
+    pub async fn cancel(&self, tenant_id: &str, run_id: Uuid) -> Result<bool, AgentError> {
+        self.graph
+            .cancel(tenant_id, run_id)
+            .await
+            .map_err(AgentError::from)
+    }
+
+    /// Run the agent with the given input, returning a self-driving stream of events that
+    /// represent the execution. Polling the stream advances the run; dropping the stream
+    /// before it ends drops the run and cancels it.
     pub async fn run(
         &self,
         params: RunParams<InputOf<N>>,
-    ) -> Result<(EventStream<E>, JoinHandle<()>), AgentError> {
+    ) -> Result<RunStream<E>, AgentError> {
         let (emitter, event_stream) = EventEmitter::<E>::new_pair();
         let graph = self.graph.clone();
         let session_id = params.session_id;
@@ -87,69 +98,74 @@ where
         let compaction_strategy = self.compaction_strategy.clone();
         let template_vars = self.template_vars.clone();
 
-        let handle = tokio::spawn(async move {
-            emitter
-                .emit(AgentEvent::run_started(session_id, run_id).into())
-                .ok();
-
-            match graph
-                .run(
-                    AgentContext {
-                        emitter: emitter.clone(),
-                        model_registry,
-                        tool_registry,
-                        identity,
-                        prompt_env,
-                        token_counter,
-                        compaction_strategy,
-                        session_id,
-                        run_id,
-                        tenant_id: tenant_id.clone(),
-                        template_vars,
-                    },
-                    params.input,
-                    SessionConfig {
-                        session_id,
-                        run_id,
-                        tenant_id,
-                        checkpoint_id,
-                        resume_payload,
-                    },
-                )
-                .await
-            {
-                Ok(result) => {
+        Ok(
+            RunStream::builder()
+                .with_inner(event_stream)
+                .with_future(async move {
                     emitter
-                        .emit(
-                            AgentEvent::run_finished(
+                        .emit(AgentEvent::run_started(session_id, run_id).into())
+                        .ok();
+
+                    match graph
+                        .run(
+                            AgentContext {
+                                emitter: emitter.clone(),
+                                model_registry,
+                                tool_registry,
+                                identity,
+                                prompt_env,
+                                token_counter,
+                                compaction_strategy,
                                 session_id,
                                 run_id,
-                                match &result {
-                                    RunOutcome::Completed(_) => RunStatus::Completed,
-                                    RunOutcome::Interrupted { .. } => RunStatus::Interrupted,
-                                },
-                                match &result {
-                                    RunOutcome::Completed(_) => None,
-                                    RunOutcome::Interrupted { payload, .. } => payload.clone(),
-                                },
-                                Some(result.into_state()),
-                            )
-                            .into(),
+                                tenant_id: tenant_id.clone(),
+                                template_vars,
+                            },
+                            params.input,
+                            SessionConfig {
+                                session_id,
+                                run_id,
+                                tenant_id,
+                                checkpoint_id,
+                                resume_payload,
+                            },
                         )
-                        .ok();
-                }
-                Err(e) => {
-                    emitter
-                        .emit(
-                            AgentEvent::run_error(session_id, run_id, format!("{}", e), None)
-                                .into(),
-                        )
-                        .ok();
-                }
-            }
-        });
-
-        Ok((event_stream, handle))
+                        .await
+                    {
+                        Ok(result) => {
+                            emitter
+                                .emit(
+                                    AgentEvent::run_finished(
+                                        session_id,
+                                        run_id,
+                                        match &result {
+                                            RunOutcome::Completed(_) => RunStatus::Completed,
+                                            RunOutcome::Interrupted { .. } => RunStatus::Interrupted,
+                                            RunOutcome::Cancelled { .. } => RunStatus::Cancelled,
+                                        },
+                                        match &result {
+                                            RunOutcome::Completed(_) => None,
+                                            RunOutcome::Interrupted { payload, .. } => payload.clone(),
+                                            RunOutcome::Cancelled { .. } => None,
+                                        },
+                                        Some(result.into_state()),
+                                    )
+                                    .into(),
+                                )
+                                .ok();
+                        }
+                        Err(e) => {
+                            emitter
+                                .emit(
+                                    AgentEvent::run_error(session_id, run_id, format!("{}", e), None)
+                                        .into(),
+                                )
+                                .ok();
+                        }
+                    }
+                })
+                .build()
+        )
     }
 }
 

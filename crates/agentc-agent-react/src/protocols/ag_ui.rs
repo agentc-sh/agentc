@@ -644,7 +644,7 @@ impl AgUiService for ApplicationService {
         input: RunAgentInput,
         tenant_id: &str,
     ) -> Result<BoxStream<'static, Result<Event, Self::Error>>, Self::Error> {
-        let (stream, _) = self
+        let stream = self
             .run(
                 RunParams::new(tenant_id, input.thread_id)
                     .with_run_id(input.run_id)

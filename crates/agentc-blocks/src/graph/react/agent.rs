@@ -70,6 +70,7 @@ impl CodeGen<ResolvedContext> for AgentCodeGen {
                 registry::McpRegistry,
             };
             use agentc_agent_react::{
+                cancel::SqlReActCanceller,
                 checkpoint::handle::SqlReActCheckpointStoreHandle,
                 graph::ReActNode,
                 types::{
@@ -100,9 +101,10 @@ impl CodeGen<ResolvedContext> for AgentCodeGen {
                         ReActNode::graph()
                             .with_checkpointer(
                                 GraphCheckpointer::new(
-                                    SqlReActCheckpointStoreHandle::new(db)
+                                    SqlReActCheckpointStoreHandle::new(db.clone())
                                 )
                             )
+                            .with_canceller(SqlReActCanceller::new(db))
                             .build()
                     )
                     .with_model_registry(model_registry)

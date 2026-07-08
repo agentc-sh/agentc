@@ -33,6 +33,9 @@ pub enum GraphError {
         #[source]
         source: Option<Box<dyn std::error::Error + Send + Sync>>,
     },
+
+    #[error("cancellation error: {0}")]
+    Cancellation(String),
 }
 
 impl GraphError {
@@ -74,6 +77,10 @@ impl GraphError {
 
     pub fn conversion_error_message(message: impl Into<String>) -> Self {
         Self::ConversionError { message: message.into(), source: None }
+    }
+
+    pub fn cancellation_error(message: impl Into<String>) -> Self {
+        Self::Cancellation(message.into())
     }
 }
 
