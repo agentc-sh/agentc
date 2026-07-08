@@ -82,7 +82,7 @@ opentelemetry-semantic-conventions = { version = "0.32", features = ["semconv_ex
 opentelemetry-appender-tracing = { version = "0.32" }
 sentry = { version = "0.48", features = ["anyhow", "tracing", "tower-http", "opentelemetry"] }
 
-axum = { version = "0.8", features = ["tracing"] }
+axum = { version = "0.8", features = ["tracing", "macros"] }
 axum-server = { version = "0.8", features = ["tls-rustls"] }
 serde_qs = { version = "1.1", features = ["axum"] }
 utoipa = { version = "5.4", features = ["axum_extras", "chrono", "uuid", "time", "url", "preserve_order", "preserve_path_order"] }
@@ -97,6 +97,6 @@ lazy_static = { version = "1" }
 indexmap = { version = "2" }
 walkdir = { version = "2" }
 
-jobq = { git = "https://github.com/wizrds/jobq-rs.git", version = "0.3.0" }
+jobq = { git = "https://github.com/wizrds/jobq-rs.git", version = "0.3.1" }
 
 criterion = { version = "0.8", features = ["html_reports"] }

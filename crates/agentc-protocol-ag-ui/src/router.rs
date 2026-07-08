@@ -16,11 +16,11 @@ use futures::{
 };
 use jobq::{
     Error as JobQueueError,
-    Executable,
+    AnyExecutable,
     FifoQueue,
     JobQueue,
-    JobStreamOptions,
     StreamTask,
+    JobStreamOptions,
 };
 use std::{
     convert::Infallible,
@@ -50,7 +50,7 @@ use crate::{
 struct AgUiRouterState {
     service: Arc<dyn AgUiService>,
     default_tenant_id: DefaultTenantId,
-    task_queue: Arc<JobQueue<FifoQueue<Box<dyn Executable>>>>,
+    task_queue: Arc<JobQueue<FifoQueue<AnyExecutable>>>,
 }
 
 struct AgUiStreamTask {
@@ -123,7 +123,7 @@ impl StreamTask for AgUiStreamTask {
 pub fn router(
     service: Arc<dyn AgUiService>,
     default_tenant_id: DefaultTenantId,
-    task_queue: Arc<JobQueue<FifoQueue<Box<dyn Executable>>>>,
+    task_queue: Arc<JobQueue<FifoQueue<AnyExecutable>>>,
 ) -> OpenApiRouter {
     OpenApiRouter::new()
         .routes(routes!(ag_ui_run_endpoint))
@@ -159,17 +159,16 @@ async fn ag_ui_run_endpoint(
     let tenant_id = tenant_id.map_or(state.default_tenant_id.into_inner(), TenantIdHeader::into_inner);
     let disconnect = CancellationToken::new();
 
-    match state
-        .task_queue
+    match state.task_queue
         .enqueue_stream(JobStreamOptions::new(AgUiStreamTask::new(
-            state.service,
+            state.service.clone(),
             input,
             tenant_id,
             disconnect.clone(),
         )))
         .await
     {
-        Ok(stream) => Sse::new(CancelOnDropStream::new(stream, disconnect).map(|result| {
+        Ok(handle) => Sse::new(CancelOnDropStream::new(handle, disconnect).map(|result| {
             match result {
                 Ok(event) => Ok::<_, Infallible>(
                     Event::default()

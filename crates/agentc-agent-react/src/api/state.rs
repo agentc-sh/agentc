@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 use jobq::{
-    Executable,
+    AnyExecutable,
     FifoQueue,
     JobQueue,
 };
@@ -17,14 +17,14 @@ use crate::service::ApplicationService;
 pub struct ReActApiState {
     pub service: Arc<ApplicationService>,
     pub default_tenant_id: DefaultTenantId,
-    pub task_queue: Arc<JobQueue<FifoQueue<Box<dyn Executable>>>>,
+    pub task_queue: Arc<JobQueue<FifoQueue<AnyExecutable>>>,
 }
 
 impl ReActApiState {
     pub fn new(
         service: Arc<ApplicationService>,
         default_tenant_id: DefaultTenantId,
-        task_queue: Arc<JobQueue<FifoQueue<Box<dyn Executable>>>>,
+        task_queue: Arc<JobQueue<FifoQueue<AnyExecutable>>>,
     ) -> Self {
         Self {
             service,

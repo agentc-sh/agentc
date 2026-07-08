@@ -15,15 +15,11 @@ use futures::stream::StreamExt;
 use futures::stream::BoxStream;
 use jobq::{
     Error as JobQueueError,
-    Executable,
-    FifoQueue,
-    JobQueue,
     JobStreamOptions,
     StreamTask,
 };
 use std::{
     convert::Infallible,
-    sync::Arc,
     time::Duration,
 };
 use tokio_util::sync::CancellationToken;
@@ -261,18 +257,20 @@ async fn create_run_endpoint(
                         .json_data(RunEventDTO::from_event(event))
                         .expect("failed to serialize event data"),
                 ),
-                Err(err) => Ok(Event::default()
-                    .event("error")
-                    .json_data(ErrorResponseDTO::from(match err {
-                        JobQueueError::TaskExecution { source, .. } => {
-                            match source.downcast::<ServiceError>() {
-                                Ok(err) => ApiError::from(*err),
-                                Err(source) => ApiError::unexpected_error(source.to_string()),
+                Err(err) => Ok(
+                    Event::default()
+                        .event("error")
+                        .json_data(ErrorResponseDTO::from(match err {
+                            JobQueueError::TaskExecution { source, .. } => {
+                                match source.downcast::<ServiceError>() {
+                                    Ok(err) => ApiError::from(*err),
+                                    Err(source) => ApiError::unexpected_error(source.to_string()),
+                                }
                             }
-                        }
-                        err => ApiError::unexpected_error(err.to_string()),
-                    }))
-                    .expect("failed to serialize error response")),
+                            err => ApiError::unexpected_error(err.to_string()),
+                        }))
+                        .expect("failed to serialize error response")
+                ),
             }
         }))
         .keep_alive(

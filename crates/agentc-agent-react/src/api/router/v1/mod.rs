@@ -7,9 +7,8 @@ pub mod runs;
 pub mod sessions;
 
 use std::sync::Arc;
-
 use jobq::{
-    Executable,
+    AnyExecutable,
     FifoQueue,
     JobQueue,
 };
@@ -25,7 +24,7 @@ use crate::{
 pub fn router(
     service: Arc<ApplicationService>,
     default_tenant_id: DefaultTenantId,
-    task_queue: Arc<JobQueue<FifoQueue<Box<dyn Executable>>>>,
+    task_queue: Arc<JobQueue<FifoQueue<AnyExecutable>>>,
 ) -> OpenApiRouter {
     OpenApiRouter::new().nest("/v1", {
         OpenApiRouter::new()

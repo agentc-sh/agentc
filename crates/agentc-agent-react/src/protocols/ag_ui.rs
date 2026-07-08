@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 use async_trait::async_trait;
-use futures::stream::StreamExt;
+use futures::stream::{StreamExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
 use serde_json::{from_value, json, to_string, to_value};
 use std::{
@@ -739,7 +739,7 @@ impl AgUiService for ApplicationService {
             .await?;
 
         Ok(
-            AgUiRunStream::new(Box::pin(stream.map(|event| event.to_ag_ui_type())))
+            AgUiRunStream::new(Box::pin(stream.map(|event| event.to_ag_ui_type()).map_err(Into::into)))
                 .with_cancel(ApplicationServiceAgUiCancel {
                     service: self.clone(),
                     tenant_id,
