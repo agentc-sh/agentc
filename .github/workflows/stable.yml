@@ -4,11 +4,6 @@ on:
   push:
     branches: [main]
 
-env:
-  IMAGE_REGISTRY: "ghcr.io"
-  IMAGE_NAME: "agentc-sh/agentc"
-  IMAGE_URI: "ghcr.io/agentc-sh/agentc"
-
 jobs:
   bump:
     if: |
@@ -72,3 +67,41 @@ jobs:
           github_token: ${{ secrets.RELEASE_TOKEN }}
           branch: main
           tags: true
+
+  sync-dev:
+    if: |
+      !contains(github.event.head_commit.message, '[skip-ci]') &&
+      !startsWith(github.event.head_commit.message, 'chore(release):') &&
+      github.repository == 'agentc-sh/agentc'
+    name: Sync main into dev
+    needs: [bump]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+        with:
+          token: ${{ secrets.RELEASE_TOKEN }}
+          fetch-depth: 0
+
+      - name: Set up git identity
+        run: |
+          git config --local user.name "${{ vars.RELEASE_GIT_USER }}"
+          git config --local user.email "${{ secrets.RELEASE_GIT_EMAIL }}"
+
+      - name: Sync main into dev
+        run: |
+          git fetch origin +main:main
+          git fetch origin +dev:dev
+
+          CHANGES=$(git log --oneline dev..main)
+
+          if [ -n "$CHANGES" ]; then
+            echo "Synchronizing 'main' into 'dev'."
+            git checkout dev
+            git merge main -m "Synchronize 'main' into 'dev' [skip-ci]" --no-ff
+            git push origin dev
+          else
+            echo "No changes to synchronize."
+          fi

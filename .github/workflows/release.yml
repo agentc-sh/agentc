@@ -131,7 +131,7 @@ jobs:
     if: |
       !contains(github.event.head_commit.message, '[skip-ci]') &&
       github.repository == 'agentc-sh/agentc'
-    needs: [build-binaries]
+    needs: [build-binaries, build-docker-slim, build-docker-toolchain]
     name: Create GitHub release
     runs-on: ubuntu-latest
     permissions:

@@ -1,7 +1,10 @@
-target
+target/
+**/target/
+crates/**/target/
 build
 deploy
 certs
+test-bin
 
 .cosign
 .vscode
@@ -28,7 +31,6 @@ SLSA.md
 CLAUDE.md
 AGENTS.md
 CHANGELOG.md
-README.md
 PLANS.md
 Taskfile.yml
 example.*.yaml

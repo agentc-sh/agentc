@@ -111,12 +111,18 @@ tasks:
         esac
 
   build:slim:
+    vars:
+      IMAGE_NAME: '{{ .IMAGE_NAME | default "ghcr.io/agentc-sh/agentc" }}'
+      IMAGE_TAG: '{{ .IMAGE_TAG | default "local-slim" }}'
+      DOCKERFILE: '{{ .DOCKERFILE | default "build/docker/slim.Dockerfile" }}'
+      BUILD_ARGS: '{{ .BUILD_ARGS | default "" }}'
     cmds:
       - task: build
         vars:
-          IMAGE_NAME: '{{ .IMAGE_NAME | default "ghcr.io/agentc-sh/agentc" }}'
-          IMAGE_TAG: '{{ .IMAGE_TAG | default "local-slim" }}'
-          DOCKERFILE: '{{ .DOCKERFILE | default "build/docker/slim.Dockerfile" }}'
+          IMAGE_NAME: '{{ .IMAGE_NAME }}'
+          IMAGE_TAG: '{{ .IMAGE_TAG }}'
+          DOCKERFILE: '{{ .DOCKERFILE }}'
+          BUILD_ARGS: '{{ .BUILD_ARGS }}'
 
   build:toolchain:
     vars:
@@ -128,6 +134,7 @@ tasks:
       PNPM_VERSION: '{{ .PNPM_VERSION | default "11.1.2" }}'
       ESBUILD_VERSION: '{{ .ESBUILD_VERSION | default "0.28.0" }}'
       UV_VERSION: '{{ .UV_VERSION | default "0.8.0" }}'
+      BUILD_ARGS: '{{ .BUILD_ARGS | default "" }}'
     cmds:
       - task: build
         vars:
@@ -140,3 +147,4 @@ tasks:
             --build-arg PNPM_VERSION={{.PNPM_VERSION}}
             --build-arg ESBUILD_VERSION={{.ESBUILD_VERSION}}
             --build-arg UV_VERSION={{.UV_VERSION}}
+            {{.BUILD_ARGS}}
