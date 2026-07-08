@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
+use std::fmt::{Display, Formatter, Result as FmtResult};
 use anyhow::Error;
 use axum::extract::{
     path::ErrorKind,
@@ -214,3 +215,18 @@ impl From<QueryRejection> for ApiError {
         }
     }
 }
+
+impl Display for ApiError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        match self {
+            ApiError::Generic { code, message } => write!(f, "ApiError (code {}): {}", code, message),
+            ApiError::Validation { code, errors } => write!(
+                f,
+                "ApiError (code {}): Validation errors: {:?}",
+                code, errors
+            ),
+        }
+    }
+}
+
+impl std::error::Error for ApiError {}

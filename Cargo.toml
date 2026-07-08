@@ -97,4 +97,6 @@ lazy_static = { version = "1" }
 indexmap = { version = "2" }
 walkdir = { version = "2" }
 
+jobq = { git = "https://github.com/wizrds/jobq-rs.git", version = "0.3.0" }
+
 criterion = { version = "0.8", features = ["html_reports"] }
