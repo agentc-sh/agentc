@@ -46,7 +46,7 @@ futures = { version = "0.3" }
 
 rustls = { version = "0.23", features = ["aws_lc_rs"] }
 
-thiserror = { version = "2.0" }
+thiserror = { version = "2" }
 anyhow = { version = "1" }
 
 serde = { version = "1", features = ["derive"] }
@@ -62,9 +62,9 @@ regex = { version = "1.12" }
 convert_case = { version = "0.11" }
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1.23", features = ["v4", "v5", "fast-rng", "zerocopy", "serde"] }
+url = { version = "2", features = ["serde"] }
 json-patch = { version = "4.2", features = ["schemars", "utoipa"] }
 schemars = { version = "1.1", features = ["derive", "chrono04", "url2", "uuid1"] }
-utoipa = { version = "5.4", features = ["axum_extras", "chrono", "uuid", "time", "url", "preserve_order", "preserve_path_order"] }
 
 cel = { version = "0.14", features = ["chrono", "regex", "json"] }
 minijinja = { version = "2", features = ["json"] }
@@ -82,9 +82,10 @@ opentelemetry-semantic-conventions = { version = "0.32", features = ["semconv_ex
 opentelemetry-appender-tracing = { version = "0.32" }
 sentry = { version = "0.48", features = ["anyhow", "tracing", "tower-http", "opentelemetry"] }
 
-axum = { version = "0.8", features = ["tracing"] }
+axum = { version = "0.8", features = ["tracing", "macros"] }
 axum-server = { version = "0.8", features = ["tls-rustls"] }
 serde_qs = { version = "1.1", features = ["axum"] }
+utoipa = { version = "5.4", features = ["axum_extras", "chrono", "uuid", "time", "url", "preserve_order", "preserve_path_order"] }
 utoipa-axum = { version = "0.2" }
 utoipa-scalar = { version = "0.3", features = ["axum"] }
 tower-http = { version = "0.7", features = ["trace"] }
@@ -95,5 +96,7 @@ http = { version = "1.4" }
 lazy_static = { version = "1" }
 indexmap = { version = "2" }
 walkdir = { version = "2" }
+
+jobq = { git = "https://github.com/wizrds/jobq-rs.git", version = "0.3.1" }
 
 criterion = { version = "0.8", features = ["html_reports"] }

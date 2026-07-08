@@ -84,16 +84,17 @@ where
                 "emit".into(),
                 ArgValue::Callable(Arc::new(move |params| {
                     if let Some(arc) = weak_tx.upgrade()
-                        && let Some(tx) = arc.as_ref() {
-                            let delta: ActivityDelta = match params.into_iter().next() {
-                                Some(ArgValue::Json(v)) => match from_value(v) {
-                                    Ok(d) => d,
-                                    Err(_) => return Ok(Value::Null),
-                                },
-                                _ => return Ok(Value::Null),
-                            };
-                            let _ = tx.try_send(delta);
-                        }
+                        && let Some(tx) = arc.as_ref()
+                    {
+                        let delta: ActivityDelta = match params.into_iter().next() {
+                            Some(ArgValue::Json(v)) => match from_value(v) {
+                                Ok(d) => d,
+                                Err(_) => return Ok(Value::Null),
+                            },
+                            _ => return Ok(Value::Null),
+                        };
+                        let _ = tx.try_send(delta);
+                    }
                     Ok(Value::Null)
                 })),
             ));

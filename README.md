@@ -34,9 +34,9 @@
     <a href="https://docs.agentc.sh"><strong>Explore the docs »</strong></a>
     <br />
     <br />
-    <a href="https://github.com/agentc-sh/agentc/issues/new?labels=bug&template=bug-report---.md">Report Bug</a>
+    <a href="https://github.com/agentc-sh/agentc/issues/new?labels=bug&template=bug.yml">Report Bug</a>
     &middot;
-    <a href="https://github.com/agentc-sh/agentc/issues/new?labels=enhancement&template=feature-request---.md">Request Feature</a>
+    <a href="https://github.com/agentc-sh/agentc/issues/new?labels=enhancement&template=feature_request.yml">Request Feature</a>
   </p>
 </div>
 
@@ -192,7 +192,9 @@ Don't forget to give the project a star! Thanks again!
 <!-- LICENSE -->
 ## License
 
-Distributed under the MIT License. See `LICENSE` for more information.
+The code is distributed under the MIT License. See `LICENSE` for more information.
+
+The documentation under `docs/` is distributed under CC-BY-4.0.
 
 <!-- CONTACT -->
 ## Contact

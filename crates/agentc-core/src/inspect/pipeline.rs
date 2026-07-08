@@ -5,6 +5,7 @@
 use std::sync::Arc;
 use tokio::sync::mpsc::{self, error::SendError};
 
+use agentc_blocks::catalog::CompilationCatalog;
 use agentc_compiler::{
     asset::AssetResolver, generator::loader::ResourceLoader, transformer::TransformerRegistry,
 };
@@ -17,6 +18,7 @@ use crate::{
     manifest::Manifest,
     pipeline::{
         steps::{
+            compose::ComposeStep,
             fetch::{FetchStep, FetchStepInput},
             resolve::ResolveStep,
             transform::TransformStep,
@@ -35,6 +37,7 @@ pub struct InspectPipeline {
     manifest: Manifest,
     asset_resolver: AssetResolver,
     loader: Arc<dyn ResourceLoader>,
+    catalog: Arc<CompilationCatalog>,
     transformer_registry: TransformerRegistry,
     tx: mpsc::Sender<InspectEvent>,
 }
@@ -49,11 +52,14 @@ impl InspectPipeline {
             .step(FetchStep::new(self.asset_resolver))
             .step(TransformStep::new(self.transformer_registry))
             .step(ResolveStep::new(self.loader))
+            .step(ComposeStep::new(self.catalog, Vec::new()))
             .run(FetchStepInput { manifest: self.manifest }, self.tx.clone())
             .await
             .map(|output| InspectResult {
                 agent_name: output.agent_name,
                 archetype_name: output.archetype_name,
+                graph_name: output.graph_name,
+                protocol_names: output.protocol_names,
                 context: output.context,
             });
 
@@ -72,6 +78,7 @@ pub struct InspectPipelineBuilder {
     manifest: Option<Manifest>,
     asset_resolver: Option<AssetResolver>,
     loader: Option<Arc<dyn ResourceLoader>>,
+    catalog: Option<Arc<CompilationCatalog>>,
     transformer_registry: TransformerRegistry,
     stream_capacity: usize,
 }
@@ -88,6 +95,7 @@ impl InspectPipelineBuilder {
             manifest: None,
             asset_resolver: None,
             loader: None,
+            catalog: None,
             transformer_registry: TransformerRegistry::new(),
             stream_capacity: 256,
         }
@@ -116,6 +124,16 @@ impl InspectPipelineBuilder {
         self
     }
 
+    pub fn catalog(mut self, catalog: CompilationCatalog) -> Self {
+        self.catalog = Some(Arc::new(catalog));
+        self
+    }
+
+    pub fn catalog_arc(mut self, catalog: Arc<CompilationCatalog>) -> Self {
+        self.catalog = Some(catalog);
+        self
+    }
+
     pub fn transformer_registry(mut self, registry: TransformerRegistry) -> Self {
         self.transformer_registry = registry;
         self
@@ -139,6 +157,9 @@ impl InspectPipelineBuilder {
                 })?,
                 loader: self.loader.ok_or_else(|| {
                     InspectError::pipeline_configuration("resource loader is required")
+                })?,
+                catalog: self.catalog.ok_or_else(|| {
+                    InspectError::pipeline_configuration("compilation catalog is required")
                 })?,
                 transformer_registry: self.transformer_registry,
                 tx,

@@ -4,10 +4,12 @@
 
 pub mod codegen;
 pub mod graph;
+pub mod set;
 pub mod template;
 pub mod traits;
 
 pub use graph::BlockGraph;
+pub use set::BlockSet;
 pub use traits::Block;
 
 #[cfg(test)]

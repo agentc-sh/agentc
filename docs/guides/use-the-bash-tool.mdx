@@ -1,0 +1,88 @@
+---
+title: Use the bash tool
+description: Configure and use the built-in bash tool with scoped access to the host.
+---
+
+The bash tool gives the agent a sandboxed shell. You do not write code for it; you configure the
+environment it runs in. That means choosing which host programs it can call, what filesystem it sees,
+which environment variables reach it, and what limits apply. It is the right choice when you want to
+expose existing command-line tools such as `git` or `jq` without writing a wrapper. For the full field
+reference, see the [tool reference](/reference/manifest/tool).
+
+The sandbox ships with roughly eighty standard shell utilities always available, including text tools
+such as `jq`, `sed`, and `awk` and a built-in `curl`. Everything below adds to or constrains that
+baseline.
+
+## A worked example
+
+This declaration adds `git` on top of the built-ins, a read-write workspace directory, a narrow set of
+forwarded environment variables, and scoped network access:
+
+```hcl title="agent.acl"
+tool "shell" {
+  kind = "bash"
+
+  commands = ["git"]
+
+  fs {
+    kind = "read_write"
+    path = "workspace/"
+    cwd  = "/home/agent"
+  }
+
+  env {
+    kind = "allow"
+    vars = ["HOME", "PATH"]
+  }
+
+  network {
+    enabled              = true
+    allowed_url_prefixes = ["https://api.github.com"]
+    allowed_methods      = ["GET", "POST"]
+  }
+}
+```
+
+## Add host programs
+
+Many common utilities, including `jq`, `sed`, `awk`, and `curl`, are already built in, so you do not
+need to list them. The `commands` list is for host programs that are not built in, such as `git`. Each
+name is proxied to the real binary on the host, which must be present when the agent runs:
+
+```hcl
+commands = ["git"]
+```
+
+Omit `commands` to expose only the built-in set.
+
+## Choose a filesystem backend
+
+The `fs` block decides what the sandbox can see on disk. Pick the backend that matches how much access
+the task needs:
+
+- `in_memory` is fully isolated with no host access. This is the default.
+- `overlay` reads from a host path but keeps writes in memory and discards them.
+- `read_write` reads and writes directly to a host path.
+
+The `overlay` and `read_write` backends require a `path`.
+
+## Control environment and limits
+
+The `env` block chooses which host environment variables are forwarded: `empty` forwards none,
+`inherit` forwards all, `allow` forwards only those in `vars`, and `deny` forwards all except those in
+`vars`. Prefer `allow` in production so the sandbox sees only what it needs.
+
+The `limits` block caps each execution (wall-clock time, output size, command count, loop iterations)
+and falls back to sandbox defaults when omitted.
+
+## Scope network access
+
+The `network` block governs the sandboxed `curl` command only. It is disabled by default. When you
+enable it, restrict it to the URL prefixes and methods the task actually requires rather than opening
+it fully.
+
+## Where to go next
+
+- [Tools and capabilities](/concepts/tools-and-capabilities): where the bash tool fits among the kinds.
+- [Control tool access with capabilities](/guides/control-tool-access-with-capabilities): gate the shell behind a capability.
+- [tool reference](/reference/manifest/tool): every field of the `fs`, `env`, `limits`, and `network` blocks.

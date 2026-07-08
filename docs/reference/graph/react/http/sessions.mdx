@@ -1,0 +1,155 @@
+---
+title: Sessions
+description: The native HTTP endpoints for creating, finding, reading, and deleting sessions.
+---
+
+A session is the durable conversation boundary. These endpoints create, list, read, and delete
+sessions.
+
+## Find sessions
+
+Find sessions with optional filtering and pagination.
+
+<Endpoint method="GET" path="/v1/sessions">
+  Find sessions with optional filtering and pagination.
+</Endpoint>
+
+<Parameters in="query">
+  <Field name="per_page" type="integer | null" default="100">
+    Maximum page size.
+  </Field>
+  <Field name="page" type="string | null">
+    Opaque cursor for the next page.
+  </Field>
+  <Field name="ids" type="string[] | null">
+    Session IDs to filter on.
+  </Field>
+  <Field name="created_before" type="string | null">
+    Filter by creation time.
+  </Field>
+  <Field name="created_after" type="string | null">
+    Filter by creation time.
+  </Field>
+  <Field name="updated_before" type="string | null">
+    Filter by update time.
+  </Field>
+  <Field name="updated_after" type="string | null">
+    Filter by update time.
+  </Field>
+</Parameters>
+
+<Responses>
+  <Response status="200" description="Sessions retrieved successfully.">
+    <Variants label="PaginatedSessionResponse">
+      <Variant label="Session">
+        <Field name="items" type={<>{<Link href="/reference/graph/react/http/sessions">Session</Link>}[]</>}>
+          The returned sessions.
+        </Field>
+        <Field name="count" type="integer">
+          The total number of matching sessions.
+        </Field>
+        <Field name="next_page" type="string | null">
+          Cursor for the next page, if any.
+        </Field>
+        <Field name="id" type="string">
+          The session ID.
+        </Field>
+        <Field name="created_at" type="string">
+          The creation timestamp.
+        </Field>
+        <Field name="updated_at" type="string">
+          The last update timestamp.
+        </Field>
+      </Variant>
+    </Variants>
+  </Response>
+  <Response status="400" description="Bad request." />
+  <Response status="500" description="Internal server error." />
+</Responses>
+
+## Create a new session
+
+Create a new session with the specified parameters.
+
+<Endpoint method="POST" path="/v1/sessions">
+  Create a new session with the specified parameters.
+</Endpoint>
+
+<Parameters in="body">
+  <Field name="id" type="string | null">
+    Optional session ID. If omitted, one is generated automatically.
+  </Field>
+</Parameters>
+
+<Responses>
+  <Response status="201" description="Session created successfully.">
+    <Fields label="Session">
+      <Field name="id" type="string">
+        The session ID.
+      </Field>
+      <Field name="created_at" type="string">
+        The creation timestamp.
+      </Field>
+      <Field name="updated_at" type="string">
+        The last update timestamp.
+      </Field>
+    </Fields>
+  </Response>
+  <Response status="400" description="Bad request." />
+  <Response status="422" description="Validation error." />
+  <Response status="500" description="Internal server error." />
+</Responses>
+
+## Get a session by ID
+
+Get a session by its ID.
+
+<Endpoint method="GET" path="/v1/sessions/{session_id}">
+  Get a session by its ID.
+</Endpoint>
+
+<Parameters in="path">
+  <Field name="session_id" type="string">
+    The session ID.
+  </Field>
+</Parameters>
+
+<Responses>
+  <Response status="200" description="Session retrieved successfully.">
+    <Fields label="Session">
+      <Field name="id" type="string">
+        The session ID.
+      </Field>
+      <Field name="created_at" type="string">
+        The creation timestamp.
+      </Field>
+      <Field name="updated_at" type="string">
+        The last update timestamp.
+      </Field>
+    </Fields>
+  </Response>
+  <Response status="400" description="Bad request." />
+  <Response status="404" description="Session not found." />
+  <Response status="500" description="Internal server error." />
+</Responses>
+
+## Delete a session by ID
+
+Delete a session by its ID.
+
+<Endpoint method="DELETE" path="/v1/sessions/{session_id}">
+  Delete a session by its ID.
+</Endpoint>
+
+<Parameters in="path">
+  <Field name="session_id" type="string">
+    The session ID.
+  </Field>
+</Parameters>
+
+<Responses>
+  <Response status="204" description="Session deleted successfully." />
+  <Response status="400" description="Bad request." />
+  <Response status="404" description="Session not found." />
+  <Response status="500" description="Internal server error." />
+</Responses>

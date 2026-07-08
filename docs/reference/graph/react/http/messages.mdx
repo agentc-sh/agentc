@@ -1,0 +1,603 @@
+---
+title: Messages
+description: The native HTTP endpoints for creating, finding, reading, and deleting messages.
+---
+
+Messages are persisted separately from run state, so a client can read conversation history outside
+of an active run and add messages to a session directly.
+
+## Find messages for a session
+
+Find messages for a session with optional filtering and pagination.
+
+<Endpoint method="GET" path="/v1/sessions/{session_id}/messages">
+  Find messages for a session with optional filtering and pagination.
+</Endpoint>
+
+<Parameters in="path">
+  <Field name="session_id" type="string">
+    The session ID.
+  </Field>
+</Parameters>
+
+<Parameters in="query">
+  <Field name="per_page" type="integer | null" default="100">
+    Maximum page size.
+  </Field>
+  <Field name="page" type="string | null">
+    Opaque cursor for the next page.
+  </Field>
+  <Field name="ids" type="string[] | null">
+    Message IDs to filter on.
+  </Field>
+  <Field name="run_ids" type="string[] | null">
+    Run IDs to filter on.
+  </Field>
+  <Field name="roles" type="string[] | null">
+    Message roles to filter on.
+  </Field>
+  <Field name="created_before" type="string | null">
+    Filter by creation time.
+  </Field>
+  <Field name="created_after" type="string | null">
+    Filter by creation time.
+  </Field>
+</Parameters>
+
+<Responses>
+  <Response status="200" description="Messages retrieved successfully.">
+    <Variants label="PaginatedMessageResponse">
+      <Variant label="system">
+        <Field name="items" type={<>{<Link href="/reference/graph/react/http/messages">Message</Link>}[]</>}>
+          The returned messages.
+        </Field>
+        <Field name="count" type="integer">
+          The total number of matching messages.
+        </Field>
+        <Field name="next_page" type="string | null">
+          Cursor for the next page, if any.
+        </Field>
+        <Field name="role" type="string" enum={["system"]}>
+          The message role.
+        </Field>
+        <Field name="id" type="string">
+          The message ID.
+        </Field>
+        <Field name="session_id" type="string">
+          The session ID.
+        </Field>
+        <Field name="run_id" type="string | null">
+          The run ID, if any.
+        </Field>
+        <Field name="created_at" type="string">
+          The creation timestamp.
+        </Field>
+        <Field name="content" type="string">
+          The system message text.
+        </Field>
+      </Variant>
+      <Variant label="user">
+        <Field name="items" type={<>{<Link href="/reference/graph/react/http/messages">Message</Link>}[]</>}>
+          The returned messages.
+        </Field>
+        <Field name="count" type="integer">
+          The total number of matching messages.
+        </Field>
+        <Field name="next_page" type="string | null">
+          Cursor for the next page, if any.
+        </Field>
+        <Field name="role" type="string" enum={["user"]}>
+          The message role.
+        </Field>
+        <Field name="id" type="string">
+          The message ID.
+        </Field>
+        <Field name="session_id" type="string">
+          The session ID.
+        </Field>
+        <Field name="run_id" type="string | null">
+          The run ID, if any.
+        </Field>
+        <Field name="created_at" type="string">
+          The creation timestamp.
+        </Field>
+        <Field name="content" type={<>{<Link href="#usercontent">UserContent</Link>}[]</>}>
+          The multimodal content blocks.
+        </Field>
+      </Variant>
+      <Variant label="assistant">
+        <Field name="items" type={<>{<Link href="/reference/graph/react/http/messages">Message</Link>}[]</>}>
+          The returned messages.
+        </Field>
+        <Field name="count" type="integer">
+          The total number of matching messages.
+        </Field>
+        <Field name="next_page" type="string | null">
+          Cursor for the next page, if any.
+        </Field>
+        <Field name="role" type="string" enum={["assistant"]}>
+          The message role.
+        </Field>
+        <Field name="id" type="string">
+          The message ID.
+        </Field>
+        <Field name="session_id" type="string">
+          The session ID.
+        </Field>
+        <Field name="run_id" type="string | null">
+          The run ID, if any.
+        </Field>
+        <Field name="created_at" type="string">
+          The creation timestamp.
+        </Field>
+        <Field name="content" type="string | null">
+          The assistant text, if any.
+        </Field>
+        <Field name="tool_calls" type={<>{<Link href="#toolcall">ToolCall</Link>}[] | null</>}>
+          Tool calls emitted by the assistant, if any.
+        </Field>
+      </Variant>
+      <Variant label="tool">
+        <Field name="items" type={<>{<Link href="/reference/graph/react/http/messages">Message</Link>}[]</>}>
+          The returned messages.
+        </Field>
+        <Field name="count" type="integer">
+          The total number of matching messages.
+        </Field>
+        <Field name="next_page" type="string | null">
+          Cursor for the next page, if any.
+        </Field>
+        <Field name="role" type="string" enum={["tool"]}>
+          The message role.
+        </Field>
+        <Field name="id" type="string">
+          The message ID.
+        </Field>
+        <Field name="session_id" type="string">
+          The session ID.
+        </Field>
+        <Field name="run_id" type="string | null">
+          The run ID, if any.
+        </Field>
+        <Field name="created_at" type="string">
+          The creation timestamp.
+        </Field>
+        <Field name="tool_call_id" type="string">
+          The tool call ID.
+        </Field>
+        <Field name="content" type="string | null">
+          Tool output text.
+        </Field>
+        <Field name="error" type="string | null">
+          Error text if the tool failed.
+        </Field>
+      </Variant>
+      <Variant label="reasoning">
+        <Field name="items" type={<>{<Link href="/reference/graph/react/http/messages">Message</Link>}[]</>}>
+          The returned messages.
+        </Field>
+        <Field name="count" type="integer">
+          The total number of matching messages.
+        </Field>
+        <Field name="next_page" type="string | null">
+          Cursor for the next page, if any.
+        </Field>
+        <Field name="role" type="string" enum={["reasoning"]}>
+          The message role.
+        </Field>
+        <Field name="id" type="string">
+          The message ID.
+        </Field>
+        <Field name="session_id" type="string">
+          The session ID.
+        </Field>
+        <Field name="run_id" type="string | null">
+          The run ID, if any.
+        </Field>
+        <Field name="created_at" type="string">
+          The creation timestamp.
+        </Field>
+        <Field name="content" type="string">
+          The reasoning text.
+        </Field>
+        <Field name="signature" type="string | null">
+          The reasoning signature, if any.
+        </Field>
+      </Variant>
+    </Variants>
+  </Response>
+  <Response status="400" description="Bad request." />
+  <Response status="404" description="Session not found." />
+  <Response status="500" description="Internal server error." />
+</Responses>
+
+## Create a new message in a session
+
+Create a new message in a session outside of a run.
+
+<Endpoint method="POST" path="/v1/sessions/{session_id}/messages">
+  Create a new message in a session outside of a run.
+</Endpoint>
+
+<Parameters in="path">
+  <Field name="session_id" type="string">
+    The session ID.
+  </Field>
+</Parameters>
+
+<Parameters in="body">
+  <Field name="role" type="string" enum={["system", "user", "tool"]}>
+    The message role.
+  </Field>
+</Parameters>
+
+<Variants label="CreateMessageRequest">
+  <Variant label="system">
+    <Field name="id" type="string | null">
+      Optional message ID. If omitted, one is generated automatically.
+    </Field>
+    <Field name="content" type="string">
+      The system message text.
+    </Field>
+  </Variant>
+  <Variant label="user">
+    <Field name="id" type="string | null">
+      Optional message ID. If omitted, one is generated automatically.
+    </Field>
+      <Field name="content" type={<>{<Link href="#usercontent">UserContent</Link>}[]</>}>
+      Ordered content blocks. A user message may include text and media.
+    </Field>
+  </Variant>
+  <Variant label="tool">
+    <Field name="id" type="string | null">
+      Optional message ID. If omitted, one is generated automatically.
+    </Field>
+    <Field name="tool_call_id" type="string">
+      The tool call this message completes.
+    </Field>
+    <Field name="parent_message_id" type="string | null">
+      The assistant message that started the tool call.
+    </Field>
+    <Field name="content" type="string | null">
+      Tool output text.
+    </Field>
+    <Field name="error" type="string | null">
+      Error text if the tool failed.
+    </Field>
+  </Variant>
+</Variants>
+
+<Responses>
+  <Response status="201" description="Message created successfully.">
+    <Variants label="Message">
+      <Variant label="system">
+        <Field name="role" type="string" enum={["system"]}>
+          The message role.
+        </Field>
+        <Field name="id" type="string">
+          The message ID.
+        </Field>
+        <Field name="session_id" type="string">
+          The session ID.
+        </Field>
+        <Field name="run_id" type="string | null">
+          The run ID, if any.
+        </Field>
+        <Field name="content" type="string">
+          The system message text.
+        </Field>
+        <Field name="created_at" type="string">
+          The creation timestamp.
+        </Field>
+      </Variant>
+      <Variant label="user">
+        <Field name="role" type="string" enum={["user"]}>
+          The message role.
+        </Field>
+        <Field name="id" type="string">
+          The message ID.
+        </Field>
+        <Field name="session_id" type="string">
+          The session ID.
+        </Field>
+        <Field name="run_id" type="string | null">
+          The run ID, if any.
+        </Field>
+        <Field name="content" type={<>{<Link href="#usercontent">UserContent</Link>}[]</>}>
+          The multimodal content blocks.
+        </Field>
+        <Field name="created_at" type="string">
+          The creation timestamp.
+        </Field>
+      </Variant>
+      <Variant label="tool">
+        <Field name="role" type="string" enum={["tool"]}>
+          The message role.
+        </Field>
+        <Field name="id" type="string">
+          The message ID.
+        </Field>
+        <Field name="session_id" type="string">
+          The session ID.
+        </Field>
+        <Field name="run_id" type="string | null">
+          The run ID, if any.
+        </Field>
+        <Field name="tool_call_id" type="string">
+          The tool call ID.
+        </Field>
+        <Field name="content" type="string | null">
+          Tool output text.
+        </Field>
+        <Field name="error" type="string | null">
+          Error text if the tool failed.
+        </Field>
+        <Field name="created_at" type="string">
+          The creation timestamp.
+        </Field>
+      </Variant>
+    </Variants>
+  </Response>
+  <Response status="400" description="Bad request." />
+  <Response status="404" description="Session not found." />
+  <Response status="500" description="Internal server error." />
+</Responses>
+
+## Get a message by ID
+
+Get a message by its ID.
+
+<Endpoint method="GET" path="/v1/messages/{message_id}">
+  Get a message by its ID.
+</Endpoint>
+
+<Parameters in="path">
+  <Field name="message_id" type="string">
+    The message ID.
+  </Field>
+</Parameters>
+
+<Responses>
+  <Response status="200" description="Message retrieved successfully.">
+    <Variants label="Message">
+      <Variant label="system">
+        <Field name="role" type="string" enum={["system"]}>
+          The message role.
+        </Field>
+        <Field name="id" type="string">
+          The message ID.
+        </Field>
+        <Field name="session_id" type="string">
+          The session ID.
+        </Field>
+        <Field name="run_id" type="string | null">
+          The run ID, if any.
+        </Field>
+        <Field name="content" type="string">
+          The system message text.
+        </Field>
+        <Field name="created_at" type="string">
+          The creation timestamp.
+        </Field>
+      </Variant>
+      <Variant label="user">
+        <Field name="role" type="string" enum={["user"]}>
+          The message role.
+        </Field>
+        <Field name="id" type="string">
+          The message ID.
+        </Field>
+        <Field name="session_id" type="string">
+          The session ID.
+        </Field>
+        <Field name="run_id" type="string | null">
+          The run ID, if any.
+        </Field>
+        <Field name="content" type={<>{<Link href="#usercontent">UserContent</Link>}[]</>}>
+          The multimodal content blocks.
+        </Field>
+        <Field name="created_at" type="string">
+          The creation timestamp.
+        </Field>
+      </Variant>
+      <Variant label="assistant">
+        <Field name="role" type="string" enum={["assistant"]}>
+          The message role.
+        </Field>
+        <Field name="id" type="string">
+          The message ID.
+        </Field>
+        <Field name="session_id" type="string">
+          The session ID.
+        </Field>
+        <Field name="run_id" type="string">
+          The run ID.
+        </Field>
+        <Field name="content" type="string | null">
+          The assistant text, if any.
+        </Field>
+        <Field name="tool_calls" type={<>{<Link href="#toolcall">ToolCall</Link>}[] | null</>}>
+          Tool calls emitted by the assistant, if any.
+        </Field>
+        <Field name="created_at" type="string">
+          The creation timestamp.
+        </Field>
+      </Variant>
+      <Variant label="tool">
+        <Field name="role" type="string" enum={["tool"]}>
+          The message role.
+        </Field>
+        <Field name="id" type="string">
+          The message ID.
+        </Field>
+        <Field name="session_id" type="string">
+          The session ID.
+        </Field>
+        <Field name="run_id" type="string | null">
+          The run ID, if any.
+        </Field>
+        <Field name="tool_call_id" type="string">
+          The tool call ID.
+        </Field>
+        <Field name="content" type="string | null">
+          Tool output text.
+        </Field>
+        <Field name="error" type="string | null">
+          Error text if the tool failed.
+        </Field>
+        <Field name="created_at" type="string">
+          The creation timestamp.
+        </Field>
+      </Variant>
+      <Variant label="reasoning">
+        <Field name="role" type="string" enum={["reasoning"]}>
+          The message role.
+        </Field>
+        <Field name="id" type="string">
+          The message ID.
+        </Field>
+        <Field name="session_id" type="string">
+          The session ID.
+        </Field>
+        <Field name="run_id" type="string">
+          The run ID.
+        </Field>
+        <Field name="content" type="string">
+          The reasoning text.
+        </Field>
+        <Field name="signature" type="string | null">
+          The reasoning signature, if any.
+        </Field>
+        <Field name="created_at" type="string">
+          The creation timestamp.
+        </Field>
+      </Variant>
+    </Variants>
+  </Response>
+  <Response status="400" description="Bad request." />
+  <Response status="404" description="Message not found." />
+  <Response status="500" description="Internal server error." />
+</Responses>
+
+## Delete a message by ID
+
+Delete a message by its ID.
+
+<Endpoint method="DELETE" path="/v1/messages/{message_id}">
+  Delete a message by its ID.
+</Endpoint>
+
+<Parameters in="path">
+  <Field name="message_id" type="string">
+    The message ID.
+  </Field>
+</Parameters>
+
+<Responses>
+  <Response status="204" description="Message deleted successfully." />
+  <Response status="400" description="Bad request." />
+  <Response status="404" description="Message not found." />
+  <Response status="500" description="Internal server error." />
+</Responses>
+
+## Types
+
+### UserContent
+
+A single content block in a user message. A user message carries an ordered array of these blocks, so
+one message may mix text and media. The block is discriminated by `type`.
+
+<Variants label="UserContent">
+  <Variant label="text">
+    <Field name="type" type="string" enum={["text"]}>
+      Identifies plain text content.
+    </Field>
+    <Field name="value" type="string">
+      The text content.
+    </Field>
+  </Variant>
+  <Variant label="image">
+    <Field name="type" type="string" enum={["image"]}>
+      Identifies image content.
+    </Field>
+    <Field name="source" type={<Link href="#mediasource">MediaSource</Link>}>
+      The image source.
+    </Field>
+    <Field name="media_type" type="string">
+      The MIME type.
+    </Field>
+  </Variant>
+  <Variant label="audio">
+    <Field name="type" type="string" enum={["audio"]}>
+      Identifies audio content.
+    </Field>
+    <Field name="source" type={<Link href="#mediasource">MediaSource</Link>}>
+      The audio source.
+    </Field>
+    <Field name="media_type" type="string">
+      The MIME type.
+    </Field>
+  </Variant>
+  <Variant label="video">
+    <Field name="type" type="string" enum={["video"]}>
+      Identifies video content.
+    </Field>
+    <Field name="source" type={<Link href="#mediasource">MediaSource</Link>}>
+      The video source.
+    </Field>
+    <Field name="media_type" type="string">
+      The MIME type.
+    </Field>
+  </Variant>
+  <Variant label="document">
+    <Field name="type" type="string" enum={["document"]}>
+      Identifies document content.
+    </Field>
+    <Field name="source" type={<Link href="#mediasource">MediaSource</Link>}>
+      The document source.
+    </Field>
+    <Field name="media_type" type="string">
+      The MIME type.
+    </Field>
+  </Variant>
+</Variants>
+
+### MediaSource
+
+The `source` of an image, audio, video, or document content block. It is either a URL to fetch or an
+inline base64 payload, discriminated by `type`.
+
+<Variants label="MediaSource">
+  <Variant label="url">
+    <Field name="type" type="string" enum={["url"]}>
+      Identifies a URL source.
+    </Field>
+    <Field name="value" type="string">
+      The URL to fetch.
+    </Field>
+  </Variant>
+  <Variant label="base64">
+    <Field name="type" type="string" enum={["base64"]}>
+      Identifies inline base64 data.
+    </Field>
+    <Field name="value" type="string">
+      The base64-encoded payload.
+    </Field>
+  </Variant>
+</Variants>
+
+### ToolCall
+
+A tool invocation emitted by the assistant.
+
+<Fields label="ToolCall">
+  <Field name="id" type="string">
+    The tool call ID.
+  </Field>
+  <Field name="name" type="string">
+    The name of the tool to invoke.
+  </Field>
+  <Field name="arguments" type="object">
+    The tool arguments, as a JSON object matching the tool's parameter schema.
+  </Field>
+</Fields>

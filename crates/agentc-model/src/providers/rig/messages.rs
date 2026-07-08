@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-use rig::{
+use rig_core::{
     OneOrMany as RigOneOrMany,
     message::{
         AssistantContent as RigAssistantContent, Audio as RigAudio,
@@ -15,12 +15,16 @@ use rig::{
         UserContent as RigUserContent, Video as RigVideo, VideoMediaType as RigVideoMediaType,
     },
 };
+use url::Url;
 
 use crate::{
     errors::ModelError,
     types::{
         media::{Audio, Document, Image, MediaData, Video},
-        message::{AssistantContent, AssistantMessage, ChatMessage, UserContent, UserMessage},
+        message::{
+            AssistantContent, AssistantMessage, ChatMessage, SystemMessage, UserContent,
+            UserMessage,
+        },
         reasoning::{Reasoning, ReasoningContent},
         tools::{ToolCall, ToolResult, ToolResultContent},
     },
@@ -313,7 +317,9 @@ impl TryFrom<RigDocumentSourceKind> for MediaData {
 
     fn try_from(value: RigDocumentSourceKind) -> Result<Self, Self::Error> {
         match value {
-            RigDocumentSourceKind::Url(url) => Ok(MediaData::Url(url)),
+            RigDocumentSourceKind::Url(url) => Ok(MediaData::Url(url.parse::<Url>().map_err(
+                |e| ModelError::Configuration { message: format!("invalid URL: {}", e) },
+            )?)),
             RigDocumentSourceKind::Base64(data) => Ok(MediaData::Base64(data)),
             _ => Err(ModelError::Configuration {
                 message: format!("unsupported document source kind: {:?}", value),
@@ -327,7 +333,7 @@ impl TryFrom<MediaData> for RigDocumentSourceKind {
 
     fn try_from(value: MediaData) -> Result<Self, Self::Error> {
         match value {
-            MediaData::Url(url) => Ok(RigDocumentSourceKind::Url(url)),
+            MediaData::Url(url) => Ok(RigDocumentSourceKind::Url(url.to_string())),
             MediaData::Base64(data) => Ok(RigDocumentSourceKind::Base64(data)),
         }
     }
@@ -349,7 +355,9 @@ impl TryFrom<ToolResultContent> for RigToolResultContent {
 
     fn try_from(value: ToolResultContent) -> Result<Self, Self::Error> {
         match value {
-            ToolResultContent::Text(text) => Ok(RigToolResultContent::Text(RigText { text })),
+            ToolResultContent::Text(text) => {
+                Ok(RigToolResultContent::Text(RigText { text, additional_params: None }))
+            }
             ToolResultContent::Image(image) => Ok(RigToolResultContent::Image(image.try_into()?)),
         }
     }
@@ -524,7 +532,9 @@ impl TryFrom<UserContent> for RigUserContent {
 
     fn try_from(value: UserContent) -> Result<Self, Self::Error> {
         match value {
-            UserContent::Text(text) => Ok(RigUserContent::Text(RigText { text })),
+            UserContent::Text(text) => {
+                Ok(RigUserContent::Text(RigText { text, additional_params: None }))
+            }
             UserContent::ToolResult(result) => Ok(RigUserContent::ToolResult(result.try_into()?)),
             UserContent::Image(image) => Ok(RigUserContent::Image(image.try_into()?)),
             UserContent::Audio(audio) => Ok(RigUserContent::Audio(audio.try_into()?)),
@@ -558,7 +568,9 @@ impl TryFrom<AssistantContent> for RigAssistantContent {
 
     fn try_from(value: AssistantContent) -> Result<Self, Self::Error> {
         match value {
-            AssistantContent::Text(text) => Ok(RigAssistantContent::Text(RigText { text })),
+            AssistantContent::Text(text) => {
+                Ok(RigAssistantContent::Text(RigText { text, additional_params: None }))
+            }
             AssistantContent::Image(image) => Ok(RigAssistantContent::Image(image.try_into()?)),
             AssistantContent::Reasoning(reasoning) => {
                 Ok(RigAssistantContent::Reasoning(reasoning.try_into()?))
@@ -614,6 +626,7 @@ impl TryFrom<RigMessage> for ChatMessage {
 
     fn try_from(value: RigMessage) -> Result<Self, Self::Error> {
         match value {
+            RigMessage::System { content } => Ok(ChatMessage::System(SystemMessage { content })),
             RigMessage::User { content } => Ok(ChatMessage::User(UserMessage {
                 content: content
                     .into_iter()

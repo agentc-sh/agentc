@@ -1,0 +1,118 @@
+---
+title: agent
+description: The agent block defines the agent's identity, graph, model, prompt, and capabilities.
+---
+
+The `agent` block is where you define the agent itself: its name, graph, model, system prompt, and
+what it is allowed to do. A manifest contains one `agent` block.
+
+```hcl title="agent.acl"
+agent "my_agent" {
+  graph {
+    type = "react"
+  }
+
+  version     = "1.0.0"
+  description = "A helpful assistant."
+
+  prompt = "You are a helpful assistant. Your name is {{ agent_name }}."
+
+  capabilities      = ["math", "filesystem"]
+  capability_policy = "locked"
+
+  model {
+    provider = "anthropic"
+    name     = "claude-haiku-4-5"
+  }
+}
+```
+
+## Fields
+
+| Field | Type | Required | runtime() | Description |
+|-------|------|----------|-----------|-------------|
+| `graph` | block | yes | | Graph selection. See below. |
+| `version` | string | no | no | Semver version string embedded in the binary. Defaults to `"0.1.0"`. |
+| `description` | string | no | no | Human-readable description of the agent. |
+| `prompt` | string or list | no | no | System prompt. Supports Jinja2 templates. |
+| `capabilities` | list of strings | no | yes | Capability tags the agent is allowed to use. |
+| `capability_policy` | string | no | yes | How capabilities are enforced. See below. |
+| `model` | block | yes | | Model configuration. |
+
+## graph block
+
+The `graph` block selects which graph implementation drives the agent. Graph selection is required
+and currently the only shipped value is `react`.
+
+```hcl
+graph {
+  type = "react"
+}
+```
+
+| Field | Type | Required | runtime() | Description |
+|-------|------|----------|-----------|-------------|
+| `type` | string | yes | no | Graph name. Must be `react` in this distribution. |
+
+See [graph](/reference/manifest/graph) for the block reference and [ReAct](/reference/graph/react)
+for the shipped graph's behavior.
+
+## prompt
+
+The `prompt` field sets the agent's system prompt. It accepts either a plain string or a list of
+role/content objects for multi-turn system prompts.
+
+```hcl
+# Plain string
+prompt = "You are a helpful assistant."
+
+# Multi-turn
+prompt = [
+  { role = "system", content = "You are a helpful assistant." },
+  { role = "user",   content = "Always be concise." }
+]
+```
+
+The prompt supports Jinja2 template syntax. Variables are injected at runtime before each run. The
+set of available variables is graph-dependent; see [ReAct prompt templates](/reference/graph/react/prompt-templates)
+for the list the ReAct graph provides, and [Write dynamic prompts](/guides/write-dynamic-prompts) for how to use them.
+
+## capabilities and capability_policy
+
+Capabilities are tags that control which tools the agent can invoke at runtime. Each tool can declare
+a set of capability tags. The agent's `capabilities` list declares which tags the agent is allowed to
+use.
+
+When `capability_policy` is set to `"locked"`, the agent can only invoke tools whose capability tags
+are a subset of its declared capabilities. Tools with no declared capabilities are always available.
+
+```hcl
+agent "my_agent" {
+  graph {
+    type = "react"
+  }
+
+  capabilities      = ["math", "filesystem::read"]
+  capability_policy = "locked"
+  ...
+}
+```
+
+See [Tools and capabilities](/concepts/tools-and-capabilities) for how capabilities work with tools
+and [Control tool access with capabilities](/guides/control-tool-access-with-capabilities) for the
+recipe.
+
+## model block
+
+The `model` block selects the LLM the agent uses.
+
+| Field | Type | Required | runtime() | Description |
+|-------|------|----------|-----------|-------------|
+| `provider` | string | yes | yes | Provider name. Must match a key in the `providers` block. |
+| `name` | string | yes | yes | Model identifier as recognised by the provider. |
+
+Inference parameters such as `temperature`, `max_tokens`, and `top_p` are declared in the
+`providers` block, not here. Provider-level defaults apply to every model request, and individual
+models can override them with their own `params` block. See
+[Configure a model provider](/guides/configure-a-model-provider) and the
+[providers reference](/reference/manifest/providers) for details.

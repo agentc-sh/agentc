@@ -11,6 +11,23 @@ pub enum BlocksError {
     #[error("unknown archetype: {0:?}")]
     UnknownArchetype(String),
 
+    /// The manifest's selected graph has not been registered with the
+    /// [`GraphResolver`](crate::graph::resolver::GraphResolver).
+    #[error("unknown graph: {0:?}")]
+    UnknownGraph(String),
+
+    /// The manifest's selected protocol has not been registered with the
+    /// [`ProtocolResolver`](crate::protocol::resolver::ProtocolResolver).
+    #[error("unknown protocol: {0:?}")]
+    UnknownProtocol(String),
+
+    /// A compiler component was registered more than once under the same name.
+    #[error("duplicate {component} registration: {name:?}")]
+    DuplicateRegistration {
+        component: &'static str,
+        name: String,
+    },
+
     /// A required manifest field was absent and has no default.
     #[error("missing required manifest field: {field}")]
     MissingField { field: &'static str },
@@ -39,6 +56,16 @@ impl BlocksError {
 
     pub fn invalid(reason: impl Into<String>) -> Self {
         Self::InvalidManifest { reason: reason.into() }
+    }
+
+    pub fn duplicate_registration(
+        component: &'static str,
+        name: impl Into<String>,
+    ) -> Self {
+        Self::DuplicateRegistration {
+            component,
+            name: name.into(),
+        }
     }
 
     pub fn unexpected(message: impl Into<String>) -> Self {

@@ -1,0 +1,94 @@
+---
+title: xAI
+description: Configuration for the xAI model provider.
+---
+
+The `xai` sub-block configures the [xAI](https://x.ai) cloud provider, which serves the Grok
+family of models.
+
+## Fields
+
+| Field | Type | Required | runtime() | Description |
+|-------|------|----------|-----------|-------------|
+| `models` | list | no | no | Allowlist of models for this provider. Each entry is a plain string or a config object with `name` and `params`. When omitted, no allowlist is enforced. |
+| `config` | block | no | | Connection configuration. |
+| `config.api_key` | string | no | yes | xAI API key. Wrap in `secret(runtime(...))` to keep it out of build artifacts. |
+| `params` | block | no | | Provider-level inference parameter defaults. Applied to every request unless overridden at the model level. |
+
+The `config` block is optional. When omitted, the client reads credentials from the
+`XAI_API_KEY` environment variable.
+
+## params
+
+The `params` block sets inference parameter defaults for all models under this provider. All fields
+are optional and support `runtime()`.
+
+| Field | Type | runtime() | Description |
+|-------|------|-----------|-------------|
+| `max_tokens` | integer | yes | Maximum number of tokens to generate. |
+| `temperature` | float | yes | Sampling temperature. |
+| `top_p` | float | yes | Nucleus sampling probability. |
+| `stop_sequences` | list of strings | yes | Sequences that stop generation. |
+| `frequency_penalty` | float | yes | Penalty for token frequency. |
+| `presence_penalty` | float | yes | Penalty for token presence. |
+| `seed` | integer | yes | Seed for deterministic sampling. |
+| `provider_params` | object | yes | Provider-specific parameters passed directly to the API. |
+
+<Callout type="note">
+  `top_k` is not part of the OpenAI-compatible wire format that xAI uses. Setting it has no
+  effect and it will be ignored.
+</Callout>
+
+## Known model identifiers
+
+| Model | Identifier |
+|-------|------------|
+| Grok 4 | `grok-4` |
+| Grok 3 | `grok-3` |
+| Grok 3 Fast | `grok-3-fast` |
+| Grok 3 Mini | `grok-3-mini` |
+| Grok 3 Mini Fast | `grok-3-mini-fast` |
+
+## Example
+
+```hcl title="agent.acl"
+providers {
+  xai {
+    models = [
+      "grok-3-mini",
+      {
+        name = "grok-4"
+        params {
+          max_tokens  = 16384
+          temperature = 0.6
+        }
+      }
+    ]
+
+    config {
+      api_key = secret(runtime("XAI_API_KEY"))
+    }
+
+    params {
+      max_tokens  = 4096
+      temperature = 0.5
+    }
+  }
+}
+
+agent "assistant" {
+  graph {
+    type = "react"
+  }
+
+  model {
+    provider = "xai"
+    name     = "grok-3-mini"
+  }
+}
+```
+
+<Callout type="tip">
+  Always wrap API keys in `secret(runtime(...))`. This prevents the key from appearing in build
+  artifacts and the output of `agentc inspect`.
+</Callout>

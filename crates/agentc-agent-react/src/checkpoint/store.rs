@@ -16,7 +16,10 @@ use agentc_domain::{
         checkpoint_record::{
             params::FindCheckpointRecordParams, traits::CheckpointRecordRepository,
         },
-        run::{params::FindRunParams, traits::RunRepository},
+        run::{
+            params::{Comparison, UpdateRunParams, UpdateRunParamsCondition, UpdateRunParamsSet},
+            traits::RunRepository,
+        },
         session::traits::SessionRepository,
     },
     types::{
@@ -102,38 +105,23 @@ impl<'a> SessionStore for SqlReActSessionStore<'a> {
     async fn update_run_status(
         &self,
         tenant_id: &str,
-        session_id: Uuid,
         run_id: Uuid,
         status: RunStatus,
     ) -> Result<(), Self::Error> {
-        let run = self
-            .run_repo
-            .find(
-                FindRunParams::new()
-                    .tenant_ids([tenant_id])
-                    .session_ids([session_id])
-                    .ids([run_id])
-                    .per_page(1u64),
-            )
-            .await
-            .map_err(|e| CheckpointError::session_store_error(e.to_string()))
-            .and_then(|page| {
-                page.into_iter()
-                    .next()
-                    .ok_or_else(|| CheckpointError::session_store_error("run not found"))
-            })?;
-
         self.run_repo
-            .save(vec![Run {
-                status: match status {
-                    RunStatus::Running => DomainRunStatus::Running,
-                    RunStatus::Interrupted => DomainRunStatus::Interrupted,
-                    RunStatus::Failed => DomainRunStatus::Failed,
-                    RunStatus::Completed => DomainRunStatus::Completed,
-                },
-                updated_at: Utc::now(),
-                ..run
-            }])
+            .update(
+                UpdateRunParams::new(tenant_id, run_id)
+                    .set(UpdateRunParamsSet::Status(match status {
+                        RunStatus::Running => DomainRunStatus::Running,
+                        RunStatus::Interrupted => DomainRunStatus::Interrupted,
+                        RunStatus::Failed => DomainRunStatus::Failed,
+                        RunStatus::Completed => DomainRunStatus::Completed,
+                        RunStatus::Cancelled => DomainRunStatus::Cancelled,
+                    }))
+                    .condition(UpdateRunParamsCondition::Status(Comparison::NotEq(
+                        DomainRunStatus::Cancelled,
+                    ))),
+            )
             .await
             .map_err(|e| CheckpointError::session_store_error(e.to_string()))?;
 
@@ -173,6 +161,7 @@ impl<'a> CheckpointSnapshotStore for SqlReActSnapshotStore<'a> {
                     RunStatus::Interrupted => DomainRunStatus::Interrupted,
                     RunStatus::Failed => DomainRunStatus::Failed,
                     RunStatus::Completed => DomainRunStatus::Completed,
+                    RunStatus::Cancelled => DomainRunStatus::Cancelled,
                 },
                 reason: match snapshot.reason {
                     AgentCheckpointReason::Input => DomainCheckpointReason::Input,
@@ -200,6 +189,7 @@ impl<'a> CheckpointSnapshotStore for SqlReActSnapshotStore<'a> {
                             DomainRunStatus::Interrupted => RunStatus::Interrupted,
                             DomainRunStatus::Failed => RunStatus::Failed,
                             DomainRunStatus::Completed => RunStatus::Completed,
+                            DomainRunStatus::Cancelled => RunStatus::Cancelled,
                         },
                         reason: match r.reason {
                             DomainCheckpointReason::Input => AgentCheckpointReason::Input,
@@ -240,6 +230,7 @@ impl<'a> CheckpointSnapshotStore for SqlReActSnapshotStore<'a> {
                         DomainRunStatus::Interrupted => RunStatus::Interrupted,
                         DomainRunStatus::Failed => RunStatus::Failed,
                         DomainRunStatus::Completed => RunStatus::Completed,
+                        DomainRunStatus::Cancelled => RunStatus::Cancelled,
                     },
                     reason: match r.reason {
                         DomainCheckpointReason::Input => AgentCheckpointReason::Input,
@@ -282,6 +273,7 @@ impl<'a> CheckpointSnapshotStore for SqlReActSnapshotStore<'a> {
                             DomainRunStatus::Interrupted => RunStatus::Interrupted,
                             DomainRunStatus::Failed => RunStatus::Failed,
                             DomainRunStatus::Completed => RunStatus::Completed,
+                            DomainRunStatus::Cancelled => RunStatus::Cancelled,
                         },
                         reason: match r.reason {
                             DomainCheckpointReason::Input => AgentCheckpointReason::Input,

@@ -16,7 +16,7 @@ macro_rules! define_id_type {
     // This arm handles calls that do specify extra derives (like Eq).
     ($name:ident, $($extra_derive:ident),*) => {
         #[doc = concat!(stringify!($name), ": A newtype used to prevent mixing it with other ID values.")]
-        #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Eq, Hash, $($extra_derive),*)]
+        #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Eq, Hash, $($extra_derive),*)]
         pub struct $name(Uuid);
 
         impl $name {

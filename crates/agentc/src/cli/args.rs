@@ -51,7 +51,8 @@ impl CliArgs {
             Some(command) => {
                 let mut ctx = args
                     .build_ctx()
-                    .await.unwrap_or_else(|e| e.exit());
+                    .await
+                    .unwrap_or_else(|e| e.exit());
 
                 (command as &dyn Cmd)
                     .walk_execute(&mut ctx)

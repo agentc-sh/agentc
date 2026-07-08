@@ -7,8 +7,9 @@ use std::path::PathBuf;
 use agentc_compiler::generator::vfs::VirtualFileSystem;
 
 use crate::pipeline::steps::{
-    cleanup::CleanupStepEvent, extract::ExtractStepEvent, fetch::FetchStepEvent,
-    generate::GenerateStepEvent, resolve::ResolveStepEvent, transform::TransformStepEvent,
+    cleanup::CleanupStepEvent, compose::ComposeStepEvent, extract::ExtractStepEvent,
+    fetch::FetchStepEvent, generate::GenerateStepEvent, resolve::ResolveStepEvent,
+    transform::TransformStepEvent,
 };
 
 #[derive(Debug, Clone)]
@@ -50,6 +51,19 @@ pub enum GenerateEvent {
         /// The number of tools defined in the manifest.
         tool_count: usize,
         /// The number of custom blocks defined in the manifest.
+        block_count: usize,
+    },
+    /// Emitted when the selected archetype, graph, and protocols are being composed.
+    Composing,
+    /// Emitted when the selected archetype, graph, and protocols have been composed.
+    Composed {
+        /// Archetype name used for this composition.
+        archetype_name: String,
+        /// Graph name used for this composition.
+        graph_name: String,
+        /// Protocol names used for this composition, in manifest order.
+        protocol_names: Vec<String>,
+        /// The total number of blocks that will be rendered, including user custom blocks.
         block_count: usize,
     },
     /// Emitted when embedded runtime crates are being extracted to disk.
@@ -105,6 +119,8 @@ impl GenerateEvent {
             GenerateEvent::AssetsTransformed { .. } => "AssetsTransformed",
             GenerateEvent::ResolvingManifest => "ResolvingManifest",
             GenerateEvent::ManifestResolved { .. } => "ManifestResolved",
+            GenerateEvent::Composing => "Composing",
+            GenerateEvent::Composed { .. } => "Composed",
             GenerateEvent::ExtractingRuntime { .. } => "ExtractingRuntime",
             GenerateEvent::RuntimeExtracted { .. } => "RuntimeExtracted",
             GenerateEvent::Generating { .. } => "Generating",
@@ -156,6 +172,20 @@ impl From<ResolveStepEvent> for GenerateEvent {
     }
 }
 
+impl From<ComposeStepEvent> for GenerateEvent {
+    fn from(event: ComposeStepEvent) -> Self {
+        match event {
+            ComposeStepEvent::Started => GenerateEvent::Composing,
+            ComposeStepEvent::Completed {
+                archetype_name,
+                graph_name,
+                protocol_names,
+                block_count,
+            } => GenerateEvent::Composed { archetype_name, graph_name, protocol_names, block_count },
+        }
+    }
+}
+
 impl From<GenerateStepEvent> for GenerateEvent {
     fn from(event: GenerateStepEvent) -> Self {
         match event {
@@ -197,6 +227,8 @@ pub struct GenerateResult {
     pub agent_name: String,
     /// The name of the archetype being used for generation.
     pub archetype_name: String,
+    /// The name of the graph being used for generation.
+    pub graph_name: String,
     /// The virtual file system containing the generated files.
     pub vfs: VirtualFileSystem,
 }

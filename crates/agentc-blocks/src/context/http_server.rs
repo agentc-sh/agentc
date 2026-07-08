@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 use serde::{Deserialize, Serialize};
+use serde_json::{Value, to_value};
 
 use crate::types::RuntimeValue;
 
@@ -28,6 +29,19 @@ impl ResolvedContextHttpServerProtocol {
             ResolvedContextHttpServerProtocol::AgUi(protocol) => Some(protocol),
         }
     }
+
+    pub fn name(&self) -> &str {
+        match self {
+            ResolvedContextHttpServerProtocol::AgUi(_) => "ag_ui",
+        }
+    }
+
+    pub fn config(&self) -> Value {
+        match self {
+            ResolvedContextHttpServerProtocol::AgUi(config) => to_value(config)
+                .expect("ag_ui protocol config must serialize to JSON"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -39,5 +53,20 @@ pub struct ResolvedContextHttpServerProtocolAgUi {
 impl Default for ResolvedContextHttpServerProtocolAgUi {
     fn default() -> Self {
         Self { path: "/ag-ui".to_string() }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn name_and_config_identify_ag_ui() {
+        let protocol = ResolvedContextHttpServerProtocol::AgUi(
+            ResolvedContextHttpServerProtocolAgUi { path: "/custom".to_string() },
+        );
+
+        assert_eq!(protocol.name(), "ag_ui");
+        assert_eq!(protocol.config(), serde_json::json!({ "path": "/custom" }));
     }
 }

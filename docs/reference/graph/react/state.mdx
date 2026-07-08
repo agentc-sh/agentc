@@ -1,0 +1,78 @@
+---
+title: State
+description: The ReAct run state structure, how tools update it, and what clients can see.
+---
+
+Every run has a persistent state object. The state persists across the run and holds everything the
+agent needs between steps. Tools receive a snapshot of the current state and can return updates to it
+alongside their output.
+
+## Run state
+
+For ReAct, the state holds:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `run_id` | string | Unique identifier for this run. |
+| `session_id` | string | Identifier for the session this run belongs to. |
+| `model_override` | string | If set, the model to use for this session instead of the default. |
+| `capability_override` | string | If set, the capabilities to use for the agent this session instead of the default. |
+| `messages` | array | The full conversation history for this run. |
+| `context_vars` | array | Context variables provided at the start of the session. |
+| `tools` | array | Tool definitions provided by the client for this session. |
+| `context` | object | Structured data that persists across steps. This is the primary field for tools to write to and for clients to read from. |
+
+The `context` field is a free-form JSON object. Tools write to it via state updates, and clients can
+read it from state events. Any data your tools need to communicate back to the frontend should go in
+`context`.
+
+Messages are persisted separately from `context`. That matters because clients often want to read the
+conversation history without starting a new run. The persisted message store is also what makes the
+session and message HTTP endpoints useful outside of the active stream.
+
+ReAct user messages can be multimodal. A user message is an ordered list of content blocks. The
+common block types are text, image, audio, video, and document. Image, audio, video, and document
+blocks carry a `source` and a `media_type`. The `source` is either a URL or base64 payload. The
+`media_type` is the MIME type the model provider should see.
+
+## State update
+
+State updates are how the state evolves over the course of a session. Each state has its own
+corresponding structure for updates. For ReAct, the state update structure is:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `messages` | array | New messages to append to the conversation history. |
+| `context` | array | Partial updates to the `context` field in the form of RFC 6902 JSON Patch operations. Tools primarily use this to write data back to the frontend. |
+
+## State updates from tools
+
+When a tool returns, it can include a `state_update` array of RFC 6902 JSON Patch operations.
+These patches are not applied directly to the run state. Instead:
+
+1. The patches are used to construct a `StateUpdate` object. For ReAct, `StateUpdate` has two
+   fields: `messages` and `context`. This means tools can only update those two fields.
+2. The `StateUpdate` is applied to the run state and persisted.
+3. The patches are emitted to the client as state delta events immediately after the tool returns.
+
+This means any patch path in a tool's `state_update` must be rooted at `/context/` or `/messages/`.
+In practice, tools almost always write to `/context/`.
+
+Example state update from a tool:
+
+```json
+[
+  { "op": "add", "path": "/context/last_city", "value": "London" },
+  { "op": "add", "path": "/context/temperature", "value": 18.5 }
+]
+```
+
+## Client-visible state
+
+Clients only have access to the `context` field of the run state. When state delta events are
+emitted, the client receives patches scoped to `context`. When a client sends new state in a run
+request, it is applied to `context`.
+
+This design means `context` is the shared data contract between your tools and your frontend.
+Structure it as needed for your use case. The event stream that carries these updates is documented
+in the [HTTP reference](/reference/graph/react/http).

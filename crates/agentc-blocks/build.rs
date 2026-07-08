@@ -2,17 +2,18 @@
 //
 // SPDX-License-Identifier: MIT
 
-use flate2::Compression;
-use flate2::write::GzEncoder;
+use flate2::{Compression, write::GzEncoder};
 use ignore::WalkBuilder;
-use std::collections::HashMap;
-use std::fs;
-use std::io::{self, Write};
-use std::path::{Path, PathBuf};
+use std::{
+    collections::HashMap,
+    fs,
+    io::{self, Write},
+    path::{Path, PathBuf},
+};
 use toml_edit::DocumentMut;
 
 /// Runtime crates that are embedded into the compiler binary.
-/// This is the single authoritative list. Update here when adding new runtime crates,
+/// Update here when adding new runtime crates,
 /// then also update EMBEDDED_RUNTIME in src/runtime/mod.rs and Cargo.toml.j2.
 const RUNTIME_CRATES: &[&str] = &[
     "agentc-agent",
@@ -243,12 +244,13 @@ pub fn bundle_crate(
 }
 
 fn main() {
-    let manifest_dir = env!("CARGO_MANIFEST_DIR");
-    let root_dir = Path::new(manifest_dir)
+    let manifest_dir =
+        std::env::var("CARGO_MANIFEST_DIR").expect("Failed to read CARGO_MANIFEST_DIR");
+    let root_dir = Path::new(&manifest_dir)
         .parent()
         .unwrap();
     let workspace_dir = root_dir.parent().unwrap();
-    let embedded_dir = Path::new(manifest_dir).join("embedded");
+    let embedded_dir = Path::new(&manifest_dir).join("embedded");
 
     if !embedded_dir.exists() {
         fs::create_dir_all(&embedded_dir).unwrap();

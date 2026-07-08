@@ -14,7 +14,7 @@ use std::{
 use uuid::Uuid;
 
 use agentc_agent::{
-    stream::EventStream,
+    stream::RunStream as AgentRunStream,
     types::{capability::CapabilityOverride, tools::ToolDefinition},
 };
 use agentc_domain::{
@@ -377,11 +377,11 @@ impl RunEvent {
 }
 
 pub struct RunStream {
-    inner: EventStream<Event>,
+    inner: AgentRunStream<Event>,
 }
 
 impl RunStream {
-    pub fn new(inner: EventStream<Event>) -> Self {
+    pub fn new(inner: AgentRunStream<Event>) -> Self {
         Self { inner }
     }
 }
@@ -719,5 +719,36 @@ impl From<FindRunParams> for RepoFindRunParams {
             updated_before: params.updated_before,
             updated_after: params.updated_after,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::{
+        service::types::message::CreateUserMessageParams,
+        types::message::{MediaSource, UserContent},
+    };
+
+    #[test]
+    fn run_input_preserves_user_content() {
+        let content = vec![
+            UserContent::text("Describe this image"),
+            UserContent::image(MediaSource::Base64("image-data".to_string()), "image/png"),
+        ];
+        let input = RunParams::new("tenant", Uuid::new_v4())
+            .with_messages([CreateMessageParams::User(
+                CreateUserMessageParams::from_content(content.clone()),
+            )])
+            .to_input();
+
+        assert_eq!(
+            input.messages[0]
+                .as_user()
+                .expect("expected user message")
+                .content,
+            content,
+        );
     }
 }

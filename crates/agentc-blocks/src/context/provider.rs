@@ -16,6 +16,12 @@ pub enum ResolvedContextProvider {
     OpenAi(ResolvedContextProviderOpenAi),
     /// Configuration for Ollama provider.
     Ollama(ResolvedContextProviderOllama),
+    /// Configuration for OpenRouter provider.
+    OpenRouter(ResolvedContextProviderOpenRouter),
+    /// Configuration for xAI provider.
+    Xai(ResolvedContextProviderXai),
+    /// Configuration for Gemini provider.
+    Gemini(ResolvedContextProviderGemini),
 }
 
 /// Common inference parameters stored per provider or per model. Fields mirror the
@@ -115,4 +121,82 @@ pub struct ResolvedContextProviderOllamaModel {
 pub struct ResolvedContextProviderOllamaConfig {
     /// Base URL for the provider's API, if applicable.
     pub base_url: Option<RuntimeValue<String>>,
+}
+
+/// Resolved provider configuration for OpenRouter.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResolvedContextProviderOpenRouter {
+    /// List of available models for this provider, if specified.
+    pub models: Option<Vec<ResolvedContextProviderOpenRouterModel>>,
+    /// Provider-specific configuration options.
+    pub config: Option<ResolvedContextProviderOpenRouterConfig>,
+    /// Provider-level inference parameter defaults.
+    pub params: Option<ResolvedContextProviderParams>,
+}
+
+/// A single model entry in the OpenRouter provider's models list.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResolvedContextProviderOpenRouterModel {
+    pub name: String,
+    /// Model-specific inference parameter overrides.
+    pub params: Option<ResolvedContextProviderParams>,
+}
+
+/// Resolved configuration for OpenRouter provider.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResolvedContextProviderOpenRouterConfig {
+    /// Provider API key, if required.
+    pub api_key: Option<RuntimeValue<String>>,
+}
+
+/// Resolved provider configuration for xAI.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResolvedContextProviderXai {
+    /// List of available models for this provider, if specified.
+    pub models: Option<Vec<ResolvedContextProviderXaiModel>>,
+    /// Provider-specific configuration options.
+    pub config: Option<ResolvedContextProviderXaiConfig>,
+    /// Provider-level inference parameter defaults.
+    pub params: Option<ResolvedContextProviderParams>,
+}
+
+/// A single model entry in the xAI provider's models list.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResolvedContextProviderXaiModel {
+    pub name: String,
+    /// Model-specific inference parameter overrides.
+    pub params: Option<ResolvedContextProviderParams>,
+}
+
+/// Resolved configuration for xAI provider.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResolvedContextProviderXaiConfig {
+    /// Provider API key, if required.
+    pub api_key: Option<RuntimeValue<String>>,
+}
+
+/// Resolved provider configuration for Gemini.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResolvedContextProviderGemini {
+    /// List of available models for this provider, if specified.
+    pub models: Option<Vec<ResolvedContextProviderGeminiModel>>,
+    /// Provider-specific configuration options.
+    pub config: Option<ResolvedContextProviderGeminiConfig>,
+    /// Provider-level inference parameter defaults.
+    pub params: Option<ResolvedContextProviderParams>,
+}
+
+/// A single model entry in the Gemini provider's models list.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResolvedContextProviderGeminiModel {
+    pub name: String,
+    /// Model-specific inference parameter overrides.
+    pub params: Option<ResolvedContextProviderParams>,
+}
+
+/// Resolved configuration for Gemini provider.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResolvedContextProviderGeminiConfig {
+    /// Provider API key, if required.
+    pub api_key: Option<RuntimeValue<String>>,
 }

@@ -1,0 +1,205 @@
+---
+title: Write a tool
+description: Write a custom tool for your agent in TypeScript or Python.
+---
+
+Tools you write in code come in two languages, TypeScript and Python. This guide covers both. Pick the
+tab for your language in each step. Both kinds are bundled into the binary at compile time, so there is
+no runtime installation. For the full field reference, see the [tool reference](/reference/manifest/tool).
+
+TypeScript tools run in an embedded JavaScript runtime. Python tools run in an embedded Python
+interpreter (RustPython), which supports pure-Python packages only. Both use the agentc tool
+development kit (TDK), which gives you typed tool definitions.
+
+## Scaffold the package
+
+Generate a ready-to-use package with `agentc tool init`, then install its dependencies.
+
+<Tabs defaultValue="typescript">
+  <TabsList>
+    <TabsTrigger value="typescript">TypeScript</TabsTrigger>
+    <TabsTrigger value="python">Python</TabsTrigger>
+  </TabsList>
+  <TabsContent value="typescript">
+```bash
+agentc tool init math --language javascript
+cd math
+pnpm install
+```
+
+This creates a `package.json`, a `tsconfig.json`, and `src/index.ts`, with the TDK and esbuild already
+configured.
+  </TabsContent>
+  <TabsContent value="python">
+```bash
+agentc tool init weather --language python
+cd weather
+uv sync
+```
+
+This creates a `pyproject.toml` and a typed package directory, with the TDK dependency and build
+system already configured.
+  </TabsContent>
+</Tabs>
+
+## Write the tool
+
+A tool has a name, a description, a JSON Schema for its inputs, and an `execute` function. The name and
+descriptions are what the model reads to decide when and how to call it, so write them carefully.
+
+<Tabs defaultValue="typescript">
+  <TabsList>
+    <TabsTrigger value="typescript">TypeScript</TabsTrigger>
+    <TabsTrigger value="python">Python</TabsTrigger>
+  </TabsList>
+  <TabsContent value="typescript">
+Export a tool object from the package entry point. Import the `Tool` type from the TDK for full type
+coverage.
+
+```typescript title="math/src/index.ts"
+import type { Tool, ToolInput, ToolOutput } from "@agentc-sh/tdk";
+
+type AddArgs = { a: number; b: number };
+
+export const adder: Tool<AddArgs, number> = {
+  name: "adder",
+  description: "Adds two numbers together.",
+  parameters: {
+    type: "object",
+    properties: {
+      a: { type: "number", description: "The first number." },
+      b: { type: "number", description: "The second number." }
+    },
+    required: ["a", "b"]
+  },
+  async execute(input: ToolInput<AddArgs>): Promise<ToolOutput<number>> {
+    return { output: input.args.a + input.args.b };
+  }
+};
+```
+
+A single package can export as many tools as you need.
+  </TabsContent>
+  <TabsContent value="python">
+Subclass `Tool` and implement `execute`. The generic parameters are the argument type, the result
+type, and the state type.
+
+```python title="weather/weather/__init__.py"
+from dataclasses import dataclass
+from agentc_tdk import Tool, ToolInput, ToolOutput
+
+
+@dataclass
+class GetWeatherParams:
+    location: str
+
+@dataclass
+class GetWeatherResult:
+    temperature: float
+    description: str
+
+
+class GetWeatherTool(Tool[GetWeatherParams, GetWeatherResult, None]):
+    args = GetWeatherParams
+
+    name = "get_weather"
+    description = "Get the current weather for a given location."
+    schema = {
+        "type": "object",
+        "properties": {
+            "location": {"type": "string", "description": "The location to get the weather for."},
+        },
+        "required": ["location"],
+    }
+
+    def execute(self, input: ToolInput[GetWeatherParams, None]) -> ToolOutput[GetWeatherResult]:
+        return ToolOutput(
+            output=GetWeatherResult(temperature=72.0, description=f"Sunny in {input.args.location}")
+        )
+```
+
+A single package can define as many tool classes as you need.
+  </TabsContent>
+</Tabs>
+
+## Declare the tool in the manifest
+
+The package exists, but the agent does not see it until you declare a `tool` block pointing `source` at
+the package directory.
+
+<Tabs defaultValue="typescript">
+  <TabsList>
+    <TabsTrigger value="typescript">TypeScript</TabsTrigger>
+    <TabsTrigger value="python">Python</TabsTrigger>
+  </TabsList>
+  <TabsContent value="typescript">
+```hcl title="agent.acl"
+tool "adder" {
+  kind   = "javascript"
+  source = "./math"
+}
+```
+
+The block name matches the export name by default. If they differ, set `export` to the export name.
+  </TabsContent>
+  <TabsContent value="python">
+```hcl title="agent.acl"
+tool "get_weather" {
+  kind   = "python"
+  source = "./weather"
+}
+```
+
+Declare one `tool` block per tool class, all pointing at the same `source` directory.
+  </TabsContent>
+</Tabs>
+
+## Write back to state
+
+A tool can return a `state_update` alongside its output: an array of RFC 6902 JSON Patch operations.
+For the ReAct graph, target paths under `/context/`. The patches are persisted and streamed to the
+client as state delta events, which is how a tool passes data to a frontend.
+
+<Tabs defaultValue="typescript">
+  <TabsList>
+    <TabsTrigger value="typescript">TypeScript</TabsTrigger>
+    <TabsTrigger value="python">Python</TabsTrigger>
+  </TabsList>
+  <TabsContent value="typescript">
+```typescript
+async execute(input: ToolInput<AddArgs>): Promise<ToolOutput<number>> {
+  return {
+    output: input.args.a + input.args.b,
+    state_update: [
+      { op: "add", path: "/context/last_sum", value: input.args.a + input.args.b }
+    ]
+  };
+}
+```
+  </TabsContent>
+  <TabsContent value="python">
+```python
+def execute(self, input: ToolInput[GetWeatherParams, None]) -> ToolOutput[GetWeatherResult]:
+    return ToolOutput(
+        output=GetWeatherResult(temperature=72.0, description="Sunny"),
+        state_update=[
+            {"op": "add", "path": "/context/last_location", "value": input.args.location}
+        ],
+    )
+```
+  </TabsContent>
+</Tabs>
+
+## Build
+
+Rebuild so the tool is bundled into the binary:
+
+```bash
+agentc build
+```
+
+## Where to go next
+
+- [Control tool access with capabilities](/guides/control-tool-access-with-capabilities): gate which tools the agent may call.
+- [Tools and capabilities](/concepts/tools-and-capabilities): how tools, state, and activity events work.
+- [tool reference](/reference/manifest/tool): every field of the `tool` block for each kind.

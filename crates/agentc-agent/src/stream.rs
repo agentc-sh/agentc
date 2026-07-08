@@ -4,6 +4,7 @@
 
 use futures::{Stream, future::AbortHandle, stream::Abortable};
 use std::{
+    future::Future,
     pin::Pin,
     task::{Context, Poll},
 };
@@ -75,6 +76,83 @@ impl<T> Stream for EventStream<T> {
         }
 
         Pin::new(&mut this.inner).poll_next(cx)
+    }
+}
+
+pub struct RunStream<E> {
+    fut: Option<Pin<Box<dyn Future<Output = ()> + Send>>>,
+    inner: EventStream<E>,
+}
+
+impl<E> RunStream<E> {
+    /// Create a self-driving run stream from the run future and the event
+    /// receiver it emits into. Polling the stream advances the run future;
+    /// dropping the stream drops the future and cancels the run.
+    pub fn new(fut: Pin<Box<dyn Future<Output = ()> + Send>>, inner: EventStream<E>) -> Self {
+        Self { fut: Some(fut), inner }
+    }
+
+    pub fn builder() -> RunStreamBuilder<E> {
+        RunStreamBuilder::new()
+    }
+}
+
+impl<E> Stream for RunStream<E> {
+    type Item = E;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let this = self.get_mut();
+
+        loop {
+            if let Poll::Ready(event) = Pin::new(&mut this.inner).poll_next(cx) {
+                return Poll::Ready(event);
+            }
+
+            match this.fut.as_mut() {
+                Some(fut) => match fut.as_mut().poll(cx) {
+                    Poll::Ready(()) => {
+                        this.fut = None;
+                        continue;
+                    },
+                    Poll::Pending => return Poll::Pending,
+                },
+                None => return Poll::Pending,
+            }
+        }
+    }
+}
+
+pub struct RunStreamBuilder<E> {
+    fut: Option<Pin<Box<dyn Future<Output = ()> + Send>>>,
+    inner: Option<EventStream<E>>,
+}
+
+impl<E> RunStreamBuilder<E> {
+    pub fn new() -> Self {
+        Self {
+            fut: None,
+            inner: None
+        }
+    }
+
+    pub fn with_future<Fut>(mut self, fut: Fut) -> Self
+    where
+        Fut: Future<Output = ()> + Send + 'static,
+    {
+        self.fut = Some(Box::pin(fut));
+        self
+    }
+
+    pub fn with_inner(mut self, inner: EventStream<E>) -> Self {
+        self.inner = Some(inner);
+        self
+    }
+
+    pub fn build(self) -> RunStream<E> {
+        RunStream::new(
+            self.fut.expect("RunStreamBuilder: future not set"),
+            self.inner.expect("RunStreamBuilder: inner stream not set")
+        )
     }
 }
 
@@ -193,5 +271,54 @@ mod tests {
 
         collected.sort();
         assert_eq!(collected, (0..10).collect::<Vec<_>>());
+    }
+
+    #[tokio::test]
+    async fn run_stream_delivers_all_events_then_ends() {
+        let (emitter, inner) = EventEmitter::new_pair();
+
+        let fut = Box::pin(async move {
+            emitter.emit(1).unwrap();
+            emitter.emit(2).unwrap();
+            emitter.emit(3).unwrap();
+        });
+
+        let collected = RunStream::new(fut, inner).collect::<Vec<_>>().await;
+        assert_eq!(collected, vec![1, 2, 3]);
+    }
+
+    #[tokio::test]
+    async fn run_stream_cancels_run_when_dropped() {
+        use std::sync::{
+            Arc,
+            atomic::{AtomicBool, Ordering},
+        };
+
+        struct DropFlag(Arc<AtomicBool>);
+        impl Drop for DropFlag {
+            fn drop(&mut self) {
+                self.0.store(true, Ordering::SeqCst);
+            }
+        }
+
+        let dropped = Arc::new(AtomicBool::new(false));
+        let (emitter, inner) = EventEmitter::new_pair();
+
+        let guard = DropFlag(dropped.clone());
+        let fut = Box::pin(async move {
+            let _guard = guard;
+
+            emitter.emit(1).unwrap();
+
+            std::future::pending::<()>().await;
+        });
+
+        let mut stream = RunStream::new(fut, inner);
+
+        assert_eq!(stream.next().await, Some(1));
+
+        drop(stream);
+
+        assert!(dropped.load(Ordering::SeqCst), "run future was not dropped on stream drop");
     }
 }

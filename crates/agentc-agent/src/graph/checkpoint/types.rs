@@ -11,7 +11,7 @@ use std::{
 };
 use uuid::Uuid;
 
-use crate::graph::state::{GraphNode, StateOf, InputOf};
+use crate::graph::state::{GraphNode, InputOf, StateOf};
 
 /// The status of a run, which can be used to determine if a run is active, completed, or failed.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -21,11 +21,12 @@ pub enum RunStatus {
     Interrupted,
     Completed,
     Failed,
+    Cancelled,
 }
 
 impl RunStatus {
     pub fn is_complete(&self) -> bool {
-        matches!(self, RunStatus::Completed | RunStatus::Failed)
+        matches!(self, RunStatus::Completed | RunStatus::Failed | RunStatus::Cancelled)
     }
 
     pub fn is_interrupted(&self) -> bool {
@@ -42,6 +43,7 @@ impl RunStatus {
             RunStatus::Interrupted => "interrupted",
             RunStatus::Completed => "completed",
             RunStatus::Failed => "failed",
+            RunStatus::Cancelled => "cancelled",
         }
     }
 }
@@ -55,6 +57,7 @@ impl FromStr for RunStatus {
             "interrupted" => Ok(RunStatus::Interrupted),
             "completed" => Ok(RunStatus::Completed),
             "failed" => Ok(RunStatus::Failed),
+            "cancelled" => Ok(RunStatus::Cancelled),
             _ => Ok(RunStatus::Failed),
         }
     }

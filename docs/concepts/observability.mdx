@@ -1,0 +1,52 @@
+---
+title: Observability
+description: What agentc instruments out of the box and why it matters in production.
+---
+
+agentc agents are instrumented out of the box. Every run, graph step, model call, and tool
+execution produces structured logs and traces without any code on your part. Observability is
+configured entirely through environment variables at startup, so you turn it on per deployment
+without changing the manifest or recompiling.
+
+## The signals an agent emits
+
+An agent emits several kinds of operational signal, each answering a different question.
+
+**Logs** answer "what happened." The agent writes structured JSON logs to standard output at a
+configurable level, which is the first place to look when you want a running narrative of a process.
+
+**Traces** answer "where did the time go, and what led to what." Every significant operation produces
+a span. Each run from start to finish, each graph step, each tool execution with its arguments and
+result status, and each model request with token counts when the provider reports them. Spans are
+nested, so you can follow the full causal chain of a run and see exactly which tool call or model
+request dominated a slow response.
+
+**Metrics** answer "how much, and how often." Aggregated measurements such as request counts,
+durations, and token usage are recorded so you can chart throughput, latency, and cost over time
+rather than reasoning from individual runs.
+
+**Errors** answer "what broke, and where." Optional error reporting captures unhandled errors and
+panics and sends them to an error-tracking service, tagged with the agent version and environment.
+
+## Everything exports over OTLP
+
+Logs, traces, and metrics are all exported using OpenTelemetry over OTLP, the OpenTelemetry
+line protocol. You point the agent at a single OTLP endpoint and all three signals flow there. The
+natural target is an OpenTelemetry Collector, which receives the telemetry and routes each signal
+onward to whatever backends you use, for example Jaeger or Grafana Tempo for traces, Prometheus for
+metrics, and a log store for logs. Any OTLP-compatible backend works, so you can also send directly to
+a vendor such as Honeycomb or Datadog without a collector in between.
+
+## Why it matters
+
+An agent in production is a long-running system that calls out to models and tools you do not control.
+When a run is slow, loops, or fails, prose logs alone rarely tell you why. Nested traces show the shape
+of a run at a glance, token counts make cost and context growth visible, and error reports surface the
+failures that would otherwise be buried in log volume. Because all of this is on by default and driven
+by environment variables, a production deployment gets it for free and a local run stays quiet until
+you ask for more.
+
+## Where to go next
+
+- [Instrument with OpenTelemetry](/guides/instrument-with-opentelemetry): export traces, metrics, and logs to a backend.
+- [Observability reference](/reference/observability): every environment variable that configures logging, tracing, and error reporting.

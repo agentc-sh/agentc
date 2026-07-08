@@ -1,0 +1,20 @@
+---
+title: Prompt templates
+description: The variables the ReAct graph injects into the system prompt.
+---
+
+The ReAct graph injects the following variables into the agent's system prompt before each run.
+Reference them with Jinja2 syntax, for example `{{ agent_name }}`. The set of available variables is
+graph-dependent, so it is documented here alongside the graph that provides it. See
+[Write dynamic prompts](/guides/write-dynamic-prompts) for usage patterns.
+
+| Variable | Type | Description |
+|----------|------|-------------|
+| `agent_name` | string | The agent's name, taken from the `agent` block label in the manifest. |
+| `skills` | list | The skills available to the agent. Each entry carries the skill's name and description. |
+| `context_vars` | object | The context variables supplied by the client for this run, keyed by name. |
+| `current_datetime` | string | The current date and time captured at the start of the run. |
+
+Variables are injected at runtime before each run, so a template can react to the client-supplied
+context of the current request. The `prompt` field itself is declared on the
+[agent](/reference/manifest/agent) block.

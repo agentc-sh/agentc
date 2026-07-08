@@ -1,0 +1,188 @@
+---
+title: tool
+description: The tool block declares a tool, its source, capabilities, and configuration.
+---
+
+The `tool` block declares a tool that the agent can call during a run. A manifest can contain any
+number of `tool` blocks. The `kind` field determines the tool type and which additional fields apply.
+
+```hcl title="agent.acl"
+tool "adder" {
+  kind         = "javascript"
+  source       = "./tools/adder"
+  capabilities = ["math::add"]
+  enabled      = runtime("TOOL_ADDER_ENABLED", true)
+}
+```
+
+## Common fields
+
+These fields apply to all tool kinds.
+
+| Field | Type | Required | runtime() | Description |
+|-------|------|----------|-----------|-------------|
+| `kind` | string | yes | no | Tool type. One of `"javascript"`, `"python"`, `"bash"`, `"mcp"`. |
+| `description` | string | no | no | Human-readable description of what the tool does. |
+| `capabilities` | list of strings | no | no | Capability tags required to invoke this tool. See [Tools and capabilities](/concepts/tools-and-capabilities). |
+| `enabled` | bool | no | yes | Whether the tool is registered at startup. Defaults to `true`. |
+| `config` | map | no | yes | Named string values made available to the tool at runtime, each of which may be a constant or a `runtime()` expression. |
+
+## javascript
+
+A JavaScript tool is a Node.js package bundled by `esbuild` at compile time. The bundle is
+embedded in the binary; no Node.js installation is required at runtime.
+
+```hcl
+tool "adder" {
+  kind         = "javascript"
+  source       = "./tools/adder"
+  export       = "AdderTool"
+  capabilities = ["math::add"]
+  enabled      = runtime("TOOL_ADDER_ENABLED", true)
+  config       = {
+    API_ENDPOINT = runtime("ADDER_API_ENDPOINT", "http://localhost:3000")
+  }
+}
+```
+
+| Field | Type | Required | runtime() | Description |
+|-------|------|----------|-----------|-------------|
+| `source` | string | yes | no | Path to the tool's package directory, relative to the manifest. Must contain a `package.json`. |
+| `export` | string | no | no | Name of the JS export object for this tool. Defaults to the tool block name. |
+
+See [Write a tool](/guides/write-a-tool) for how to write the tool source.
+
+## python
+
+A Python tool is a `uv`-managed Python package. Dependencies are installed at compile time and
+the package source and `site-packages` are embedded in the binary.
+
+```hcl
+tool "weather" {
+  kind         = "python"
+  source       = "./tools/weather"
+  interpreter  = "embedded"
+  capabilities = ["weather::get"]
+}
+```
+
+| Field | Type | Required | runtime() | Description |
+|-------|------|----------|-----------|-------------|
+| `source` | string | yes | no | Path to the tool's directory, relative to the manifest. Must contain a `pyproject.toml`. |
+| `interpreter` | string | no | no | Python runtime backend. `"embedded"` (default) uses RustPython and supports pure-Python packages only. `"static"` (CPython via PyO3) is accepted but not yet implemented. |
+
+See [Write a tool](/guides/write-a-tool) for how to write the tool source.
+
+## bash
+
+A bash tool provides the agent with a sandboxed shell interpreter. Host programs, filesystem
+access, environment variables, and network access are all individually controlled.
+
+```hcl
+tool "shell" {
+  kind     = "bash"
+  commands = ["git"]
+
+  env {
+    kind = "inherit"
+  }
+
+  limits {
+    max_execution_time_secs = 30
+  }
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `commands` | list of strings | no | Additional host programs to register as passthrough commands. Each name is proxied to the real binary on the host. Common utilities such as `jq`, `sed`, `awk`, and `curl` are already built in and do not need listing. |
+| `fs` | block | no | Filesystem backend configuration. |
+| `env` | block | no | Environment variable forwarding policy. |
+| `limits` | block | no | Resource limits applied to each execution. |
+| `network` | block | no | Network access policy for sandboxed `curl` invocations. |
+
+### fs block
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `kind` | string | `"in_memory"` | Filesystem backend. One of `"in_memory"`, `"overlay"`, `"read_write"`. `"overlay"` and `"read_write"` require `path`. |
+| `path` | string | | Host path used by the `"overlay"` and `"read_write"` backends. |
+| `cwd` | string | `"/home/agent"` | Working directory inside the sandbox. |
+
+### env block
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `kind` | string | `"empty"` | Forwarding policy. One of `"empty"` (no variables), `"inherit"` (all variables), `"allow"` (only those listed in `vars`), `"deny"` (all except those listed in `vars`). |
+| `vars` | list of strings | `[]` | Variable names used by the `"allow"` and `"deny"` policies. |
+
+### limits block
+
+All fields are optional and fall back to the interpreter's built-in defaults when absent.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `max_execution_time_secs` | integer | `30` | Maximum wall-clock execution time in seconds. |
+| `max_output_size` | integer | `10485760` | Maximum combined output size in bytes (default 10 MiB). |
+| `max_command_count` | integer | `10000` | Maximum number of commands that may be dispatched. |
+| `max_loop_iterations` | integer | `10000` | Maximum number of loop iterations. |
+
+### network block
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | bool | `false` | Whether sandboxed `curl` network access is enabled. |
+| `allowed_url_prefixes` | list of strings | `[]` | URL prefixes that sandboxed `curl` may contact. |
+| `allowed_methods` | list of strings | `[]` | HTTP methods that sandboxed `curl` may use. |
+| `max_redirects` | integer | `0` | Maximum redirects `curl` may follow. |
+| `max_response_size` | integer | `10485760` | Maximum response body size in bytes (default 10 MiB). |
+| `network_timeout_secs` | integer | `30` | Maximum duration of a `curl` request in seconds. |
+
+See [Use the bash tool](/guides/use-the-bash-tool) for more detail and examples.
+
+## mcp
+
+An MCP tool connects the agent to a Model Context Protocol server. Two transports are supported:
+`stdio` spawns a local subprocess; `http` connects to a remote server over streamable HTTP.
+
+```hcl
+# stdio transport
+tool "time_server" {
+  kind      = "mcp"
+  transport = "stdio"
+  command   = "uvx"
+  args      = ["mcp-server-time"]
+}
+
+# HTTP transport
+tool "remote_tools" {
+  kind       = "mcp"
+  transport  = "http"
+  url        = runtime("MCP_URL", "https://tools.example.com")
+  auth_token = secret(runtime("MCP_TOKEN"))
+  headers    = {
+    "X-Client-ID" = runtime("CLIENT_ID")
+  }
+}
+```
+
+**stdio fields:**
+
+| Field | Type | Required | runtime() | Description |
+|-------|------|----------|-----------|-------------|
+| `transport` | string | yes | no | Must be `"stdio"`. |
+| `command` | string | yes | yes | Executable used to spawn the MCP server subprocess. |
+| `args` | list of strings | no | yes | Arguments passed to the command. Each element may be a `runtime()` expression. |
+| `config` | map | no | yes | Environment variables forwarded to the subprocess. Each value may be a `runtime()` expression. |
+
+**HTTP fields:**
+
+| Field | Type | Required | runtime() | Description |
+|-------|------|----------|-----------|-------------|
+| `transport` | string | yes | no | Must be `"http"`. |
+| `url` | string | yes | yes | Base URL of the MCP server. |
+| `auth_token` | string | no | yes | Bearer token sent in the `Authorization` header. Use `secret(runtime(...))`. |
+| `headers` | map | no | yes | Additional HTTP headers sent with every request. Each value may be a `runtime()` expression. |
+
+See [Connect external tools via MCP](/guides/connect-external-tools-via-mcp) for more on Model
+Context Protocol integration.

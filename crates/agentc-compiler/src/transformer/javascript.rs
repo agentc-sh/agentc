@@ -204,16 +204,13 @@ impl JavascriptTransformer {
 #[async_trait]
 impl AssetTransformer for JavascriptTransformer {
     async fn can_transform(&self, local_path: &Path, _origin: &AssetOrigin) -> bool {
-        if local_path
-            .extension()
-            .is_some_and(|e| {
-                ["ts", "tsx", "js", "jsx"].contains(
-                    &e.to_string_lossy()
-                        .to_lowercase()
-                        .as_str(),
-                )
-            })
-        {
+        if local_path.extension().is_some_and(|e| {
+            ["ts", "tsx", "js", "jsx"].contains(
+                &e.to_string_lossy()
+                    .to_lowercase()
+                    .as_str(),
+            )
+        }) {
             return true;
         }
 

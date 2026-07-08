@@ -3,12 +3,77 @@
 // SPDX-License-Identifier: MIT
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use utoipa::ToSchema;
 
 use crate::protocol::{
     ids::{MessageId, ToolCallId},
     tool::ToolCall,
 };
+
+/// Source of a media block delivered as an inline base64 payload.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct InputContentDataSource {
+    pub value: String,
+    #[serde(rename = "mimeType")]
+    pub mime_type: String,
+}
+
+/// Source of a media block delivered via URL.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct InputContentUrlSource {
+    pub value: String,
+    #[serde(rename = "mimeType", default, skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+}
+
+/// Describes how the bytes of a media block are delivered to the agent.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum InputContentSource {
+    Data(InputContentDataSource),
+    Url(InputContentUrlSource),
+}
+
+/// A typed content fragment within a multimodal user message.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum InputContent {
+    Text {
+        text: String,
+    },
+    Image {
+        source: InputContentSource,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        metadata: Option<Value>,
+    },
+    Audio {
+        source: InputContentSource,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        metadata: Option<Value>,
+    },
+    Video {
+        source: InputContentSource,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        metadata: Option<Value>,
+    },
+    Document {
+        source: InputContentSource,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        metadata: Option<Value>,
+    },
+}
+
+/// Content of a user message: either a plain string or an ordered list of typed blocks.
+///
+/// Serializes as a bare JSON string or a JSON array, matching the `string | InputContent[]`
+/// union in the AG-UI protocol.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[serde(untagged)]
+pub enum UserMessageContent {
+    Text(String),
+    Parts(Vec<InputContent>),
+}
 
 /// Message role.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -75,7 +140,7 @@ pub enum Message {
     User {
         #[serde(default = "MessageId::random")]
         id: MessageId,
-        content: String,
+        content: UserMessageContent,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         name: Option<String>,
     },
@@ -123,7 +188,7 @@ impl Message {
             },
             Role::User => Self::User {
                 id: id.into(),
-                content: content.as_ref().to_string(),
+                content: UserMessageContent::Text(content.as_ref().to_string()),
                 name: None,
             },
             Role::Tool => Self::Tool {
@@ -202,7 +267,15 @@ impl Message {
         match self {
             Message::Developer { content, .. } => Some(content),
             Message::System { content, .. } => Some(content),
-            Message::User { content, .. } => Some(content),
+            Message::User { content, .. } => match content {
+                UserMessageContent::Text(text) => Some(text),
+                UserMessageContent::Parts(parts) => parts
+                    .iter()
+                    .find_map(|part| match part {
+                        InputContent::Text { text } => Some(text.as_str()),
+                        _ => None,
+                    }),
+            },
             Message::Tool { content, .. } => Some(content),
             Message::Reasoning { content, .. } => Some(content),
             Message::Assistant { content, .. } => content.as_deref(),
@@ -213,9 +286,12 @@ impl Message {
         match self {
             Message::Developer { content, .. }
             | Message::System { content, .. }
-            | Message::User { content, .. }
             | Message::Tool { content, .. }
             | Message::Reasoning { content, .. } => Some(content),
+            Message::User { content, .. } => match content {
+                UserMessageContent::Text(text) => Some(text),
+                UserMessageContent::Parts(_) => None,
+            },
             Message::Assistant { content, .. } => {
                 if content.is_none() {
                     *content = Some(String::new());

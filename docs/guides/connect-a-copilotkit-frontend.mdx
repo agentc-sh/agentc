@@ -1,0 +1,65 @@
+---
+title: Connect a CopilotKit frontend
+description: Point a CopilotKit frontend at your agent's AG-UI endpoint.
+---
+
+CopilotKit speaks AG-UI, the same streaming protocol the agent exposes through its AG-UI add-on. That
+means connecting the two is mostly a matter of pointing CopilotKit at the agent's AG-UI endpoint. This
+guide covers that connection. For building the UI itself, follow
+[CopilotKit's own documentation](https://docs.copilotkit.ai).
+
+## Enable AG-UI on the agent
+
+Add the AG-UI add-on to the `http_server` block if it is not already there:
+
+```hcl title="agent.acl"
+http_server {
+  host = runtime("HTTP_HOST", "127.0.0.1")
+  port = runtime("HTTP_PORT", 8080)
+
+  protocol {
+    ag_ui {}
+  }
+}
+```
+
+Build and serve:
+
+```bash
+agentc build
+./artifacts/build/my_agent serve
+```
+
+The AG-UI run endpoint is mounted at `/ag-ui/run` by default. You can change the base path with the
+`path` field on the `ag_ui` block. The full endpoint reference is
+[AG-UI](/reference/http-api/ag-ui).
+
+## Point the client at the endpoint
+
+CopilotKit connects through an AG-UI agent configured with the endpoint URL. Point it at the agent you
+are serving:
+
+```typescript
+import { HttpAgent } from "@ag-ui/client";
+
+const agent = new HttpAgent({
+  url: "http://localhost:8080/ag-ui/run"
+});
+```
+
+Wire that agent into CopilotKit as its documentation describes. Because the agent already emits the
+AG-UI event stream, CopilotKit renders the streamed text, tool calls, and state updates without any
+adapter on your side.
+
+## Deploy behind a stable URL
+
+In production, serve the agent behind a stable URL and set the client's `url` to it. Two things matter
+for the stream to work: forward the usual client headers at your proxy, and disable response buffering
+so Server-Sent Events reach the browser as they are produced. Both are covered in
+[Serving and protocols](/concepts/serving-and-protocols).
+
+## Where to go next
+
+- [Serving and protocols](/concepts/serving-and-protocols): how the AG-UI add-on sits alongside the native contract.
+- [AG-UI](/reference/http-api/ag-ui): the AG-UI request shape and event stream.
+- [CopilotKit documentation](https://docs.copilotkit.ai): building the frontend itself.

@@ -1,0 +1,78 @@
+---
+title: Concepts in 5 minutes
+description: The smallest mental model of agentc you need before building your first agent.
+---
+
+Before you build anything, it helps to hold a small map of how agentc works. This page gives you just
+enough vocabulary to follow the rest of the Get started guides. You do not need the full picture yet;
+the [Concepts](/concepts/architecture-overview) section covers everything in depth.
+
+## agentc compiles a description into a program
+
+You describe an agent in a single file, and agentc turns that description into a program you can run.
+There are three things to name:
+
+- The **manifest** is a file named `agent.acl`. It describes your agent and is the only thing you write by hand.
+- The **compiler** is the `agentc` command. It reads the manifest and produces the artifact.
+- The **artifact** is the output. For the default setup it is a single self-contained binary.
+
+You write the manifest, run `agentc build`, and get a binary. That binary is the whole application.
+
+## What is inside an agent
+
+An agent is made of a few parts, all declared in the manifest:
+
+- A **graph**, which is the reasoning loop the agent runs in. Today the graph is `react`, which calls the model, lets it use tools, and repeats until the task is done. Every graph is checkpointed, so a run survives a crash and resumes where it left off.
+- A **model**, provided by a **provider** such as Anthropic. The provider is where credentials and inference settings live.
+- Optional **tools**, which are actions the agent can take, such as calling an API or running a command.
+- Optional **skills**, which are Markdown documents that guide how the agent behaves.
+
+A minimal manifest brings the first two together:
+
+```hcl title="agent.acl"
+build {
+  archetype = "standalone"
+}
+
+providers {
+  anthropic {
+    models = ["claude-haiku-4-5"]
+    config {
+      api_key = secret(runtime("ANTHROPIC_API_KEY"))
+    }
+  }
+}
+
+agent "my_agent" {
+  graph {
+    type = "react"
+  }
+
+  prompt = "You are a helpful assistant."
+
+  model {
+    provider = "anthropic"
+    name     = "claude-haiku-4-5"
+  }
+}
+```
+
+## Build-time and runtime
+
+Notice `runtime("ANTHROPIC_API_KEY")` above. Some values are fixed into the artifact when you compile,
+and others are read from environment variables when the binary starts. A `runtime()` value is read at
+startup, and wrapping it in `secret()` keeps it out of logs and diagnostics. This is what lets you
+build one binary and run it in different environments by changing environment variables, never
+recompiling.
+
+## Two ways to run the artifact
+
+The compiled binary has a small command-line interface with two commands you will use next:
+
+- `run` executes a single request and prints the answer, then exits. It is the fastest way to see your agent work.
+- `serve` starts the built-in HTTP server so clients can talk to the agent over HTTP.
+
+## What you will do next
+
+In [Build your first agent](/get-started/build-your-first-agent) you will install agentc, scaffold a
+project, compile it, and run your agent for the first time.

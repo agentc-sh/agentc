@@ -1,15 +1,45 @@
 name: default
 
 on:
-  push:
-    branches-ignore:
-      - main
+  pull_request:
+    branches:
       - dev
-    tags-ignore:
-      - '**'
 
 jobs:
   lint:
+    if: "!contains(github.event.head_commit.message, '[skip-ci]')"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install Task
+        uses: arduino/setup-task@v3
+        with:
+          version: 3.43.3
+
+      - name: Lint DCO
+        uses: cpanato/dco-check-action@main
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          pull_request_number: ${{ github.event.number }}
+
+      - name: Lint commit message
+        run: |
+          pip install gitlint
+          git log -1 --pretty=%B | gitlint
+
+      - name: Lint code
+        run: task rust:lint
+
+
+  tests:
     if: "!contains(github.event.head_commit.message, '[skip-ci]')"
     runs-on: ubuntu-latest
     permissions:
@@ -25,10 +55,8 @@ jobs:
         with:
           version: 3.43.3
 
-      - name: Lint commit message
-        run: |
-          pip install gitlint
-          git log -1 --pretty=%B | gitlint
+      - name: Unit tests - Compiler
+        run: task rust:test:compiler
 
-      - name: Lint code
-        run: task rust:lint
+      - name: Unit tests - Runtime
+        run: task rust:test:runtime

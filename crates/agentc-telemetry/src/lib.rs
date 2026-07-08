@@ -75,13 +75,11 @@ impl<S: tracing::Subscriber> TracingLayer<S> for LoggingSwitch {
 }
 
 /// Supported telemetry protocols.
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-#[derive(Default)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum TelemetryProtocol {
     #[default]
     Http,
 }
-
 
 impl Debug for TelemetryProtocol {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {

@@ -9,35 +9,33 @@ use agentc_compiler::{
     compiler::cargo::CargoCompiler,
     generator::{
         blocks::{
+            BlockSet,
             codegen::CodeGenBlock,
             template::{
                 ExtensionPointSpec, FileSpec, Reducer, TemplateBlock, TemplateBlockManifest,
             },
-            traits::Block,
         },
-        extension::{Contribution, reducers},
+        extension::reducers,
     },
 };
 
 use crate::{
     archetype::{
-        standalone::{
-            codegen::{
-                agent_rs::AgentRsCodeGen, build_rs::BuildRsCodeGen, cli_config::CliConfigCodeGen,
-                cli_mod::CliModCodeGen, cli_run::CliRunCodeGen, cli_serve::CliServeCodeGen,
-                config_rs::ConfigRsCodeGen, main_rs::MainRsCodeGen, migrator_rs::MigratorRsCodeGen,
-                protocol_ag_ui::ProtocolAgUiCodeGen, server_rs::ServerRsCodeGen,
-            },
-            fields::{FieldSpec, FieldsSpec},
+        standalone::codegen::{
+            build_script::BuildScriptCodeGen,
+            cli::{CliModCodeGen, config::CliConfigCodeGen, shutdown::CliShutdownCodeGen},
+            config::ConfigCodeGen,
+            entrypoint::EntrypointCodeGen,
+            migrator::MigratorCodeGen,
         },
         traits::Archetype,
         types::ResolvedArchetype,
     },
-    context::{
-        ResolvedContext, ResolvedContextHttpServerProtocolAgUi, ResolvedContextProvider,
-        ResolvedContextToolKind,
-    },
+    composition::GenerationContribution,
+    context::ResolvedContext,
     errors::BlocksError,
+    feature::{ArchetypeStandalone, Cli, GenerationFeatureSet, HttpServer, LongLivedProcess},
+    fields::FieldsSpec,
     runtime::EMBEDDED_RUNTIME,
 };
 
@@ -105,8 +103,7 @@ impl From<(Os, Arch)> for TargetTriple {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct StandaloneArchetypeConfig {
     pub os: Option<Os>,
     pub arch: Option<Arch>,
@@ -122,591 +119,7 @@ impl StandaloneArchetypeConfig {
     }
 }
 
-
 pub struct StandaloneArchetype;
-
-impl StandaloneArchetype {
-    fn cargo_toml() -> TemplateBlock {
-        TemplateBlock::builder()
-            .with_manifest(TemplateBlockManifest {
-                id: "cargo_toml".to_string(),
-                files: vec![FileSpec {
-                    path: "Cargo.toml".to_string(),
-                    template: "cargo_toml".to_string(),
-                    condition: None,
-                }],
-                extension_points: vec![
-                    ExtensionPointSpec {
-                        name: "cargo::dependencies".to_string(),
-                        reducer: Reducer::Concat,
-                    },
-                    ExtensionPointSpec {
-                        name: "agent::features".to_string(),
-                        reducer: Reducer::JoinComma,
-                    },
-                    ExtensionPointSpec {
-                        name: "tools::features".to_string(),
-                        reducer: Reducer::JoinComma,
-                    },
-                ],
-                slot_fills: vec![],
-                description: None,
-            })
-            .with_template("cargo_toml", include_str!("templates/Cargo.toml.j2"))
-            .with_var("runtime_version", env!("CARGO_PKG_VERSION"))
-            .build()
-    }
-
-    fn build_rs() -> CodeGenBlock<ResolvedContext> {
-        CodeGenBlock::builder()
-            .id("build_rs")
-            .build(BuildRsCodeGen)
-    }
-
-    fn main_rs() -> CodeGenBlock<ResolvedContext> {
-        CodeGenBlock::builder()
-            .id("main_rs")
-            .extension_point("main::modules", reducers::concat)
-            .build(MainRsCodeGen)
-    }
-
-    fn cli_mod() -> CodeGenBlock<ResolvedContext> {
-        CodeGenBlock::builder()
-            .id("cli_mod")
-            .extension_point("cli::mod::use", reducers::concat)
-            .extension_point("cli::mod::variants", reducers::concat)
-            .extension_point("cli::mod::arms", reducers::concat)
-            .build(CliModCodeGen)
-    }
-
-    fn cli_run() -> CodeGenBlock<ResolvedContext> {
-        CodeGenBlock::builder()
-            .id("cli_run")
-            .build(CliRunCodeGen)
-    }
-
-    fn cli_config() -> CodeGenBlock<ResolvedContext> {
-        CodeGenBlock::builder()
-            .id("cli_config")
-            .build(CliConfigCodeGen)
-    }
-
-    fn cli_serve() -> CodeGenBlock<ResolvedContext> {
-        CodeGenBlock::builder()
-            .id("cli_serve")
-            .contribute(Contribution::strict("cli::mod::use"))
-            .contribute(Contribution::strict("cli::mod::variants"))
-            .contribute(Contribution::strict("cli::mod::arms"))
-            .build(CliServeCodeGen)
-    }
-
-    fn agent_rs(fields: &FieldsSpec) -> CodeGenBlock<ResolvedContext> {
-        CodeGenBlock::builder()
-            .id("agent_rs")
-            .extension_point("agent::use", reducers::concat)
-            .extension_point("agent::tools", reducers::concat)
-            .contribute(Contribution::strict("config::loader"))
-            .contribute(Contribution::strict("config::mapper"))
-            .contribute(Contribution::lenient("tools::features"))
-            .build(AgentRsCodeGen { fields: fields.clone() })
-    }
-
-    fn migrator_rs() -> CodeGenBlock<ResolvedContext> {
-        CodeGenBlock::builder()
-            .id("migrator_rs")
-            .extension_point("migrator::use", reducers::concat)
-            .extension_point("migrator::migrations", reducers::concat)
-            .build(MigratorRsCodeGen)
-    }
-
-    fn config_rs(fields: &FieldsSpec) -> CodeGenBlock<ResolvedContext> {
-        CodeGenBlock::builder()
-            .id("config_rs")
-            .extension_point("config::use", reducers::concat)
-            .extension_point("config::fields", reducers::concat)
-            .extension_point("config::impls", reducers::concat)
-            .extension_point("config::loader", reducers::concat)
-            .extension_point("config::mapper", reducers::concat)
-            .build(ConfigRsCodeGen { fields: fields.clone() })
-    }
-
-    fn server_rs(fields: &FieldsSpec) -> CodeGenBlock<ResolvedContext> {
-        CodeGenBlock::builder()
-            .id("server_rs")
-            .extension_point("server::use", reducers::concat)
-            .extension_point("server::routers", reducers::concat)
-            .contribute(Contribution::strict("main::modules"))
-            .build(ServerRsCodeGen { fields: fields.clone() })
-    }
-
-    fn protocol_ag_ui(
-        config: &ResolvedContextHttpServerProtocolAgUi,
-    ) -> CodeGenBlock<ResolvedContext> {
-        CodeGenBlock::builder()
-            .id("protocol_ag_ui")
-            .contribute(Contribution::strict("server::routers"))
-            .contribute(Contribution::strict("agent::features"))
-            .build(ProtocolAgUiCodeGen { config: config.clone() })
-    }
-
-    fn build_field_spec(ctx: &ResolvedContext) -> FieldsSpec {
-        let mut fields = Vec::new();
-
-        fields.push(FieldSpec::new(&["default_tenant_id"], &ctx.runtime.default_tenant_id));
-
-        for provider in &ctx.providers {
-            match provider {
-                ResolvedContextProvider::Anthropic(anthropic) => {
-                    if let Some(config) = &anthropic.config {
-                        if let Some(api_key) = &config.api_key {
-                            fields.push(FieldSpec::new(
-                                &["provider", "anthropic", "api_key"],
-                                api_key,
-                            ));
-                        }
-                        if let Some(base_url) = &config.base_url {
-                            fields.push(FieldSpec::new(
-                                &["provider", "anthropic", "base_url"],
-                                base_url,
-                            ));
-                        }
-                    }
-
-                    if let Some(params) = &anthropic.params {
-                        if let Some(v) = &params.max_tokens {
-                            fields.push(FieldSpec::new(
-                                &["provider", "anthropic", "params", "max_tokens"],
-                                v,
-                            ));
-                        }
-                        if let Some(v) = &params.temperature {
-                            fields.push(FieldSpec::new(
-                                &["provider", "anthropic", "params", "temperature"],
-                                v,
-                            ));
-                        }
-                        if let Some(v) = &params.top_p {
-                            fields.push(FieldSpec::new(
-                                &["provider", "anthropic", "params", "top_p"],
-                                v,
-                            ));
-                        }
-                        if let Some(v) = &params.top_k {
-                            fields.push(FieldSpec::new(
-                                &["provider", "anthropic", "params", "top_k"],
-                                v,
-                            ));
-                        }
-                        if let Some(v) = &params.stop_sequences {
-                            fields.push(FieldSpec::new(
-                                &["provider", "anthropic", "params", "stop_sequences"],
-                                v,
-                            ));
-                        }
-                        if let Some(v) = &params.frequency_penalty {
-                            fields.push(FieldSpec::new(
-                                &["provider", "anthropic", "params", "frequency_penalty"],
-                                v,
-                            ));
-                        }
-                        if let Some(v) = &params.presence_penalty {
-                            fields.push(FieldSpec::new(
-                                &["provider", "anthropic", "params", "presence_penalty"],
-                                v,
-                            ));
-                        }
-                        if let Some(v) = &params.seed {
-                            fields.push(FieldSpec::new(
-                                &["provider", "anthropic", "params", "seed"],
-                                v,
-                            ));
-                        }
-                        if let Some(v) = &params.provider_params {
-                            fields.push(FieldSpec::new(
-                                &["provider", "anthropic", "params", "provider_params"],
-                                v,
-                            ));
-                        }
-                    }
-
-                    if let Some(models) = &anthropic.models {
-                        for model in models {
-                            if let Some(params) = &model.params {
-                                let slug: String = model
-                                    .name
-                                    .chars()
-                                    .map(|c| if c.is_alphanumeric() { c } else { '_' })
-                                    .collect();
-                                let slug = slug.as_str();
-                                if let Some(v) = &params.max_tokens {
-                                    fields.push(FieldSpec::new(
-                                        &["provider", "anthropic", slug, "max_tokens"],
-                                        v,
-                                    ));
-                                }
-                                if let Some(v) = &params.temperature {
-                                    fields.push(FieldSpec::new(
-                                        &["provider", "anthropic", slug, "temperature"],
-                                        v,
-                                    ));
-                                }
-                                if let Some(v) = &params.top_p {
-                                    fields.push(FieldSpec::new(
-                                        &["provider", "anthropic", slug, "top_p"],
-                                        v,
-                                    ));
-                                }
-                                if let Some(v) = &params.top_k {
-                                    fields.push(FieldSpec::new(
-                                        &["provider", "anthropic", slug, "top_k"],
-                                        v,
-                                    ));
-                                }
-                                if let Some(v) = &params.stop_sequences {
-                                    fields.push(FieldSpec::new(
-                                        &["provider", "anthropic", slug, "stop_sequences"],
-                                        v,
-                                    ));
-                                }
-                                if let Some(v) = &params.frequency_penalty {
-                                    fields.push(FieldSpec::new(
-                                        &["provider", "anthropic", slug, "frequency_penalty"],
-                                        v,
-                                    ));
-                                }
-                                if let Some(v) = &params.presence_penalty {
-                                    fields.push(FieldSpec::new(
-                                        &["provider", "anthropic", slug, "presence_penalty"],
-                                        v,
-                                    ));
-                                }
-                                if let Some(v) = &params.seed {
-                                    fields.push(FieldSpec::new(
-                                        &["provider", "anthropic", slug, "seed"],
-                                        v,
-                                    ));
-                                }
-                                if let Some(v) = &params.provider_params {
-                                    fields.push(FieldSpec::new(
-                                        &["provider", "anthropic", slug, "provider_params"],
-                                        v,
-                                    ));
-                                }
-                            }
-                        }
-                    }
-                }
-                ResolvedContextProvider::OpenAi(openai) => {
-                    if let Some(config) = &openai.config {
-                        if let Some(api_key) = &config.api_key {
-                            fields
-                                .push(FieldSpec::new(&["provider", "openai", "api_key"], api_key));
-                        }
-                        if let Some(base_url) = &config.base_url {
-                            fields.push(FieldSpec::new(
-                                &["provider", "openai", "base_url"],
-                                base_url,
-                            ));
-                        }
-                    }
-
-                    if let Some(params) = &openai.params {
-                        if let Some(v) = &params.max_tokens {
-                            fields.push(FieldSpec::new(
-                                &["provider", "openai", "params", "max_tokens"],
-                                v,
-                            ));
-                        }
-                        if let Some(v) = &params.temperature {
-                            fields.push(FieldSpec::new(
-                                &["provider", "openai", "params", "temperature"],
-                                v,
-                            ));
-                        }
-                        if let Some(v) = &params.top_p {
-                            fields.push(FieldSpec::new(
-                                &["provider", "openai", "params", "top_p"],
-                                v,
-                            ));
-                        }
-                        if let Some(v) = &params.top_k {
-                            fields.push(FieldSpec::new(
-                                &["provider", "openai", "params", "top_k"],
-                                v,
-                            ));
-                        }
-                        if let Some(v) = &params.stop_sequences {
-                            fields.push(FieldSpec::new(
-                                &["provider", "openai", "params", "stop_sequences"],
-                                v,
-                            ));
-                        }
-                        if let Some(v) = &params.frequency_penalty {
-                            fields.push(FieldSpec::new(
-                                &["provider", "openai", "params", "frequency_penalty"],
-                                v,
-                            ));
-                        }
-                        if let Some(v) = &params.presence_penalty {
-                            fields.push(FieldSpec::new(
-                                &["provider", "openai", "params", "presence_penalty"],
-                                v,
-                            ));
-                        }
-                        if let Some(v) = &params.seed {
-                            fields
-                                .push(FieldSpec::new(&["provider", "openai", "params", "seed"], v));
-                        }
-                        if let Some(v) = &params.provider_params {
-                            fields.push(FieldSpec::new(
-                                &["provider", "openai", "params", "provider_params"],
-                                v,
-                            ));
-                        }
-                    }
-
-                    if let Some(models) = &openai.models {
-                        for model in models {
-                            if let Some(params) = &model.params {
-                                let slug: String = model
-                                    .name
-                                    .chars()
-                                    .map(|c| if c.is_alphanumeric() { c } else { '_' })
-                                    .collect();
-                                let slug = slug.as_str();
-                                if let Some(v) = &params.max_tokens {
-                                    fields.push(FieldSpec::new(
-                                        &["provider", "openai", slug, "max_tokens"],
-                                        v,
-                                    ));
-                                }
-                                if let Some(v) = &params.temperature {
-                                    fields.push(FieldSpec::new(
-                                        &["provider", "openai", slug, "temperature"],
-                                        v,
-                                    ));
-                                }
-                                if let Some(v) = &params.top_p {
-                                    fields.push(FieldSpec::new(
-                                        &["provider", "openai", slug, "top_p"],
-                                        v,
-                                    ));
-                                }
-                                if let Some(v) = &params.top_k {
-                                    fields.push(FieldSpec::new(
-                                        &["provider", "openai", slug, "top_k"],
-                                        v,
-                                    ));
-                                }
-                                if let Some(v) = &params.stop_sequences {
-                                    fields.push(FieldSpec::new(
-                                        &["provider", "openai", slug, "stop_sequences"],
-                                        v,
-                                    ));
-                                }
-                                if let Some(v) = &params.frequency_penalty {
-                                    fields.push(FieldSpec::new(
-                                        &["provider", "openai", slug, "frequency_penalty"],
-                                        v,
-                                    ));
-                                }
-                                if let Some(v) = &params.presence_penalty {
-                                    fields.push(FieldSpec::new(
-                                        &["provider", "openai", slug, "presence_penalty"],
-                                        v,
-                                    ));
-                                }
-                                if let Some(v) = &params.seed {
-                                    fields.push(FieldSpec::new(
-                                        &["provider", "openai", slug, "seed"],
-                                        v,
-                                    ));
-                                }
-                                if let Some(v) = &params.provider_params {
-                                    fields.push(FieldSpec::new(
-                                        &["provider", "openai", slug, "provider_params"],
-                                        v,
-                                    ));
-                                }
-                            }
-                        }
-                    }
-                }
-                ResolvedContextProvider::Ollama(ollama) => {
-                    if let Some(config) = &ollama.config
-                        && let Some(base_url) = &config.base_url {
-                            fields.push(FieldSpec::new(
-                                &["provider", "ollama", "base_url"],
-                                base_url,
-                            ));
-                        }
-
-                    if let Some(params) = &ollama.params {
-                        if let Some(v) = &params.max_tokens {
-                            fields.push(FieldSpec::new(
-                                &["provider", "ollama", "params", "max_tokens"],
-                                v,
-                            ));
-                        }
-                        if let Some(v) = &params.temperature {
-                            fields.push(FieldSpec::new(
-                                &["provider", "ollama", "params", "temperature"],
-                                v,
-                            ));
-                        }
-                        if let Some(v) = &params.top_p {
-                            fields.push(FieldSpec::new(
-                                &["provider", "ollama", "params", "top_p"],
-                                v,
-                            ));
-                        }
-                        if let Some(v) = &params.top_k {
-                            fields.push(FieldSpec::new(
-                                &["provider", "ollama", "params", "top_k"],
-                                v,
-                            ));
-                        }
-                        if let Some(v) = &params.stop_sequences {
-                            fields.push(FieldSpec::new(
-                                &["provider", "ollama", "params", "stop_sequences"],
-                                v,
-                            ));
-                        }
-                        if let Some(v) = &params.frequency_penalty {
-                            fields.push(FieldSpec::new(
-                                &["provider", "ollama", "params", "frequency_penalty"],
-                                v,
-                            ));
-                        }
-                        if let Some(v) = &params.presence_penalty {
-                            fields.push(FieldSpec::new(
-                                &["provider", "ollama", "params", "presence_penalty"],
-                                v,
-                            ));
-                        }
-                        if let Some(v) = &params.seed {
-                            fields
-                                .push(FieldSpec::new(&["provider", "ollama", "params", "seed"], v));
-                        }
-                        if let Some(v) = &params.provider_params {
-                            fields.push(FieldSpec::new(
-                                &["provider", "ollama", "params", "provider_params"],
-                                v,
-                            ));
-                        }
-                    }
-
-                    if let Some(models) = &ollama.models {
-                        for model in models {
-                            if let Some(params) = &model.params {
-                                let slug: String = model
-                                    .name
-                                    .chars()
-                                    .map(|c| if c.is_alphanumeric() { c } else { '_' })
-                                    .collect();
-                                let slug = slug.as_str();
-                                if let Some(v) = &params.max_tokens {
-                                    fields.push(FieldSpec::new(
-                                        &["provider", "ollama", slug, "max_tokens"],
-                                        v,
-                                    ));
-                                }
-                                if let Some(v) = &params.temperature {
-                                    fields.push(FieldSpec::new(
-                                        &["provider", "ollama", slug, "temperature"],
-                                        v,
-                                    ));
-                                }
-                                if let Some(v) = &params.top_p {
-                                    fields.push(FieldSpec::new(
-                                        &["provider", "ollama", slug, "top_p"],
-                                        v,
-                                    ));
-                                }
-                                if let Some(v) = &params.top_k {
-                                    fields.push(FieldSpec::new(
-                                        &["provider", "ollama", slug, "top_k"],
-                                        v,
-                                    ));
-                                }
-                                if let Some(v) = &params.stop_sequences {
-                                    fields.push(FieldSpec::new(
-                                        &["provider", "ollama", slug, "stop_sequences"],
-                                        v,
-                                    ));
-                                }
-                                if let Some(v) = &params.frequency_penalty {
-                                    fields.push(FieldSpec::new(
-                                        &["provider", "ollama", slug, "frequency_penalty"],
-                                        v,
-                                    ));
-                                }
-                                if let Some(v) = &params.presence_penalty {
-                                    fields.push(FieldSpec::new(
-                                        &["provider", "ollama", slug, "presence_penalty"],
-                                        v,
-                                    ));
-                                }
-                                if let Some(v) = &params.seed {
-                                    fields.push(FieldSpec::new(
-                                        &["provider", "ollama", slug, "seed"],
-                                        v,
-                                    ));
-                                }
-                                if let Some(v) = &params.provider_params {
-                                    fields.push(FieldSpec::new(
-                                        &["provider", "ollama", slug, "provider_params"],
-                                        v,
-                                    ));
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        fields.push(FieldSpec::new(&["agent", "model", "provider"], &ctx.agent.model.provider));
-        fields.push(FieldSpec::new(&["agent", "model", "name"], &ctx.agent.model.name));
-
-        if let Some(capabilities) = &ctx.agent.capabilities {
-            fields.push(FieldSpec::new(&["agent", "capabilities"], capabilities));
-        }
-
-        for (tool_name, tool) in &ctx.tools {
-            match &tool.kind {
-                ResolvedContextToolKind::Javascript(_) => {
-                    fields.push(FieldSpec::new(&["tool", tool_name, "enabled"], &tool.enabled));
-
-                    for (config_key, config_value) in &tool.config {
-                        fields.push(FieldSpec::new(&["tool", tool_name, config_key], config_value));
-                    }
-                }
-
-                // MCP tool loader calls are contributed to `config::loader` by AgentRsCodeGen.
-                ResolvedContextToolKind::Mcp(_) => {}
-
-                // Bash tools have no runtime-configurable fields beyond what is baked at compile time.
-                ResolvedContextToolKind::Bash(_) => {}
-
-                ResolvedContextToolKind::Python(_) => {
-                    fields.push(FieldSpec::new(&["tool", tool_name, "enabled"], &tool.enabled));
-
-                    for (config_key, config_value) in &tool.config {
-                        fields.push(FieldSpec::new(&["tool", tool_name, config_key], config_value));
-                    }
-                }
-            }
-        }
-
-        if let Some(http_server) = &ctx.http_server {
-            fields.push(FieldSpec::new(&["server", "host"], &http_server.host));
-            fields.push(FieldSpec::new(&["server", "port"], &http_server.port));
-        }
-
-        fields.into()
-    }
-}
 
 impl Archetype for StandaloneArchetype {
     type Config = StandaloneArchetypeConfig;
@@ -720,41 +133,220 @@ impl Archetype for StandaloneArchetype {
         context: ResolvedContext,
         config: Self::Config,
     ) -> Result<ResolvedArchetype, BlocksError> {
-        let fields = Self::build_field_spec(&context);
-        let mut blocks: Vec<Box<dyn Block<ResolvedContext>>> = vec![
-            Box::new(Self::cargo_toml()),
-            Box::new(Self::build_rs()),
-            Box::new(Self::migrator_rs()),
-            Box::new(Self::config_rs(&fields)),
-            Box::new(Self::agent_rs(&fields)),
-            Box::new(Self::cli_mod()),
-            Box::new(Self::cli_run()),
-            Box::new(Self::cli_config()),
-            Box::new(Self::main_rs()),
-        ];
-
-        if let Some(http_server) = &context.http_server {
-            blocks.push(Box::new(Self::server_rs(&fields)));
-            blocks.push(Box::new(Self::cli_serve()));
-
-            if let Some(ag_ui) = http_server
-                .protocols
-                .iter()
-                .filter_map(|p| p.as_ag_ui())
-                .next()
-            {
-                blocks.push(Box::new(Self::protocol_ag_ui(ag_ui)))
-            }
-        }
+        let fields = FieldsSpec::collect_from(&context);
 
         Ok(ResolvedArchetype {
             name: self.name().to_string(),
             compiler: Box::new(CargoCompiler::new()),
-            blocks,
             target: config
                 .target_triple()?
                 .map(|t| t.to_string()),
-            embedded_assets: EMBEDDED_RUNTIME,
+            contribution: GenerationContribution::new()
+                .with_blocks(
+                    BlockSet::new()
+                        .add(
+                            TemplateBlock::builder()
+                                .with_manifest(TemplateBlockManifest {
+                                    id: "cargo_toml".to_string(),
+                                    files: vec![FileSpec {
+                                        path: "Cargo.toml".to_string(),
+                                        template: "cargo_toml".to_string(),
+                                        condition: None,
+                                    }],
+                                    extension_points: vec![
+                                        ExtensionPointSpec {
+                                            name: "cargo::dependencies".to_string(),
+                                            reducer: Reducer::Concat,
+                                        },
+                                        ExtensionPointSpec {
+                                            name: "cargo::patches".to_string(),
+                                            reducer: Reducer::Concat,
+                                        },
+                                        ExtensionPointSpec {
+                                            name: "tools::features".to_string(),
+                                            reducer: Reducer::JoinComma,
+                                        },
+                                    ],
+                                    slot_fills: vec![],
+                                    description: None,
+                                })
+                                .with_template("cargo_toml", include_str!("templates/Cargo.toml.j2"))
+                                .with_var("runtime_version", env!("CARGO_PKG_VERSION"))
+                                .build(),
+                        )
+                        .add(
+                            TemplateBlock::builder()
+                                .with_manifest(TemplateBlockManifest {
+                                    id: "rust-toolchain_toml".to_string(),
+                                    files: vec![FileSpec {
+                                        path: "rust-toolchain.toml".to_string(),
+                                        template: "rust-toolchain_toml".to_string(),
+                                        condition: None,
+                                    }],
+                                    extension_points: vec![],
+                                    slot_fills: vec![],
+                                    description: None,
+                                })
+                                .with_template("rust-toolchain_toml", include_str!("templates/rust-toolchain.toml.j2"))
+                                .build(),
+                        )
+                        .add(
+                            CodeGenBlock::builder()
+                                .id("build_rs")
+                                .build(BuildScriptCodeGen),
+                        )
+                        .add(
+                            CodeGenBlock::builder()
+                                .id("migrator_rs")
+                                .extension_point("migrator::use", reducers::concat)
+                                .extension_point("migrator::migrations", reducers::concat)
+                                .build(MigratorCodeGen),
+                        )
+                        .add(
+                            CodeGenBlock::builder()
+                                .id("config_rs")
+                                .extension_point("config::use", reducers::concat)
+                                .extension_point("config::fields", reducers::concat)
+                                .extension_point("config::impls", reducers::concat)
+                                .extension_point("config::loader", reducers::concat)
+                                .extension_point("config::mapper", reducers::concat)
+                                .build(ConfigCodeGen { fields: fields.clone() }),
+                        )
+                        .add(
+                            CodeGenBlock::builder()
+                                .id("cli_mod")
+                                .extension_point("cli::mod::use", reducers::concat)
+                                .extension_point("cli::mod::variants", reducers::concat)
+                                .extension_point("cli::mod::arms", reducers::concat)
+                                .build(CliModCodeGen),
+                        )
+                        .add(
+                            CodeGenBlock::builder()
+                                .id("cli_shutdown")
+                                .build(CliShutdownCodeGen),
+                        )
+                        .add(
+                            CodeGenBlock::builder()
+                                .id("cli_config")
+                                .build(CliConfigCodeGen),
+                        )
+                        .add(
+                            CodeGenBlock::builder()
+                                .id("main_rs")
+                                .extension_point("main::modules", reducers::concat)
+                                .build(EntrypointCodeGen),
+                        )
+                        .into_inner(),
+                )
+                .with_embedded_assets(EMBEDDED_RUNTIME.iter().collect())
+                .with_provides(
+                    GenerationFeatureSet::new()
+                        .with::<ArchetypeStandalone>()
+                        .with::<Cli>()
+                        .with::<LongLivedProcess>()
+                        .with_if::<HttpServer>(context.http_server.is_some()),
+                ),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+    use agentc_compiler::generator::{
+        context::GenerationContext, extension::ExtensionRegistry, vfs::VirtualFileSystem,
+    };
+
+    fn context(http_server: Option<serde_json::Value>) -> ResolvedContext {
+        serde_json::from_value(json!({
+            "slug": "assistant",
+            "agent_name": "assistant",
+            "runtime": { "default_tenant_id": "default" },
+            "providers": [],
+            "agent": {
+                "version": "0.1.0",
+                "description": null,
+                "prompt": null,
+                "capabilities": null,
+                "capability_policy": null,
+                "model": { "provider": "anthropic", "name": "claude" }
+            },
+            "blocks": {},
+            "tools": {},
+            "skills": {},
+            "http_server": http_server
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn provides_cli_and_long_lived_process_always() {
+        let resolved = StandaloneArchetype
+            .resolve(context(None), StandaloneArchetypeConfig::default())
+            .unwrap();
+
+        assert!(
+            resolved
+                .contribution
+                .provides
+                .contains::<ArchetypeStandalone>()
+        );
+        assert!(resolved.contribution.provides.contains::<Cli>());
+        assert!(
+            resolved
+                .contribution
+                .provides
+                .contains::<LongLivedProcess>()
+        );
+        assert!(!resolved.contribution.provides.contains::<HttpServer>());
+    }
+
+    #[test]
+    fn provides_http_server_only_when_configured() {
+        let resolved = StandaloneArchetype
+            .resolve(
+                context(Some(json!({ "host": "0.0.0.0", "port": 8080, "protocols": [] }))),
+                StandaloneArchetypeConfig::default(),
+            )
+            .unwrap();
+
+        assert!(resolved.contribution.provides.contains::<HttpServer>());
+    }
+
+    #[tokio::test]
+    async fn generated_cargo_toml_has_no_react_or_ag_ui_references() {
+        let resolved = StandaloneArchetype
+            .resolve(
+                context(Some(json!({ "host": "0.0.0.0", "port": 8080, "protocols": [] }))),
+                StandaloneArchetypeConfig::default(),
+            )
+            .unwrap();
+
+        let cargo_toml_block = resolved
+            .contribution
+            .blocks
+            .iter()
+            .find(|block| block.id() == "cargo_toml")
+            .expect("cargo_toml block is registered");
+
+        let ctx = GenerationContext::new(context(Some(
+            json!({ "host": "0.0.0.0", "port": 8080, "protocols": [] }),
+        )));
+        let mut vfs = VirtualFileSystem::new();
+
+        cargo_toml_block
+            .render(&ctx, &ExtensionRegistry::empty(), &mut vfs)
+            .await
+            .unwrap();
+
+        let content = vfs
+            .get("Cargo.toml")
+            .expect("Cargo.toml is generated");
+
+        assert!(!content.contains("agentc-agent-react"));
+        assert!(!content.contains("agentc-protocol-ag-ui"));
+        assert!(!content.contains("has_ag_ui_protocol"));
     }
 }

@@ -1,0 +1,91 @@
+---
+title: Manifest
+description: The agent.acl manifest and the top-level blocks that make up an agent.
+---
+
+An agent is defined by a single `agent.acl` manifest. The manifest is a set of top-level blocks whose
+order does not matter: `build` selects the output shape, `providers` declares the models, `agent`
+defines the agent itself, `tool` and `skill` extend what it can do, `http_server` exposes it over the
+network, and `locals` factors out repeated values. Each block has its own reference page linked below.
+
+The manifest below is a complete example that uses every top-level block:
+
+```hcl title="agent.acl"
+locals {
+  version = "1.0.0"
+}
+
+build {
+  archetype = "standalone"
+}
+
+runtime {
+  default_tenant_id = "default"
+}
+
+providers {
+  anthropic {
+    models = ["claude-haiku-4-5"]
+
+    config {
+      api_key = secret(runtime("ANTHROPIC_API_KEY"))
+    }
+  }
+}
+
+agent "assistant" {
+  graph {
+    type = "react"
+  }
+
+  version     = locals.version
+  description = "A helpful assistant."
+
+  prompt = "You are {{ agent_name }}, a concise and helpful assistant."
+
+  capabilities      = ["math"]
+  capability_policy = "locked"
+
+  model {
+    provider = "anthropic"
+    name     = "claude-haiku-4-5"
+  }
+}
+
+tool "adder" {
+  kind         = "javascript"
+  source       = "./tools/math"
+  capabilities = ["math"]
+}
+
+skill "arithmetic" {
+  source = "./skills/arithmetic"
+}
+
+http_server {
+  host = runtime("HTTP_HOST", "127.0.0.1")
+  port = runtime("HTTP_PORT", 8080)
+
+  protocol {
+    ag_ui {}
+  }
+}
+```
+
+To assemble a manifest step by step rather than from a finished example, see
+[Author a manifest](/guides/author-a-manifest). For the concepts behind build-time versus runtime
+values, see [The manifest](/concepts/the-manifest).
+
+## Blocks
+
+| Block | Purpose |
+|-------|---------|
+| [build](/reference/manifest/build) | Selects the archetype and output shape of the artifact. |
+| [locals](/reference/manifest/locals) | Build-time constants referenced elsewhere in the manifest. |
+| [runtime](/reference/manifest/runtime) | Runtime settings such as the default tenant and storage. |
+| [providers](/reference/manifest/providers) | Model providers and their connection and inference configuration. |
+| [agent](/reference/manifest/agent) | The agent's identity, graph, model, prompt, and capabilities. |
+| [graph](/reference/manifest/graph) | The graph selection inside the agent. |
+| [tool](/reference/manifest/tool) | A tool the agent can call. |
+| [skill](/reference/manifest/skill) | A skill that shapes the agent's judgement. |
+| [http_server](/reference/manifest/http-server) | The network interface and mounted protocols. |

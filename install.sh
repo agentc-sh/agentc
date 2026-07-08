@@ -2,22 +2,24 @@
 set -euo pipefail
 
 SITE_HOST="${AGENTC_SITE_HOST:-agentc.sh}"
+API_BASE="${AGENTC_API_BASE:-https://${SITE_HOST}/api/binary}"
+
 PACKAGE_NAME="agentc"
 BINARY_NAME="agentc"
-
-API_BASE="https://${SITE_HOST}/api/binary"
 
 TMP_DIR=""
 
 ARG_VERSION=""
 ARG_PRE=false
-ARG_INSTALL_DIR=""
+ARG_INSTALL_DIR="${HOME}/.local/bin"
 ARG_TOKEN=""
 ARG_NO_VERIFY=false
 ARG_NO_CHECKSUM=false
 ARG_DRY_RUN=false
 ARG_UPGRADE=false
 ARG_QUIET=false
+
+declare -a AUTH_HEADER=()
 
 # ==============================================================================
 # COLOURS
@@ -54,8 +56,7 @@ need() {
 # ==============================================================================
 
 validate_args() {
-  [[ -n "$ARG_INSTALL_DIR" ]] || die "--install-dir is required."
-  [[ -n "$ARG_TOKEN" ]] || die "--token is required. Provide your agentc.sh access token."
+  [[ -n "$ARG_INSTALL_DIR" ]] || die "Install directory could not be determined."
 }
 
 usage() {
@@ -66,8 +67,8 @@ Usage:
 Options:
   -v, --version <version>     Version to install (default: latest stable)
       --pre                   Allow pre-release versions
-  -d, --install-dir <path>    Directory to install binary into (required)
-  -t, --token <token>         agentc.sh access token (required)
+  -d, --install-dir <path>    Directory to install binary into (default: ~/.local/bin)
+  -t, --token <token>         Access token for authenticated requests
       --no-verify             Skip signature and provenance verification
       --no-checksum           Skip SHA256 checksum verification
       --dry-run               Print what would be done without downloading or installing
@@ -78,31 +79,26 @@ Options:
 Examples:
   # Install latest stable
   curl -sSfL https://install.${SITE_HOST} | bash -s -- \\
-    --install-dir /usr/local/bin \\
-    --token <your-token>
+    --install-dir /usr/local/bin
 
   # Install a specific version
   curl -sSfL https://install.${SITE_HOST} | bash -s -- \\
     --install-dir /usr/local/bin \\
-    --token <your-token> \\
     --version 1.2.3
 
   # Install latest pre-release
   curl -sSfL https://install.${SITE_HOST} | bash -s -- \\
     --install-dir /usr/local/bin \\
-    --token <your-token> \\
     --pre
 
   # Upgrade an existing installation
   curl -sSfL https://install.${SITE_HOST} | bash -s -- \\
     --install-dir /usr/local/bin \\
-    --token <your-token> \\
     --upgrade
 
   # Dry run — see what would happen without installing
   curl -sSfL https://install.${SITE_HOST} | bash -s -- \\
     --install-dir /usr/local/bin \\
-    --token <your-token> \\
     --dry-run
 EOF
   exit 0
@@ -180,9 +176,9 @@ resolve_version() {
   local raw
   raw=$(curl \
     --fail --silent --show-error --location \
-    --header "Authorization: Bearer ${ARG_TOKEN}" \
+    "${AUTH_HEADER[@]}" \
     "$url" \
-  ) || die "Failed to fetch version list.\nCheck your token and ensure you have access."
+  ) || die "Failed to fetch version list.\nCheck network access and any required credentials."
 
   local versions
   versions=$(printf '%s' "$raw" | grep -o '"[^"]*"' | tr -d '"')
@@ -203,9 +199,9 @@ download_file() {
   curl \
     --fail --silent --show-error --location \
     --progress-bar \
-    --header "Authorization: Bearer ${ARG_TOKEN}" \
+    "${AUTH_HEADER[@]}" \
     --output "$dest" \
-    "$url" || die "Failed to download ${label}."
+    "$url" || die "Failed to download ${label}.\nCheck network access and any required credentials."
 }
 
 download_attestation() {
@@ -216,9 +212,9 @@ download_attestation() {
 
   curl \
     --fail --silent --show-error --location \
-    --header "Authorization: Bearer ${ARG_TOKEN}" \
+    "${AUTH_HEADER[@]}" \
     --output "$dest" \
-    "$url" || die "Failed to download attestation data."
+    "$url" || die "Failed to download attestation data.\nCheck network access and any required credentials."
 }
 
 # ==============================================================================
@@ -543,6 +539,10 @@ main() {
   parse_args "$@"
   validate_args
 
+  if [[ -n "$ARG_TOKEN" ]]; then
+    AUTH_HEADER=(--header "Authorization: Bearer ${ARG_TOKEN}")
+  fi
+
   log ""
   log "${COL_BOLD}agentc installer${COL_RESET}"
   log "────────────────────────────────"
@@ -586,9 +586,14 @@ main() {
     warn "Signature and provenance verification skipped (--no-verify)."
   else
     download_attestation "$BINARY_FILENAME" "$tmp_attestation"
-    download_file "$SIG_BUNDLE_FILENAME" "$tmp_bundle" "$SIG_BUNDLE_FILENAME"
-    verify_signature "$tmp_binary" "$tmp_bundle" "$tmp_attestation"
-    verify_provenance "$tmp_binary" "$tmp_attestation"
+
+    if json_has_available_true "$tmp_attestation"; then
+      download_file "$SIG_BUNDLE_FILENAME" "$tmp_bundle" "$SIG_BUNDLE_FILENAME"
+      verify_signature "$tmp_binary" "$tmp_bundle" "$tmp_attestation"
+      verify_provenance "$tmp_binary" "$tmp_attestation"
+    else
+      warn "No valid build attestation is available for this artifact. Skipping signature and provenance verification."
+    fi
   fi
 
   install_binary "$tmp_binary" "$ARG_INSTALL_DIR" "$INSTALL_BINARY"

@@ -17,6 +17,7 @@ pub enum RunStatus {
     Interrupted,
     Completed,
     Failed,
+    Cancelled,
 }
 
 impl RunStatus {
@@ -26,6 +27,7 @@ impl RunStatus {
             RunStatus::Interrupted => "interrupted",
             RunStatus::Completed => "completed",
             RunStatus::Failed => "failed",
+            RunStatus::Cancelled => "cancelled",
         }
     }
 }
@@ -45,6 +47,7 @@ impl FromStr for RunStatus {
             "interrupted" => Ok(RunStatus::Interrupted),
             "completed" => Ok(RunStatus::Completed),
             "failed" => Ok(RunStatus::Failed),
+            "cancelled" => Ok(RunStatus::Cancelled),
             _ => Err(()),
         }
     }

@@ -57,7 +57,8 @@ where
     }
 }
 
-type PipelineRunner<I, O, T, Err> = Box<dyn FnOnce(I, T) -> BoxFuture<'static, Result<O, Err>> + Send>;
+type PipelineRunner<I, O, T, Err> =
+    Box<dyn FnOnce(I, T) -> BoxFuture<'static, Result<O, Err>> + Send>;
 
 pub struct Pipeline<I, O, T, E, Err>
 where
@@ -78,7 +79,7 @@ where
     I: Send + 'static,
     E: Send + 'static,
     Err: Send + 'static,
- {
+{
     fn default() -> Self {
         Self::new()
     }

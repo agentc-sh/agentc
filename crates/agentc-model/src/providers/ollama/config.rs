@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-use rig::providers::ollama;
+use rig_core::providers::ollama;
 use serde::{Deserialize, Serialize};
 
 use crate::{errors::ModelError, providers::ollama::client::OllamaClient};
@@ -28,7 +28,7 @@ impl OllamaConfig {
 
     /// Construct an [`OllamaClient`] from this config.
     pub fn build_client(&self) -> Result<OllamaClient, ModelError> {
-        let mut builder = ollama::Client::builder().api_key(rig::client::Nothing);
+        let mut builder = ollama::Client::builder().api_key(rig_core::client::Nothing);
 
         if let Some(url) = &self.base_url {
             builder = builder.base_url(url);

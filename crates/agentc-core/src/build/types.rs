@@ -5,9 +5,9 @@
 use std::path::PathBuf;
 
 use crate::pipeline::steps::{
-    cleanup::CleanupStepEvent, compile::CompileStepEvent, extract::ExtractStepEvent,
-    fetch::FetchStepEvent, generate::GenerateStepEvent, resolve::ResolveStepEvent,
-    transform::TransformStepEvent,
+    cleanup::CleanupStepEvent, compile::CompileStepEvent, compose::ComposeStepEvent,
+    extract::ExtractStepEvent, fetch::FetchStepEvent, generate::GenerateStepEvent,
+    resolve::ResolveStepEvent, transform::TransformStepEvent,
 };
 
 /// Parameters for configuring the build process in the [`BuildPipeline`](crate::build::pipeline::BuildPipeline).
@@ -62,6 +62,19 @@ pub enum BuildEvent {
         /// The number of tools defined in the manifest.
         tool_count: usize,
         /// The number of custom blocks defined in the manifest.
+        block_count: usize,
+    },
+    /// Emitted when the selected archetype, graph, and protocols are being composed.
+    Composing,
+    /// Emitted when the selected archetype, graph, and protocols have been composed.
+    Composed {
+        /// Archetype name used for this composition.
+        archetype_name: String,
+        /// Graph name used for this composition.
+        graph_name: String,
+        /// Protocol names used for this composition, in manifest order.
+        protocol_names: Vec<String>,
+        /// The total number of blocks that will be rendered, including user custom blocks.
         block_count: usize,
     },
     /// Emitted when embedded runtime crates are being extracted to disk.
@@ -184,6 +197,20 @@ impl From<ResolveStepEvent> for BuildEvent {
                 tool_count,
                 block_count,
             },
+        }
+    }
+}
+
+impl From<ComposeStepEvent> for BuildEvent {
+    fn from(event: ComposeStepEvent) -> Self {
+        match event {
+            ComposeStepEvent::Started => BuildEvent::Composing,
+            ComposeStepEvent::Completed {
+                archetype_name,
+                graph_name,
+                protocol_names,
+                block_count,
+            } => BuildEvent::Composed { archetype_name, graph_name, protocol_names, block_count },
         }
     }
 }

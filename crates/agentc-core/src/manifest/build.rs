@@ -22,7 +22,9 @@ impl ManifestBuild {
 
     pub fn config(&self) -> Value {
         match self {
-            ManifestBuild::Standalone(config) => to_value(config).unwrap_or(Value::Null),
+            ManifestBuild::Standalone(config) => {
+                to_value(config).expect("standalone archetype config must serialize to JSON")
+            }
         }
     }
 }

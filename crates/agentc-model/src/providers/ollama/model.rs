@@ -4,7 +4,7 @@
 
 use async_trait::async_trait;
 use futures::StreamExt;
-use rig::{
+use rig_core::{
     client::CompletionClient, completion::CompletionModel as RigCompletionModel, message::Message,
     providers::ollama,
 };

@@ -1,0 +1,57 @@
+---
+title: Instrument with OpenTelemetry
+description: Export traces, metrics, and logs from an agent to an OTLP backend.
+---
+
+Agents are instrumented out of the box. Logs, traces, and metrics are produced without any code on your
+part, and you turn export on with environment variables at startup. This guide shows how to wire an
+agent to a backend. For what each signal means, see [Observability](/concepts/observability).
+
+## Point the agent at an OTLP endpoint
+
+Set `OTLP_ENDPOINT` to the base URL of an OTLP over HTTP receiver. When it is set, the agent exports
+traces, metrics, and logs there. When it is absent, export is disabled and there is no overhead:
+
+```bash
+export OTLP_ENDPOINT=http://localhost:4318
+export APP_ENV=production
+./artifacts/build/my_agent serve
+```
+
+`APP_ENV` tags every exported record with the environment it came from. The service name is the agent
+name from the manifest, baked in at build time. The agent appends the standard signal paths
+(`/v1/traces`, `/v1/metrics`, `/v1/logs`) to the endpoint automatically.
+
+## Send to a collector or a vendor
+
+The natural target for `OTLP_ENDPOINT` is an OpenTelemetry Collector, which receives all three signals
+and routes each one onward to the backends you use, for example a tracing store for traces, Prometheus
+for metrics, and a log store for logs. Because the export is standard OTLP, you can also point the
+agent directly at any OTLP-compatible vendor such as Honeycomb or Datadog without a collector in
+between.
+
+## Set the log level
+
+Logs are written as structured JSON to standard output regardless of OTLP. Control their verbosity with
+`LOG_LEVEL`, which accepts `trace`, `debug`, `info`, `warn`, or `error` and defaults to `info`:
+
+```bash
+export LOG_LEVEL=debug
+```
+
+## Report errors to Sentry
+
+Error reporting is separate from OTLP telemetry. Set `SENTRY_DSN` to capture unhandled errors and
+panics; the release reported is the agent version from the manifest, and `APP_ENV` tags the
+environment. When `SENTRY_DSN` is unset, Sentry is not initialized and adds no overhead:
+
+```bash
+export SENTRY_DSN=https://examplePublicKey@o0.ingest.sentry.io/0
+export APP_ENV=production
+```
+
+## Where to go next
+
+- [Observability](/concepts/observability): the signals an agent emits and why they matter.
+- [Observability reference](/reference/observability): every telemetry environment variable and its default.
+- [Deploy a standalone binary](/guides/deploy-standalone): where these variables fit in a deployment.

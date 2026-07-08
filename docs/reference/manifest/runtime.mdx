@@ -1,0 +1,31 @@
+---
+title: runtime
+description: The runtime block configures values resolved at startup.
+---
+
+The `runtime` block sets top-level configuration for the agent binary. It is optional.
+
+```hcl title="agent.acl"
+runtime {
+  default_tenant_id = "default"
+}
+```
+
+## Fields
+
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `default_tenant_id` | string | no | yes | `"default"` | Tenant ID used when no tenant context is present in an incoming request. |
+
+## default_tenant_id
+
+agentc supports multi-tenancy at the session level. Clients can specify a tenant ID when starting a
+session. When no tenant ID is provided, the value of `default_tenant_id` is used.
+
+For single-tenant deployments, you can leave this at the default or set it to any fixed string.
+
+```hcl
+runtime {
+  default_tenant_id = runtime("DEFAULT_TENANT", "main")
+}
+```

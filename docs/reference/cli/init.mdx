@@ -1,0 +1,52 @@
+---
+title: agentc init
+description: Scaffold a new agentc project.
+---
+
+`agentc init` scaffolds a new agent project with a minimal, ready-to-build manifest and supporting
+files.
+
+```bash
+agentc init <NAME> [OPTIONS]
+```
+
+## Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `NAME` | Name of the agent project. Used as the agent block label in the manifest and as the default directory name. |
+
+## Options
+
+| Flag | Short | Default | Description |
+|------|-------|---------|-------------|
+| `--directory <DIR>` | `-d` | `./<NAME>` | Directory to create the project in. |
+| `--force` | | `false` | Overwrite if `agent.acl` already exists in the target directory. |
+| `--format <FORMAT>` | | `auto` | Output format. `auto` selects TTY or plain based on the terminal. |
+
+## Examples
+
+Scaffold a new project in `./my-agent/`:
+
+```bash
+agentc init my-agent
+```
+
+Scaffold into the current directory:
+
+```bash
+agentc init my-agent --directory .
+```
+
+## Output
+
+On success, the command prints:
+
+```
+ ✓ Created my-agent
+```
+
+The generated manifest is a complete, valid `agent.acl` that builds immediately with `agentc build`.
+It uses the `standalone` archetype, Anthropic as the model provider, and an AG-UI HTTP server. All
+configurable values use `runtime()` so they are read from environment variables at startup rather
+than baked in at compile time.

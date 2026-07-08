@@ -1,0 +1,45 @@
+---
+title: Skills
+description: Skills are Markdown documents that teach the agent how and when to use its capabilities.
+---
+
+Skills are Markdown documents that give the agent context about how to behave in specific situations.
+Where tools give an agent the ability to do something, skills teach it how and when to do it well.
+
+A skill might explain how to perform a code review using the git tool, how to structure a response
+when analysing data, or how to escalate a request when a task is outside its scope. The content is
+made available to the agent so that the guidance is present throughout the run.
+
+## How skills relate to tools
+
+It helps to keep the distinction sharp. A tool is a capability: it lets the agent take an action, such
+as running a command or calling an API. A skill is judgement: it tells the agent when that action is
+appropriate and how to carry it out well. A skill can name the tools it expects to use, but it never
+executes anything itself. You reach for a skill when the agent has the right tools but needs guidance
+on process.
+
+## How skills appear to the agent
+
+A skill lives in a directory with a `SKILL.md` file, or it can be declared inline in the manifest for
+short guidance. Each skill has a name and a short description. At the start of each run, the names and
+descriptions of all registered skills are injected into the system prompt, so the agent knows what
+skills are available and can decide when to draw on one. Files placed alongside `SKILL.md` are
+embedded as resources the agent can read on demand, which is useful for reference material, scripts,
+or templates that complement the instructions.
+
+Skills are surfaced in the prompt through the `skills` template variable, so you control exactly how
+they are presented. See [Write dynamic prompts](/guides/write-dynamic-prompts) for how to include
+them.
+
+<Callout type="note" title="Skills need the skills capability">
+For an agent to actually read and use skills, it must hold the `skills` capability. Skills are
+exposed to the agent through built-in skill tools, and those tools are gated behind that capability
+like any other. Grant it in the agent's `capabilities` list. See
+[Control tool access with capabilities](/guides/control-tool-access-with-capabilities).
+</Callout>
+
+## Where to go next
+
+- [Write dynamic prompts](/guides/write-dynamic-prompts): surface skills in the system prompt.
+- [Tools and capabilities](/concepts/tools-and-capabilities): the actions a skill guides the agent to take.
+- [skill reference](/reference/manifest/skill): the `SKILL.md` format, frontmatter fields, and inline declaration.

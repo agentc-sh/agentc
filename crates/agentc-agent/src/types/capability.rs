@@ -177,7 +177,6 @@ pub enum CapabilityOverride {
     Replace(CapabilitySet),
 }
 
-
 /// Determines whether per-thread capability overrides are permitted.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case")]
@@ -190,7 +189,6 @@ pub enum CapabilityPolicy {
     /// Threads may extend or replace the agent's base capability set.
     Extensible,
 }
-
 
 impl CapabilityPolicy {
     /// Computes the effective [`CapabilitySet`] for a run, given the agent's

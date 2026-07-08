@@ -1,0 +1,150 @@
+---
+title: The manifest
+description: The agent.acl manifest file, its syntax, and how build-time and runtime values work.
+---
+
+An agent is declared in an `agent.acl` file. The manifest describes everything the compiler needs to
+know: which archetype to target, which graph drives the agent, which model providers are available,
+how the agent identifies itself, what tools it can use, and how it is served. The compiler reads
+this file and produces an artifact from it.
+
+The format is HCL (HashiCorp Configuration Language) with a small set of extensions specific to
+agentc. If you have written Terraform or any other HCL-based tool, the syntax will feel familiar. If
+not, it is straightforward to pick up from the examples.
+
+## Structure
+
+A manifest is a collection of named blocks at the top level. The order of blocks does not matter.
+
+```hcl title="agent.acl"
+build {
+  archetype = "standalone"
+}
+
+locals {
+  version = "1.0.0"
+}
+
+providers {
+  anthropic {
+    models = ["claude-haiku-4-5"]
+    config {
+      api_key = secret(runtime("ANTHROPIC_API_KEY"))
+    }
+  }
+}
+
+agent "my_agent" {
+  graph {
+    type = "react"
+  }
+
+  version = locals.version
+  prompt  = "You are a helpful assistant."
+
+  model {
+    provider = "anthropic"
+    name     = "claude-haiku-4-5"
+  }
+}
+```
+
+Each top-level block serves a distinct purpose. See the [manifest reference](/reference/manifest/build)
+for the full field documentation of each block.
+
+## Build-time versus runtime values
+
+Most fields in the manifest accept either a constant value or a `runtime()` expression. This
+distinction controls when the value is resolved.
+
+**Constants** are baked into the artifact at compile time. They never change after the build.
+
+```hcl
+port = 8080
+```
+
+**Runtime values** are resolved from environment variables when the binary starts. If the variable is
+not set, the default is used instead.
+
+```hcl
+port = runtime("HTTP_PORT", 8080)
+```
+
+The first argument to `runtime()` is the name of the environment variable. The second argument is the
+default. The default is optional for values that are required at startup.
+
+This lets you build one artifact and deploy it in multiple environments by changing environment
+variables, without recompiling.
+
+## Secrets
+
+The `secret()` wrapper marks a runtime value as sensitive. It behaves identically to `runtime()` at
+startup, but the value is redacted in logs and in the output of `agentc inspect`.
+
+```hcl
+api_key = secret(runtime("ANTHROPIC_API_KEY"))
+```
+
+Use `secret()` for API keys, tokens, passwords, or any value you do not want to appear in diagnostic
+output.
+
+## Locals
+
+The `locals` block defines named constants that are resolved at build time. They are useful for values
+that appear in multiple places in the manifest.
+
+```hcl
+locals {
+  version = "1.0.0"
+  region  = "us-east-1"
+}
+
+agent "my_agent" {
+  graph {
+    type = "react"
+  }
+
+  version = locals.version
+}
+```
+
+Locals are referenced with `locals.name` syntax. They cannot contain `runtime()` expressions; they
+are always build-time constants.
+
+## Interpolation in strings
+
+String values in the manifest support `${...}` interpolation. This works for locals and for simple
+HCL expressions.
+
+```hcl
+locals {
+  version = "1.0.0"
+}
+
+agent "my_agent" {
+  graph {
+    type = "react"
+  }
+
+  description = "My agent, version ${locals.version}."
+}
+```
+
+The `prompt` field additionally supports Jinja2 template syntax for dynamic rendering at runtime. See
+[Write dynamic prompts](/guides/write-dynamic-prompts) for details.
+
+## Which fields accept runtime()
+
+Structural fields that define the shape of the build, such as `archetype`, the agent `graph` type,
+`kind` on tool blocks, and provider names, are always build-time. The compiler needs these values
+during code generation and they cannot vary at runtime.
+
+Most configurable fields accept `runtime()`. These include hosts, ports, API keys, feature flags,
+model names, and similar values. The manifest reference notes which fields are build-time only.
+
+## Where to go next
+
+- [The compilation pipeline](/concepts/the-compilation-pipeline): what the compiler does with this file.
+- [Archetypes](/concepts/archetypes): how the `build` block chooses your deployment target.
+- [Author a manifest](/guides/author-a-manifest): assemble a manifest block by block for a real agent.
+- [Manifest reference](/reference/manifest/build): the exhaustive field reference for every block.

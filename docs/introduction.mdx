@@ -1,0 +1,94 @@
+---
+title: Introduction
+description: agentc is a compiler and runtime for building production-ready LLM agents.
+---
+
+## What is agentc?
+
+agentc is a compiler and runtime toolchain for building production-ready LLM agents. You describe your
+agent in a declarative manifest file: the model it uses, the tools it can call, the skills it knows
+about, and how it is deployed. agentc compiles that description into a self-contained artifact ready
+for production.
+
+The output is not a wrapper around a library or a running service. It is a compiled artifact that
+embeds your configuration, your tools, and the entire runtime. You ship one thing, and it *is* the
+application.
+
+<CardGrid cols={3}>
+  <CardGrid.Card
+    title="Get started"
+    description="Install the compiler and build your first agent in minutes."
+    href="/get-started/concepts-in-5-minutes"
+    icon={<Rocket size={20} />}
+  />
+  <CardGrid.Card
+    title="Architecture overview"
+    description="See how the manifest, compiler, artifact, and runtime fit together."
+    href="/concepts/architecture-overview"
+    icon={<Layers size={20} />}
+  />
+  <CardGrid.Card
+    title="Archetypes"
+    description="Choose a deployment target. The archetype determines what artifact gets built."
+    href="/concepts/archetypes"
+    icon={<Box size={20} />}
+  />
+  <CardGrid.Card
+    title="Write a tool"
+    description="Write tools in TypeScript or Python, or connect any MCP server."
+    href="/guides/write-a-tool"
+    icon={<Wrench size={20} />}
+  />
+  <CardGrid.Card
+    title="Skills"
+    description="Package reusable prompt logic that agents can reference by name."
+    href="/concepts/skills"
+    icon={<Sparkles size={20} />}
+  />
+  <CardGrid.Card
+    title="Deploy"
+    description="Ship a self-contained binary. One artifact, one command, running anywhere."
+    href="/guides/deploy-standalone"
+    icon={<Server size={20} />}
+  />
+</CardGrid>
+
+## Core ideas
+
+**Manifests over boilerplate.** Agents are declared in `agent.acl` files using HCL syntax with a
+small set of extensions. The compiler resolves dependencies, generates code, and produces a deployable
+artifact. You focus on what your agent does, not on how execution, persistence, or serving are wired
+together.
+
+**Archetypes define the output shape.** Every agent targets an archetype. The archetype determines
+what kind of artifact is produced and what build toolchain is required. The `standalone` archetype
+produces a cross-platform binary. Other archetypes target different deployment models. Choosing an
+archetype is choosing a deployment target.
+
+**Durable execution.** Agents run on a checkpointed graph. State is persisted at each step of
+execution, so the agent can survive process crashes, restarts, or infrastructure failures and resume
+exactly where it left off. This guarantee applies regardless of which graph implementation is in use.
+
+**Polyglot tools.** Tools can be written in JavaScript, TypeScript, or Python, or sourced from
+any Model Context Protocol server. The compiler handles bundling and embedding. At runtime, the agent
+dispatches to the correct execution environment automatically.
+
+**Build-time and runtime configuration.** The manifest separates what is baked into the artifact at
+compile time from what is resolved from the environment at startup. Sensitive values like API keys are
+never hardcoded; they are read from environment variables at runtime.
+
+## Who is it for?
+
+agentc is for engineers who need agents in production *for end users*. Agent harnesses such as
+OpenClaw, Claude Code, or Codex are built specifically for local use and are not designed to serve
+end users at scale. If you are building an agent for yourself or your team, those tools may be a better
+fit. If you need to build an agent for customers, or if you have shipped services and want the same
+operational characteristics for your AI workloads, such as crash recovery, structured observability,
+and configurable deployments, agentc is built for you.
+
+## Next steps
+
+- [Concepts in 5 minutes](/get-started/concepts-in-5-minutes): the smallest mental model before you build.
+- [Build your first agent](/get-started/build-your-first-agent): install the compiler and compile an agent.
+- [Architecture overview](/concepts/architecture-overview): understand how the pieces fit together.
+- [Manifest reference](/reference/manifest/build): every manifest field documented.

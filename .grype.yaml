@@ -45,4 +45,16 @@
 #     package:
 #       name: libcurl
 #       version: 1.5.1
-ignore: []
+ignore:
+  # Debian trixie marks this glibc issue as minor / no-dsa.
+  # https://security-tracker.debian.org/tracker/CVE-2026-5450
+  - vulnerability: CVE-2026-5450
+  # Debian tracker still lists this perl issue as unfixed.
+  # https://security-tracker.debian.org/tracker/CVE-2026-12087
+  - vulnerability: CVE-2026-12087
+  # Debian trixie marks this perl issue as postponed.
+  # https://security-tracker.debian.org/tracker/CVE-2026-42496
+  - vulnerability: CVE-2026-42496
+  # Debian notes this perl issue is minor and 32-bit specific.
+  # https://security-tracker.debian.org/tracker/CVE-2026-8376
+  - vulnerability: CVE-2026-8376

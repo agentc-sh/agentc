@@ -2,8 +2,8 @@
 //
 // SPDX-License-Identifier: MIT
 
-use rig::completion::GetTokenUsage;
-use rig::streaming::{StreamedAssistantContent, ToolCallDeltaContent};
+use rig_core::completion::GetTokenUsage;
+use rig_core::streaming::{StreamedAssistantContent, ToolCallDeltaContent};
 
 use crate::{
     errors::ModelError,
@@ -64,9 +64,9 @@ where
                 let usage = response.token_usage();
 
                 Ok(CompletionStreamEvent::Done(TokenUsage {
-                    input_tokens: usage.map_or(0, |u| u.input_tokens as u32),
-                    output_tokens: usage.map_or(0, |u| u.output_tokens as u32),
-                    cache_input_tokens: usage.map(|u| u.cached_input_tokens as u32),
+                    input_tokens: usage.input_tokens as u32,
+                    output_tokens: usage.output_tokens as u32,
+                    cache_input_tokens: Some(usage.cached_input_tokens as u32),
                 }))
             }
         }

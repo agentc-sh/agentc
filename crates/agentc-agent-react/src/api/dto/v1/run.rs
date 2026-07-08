@@ -27,6 +27,7 @@ pub enum RunStatusDTO {
     Interrupted,
     Completed,
     Failed,
+    Cancelled,
 }
 
 impl RunStatusDTO {
@@ -36,6 +37,7 @@ impl RunStatusDTO {
             RunStatus::Interrupted => RunStatusDTO::Interrupted,
             RunStatus::Completed => RunStatusDTO::Completed,
             RunStatus::Failed => RunStatusDTO::Failed,
+            RunStatus::Cancelled => RunStatusDTO::Cancelled,
         }
     }
 
@@ -45,6 +47,7 @@ impl RunStatusDTO {
             RunStatusDTO::Interrupted => RunStatus::Interrupted,
             RunStatusDTO::Completed => RunStatus::Completed,
             RunStatusDTO::Failed => RunStatus::Failed,
+            RunStatusDTO::Cancelled => RunStatus::Cancelled,
         }
     }
 }

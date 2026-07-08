@@ -1,0 +1,83 @@
+---
+title: Connect external tools via MCP
+description: Connect an agent to tools served by a Model Context Protocol server.
+---
+
+Not every tool has to live in your project. A Model Context Protocol (MCP) server exposes a set of
+tools over a standard protocol, and agentc can connect to one and register every tool it offers. Unlike
+tools you write, MCP tools are not embedded at compile time; the manifest describes how to reach the
+server, and the server must be available when the agent runs. When the agent starts, it connects,
+queries the server for its tools, and registers each one automatically. For the full field reference,
+see the [tool reference](/reference/manifest/tool).
+
+<Callout type="warning" title="MCP servers are not embedded">
+An MCP server cannot be baked into the artifact. Only the connection configuration is compiled in, so
+the server must exist in the runtime environment. If the agent cannot reach the server at startup, it
+errors. Make sure the command or URL you configure is available wherever the agent runs.
+</Callout>
+
+## Connect to a local server over stdio
+
+The stdio transport spawns the server as a child process and talks to it over standard input and
+output. This is the usual way to run a local MCP server:
+
+```hcl title="agent.acl"
+tool "time" {
+  kind      = "mcp"
+  transport = "stdio"
+  command   = "uvx"
+  args      = ["mcp-server-time"]
+}
+```
+
+Both `command` and individual `args` entries accept `runtime()`, so you can configure the server from
+the environment:
+
+```hcl
+tool "filesystem" {
+  kind      = "mcp"
+  transport = "stdio"
+  command   = "npx"
+  args      = ["-y", "@modelcontextprotocol/server-filesystem", runtime("FS_MCP_WORKSPACE", "/workspace")]
+}
+```
+
+## Connect to a remote server over HTTP
+
+The HTTP transport connects to a remote MCP server. Use `secret(runtime(...))` for the auth token so it
+stays out of logs and build output:
+
+```hcl title="agent.acl"
+tool "remote_tools" {
+  kind       = "mcp"
+  transport  = "http"
+  url        = runtime("MCP_SERVER_URL", "https://tools.example.com")
+  auth_token = secret(runtime("MCP_AUTH_TOKEN"))
+  headers    = {
+    "X-Client-ID" = runtime("CLIENT_ID")
+  }
+}
+```
+
+## Apply capabilities to a server's tools
+
+A `capabilities` list on the `tool` block applies its tags to every tool discovered from that server,
+so you can gate a whole server behind a capability the agent must hold:
+
+```hcl
+tool "my_service" {
+  kind         = "mcp"
+  transport    = "http"
+  url          = runtime("SERVICE_URL")
+  capabilities = ["my_service"]
+}
+```
+
+See [Control tool access with capabilities](/guides/control-tool-access-with-capabilities) for how
+capabilities gate access.
+
+## Where to go next
+
+- [Tools and capabilities](/concepts/tools-and-capabilities): how MCP tools sit alongside the other kinds.
+- [Control tool access with capabilities](/guides/control-tool-access-with-capabilities): restrict what a connected server exposes.
+- [tool reference](/reference/manifest/tool): every stdio and HTTP field for MCP tools.

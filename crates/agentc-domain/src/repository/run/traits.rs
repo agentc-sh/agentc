@@ -8,7 +8,7 @@ use uuid::Uuid;
 use crate::{
     repository::run::{
         errors::RunRepoError,
-        params::{DeleteRunParams, FindRunParams},
+        params::{DeleteRunParams, FindRunParams, UpdateRunParams},
     },
     types::{Page, Run},
 };
@@ -19,6 +19,7 @@ pub trait RunRepository: Send + Sync {
     async fn get(&self, tenant_id: &str, id: Uuid) -> Result<Option<Run>, RunRepoError>;
     async fn find(&self, params: FindRunParams) -> Result<Page<Run>, RunRepoError>;
     async fn delete(&self, params: DeleteRunParams) -> Result<(), RunRepoError>;
+    async fn update(&self, params: UpdateRunParams) -> Result<bool, RunRepoError>;
 }
 
 #[async_trait]

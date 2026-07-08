@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-use rig::providers::openai;
+use rig_core::providers::openai;
 
 use crate::{
     providers::openai::{constants::PROVIDER, model::OpenAiModel},

@@ -103,18 +103,20 @@ impl<U: Ui> StreamRenderer<BuildEvent> for BuildStreamRenderer<U> {
             }
             BuildEvent::TransformerStdout(line) => {
                 if self.verbose
-                    && let Some(vp) = &self.current_viewport {
-                        vp.push(line);
-                    }
+                    && let Some(vp) = &self.current_viewport
+                {
+                    vp.push(line);
+                }
             }
             BuildEvent::TransformerStderr(line) => {
                 self.transformer_stderr.push_str(line);
                 self.transformer_stderr.push('\n');
 
                 if self.verbose
-                    && let Some(vp) = &self.current_viewport {
-                        vp.push(line);
-                    }
+                    && let Some(vp) = &self.current_viewport
+                {
+                    vp.push(line);
+                }
             }
             BuildEvent::ManifestResolved { tool_count, .. } => {
                 self.tool_count = Some(*tool_count);

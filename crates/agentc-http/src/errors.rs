@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
+use std::fmt::{Display, Formatter, Result as FmtResult};
 use anyhow::Error;
 use axum::extract::{
     path::ErrorKind,
@@ -187,10 +188,9 @@ impl From<PathRejection> for ApiError {
                 ErrorKind::InvalidUtf8InPathParam { key } => {
                     ApiError::bad_request(format!("Invalid UTF-8 in path parameter '{}'", key))
                 }
-                ErrorKind::UnsupportedType { name } => ApiError::bad_request(format!(
-                    "Unsupported type for path parameter '{}'",
-                    name
-                )),
+                ErrorKind::UnsupportedType { name } => {
+                    ApiError::bad_request(format!("Unsupported type for path parameter '{}'", name))
+                }
                 ErrorKind::Message(msg) => ApiError::bad_request(&msg),
                 ErrorKind::DeserializeError { message, .. } => {
                     ApiError::bad_request(message.as_str())
@@ -215,3 +215,18 @@ impl From<QueryRejection> for ApiError {
         }
     }
 }
+
+impl Display for ApiError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        match self {
+            ApiError::Generic { code, message } => write!(f, "ApiError (code {}): {}", code, message),
+            ApiError::Validation { code, errors } => write!(
+                f,
+                "ApiError (code {}): Validation errors: {:?}",
+                code, errors
+            ),
+        }
+    }
+}
+
+impl std::error::Error for ApiError {}

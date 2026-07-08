@@ -1,0 +1,133 @@
+---
+title: Configure a model provider
+description: Add a model provider and set inference parameters for your agent.
+---
+
+An agent talks to a model through a provider. The `providers` block declares which providers are
+available and how to connect to them, and the agent's `model` block picks one. Inference parameters
+such as temperature and token limits live with the provider, not the agent. This guide covers the
+common setup. For the full list of providers and their fields, see the
+[providers reference](/reference/manifest/providers).
+
+## Declare a provider and select its model
+
+Declare the provider, read its API key from the environment, and point the agent's `model` block at it.
+The `provider` must match a sub-block name, and `name` must be one of that provider's models:
+
+```hcl title="agent.acl"
+providers {
+  anthropic {
+    models = ["claude-haiku-4-5", "claude-sonnet-4-6"]
+
+    config {
+      api_key = secret(runtime("ANTHROPIC_API_KEY"))
+    }
+  }
+}
+
+agent "assistant" {
+  graph {
+    type = "react"
+  }
+
+  model {
+    provider = "anthropic"
+    name     = "claude-haiku-4-5"
+  }
+}
+```
+
+The `models` list acts as an allowlist. When present, only the named models may be selected; when
+absent, any model name is accepted.
+
+## Choose the model at deployment time
+
+The `name` field accepts `runtime()`, so a single binary can run different models per environment
+without recompiling:
+
+```hcl
+model {
+  provider = "anthropic"
+  name     = runtime("AGENT_MODEL", "claude-haiku-4-5")
+}
+```
+
+## Set inference parameters
+
+Add a `params` block to a provider to set defaults for every request made through it:
+
+```hcl
+providers {
+  anthropic {
+    models = ["claude-haiku-4-5"]
+
+    config {
+      api_key = secret(runtime("ANTHROPIC_API_KEY"))
+    }
+
+    params {
+      max_tokens  = 4096
+      temperature = 0.5
+    }
+  }
+}
+```
+
+All parameter fields are optional and fall back to the provider's built-in defaults. The full set,
+including `top_p`, `top_k`, `stop_sequences`, and others, is on the
+[providers reference](/reference/manifest/providers).
+
+## Override parameters for one model
+
+To vary parameters by model, promote a `models` entry from a plain string to an object with its own
+`params`. Model-level values are merged over the provider defaults, so you override only what you name:
+
+```hcl
+providers {
+  anthropic {
+    models = [
+      "claude-haiku-4-5",
+      {
+        name = "claude-opus-4-7"
+        params {
+          max_tokens  = 16000
+          temperature = 0.8
+        }
+      }
+    ]
+
+    config {
+      api_key = secret(runtime("ANTHROPIC_API_KEY"))
+    }
+
+    params {
+      max_tokens  = 4096
+      temperature = 0.5
+    }
+  }
+}
+```
+
+Requests to `claude-haiku-4-5` use the provider defaults; requests to `claude-opus-4-7` use its own.
+
+## Pass provider-specific options
+
+For options outside the standard set, such as Anthropic extended thinking, use `provider_params`, which
+is passed straight through to the provider API:
+
+```hcl
+params {
+  provider_params = {
+    thinking = {
+      type          = "enabled"
+      budget_tokens = 5000
+    }
+  }
+}
+```
+
+## Where to go next
+
+- [Agents and prompts](/concepts/agents-and-prompts): how model selection fits the rest of the agent.
+- [providers reference](/reference/manifest/providers): every provider and every field of the `providers` block.
+- [agent reference](/reference/manifest/agent): the `model` block.

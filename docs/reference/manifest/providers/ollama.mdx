@@ -1,0 +1,68 @@
+---
+title: Ollama
+description: Configuration for the Ollama model provider.
+---
+
+The `ollama` sub-block configures a local [Ollama](https://ollama.com) runtime. Ollama runs
+entirely on the local machine and does not require an API key.
+
+## Fields
+
+| Field | Type | Required | runtime() | Description |
+|-------|------|----------|-----------|-------------|
+| `models` | list | no | no | Allowlist of models for this provider. Each entry is a plain string or a config object with `name` and `params`. When omitted, no allowlist is enforced. |
+| `config` | block | no | | Connection configuration. |
+| `config.base_url` | string | no | yes | Base URL of the Ollama server. Defaults to `http://localhost:11434` when omitted. |
+| `params` | block | no | | Provider-level inference parameter defaults. Applied to every request unless overridden at the model level. |
+
+The `config` block is optional. When omitted, the client connects to `http://localhost:11434`, which
+is the default address of a locally running Ollama instance.
+
+## params
+
+The `params` block sets inference parameter defaults for all models under this provider. All fields
+are optional and support `runtime()`.
+
+| Field | Type | runtime() | Description |
+|-------|------|-----------|-------------|
+| `max_tokens` | integer | yes | Maximum number of tokens to generate. |
+| `temperature` | float | yes | Sampling temperature. |
+| `top_p` | float | yes | Nucleus sampling probability. |
+| `top_k` | integer | yes | Top-K sampling limit. |
+| `stop_sequences` | list of strings | yes | Sequences that stop generation. |
+| `frequency_penalty` | float | yes | Penalty for token frequency. |
+| `presence_penalty` | float | yes | Penalty for token presence. |
+| `seed` | integer | yes | Seed for deterministic sampling. |
+| `provider_params` | object | yes | Provider-specific parameters passed directly to the API. Use this for options not covered by the typed fields above. |
+
+## Example
+
+```hcl title="agent.acl"
+providers {
+  ollama {
+    models = [
+      "llama3.2",
+      {
+        name = "mistral"
+        params {
+          temperature = 0.9
+          seed        = 42
+        }
+      }
+    ]
+
+    config {
+      base_url = runtime("OLLAMA_BASE_URL", "http://localhost:11434")
+    }
+
+    params {
+      max_tokens  = 2048
+      temperature = 0.6
+    }
+  }
+}
+```
+
+In this example, requests to `llama3.2` use the provider-level defaults. Requests to `mistral` use
+`temperature = 0.9` and `seed = 42` from its model-level params, while inheriting `max_tokens` from
+the provider-level defaults.

@@ -5,6 +5,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use url::Url;
 use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 use validator::{Validate, ValidateArgs, ValidationErrors};
@@ -17,7 +18,11 @@ use crate::{
         CreateToolMessageParams, CreateUserMessageParams, FindMessageParams, MessageResponse,
         ReasoningMessageResponse, SystemMessageResponse, ToolMessageResponse, UserMessageResponse,
     },
-    types::message::MessageRole,
+    types::message::{
+        Audio as DomainAudio, Document as DomainDocument, Image as DomainImage,
+        MediaSource as DomainMediaSource, MessageRole, UserContent as DomainUserContent,
+        Video as DomainVideo,
+    },
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -73,11 +78,156 @@ impl CreateSystemMessageRequestDTO {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(tag = "type", content = "value", rename_all = "snake_case")]
+pub enum MediaSourceDTO {
+    Url(Url),
+    Base64(String),
+}
+
+impl MediaSourceDTO {
+    pub fn to_entity(&self) -> DomainMediaSource {
+        match self {
+            MediaSourceDTO::Url(url) => DomainMediaSource::Url(url.clone()),
+            MediaSourceDTO::Base64(data) => DomainMediaSource::Base64(data.clone()),
+        }
+    }
+
+    pub fn from_entity(entity: DomainMediaSource) -> Self {
+        match entity {
+            DomainMediaSource::Url(url) => MediaSourceDTO::Url(url),
+            DomainMediaSource::Base64(data) => MediaSourceDTO::Base64(data),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct ImageDTO {
+    pub source: MediaSourceDTO,
+    pub media_type: String,
+}
+
+impl ImageDTO {
+    pub fn to_entity(&self) -> DomainImage {
+        DomainImage {
+            source: self.source.to_entity(),
+            media_type: self.media_type.clone(),
+        }
+    }
+
+    pub fn from_entity(entity: DomainImage) -> Self {
+        Self {
+            source: MediaSourceDTO::from_entity(entity.source),
+            media_type: entity.media_type,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct AudioDTO {
+    pub source: MediaSourceDTO,
+    pub media_type: String,
+}
+
+impl AudioDTO {
+    pub fn to_entity(&self) -> DomainAudio {
+        DomainAudio {
+            source: self.source.to_entity(),
+            media_type: self.media_type.clone(),
+        }
+    }
+
+    pub fn from_entity(entity: DomainAudio) -> Self {
+        Self {
+            source: MediaSourceDTO::from_entity(entity.source),
+            media_type: entity.media_type,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct VideoDTO {
+    pub source: MediaSourceDTO,
+    pub media_type: String,
+}
+
+impl VideoDTO {
+    pub fn to_entity(&self) -> DomainVideo {
+        DomainVideo {
+            source: self.source.to_entity(),
+            media_type: self.media_type.clone(),
+        }
+    }
+
+    pub fn from_entity(entity: DomainVideo) -> Self {
+        Self {
+            source: MediaSourceDTO::from_entity(entity.source),
+            media_type: entity.media_type,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct DocumentDTO {
+    pub source: MediaSourceDTO,
+    pub media_type: String,
+}
+
+impl DocumentDTO {
+    pub fn to_entity(&self) -> DomainDocument {
+        DomainDocument {
+            source: self.source.to_entity(),
+            media_type: self.media_type.clone(),
+        }
+    }
+
+    pub fn from_entity(entity: DomainDocument) -> Self {
+        Self {
+            source: MediaSourceDTO::from_entity(entity.source),
+            media_type: entity.media_type,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(tag = "type", content = "value", rename_all = "snake_case")]
+pub enum UserContentDTO {
+    Text(String),
+    Image(ImageDTO),
+    Audio(AudioDTO),
+    Video(VideoDTO),
+    Document(DocumentDTO),
+}
+
+impl UserContentDTO {
+    pub fn to_entity(&self) -> DomainUserContent {
+        match self {
+            UserContentDTO::Text(text) => DomainUserContent::Text(text.clone()),
+            UserContentDTO::Image(image) => DomainUserContent::Image(image.to_entity()),
+            UserContentDTO::Audio(audio) => DomainUserContent::Audio(audio.to_entity()),
+            UserContentDTO::Video(video) => DomainUserContent::Video(video.to_entity()),
+            UserContentDTO::Document(document) => DomainUserContent::Document(document.to_entity()),
+        }
+    }
+
+    pub fn from_entity(entity: DomainUserContent) -> Self {
+        match entity {
+            DomainUserContent::Text(text) => UserContentDTO::Text(text),
+            DomainUserContent::Image(image) => UserContentDTO::Image(ImageDTO::from_entity(image)),
+            DomainUserContent::Audio(audio) => UserContentDTO::Audio(AudioDTO::from_entity(audio)),
+            DomainUserContent::Video(video) => UserContentDTO::Video(VideoDTO::from_entity(video)),
+            DomainUserContent::Document(document) => {
+                UserContentDTO::Document(DocumentDTO::from_entity(document))
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Validate, ToSchema)]
 pub struct CreateUserMessageRequestDTO {
     #[serde(default = "Uuid::new_v4")]
     pub id: Uuid,
-    pub content: String,
+    pub content: Vec<UserContentDTO>,
 }
 
 impl CreateUserMessageRequestDTO {
@@ -85,7 +235,11 @@ impl CreateUserMessageRequestDTO {
         CreateUserMessageParams {
             name: None,
             id: self.id,
-            content: self.content.clone(),
+            content: self
+                .content
+                .iter()
+                .map(UserContentDTO::to_entity)
+                .collect(),
         }
     }
 }
@@ -171,7 +325,7 @@ pub struct UserMessageResponseDTO {
     pub id: Uuid,
     pub session_id: Uuid,
     pub run_id: Option<Uuid>,
-    pub content: String,
+    pub content: Vec<UserContentDTO>,
     pub created_at: DateTime<Utc>,
 }
 
@@ -181,7 +335,11 @@ impl UserMessageResponseDTO {
             id: response.id,
             session_id: response.session_id,
             run_id: response.run_id,
-            content: response.content,
+            content: response
+                .content
+                .into_iter()
+                .map(UserContentDTO::from_entity)
+                .collect(),
             created_at: response.created_at,
         }
     }

@@ -7,9 +7,10 @@ use std::{collections::HashMap, sync::Arc};
 use uuid::Uuid;
 
 use crate::graph::{
+    cancel::Canceller,
     checkpoint::{
-        Checkpoint, CheckpointReason, Checkpointer, RunStatus,
-        LoadCheckpointParams, SaveCheckpointParams, FinishCheckpointParams,
+        Checkpoint, CheckpointReason, Checkpointer, FinishCheckpointParams, LoadCheckpointParams,
+        RunStatus, SaveCheckpointParams,
     },
     command::GraphTransition,
     context::RuntimeContext,
@@ -39,6 +40,7 @@ pub struct SessionConfig {
 pub enum RunOutcome<S> {
     Completed(S),
     Interrupted { state: S, payload: Option<Value> },
+    Cancelled { state: S },
 }
 
 impl<S> RunOutcome<S> {
@@ -50,6 +52,10 @@ impl<S> RunOutcome<S> {
         RunOutcome::Interrupted { state, payload }
     }
 
+    pub fn cancelled(state: S) -> Self {
+        RunOutcome::Cancelled { state }
+    }
+
     pub fn is_completed(&self) -> bool {
         matches!(self, RunOutcome::Completed(_))
     }
@@ -58,10 +64,15 @@ impl<S> RunOutcome<S> {
         matches!(self, RunOutcome::Interrupted { .. })
     }
 
+    pub fn is_cancelled(&self) -> bool {
+        matches!(self, RunOutcome::Cancelled { .. })
+    }
+
     pub fn into_state(self) -> S {
         match self {
             RunOutcome::Completed(result) => result,
             RunOutcome::Interrupted { state, .. } => state,
+            RunOutcome::Cancelled { state } => state,
         }
     }
 }
@@ -76,6 +87,7 @@ where
     entrypoint: N,
     nodes: HashMap<N, Arc<dyn GraphNodeHandler<N>>>,
     checkpointer: Option<Arc<dyn Checkpointer<N>>>,
+    cancellation: Option<Arc<dyn Canceller>>,
 }
 
 impl<N> Graph<N>
@@ -87,6 +99,7 @@ where
             entrypoint,
             nodes: HashMap::new(),
             checkpointer: None,
+            cancellation: None,
         }
     }
 
@@ -107,6 +120,23 @@ where
         C: Checkpointer<N> + 'static,
     {
         self.checkpointer = Some(Arc::new(checkpointer));
+    }
+
+    pub fn set_canceller<C>(&mut self, canceller: C)
+    where
+        C: Canceller + 'static,
+    {
+        self.cancellation = Some(Arc::new(canceller));
+    }
+
+    pub async fn cancel(&self, tenant_id: &str, run_id: Uuid) -> Result<bool, GraphError> {
+        match &self.cancellation {
+            Some(canceller) => canceller
+                .cancel(tenant_id, run_id)
+                .await
+                .map_err(|e| GraphError::cancellation_error(e.to_string())),
+            None => Err(GraphError::cancellation_error("no canceller configured")),
+        }
     }
 
     pub async fn run(
@@ -140,28 +170,38 @@ where
         };
 
         if let Some(checkpointer) = &self.checkpointer
-            && let GraphTransition::Node(ref node) = current_node {
-                parent_checkpoint_id = Some(
-                    checkpointer
-                        .save(SaveCheckpointParams {
-                            tenant_id: config.tenant_id.clone(),
-                            session_id: config.session_id,
-                            run_id: config.run_id,
-                            node: node.to_string(),
-                            state: state.clone(),
-                            reason: CheckpointReason::Input,
-                            parent_checkpoint_id,
-                            metadata: None,
-                        })
-                        .await
-                        .map_err(GraphError::checkpoint_error)?,
-                );
-            }
+            && let GraphTransition::Node(ref node) = current_node
+        {
+            parent_checkpoint_id = Some(
+                checkpointer
+                    .save(SaveCheckpointParams {
+                        tenant_id: config.tenant_id.clone(),
+                        session_id: config.session_id,
+                        run_id: config.run_id,
+                        node: node.to_string(),
+                        state: state.clone(),
+                        reason: CheckpointReason::Input,
+                        parent_checkpoint_id,
+                        metadata: None,
+                    })
+                    .await
+                    .map_err(GraphError::checkpoint_error)?,
+            );
+        }
 
         let mut resume_payload = config.resume_payload;
         let mut last_node = self.entrypoint.to_string();
 
         while let GraphTransition::Node(ref node) = current_node {
+            if let Some(canceller) = &self.cancellation
+                && canceller
+                    .is_cancelled(&config.tenant_id, config.run_id)
+                    .await
+                    .map_err(|e| GraphError::cancellation_error(e.to_string()))?
+            {
+                return Ok(RunOutcome::cancelled(state));
+            }
+
             last_node = node.to_string();
 
             let handler = match self.nodes.get(node) {
@@ -224,7 +264,9 @@ where
                 );
             }
 
-            current_node = command.goto.unwrap_or(GraphTransition::End);
+            current_node = command
+                .goto
+                .unwrap_or(GraphTransition::End);
         }
 
         if let Some(checkpointer) = &self.checkpointer {
@@ -290,6 +332,15 @@ where
         self
     }
 
+    pub fn with_canceller<C>(mut self, canceller: C) -> Self
+    where
+        C: Canceller + 'static,
+    {
+        self.graph
+            .set_canceller(canceller);
+        self
+    }
+
     pub fn build(self) -> Graph<N> {
         self.graph
     }
@@ -305,11 +356,15 @@ mod tests {
         collections::HashMap,
         fmt::{Display, Formatter, Result as FmtResult},
         str::FromStr,
-        sync::{Arc, Mutex},
+        sync::{
+            Arc, Mutex,
+            atomic::{AtomicBool, Ordering},
+        },
     };
     use uuid::Uuid;
 
     use crate::graph::{
+        cancel::CancellationError,
         checkpoint::{
             CheckpointError, CheckpointReason, CheckpointSnapshot, CheckpointSnapshotStore,
             CheckpointStoreContext, CheckpointStoreHandle, GraphCheckpointer, RunStatus,
@@ -491,7 +546,6 @@ mod tests {
         async fn update_run_status(
             &self,
             _tenant_id: &str,
-            _session_id: Uuid,
             run_id: Uuid,
             status: RunStatus,
         ) -> Result<(), Self::Error> {
@@ -1087,5 +1141,65 @@ mod tests {
             .into_state();
 
         assert_eq!(state.visited, vec!["b_no_payload"]);
+    }
+
+    #[derive(Clone, Default)]
+    struct StubCanceller {
+        cancelled: Arc<AtomicBool>,
+    }
+
+    #[async_trait]
+    impl Canceller for StubCanceller {
+        async fn cancel(&self, _tenant_id: &str, _run_id: Uuid) -> Result<bool, CancellationError> {
+            self.cancelled
+                .store(true, Ordering::SeqCst);
+            Ok(true)
+        }
+
+        async fn is_cancelled(
+            &self,
+            _tenant_id: &str,
+            _run_id: Uuid,
+        ) -> Result<bool, CancellationError> {
+            Ok(self
+                .cancelled
+                .load(Ordering::SeqCst))
+        }
+    }
+
+    #[tokio::test]
+    async fn cancellation_stops_run_before_later_node() {
+        let canceller = StubCanceller::default();
+        let cancelled = canceller.cancelled.clone();
+
+        let graph = Graph::builder(TestNode::A)
+            .with_node_fn(TestNode::A, move |_: State<TestState>| {
+                let cancelled = cancelled.clone();
+                async move {
+                    cancelled.store(true, Ordering::SeqCst);
+                    Ok(GraphNodeCommand::goto_and_update(TestNode::B, TestStateUpdate::visit("a")))
+                }
+            })
+            .with_node_fn(TestNode::B, |_: State<TestState>| async {
+                Ok(GraphNodeCommand::end_and_update(TestStateUpdate::visit("b_should_not_run")))
+            })
+            .with_canceller(canceller)
+            .build();
+
+        let outcome = graph
+            .run(TestContext, TestStateInput::default(), config())
+            .await
+            .unwrap();
+
+        assert!(matches!(outcome, RunOutcome::Cancelled { .. }));
+
+        let state = outcome.into_state();
+
+        assert_eq!(state.visited, vec!["a"]);
+        assert!(
+            !state
+                .visited
+                .contains(&"b_should_not_run".to_string())
+        );
     }
 }

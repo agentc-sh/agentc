@@ -113,20 +113,21 @@ fn extract_ok_type(ty: &syn::Type) -> Option<(syn::Type, Option<syn::Type>, bool
         let last_seg = inner_tp.path.segments.last()?;
 
         if last_seg.ident == "TypedToolOutput"
-            && let syn::PathArguments::AngleBracketed(inner_args) = &last_seg.arguments {
-                let mut type_args = inner_args.args.iter().filter_map(|a| {
-                    if let syn::GenericArgument::Type(t) = a {
-                        Some(t.clone())
-                    } else {
-                        None
-                    }
-                });
+            && let syn::PathArguments::AngleBracketed(inner_args) = &last_seg.arguments
+        {
+            let mut type_args = inner_args.args.iter().filter_map(|a| {
+                if let syn::GenericArgument::Type(t) = a {
+                    Some(t.clone())
+                } else {
+                    None
+                }
+            });
 
-                let output_type = type_args.next()?;
-                let state_update_type = type_args.next(); // Some(S) or None
+            let output_type = type_args.next()?;
+            let state_update_type = type_args.next(); // Some(S) or None
 
-                return Some((output_type, state_update_type, true));
-            }
+            return Some((output_type, state_update_type, true));
+        }
     }
 
     // Plain return type, not wrapped in TypedToolOutput

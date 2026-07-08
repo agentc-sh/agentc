@@ -8,6 +8,8 @@ use validator::Validate;
 
 use agentc_blocks::types::RuntimeValue;
 
+use crate::manifest::ManifestAgentGraph;
+
 #[derive(Debug, Clone, Serialize, Deserialize, Validate, Sanitizer)]
 pub struct ManifestAgent {
     /// Semver version string for this agent.
@@ -20,6 +22,8 @@ pub struct ManifestAgent {
     #[validate(length(min = 1))]
     #[sanitizer(trim)]
     pub description: Option<String>,
+    /// The graph implementation used by this agent.
+    pub graph: ManifestAgentGraph,
     /// The prompt template to use for this agent.
     #[serde(default)]
     pub prompt: Option<ManifestAgentPrompt>,

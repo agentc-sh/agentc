@@ -9,24 +9,20 @@ use crate::{
     counter::{CharApproxCounter, TokenCounter},
 };
 
-/// A type that can provide its textual content for token counting purposes.
-///
-/// Returning `None` means the message carries no countable text (for example,
-/// a structured tool-call message with no prose). The buffer treats `None` as
-/// zero tokens at counting time.
-pub trait MessageContent {
-    fn message_content(&self) -> Option<&str>;
+/// Calculates the token count for a value using a provided counter.
+pub trait TokenCount {
+    fn token_count(&self, counter: &dyn TokenCounter) -> usize;
 }
 
-impl MessageContent for String {
-    fn message_content(&self) -> Option<&str> {
-        Some(self.as_str())
+impl TokenCount for String {
+    fn token_count(&self, counter: &dyn TokenCounter) -> usize {
+        counter.count(self)
     }
 }
 
-impl MessageContent for &str {
-    fn message_content(&self) -> Option<&str> {
-        Some(*self)
+impl TokenCount for &str {
+    fn token_count(&self, counter: &dyn TokenCounter) -> usize {
+        counter.count(self)
     }
 }
 
@@ -98,14 +94,14 @@ impl TokenBudget {
 /// Pinned messages (typically rendered prompt messages) are never passed to a
 /// compaction strategy. The buffer partitions by pin status before compaction
 /// and reassembles in the original insertion order afterward.
-pub struct MessageBuffer<T: MessageContent> {
+pub struct MessageBuffer<T: TokenCount> {
     messages: Vec<TrackedMessage<T>>,
     budget: TokenBudget,
     counter: Arc<dyn TokenCounter>,
     next_idx: usize,
 }
 
-impl<T: MessageContent> MessageBuffer<T> {
+impl<T: TokenCount> MessageBuffer<T> {
     pub fn new(budget: TokenBudget) -> Self {
         Self {
             messages: Vec::new(),
@@ -130,13 +126,6 @@ impl<T: MessageContent> MessageBuffer<T> {
         self.counter = counter;
     }
 
-    fn count(&self, message: &T) -> usize {
-        match message.message_content() {
-            Some(text) => self.counter.count(text),
-            None => 0,
-        }
-    }
-
     fn next_idx(&mut self) -> usize {
         let idx = self.next_idx;
         self.next_idx += 1;
@@ -145,7 +134,7 @@ impl<T: MessageContent> MessageBuffer<T> {
 
     /// Push a compactable message. Token count is computed automatically.
     pub fn push(&mut self, message: T) {
-        let token_count = self.count(&message);
+        let token_count = message.token_count(self.counter.as_ref());
         let idx = self.next_idx();
 
         self.messages
@@ -155,7 +144,7 @@ impl<T: MessageContent> MessageBuffer<T> {
     /// Push a pinned message that no compaction strategy will remove or modify.
     /// Token count is computed automatically.
     pub fn push_pinned(&mut self, message: T) {
-        let token_count = self.count(&message);
+        let token_count = message.token_count(self.counter.as_ref());
         let idx = self.next_idx();
 
         self.messages
@@ -296,7 +285,7 @@ impl MessageBufferBuilder {
         self
     }
 
-    pub fn build<T: MessageContent>(self) -> MessageBuffer<T> {
+    pub fn build<T: TokenCount>(self) -> MessageBuffer<T> {
         let mut buffer = MessageBuffer::new(
             self.budget
                 .expect("TokenBudget is required"),
@@ -313,7 +302,7 @@ impl MessageBufferBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::compaction::{NoCompaction, TailWindow};
+    use crate::compaction::{MessageGroup, NoCompaction, TailWindow};
 
     fn budget(input: usize, output: usize) -> TokenBudget {
         TokenBudget::new(input, output)
@@ -323,15 +312,15 @@ mod tests {
     #[derive(Debug, Clone, PartialEq)]
     struct Msg(&'static str);
 
-    impl crate::compaction::MessageGroup for Msg {
+    impl MessageGroup for Msg {
         fn group_id(&self) -> Option<String> {
             None
         }
     }
 
-    impl MessageContent for Msg {
-        fn message_content(&self) -> Option<&str> {
-            Some(self.0)
+    impl TokenCount for Msg {
+        fn token_count(&self, counter: &dyn TokenCounter) -> usize {
+            counter.count(self.0)
         }
     }
 
@@ -339,9 +328,21 @@ mod tests {
     #[derive(Debug, Clone)]
     struct EmptyMsg;
 
-    impl MessageContent for EmptyMsg {
-        fn message_content(&self) -> Option<&str> {
-            None
+    impl TokenCount for EmptyMsg {
+        fn token_count(&self, _counter: &dyn TokenCounter) -> usize {
+            0
+        }
+    }
+
+    #[derive(Debug, Clone)]
+    struct CompoundMsg(&'static [&'static str]);
+
+    impl TokenCount for CompoundMsg {
+        fn token_count(&self, counter: &dyn TokenCounter) -> usize {
+            self.0
+                .iter()
+                .map(|content| counter.count(content))
+                .sum()
         }
     }
 
@@ -372,13 +373,20 @@ mod tests {
         assert_eq!(b.min_message_tokens, Some(8));
     }
 
-    // ---- MessageContent ----------------------------------------------------
+    // ---- TokenCount --------------------------------------------------------
 
     #[test]
-    fn none_content_counts_as_zero_tokens() {
+    fn empty_message_counts_as_zero_tokens() {
         let mut buf = MessageBuffer::new(budget(100, 0));
         buf.push(EmptyMsg);
         assert_eq!(buf.total_tokens(), 0);
+    }
+
+    #[test]
+    fn compound_message_sums_content_without_joining() {
+        let mut buf = MessageBuffer::new(budget(100, 0));
+        buf.push(CompoundMsg(&["aaaa", "bbbbbbbb"]));
+        assert_eq!(buf.total_tokens(), 3);
     }
 
     // ---- MessageBuffer push / query ----------------------------------------

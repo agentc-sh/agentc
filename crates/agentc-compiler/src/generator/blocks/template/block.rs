@@ -5,13 +5,16 @@
 use async_trait::async_trait;
 use serde::Serialize;
 use serde_json::Value as JsonValue;
-use std::collections::{BTreeMap, HashMap};
+use std::{
+    collections::{BTreeMap, HashMap},
+    marker::PhantomData,
+};
 
 use crate::generator::{
     blocks::{
         template::{
             evaluator::ConditionEvaluator, manifest::TemplateBlockManifest,
-            renderer::TemplateRenderer,
+            renderer::TemplateRenderer, traits::TemplateFragment,
         },
         traits::Block,
     },
@@ -106,9 +109,10 @@ where
             })?;
 
         if let Some(cond) = &fill.condition
-            && !evaluator.evaluate(&self.manifest.id, cond)? {
-                return Ok(String::new());
-            }
+            && !evaluator.evaluate(&self.manifest.id, cond)?
+        {
+            return Ok(String::new());
+        }
 
         let template_src = self
             .get_template(&fill.template)
@@ -136,9 +140,10 @@ where
 
         for file_spec in &self.manifest.files {
             if let Some(cond) = &file_spec.condition
-                && !evaluator.evaluate(&self.manifest.id, cond)? {
-                    continue;
-                }
+                && !evaluator.evaluate(&self.manifest.id, cond)?
+            {
+                continue;
+            }
 
             let path =
                 renderer.render(&self.manifest.id, &file_spec.path, &file_spec.path, registry)?;
@@ -157,18 +162,6 @@ where
         }
 
         Ok(())
-    }
-}
-
-pub struct TemplateBlockBuilder {
-    manifest: Option<TemplateBlockManifest>,
-    templates: HashMap<String, String>,
-    extra_vars: BTreeMap<String, JsonValue>,
-}
-
-impl Default for TemplateBlockBuilder {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -210,3 +203,145 @@ impl TemplateBlockBuilder {
         )
     }
 }
+
+pub struct TemplateBlockBuilder {
+    manifest: Option<TemplateBlockManifest>,
+    templates: HashMap<String, String>,
+    extra_vars: BTreeMap<String, JsonValue>,
+}
+
+impl Default for TemplateBlockBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+pub struct TemplateFragmentBlock<T>
+where
+    T: Serialize + Send + Sync,
+{
+    id: String,
+    extension_points: Vec<ExtensionPoint>,
+    contributions: Vec<Contribution>,
+    fragment: Box<dyn TemplateFragment<T>>,
+}
+
+impl<T> TemplateFragmentBlock<T>
+where
+    T: Serialize + Send + Sync,
+{
+    pub fn builder() -> TemplateFragmentBlockBuilder<T> {
+        TemplateFragmentBlockBuilder::new()
+    }
+}
+
+#[async_trait]
+impl<T> Block<T> for TemplateFragmentBlock<T>
+where
+    T: Serialize + Send + Sync,
+{
+    fn id(&self) -> &str {
+        &self.id
+    }
+
+    fn extension_points(&self) -> Vec<ExtensionPoint> {
+        self.extension_points.clone()
+    }
+
+    fn contributions(&self) -> Vec<Contribution> {
+        self.contributions.clone()
+    }
+
+    async fn render_contribution(
+        &self,
+        ctx: &GenerationContext<T>,
+        point: &str,
+    ) -> Result<String, GeneratorError> {
+        self.fragment
+            .generate_contribution(ctx, point)
+    }
+
+    async fn render(
+        &self,
+        ctx: &GenerationContext<T>,
+        registry: &ExtensionRegistry,
+        vfs: &mut VirtualFileSystem,
+    ) -> Result<(), GeneratorError> {
+        for (path, content) in self
+            .fragment
+            .generate_files(ctx, registry)?
+        {
+            vfs.insert(path, content);
+        }
+
+        Ok(())
+    }
+}
+
+pub struct TemplateFragmentBlockBuilder<T>
+where
+    T: Serialize + Send + Sync,
+{
+    id: Option<String>,
+    extension_points: Vec<ExtensionPoint>,
+    contributions: Vec<Contribution>,
+    _marker: PhantomData<T>,
+}
+
+impl<T> Default for TemplateFragmentBlockBuilder<T>
+where
+    T: Serialize + Send + Sync,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<T> TemplateFragmentBlockBuilder<T>
+where
+    T: Serialize + Send + Sync,
+{
+    pub fn new() -> Self {
+        Self {
+            id: None,
+            extension_points: Vec::new(),
+            contributions: Vec::new(),
+            _marker: PhantomData,
+        }
+    }
+
+    pub fn id(mut self, id: impl AsRef<str>) -> Self {
+        self.id = Some(id.as_ref().to_string());
+        self
+    }
+
+    pub fn extension_point(
+        mut self,
+        name: impl Into<String>,
+        reducer: fn(Vec<String>) -> String,
+    ) -> Self {
+        self.extension_points
+            .push(ExtensionPoint::new(name, reducer));
+        self
+    }
+
+    pub fn contribute(mut self, contribution: Contribution) -> Self {
+        self.contributions.push(contribution);
+        self
+    }
+
+    pub fn build<F>(self, fragment: F) -> TemplateFragmentBlock<T>
+    where
+        F: TemplateFragment<T> + 'static,
+    {
+        TemplateFragmentBlock {
+            id: self
+                .id
+                .expect("TemplateFragmentBlock must have a non-empty id"),
+            extension_points: self.extension_points,
+            contributions: self.contributions,
+            fragment: Box::new(fragment),
+        }
+    }
+}
+
