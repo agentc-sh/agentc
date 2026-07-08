@@ -8,8 +8,8 @@ license.workspace = true
 readme.workspace = true
 
 [dependencies]
-agentc-agent = { path = "../agentc-agent", version = "0.2.0" }
-agentc-prompt = { path = "../agentc-prompt", version = "0.2.0" }
+agentc-agent = { path = "../agentc-agent", version = "0.2.1" }
+agentc-prompt = { path = "../agentc-prompt", version = "0.2.1" }
 
 async-trait = { workspace = true }
 tokio = { workspace = true }

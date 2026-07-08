@@ -1,6 +1,12 @@
 # Changelog
 
 ---
+## [0.2.1](https://github.com/agentc-sh/agentc/compare/0.2.0..0.2.1) - 2026-07-08
+
+### Bug Fixes
+
+- Update slim and toolchain images and ensure grype only fails on fixed issues - ([4b081cc](https://github.com/agentc-sh/agentc/commit/4b081ccf7a51e730942d96f3720e156961bddda9)) - Timothy Pogue
+---
 ## [0.2.0](https://github.com/agentc-sh/agentc/compare/0.1.0-rc.13.ed88495..0.2.0) - 2026-07-08
 
 ### Bug Fixes
