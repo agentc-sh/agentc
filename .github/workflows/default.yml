@@ -1,12 +1,9 @@
 name: default
 
 on:
-  push:
-    branches-ignore:
-      - main
+  pull_request:
+    branches:
       - dev
-    tags-ignore:
-      - '**'
 
 jobs:
   lint:
