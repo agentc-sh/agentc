@@ -8,8 +8,8 @@ license.workspace = true
 readme.workspace = true
 
 [dependencies]
-agentc-database = { path = "../agentc-database", version = "0.0.0" }
-agentc-domain = { path = "../agentc-domain", version = "0.0.0" }
+agentc-database = { path = "../agentc-database", version = "0.2.0" }
+agentc-domain = { path = "../agentc-domain", version = "0.2.0" }
 
 tokio = { workspace = true }
 async-trait = { workspace = true }

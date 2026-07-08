@@ -13,8 +13,8 @@ default = ["tls"]
 tls = ["dep:rustls"]
 
 [dependencies]
-agentc-domain = { path = "../agentc-domain", version = "0.0.0" }
-agentc-telemetry = { path = "../agentc-telemetry", version = "0.0.0" }
+agentc-domain = { path = "../agentc-domain", version = "0.2.0" }
+agentc-telemetry = { path = "../agentc-telemetry", version = "0.2.0" }
 
 tokio = { workspace = true }
 tokio-util = { workspace = true }

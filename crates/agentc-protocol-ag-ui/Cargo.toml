@@ -11,7 +11,7 @@ readme.workspace = true
 default = []
 
 [dependencies]
-agentc-http = { path = "../agentc-http", version = "0.0.0" }
+agentc-http = { path = "../agentc-http", version = "0.2.0" }
 
 thiserror = { workspace = true }
 

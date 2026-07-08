@@ -15,7 +15,7 @@ python-static = []
 bash = ["dep:rust-bash"]
 
 [dependencies]
-agentc-agent = { path = "../agentc-agent", version = "0.0.0" }
+agentc-agent = { path = "../agentc-agent", version = "0.2.0" }
 
 tokio = { workspace = true }
 tokio-util = { workspace = true }
