@@ -30,6 +30,7 @@ agentc-tools = { version = "{{ runtime_version }}", features = [{{ extension("to
 {%- if ctx.http_server %}
 agentc-http = { version = "{{ runtime_version }}" }
 
+jobq = { git = "https://github.com/wizrds/jobq-rs.git", version = "0.3.1" }
 utoipa = { version = "5.4" }
 utoipa-axum = { version = "0.2" }
 {%- endif %}

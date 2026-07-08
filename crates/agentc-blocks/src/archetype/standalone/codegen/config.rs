@@ -367,6 +367,26 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
                 pub servers: HashMap<String, McpTransportConfig>,
             }
 
+            #[derive(Debug, Clone, Serialize, Deserialize)]
+            #[serde(default)]
+            pub struct TaskQueueConfig {
+                pub worker_count: usize,
+                pub max_queue_capacity: usize,
+                pub batch_size: usize,
+                pub batch_timeout_ms: usize,
+            }
+
+            impl Default for TaskQueueConfig {
+                fn default() -> Self {
+                    TaskQueueConfig {
+                        worker_count: 4,
+                        max_queue_capacity: 256,
+                        batch_size: 16,
+                        batch_timeout_ms: 10,
+                    }
+                }
+            }
+
             #(#generated_structs)*
 
             #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -374,6 +394,7 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
             pub struct Config {
                 pub database: DatabaseConfig,
                 pub mcp: McpConfig,
+                pub task_queue: TaskQueueConfig,
                 #(#config_generated_fields)*
                 #extra_fields
             }

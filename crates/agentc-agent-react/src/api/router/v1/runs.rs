@@ -10,8 +10,19 @@ use axum::{
         sse::{Event, KeepAlive, Sse},
     },
 };
+use async_stream::try_stream;
 use futures::stream::StreamExt;
-use std::{convert::Infallible, time::Duration};
+use futures::stream::BoxStream;
+use jobq::{
+    Error as JobQueueError,
+    JobStreamOptions,
+    StreamTask,
+};
+use std::{
+    convert::Infallible,
+    time::Duration,
+};
+use tokio_util::sync::CancellationToken;
 use utoipa_axum::{router::OpenApiRouter, routes};
 use uuid::Uuid;
 use validator::Validate;
@@ -20,18 +31,77 @@ use agentc_http::{
     dto::{errors::ErrorResponseDTO, page::PaginatedResponseDTO},
     errors::ApiError,
     extractors::{Json, Path, Query, TenantIdHeader},
-    state::ApiState,
+    stream::CancelOnDropStream,
 };
 
 use crate::{
-    api::dto::v1::run::{CreateRunRequestDTO, FindRunEndpointParams, RunEventDTO, RunResponseDTO},
+    api::dto::v1::run::{
+        CreateRunRequestDTO,
+        FindRunEndpointParams,
+        RunEventDTO,
+        RunResponseDTO,
+    },
+    api::state::ReActApiState,
     service::{
         ApplicationService,
+        errors::ServiceError,
         operations::{run::RunOperations, session::SessionOperations},
+        types::run::{
+            RunEvent,
+            RunParams,
+        },
     },
 };
 
-pub fn router() -> OpenApiRouter<ApiState<ApplicationService>> {
+struct RunStreamTask {
+    service: ApplicationService,
+    params: RunParams,
+    disconnect: CancellationToken,
+}
+
+impl RunStreamTask {
+    fn new(
+        service: ApplicationService,
+        params: RunParams,
+        disconnect: CancellationToken,
+    ) -> Self {
+        Self {
+            service,
+            params,
+            disconnect,
+        }
+    }
+}
+
+impl StreamTask for RunStreamTask {
+    type Item = RunEvent;
+    type Error = ServiceError;
+
+    fn execute(&self) -> BoxStream<'_, Result<Self::Item, Self::Error>> {
+        Box::pin(try_stream! {
+            let tenant_id = self.params.tenant_id.clone();
+            let run_id = self.params.run_id;
+            let mut stream = self.service
+                .run(self.params.clone())
+                .await?;
+
+            loop {
+                match tokio::select! {
+                    _ = self.disconnect.cancelled() => self.service
+                        .cancel_run(&tenant_id, run_id)
+                        .await
+                        .map(|_| None),
+                    event = stream.next() => Ok(event),
+                }? {
+                    Some(event) => yield event,
+                    None => break,
+                }
+            }
+        })
+    }
+}
+
+pub fn router() -> OpenApiRouter<ReActApiState> {
     OpenApiRouter::new()
         .routes(routes!(find_runs_endpoint))
         .routes(routes!(get_run_endpoint))
@@ -58,18 +128,23 @@ pub fn router() -> OpenApiRouter<ApiState<ApplicationService>> {
     ),
 )]
 async fn find_runs_endpoint(
-    State(state): State<ApiState<ApplicationService>>,
+    State(state): State<ReActApiState>,
     Path(session_id): Path<Uuid>,
     Query(params): Query<FindRunEndpointParams>,
     tenant_id: Option<TenantIdHeader>,
-) -> Response {
+) -> Response
+{
     if let Err(err) = params.validate() {
         return ErrorResponseDTO::from(ApiError::from(err)).into_response();
     }
 
-    let tenant_id = tenant_id.map_or(state.default_tenant_id.clone(), TenantIdHeader::into_inner);
+    let tenant_id = tenant_id.map_or(
+        state.default_tenant_id.clone().into_inner(),
+        TenantIdHeader::into_inner,
+    );
 
     if let Err(err) = state
+        .service
         .get_session(&tenant_id, session_id)
         .await
     {
@@ -77,6 +152,7 @@ async fn find_runs_endpoint(
     }
 
     match state
+        .service
         .find_runs(params.to_params(tenant_id))
         .await
     {
@@ -105,13 +181,18 @@ async fn find_runs_endpoint(
     ),
 )]
 async fn get_run_endpoint(
-    State(state): State<ApiState<ApplicationService>>,
+    State(state): State<ReActApiState>,
     Path(run_id): Path<Uuid>,
     tenant_id: Option<TenantIdHeader>,
-) -> Response {
+) -> Response
+{
     match state
+        .service
         .get_run(
-            &tenant_id.map_or(state.default_tenant_id.clone(), TenantIdHeader::into_inner),
+            &tenant_id.map_or(
+                state.default_tenant_id.into_inner(),
+                TenantIdHeader::into_inner,
+            ),
             run_id,
         )
         .await
@@ -142,27 +223,55 @@ async fn get_run_endpoint(
     ),
 )]
 async fn create_run_endpoint(
-    State(state): State<ApiState<ApplicationService>>,
+    State(state): State<ReActApiState>,
     tenant_id: Option<TenantIdHeader>,
     Json(payload): Json<CreateRunRequestDTO>,
-) -> Response {
+) -> Response
+{
     if let Err(err) = payload.validate() {
-        return ErrorResponseDTO::from(ApiError::from(err)).into_response();
+        return ErrorResponseDTO::from(ApiError::from(err))
+            .into_response();
     }
 
+    let disconnect = CancellationToken::new();
+
     match state
-        .run(payload.to_params(
-            tenant_id.map_or(state.default_tenant_id.clone(), TenantIdHeader::into_inner),
-        ))
+        .task_queue
+        .enqueue_stream(JobStreamOptions::new(RunStreamTask::new(
+            (*state.service).clone(),
+            payload.to_params(
+                tenant_id.map_or(
+                    state.default_tenant_id.into_inner(),
+                    TenantIdHeader::into_inner,
+                ),
+            ),
+            disconnect.clone(),
+        )))
         .await
     {
-        Ok(stream) => Sse::new(stream.map(|event| {
-            Ok::<_, Infallible>(
-                Event::default()
-                    .event(event.kind())
-                    .json_data(RunEventDTO::from_event(event))
-                    .expect("failed to serialize event data"),
-            )
+        Ok(stream) => Sse::new(CancelOnDropStream::new(stream, disconnect).map(|result| {
+            match result {
+                Ok(event) => Ok::<_, Infallible>(
+                    Event::default()
+                        .event(event.kind())
+                        .json_data(RunEventDTO::from_event(event))
+                        .expect("failed to serialize event data"),
+                ),
+                Err(err) => Ok(
+                    Event::default()
+                        .event("error")
+                        .json_data(ErrorResponseDTO::from(match err {
+                            JobQueueError::TaskExecution { source, .. } => {
+                                match source.downcast::<ServiceError>() {
+                                    Ok(err) => ApiError::from(*err),
+                                    Err(source) => ApiError::unexpected_error(source.to_string()),
+                                }
+                            }
+                            err => ApiError::unexpected_error(err.to_string()),
+                        }))
+                        .expect("failed to serialize error response")
+                ),
+            }
         }))
         .keep_alive(
             KeepAlive::new()
@@ -170,6 +279,9 @@ async fn create_run_endpoint(
                 .text("keep-alive"),
         )
         .into_response(),
-        Err(err) => ErrorResponseDTO::from(ApiError::from(err)).into_response(),
+        Err(err) => {
+            ErrorResponseDTO::from(ApiError::unexpected_error(err.to_string()))
+                .into_response()
+        }
     }
 }

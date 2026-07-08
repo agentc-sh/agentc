@@ -15,17 +15,17 @@ use agentc_http::{
     dto::{errors::ErrorResponseDTO, page::PaginatedResponseDTO},
     errors::ApiError,
     extractors::{Json, Path, Query, TenantIdHeader},
-    state::ApiState,
 };
 
 use crate::{
+    api::state::ReActApiState,
     api::dto::v1::session::{
         CreateSessionRequestDTO, FindSessionEndpointParams, SessionResponseDTO,
     },
-    service::{ApplicationService, operations::session::SessionOperations},
+    service::operations::session::SessionOperations,
 };
 
-pub fn router() -> OpenApiRouter<ApiState<ApplicationService>> {
+pub fn router() -> OpenApiRouter<ReActApiState> {
     OpenApiRouter::new()
         .routes(routes!(find_sessions_endpoint))
         .routes(routes!(create_session_endpoint))
@@ -51,7 +51,7 @@ pub fn router() -> OpenApiRouter<ApiState<ApplicationService>> {
     ),
 )]
 async fn find_sessions_endpoint(
-    State(state): State<ApiState<ApplicationService>>,
+    State(state): State<ReActApiState>,
     Query(params): Query<FindSessionEndpointParams>,
     tenant_id: Option<TenantIdHeader>,
 ) -> Response {
@@ -60,8 +60,12 @@ async fn find_sessions_endpoint(
     }
 
     match state
+        .service
         .find_sessions(params.to_params(
-            tenant_id.map_or(state.default_tenant_id.clone(), TenantIdHeader::into_inner),
+            tenant_id.map_or(
+                state.default_tenant_id.into_inner(),
+                TenantIdHeader::into_inner,
+            ),
         ))
         .await
     {
@@ -92,7 +96,7 @@ async fn find_sessions_endpoint(
     )
 )]
 async fn create_session_endpoint(
-    State(state): State<ApiState<ApplicationService>>,
+    State(state): State<ReActApiState>,
     tenant_id: Option<TenantIdHeader>,
     Json(payload): Json<CreateSessionRequestDTO>,
 ) -> Response {
@@ -101,8 +105,12 @@ async fn create_session_endpoint(
     }
 
     match state
+        .service
         .create_session(payload.to_params(
-            tenant_id.map_or(state.default_tenant_id.clone(), TenantIdHeader::into_inner),
+            tenant_id.map_or(
+                state.default_tenant_id.into_inner(),
+                TenantIdHeader::into_inner,
+            ),
         ))
         .await
     {
@@ -132,13 +140,17 @@ async fn create_session_endpoint(
     )
 )]
 async fn get_session_endpoint(
-    State(state): State<ApiState<ApplicationService>>,
+    State(state): State<ReActApiState>,
     Path(session_id): Path<Uuid>,
     tenant_id: Option<TenantIdHeader>,
 ) -> Response {
     match state
+        .service
         .get_session(
-            &tenant_id.map_or(state.default_tenant_id.clone(), TenantIdHeader::into_inner),
+            &tenant_id.map_or(
+                state.default_tenant_id.into_inner(),
+                TenantIdHeader::into_inner,
+            ),
             session_id,
         )
         .await
@@ -169,13 +181,17 @@ async fn get_session_endpoint(
     ),
 )]
 async fn delete_session_endpoint(
-    State(state): State<ApiState<ApplicationService>>,
+    State(state): State<ReActApiState>,
     Path(session_id): Path<Uuid>,
     tenant_id: Option<TenantIdHeader>,
 ) -> Response {
     match state
+        .service
         .delete_sessions(
-            &tenant_id.map_or(state.default_tenant_id.clone(), TenantIdHeader::into_inner),
+            &tenant_id.map_or(
+                state.default_tenant_id.into_inner(),
+                TenantIdHeader::into_inner,
+            ),
             &[session_id],
         )
         .await

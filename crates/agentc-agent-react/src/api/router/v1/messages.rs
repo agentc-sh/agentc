@@ -15,20 +15,17 @@ use agentc_http::{
     dto::{errors::ErrorResponseDTO, page::PaginatedResponseDTO},
     errors::ApiError,
     extractors::{Json, Path, Query, TenantIdHeader},
-    state::ApiState,
 };
 
 use crate::{
+    api::state::ReActApiState,
     api::dto::v1::message::{
         CreateMessageRequestDTO, FindMessageEndpointParams, MessageResponseDTO,
     },
-    service::{
-        ApplicationService,
-        operations::{message::MessageOperations, session::SessionOperations},
-    },
+    service::operations::{message::MessageOperations, session::SessionOperations},
 };
 
-pub fn router() -> OpenApiRouter<ApiState<ApplicationService>> {
+pub fn router() -> OpenApiRouter<ReActApiState> {
     OpenApiRouter::new()
         .routes(routes!(find_messages_endpoint))
         .routes(routes!(create_message_endpoint))
@@ -56,7 +53,7 @@ pub fn router() -> OpenApiRouter<ApiState<ApplicationService>> {
     ),
 )]
 async fn find_messages_endpoint(
-    State(state): State<ApiState<ApplicationService>>,
+    State(state): State<ReActApiState>,
     Path(session_id): Path<Uuid>,
     Query(params): Query<FindMessageEndpointParams>,
     tenant_id: Option<TenantIdHeader>,
@@ -65,9 +62,13 @@ async fn find_messages_endpoint(
         return ErrorResponseDTO::from(ApiError::from(err)).into_response();
     }
 
-    let tenant_id = tenant_id.map_or(state.default_tenant_id.clone(), TenantIdHeader::into_inner);
+    let tenant_id = tenant_id.map_or(
+        state.default_tenant_id.clone().into_inner(),
+        TenantIdHeader::into_inner,
+    );
 
     if let Err(err) = state
+        .service
         .get_session(&tenant_id, session_id)
         .await
     {
@@ -75,6 +76,7 @@ async fn find_messages_endpoint(
     }
 
     match state
+        .service
         .find_messages(params.to_params(tenant_id, session_id))
         .await
     {
@@ -106,7 +108,7 @@ async fn find_messages_endpoint(
     ),
 )]
 async fn create_message_endpoint(
-    State(state): State<ApiState<ApplicationService>>,
+    State(state): State<ReActApiState>,
     Path(session_id): Path<Uuid>,
     tenant_id: Option<TenantIdHeader>,
     Json(payload): Json<CreateMessageRequestDTO>,
@@ -115,9 +117,13 @@ async fn create_message_endpoint(
         return ErrorResponseDTO::from(ApiError::from(err)).into_response();
     }
 
-    let tenant_id = tenant_id.map_or(state.default_tenant_id.clone(), TenantIdHeader::into_inner);
+    let tenant_id = tenant_id.map_or(
+        state.default_tenant_id.clone().into_inner(),
+        TenantIdHeader::into_inner,
+    );
 
     if let Err(err) = state
+        .service
         .get_session(&tenant_id, session_id)
         .await
     {
@@ -125,6 +131,7 @@ async fn create_message_endpoint(
     }
 
     match state
+        .service
         .create_message(&tenant_id, session_id, payload.to_params())
         .await
     {
@@ -154,13 +161,17 @@ async fn create_message_endpoint(
     ),
 )]
 async fn get_message_endpoint(
-    State(state): State<ApiState<ApplicationService>>,
+    State(state): State<ReActApiState>,
     Path(message_id): Path<Uuid>,
     tenant_id: Option<TenantIdHeader>,
 ) -> Response {
     match state
+        .service
         .get_message(
-            &tenant_id.map_or(state.default_tenant_id.clone(), TenantIdHeader::into_inner),
+            &tenant_id.map_or(
+                state.default_tenant_id.into_inner(),
+                TenantIdHeader::into_inner,
+            ),
             message_id,
         )
         .await
@@ -191,13 +202,17 @@ async fn get_message_endpoint(
     ),
 )]
 async fn delete_message_endpoint(
-    State(state): State<ApiState<ApplicationService>>,
+    State(state): State<ReActApiState>,
     Path(message_id): Path<Uuid>,
     tenant_id: Option<TenantIdHeader>,
 ) -> Response {
     match state
+        .service
         .delete_messages(
-            &tenant_id.map_or(state.default_tenant_id.clone(), TenantIdHeader::into_inner),
+            &tenant_id.map_or(
+                state.default_tenant_id.into_inner(),
+                TenantIdHeader::into_inner,
+            ),
             &[message_id],
         )
         .await

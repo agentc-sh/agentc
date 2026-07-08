@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 use async_trait::async_trait;
-use futures::stream::{BoxStream, StreamExt};
+use futures::stream::{StreamExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
 use serde_json::{from_value, json, to_string, to_value};
 use std::{
@@ -16,6 +16,7 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 use agentc_agent::types::tools::ToolDefinition;
+use agentc_http::errors::ApiError;
 use agentc_protocol_ag_ui::{
     protocol::{
         event::{
@@ -34,7 +35,13 @@ use agentc_protocol_ag_ui::{
         },
         tool::{FunctionCall, ToolCall},
     },
-    traits::{AgUiService, FromAgUiType, ToAgUiType},
+    traits::{
+        AgUiRunCancel,
+        AgUiRunStream,
+        AgUiService,
+        FromAgUiType,
+        ToAgUiType,
+    },
 };
 
 use crate::{
@@ -329,7 +336,6 @@ impl ToAgUiType<Event> for RunEvent {
                 result: Some(json!({
                     "status": status,
                     "interrupt_payload": interrupt_payload,
-                    // "state": result.map(|res| to_value(res).unwrap_or(Value::Null))
                     "state": result.map(|res| res.context),
                 })),
             })),
@@ -504,8 +510,6 @@ impl ToAgUiType<Event> for RunEvent {
                         timestamp: Some(timestamp),
                         raw_event: None,
                     },
-                    // snapshot: to_value(state)
-                    //     .map_err(|_| ServiceError::unexpected("Failed to serialize state snapshot"))?,
                     snapshot: state.context,
                 }))
             }
@@ -514,16 +518,7 @@ impl ToAgUiType<Event> for RunEvent {
                     timestamp: Some(timestamp),
                     raw_event: None,
                 },
-                // delta: vec![
-                //     to_value(PatchOperation::Add(AddOperation {
-                //         path: "/messages".try_into().expect("invalid patch path"),
-                //         value: to_value(delta.messages)
-                //             .map_err(|_| ServiceError::unexpected("Failed to serialize state delta messages"))?,
-                //     }))
-                //     .map_err(|_| ServiceError::unexpected("Failed to serialize patch operation"))?
-                // ]
-                delta: delta
-                    .context
+                delta: delta.context
                     .into_iter()
                     .filter_map(|operation| to_value(operation).ok())
                     .collect(),
@@ -635,19 +630,36 @@ impl ToAgUiType<Message> for MessageResponse {
     }
 }
 
+struct ApplicationServiceAgUiCancel {
+    service: ApplicationService,
+    tenant_id: String,
+    run_id: Uuid,
+}
+
+#[async_trait]
+impl AgUiRunCancel for ApplicationServiceAgUiCancel {
+    async fn cancel(&self) -> Result<(), ApiError> {
+        self.service
+            .cancel_run(&self.tenant_id, self.run_id)
+            .await?;
+
+        Ok(())
+    }
+}
+
 #[async_trait]
 impl AgUiService for ApplicationService {
-    type Error = ServiceError;
-
     async fn ag_ui_run(
         &self,
         input: RunAgentInput,
         tenant_id: &str,
-    ) -> Result<BoxStream<'static, Result<Event, Self::Error>>, Self::Error> {
+    ) -> Result<AgUiRunStream, ApiError> {
+        let run_id = input.run_id;
+        let tenant_id = tenant_id.to_string();
         let stream = self
             .run(
-                RunParams::new(tenant_id, input.thread_id)
-                    .with_run_id(input.run_id)
+                RunParams::new(&tenant_id, input.thread_id)
+                    .with_run_id(run_id)
                     .maybe_with_model_override(
                         input
                             .forwarded_props
@@ -726,6 +738,13 @@ impl AgUiService for ApplicationService {
             )
             .await?;
 
-        Ok(Box::pin(stream.map(|event| event.to_ag_ui_type())))
+        Ok(
+            AgUiRunStream::new(Box::pin(stream.map(|event| event.to_ag_ui_type()).map_err(Into::into)))
+                .with_cancel(ApplicationServiceAgUiCancel {
+                    service: self.clone(),
+                    tenant_id,
+                    run_id: run_id.into(),
+                }),
+        )
     }
 }
