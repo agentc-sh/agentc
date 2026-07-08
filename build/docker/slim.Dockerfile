@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 ARG RUST_VERSION=1.95
 
-FROM docker.io/library/rust:${RUST_VERSION}-slim-bookworm AS build
+FROM docker.io/library/rust:${RUST_VERSION}-slim-trixie AS build
 
 ARG BUILD_TAG=""
 
@@ -20,20 +20,22 @@ ADD crates/ ./crates/
 ADD sbom/ ./sbom/
 RUN BUILD_TAG=$BUILD_TAG cargo build -p agentc --all-features --release
 
-FROM docker.io/library/rust:${RUST_VERSION}-slim-bookworm AS runtime
+FROM docker.io/library/rust:${RUST_VERSION}-slim-trixie AS runtime
 
-RUN apt-get update && apt-get install -y \
-    ca-certificates \
-    build-essential \
-    pkg-config \
-    cmake \
-    libssl-dev \
-    libz-dev \
-    libffi-dev \
-    git \
-    python3-dev \
-    curl \
-    xz-utils \
+RUN apt-get update && \
+    apt-get upgrade -y && \
+    apt-get install --no-install-recommends -y \
+        ca-certificates \
+        build-essential \
+        pkg-config \
+        cmake \
+        libssl-dev \
+        libz-dev \
+        libffi-dev \
+        git \
+        curl \
+        python3-dev \
+        xz-utils \
     && rm -rf /var/lib/apt/lists/*
 
 RUN useradd -u 1000 -G sudo -U -m -s /bin/bash agentc \

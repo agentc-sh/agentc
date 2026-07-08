@@ -46,8 +46,8 @@ RUN apt-get update && \
         libz-dev \
         libffi-dev \
         git \
-        python3-dev \
         curl \
+        python3-dev \
         # libatomic1 is required for nodejs
         libatomic1 \
         xz-utils \
@@ -59,7 +59,7 @@ ENV RUSTUP_HOME=/usr/local/rustup \
     RUST_VERSION=${RUST_VERSION}
 
 RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain ${RUST_VERSION} --no-modify-path
-RUN chmod -R a+w ${RUSTUP_HOME} ${CARGO_HOME}
+# RUN chmod -R a+w ${RUSTUP_HOME} ${CARGO_HOME}
 
 RUN case "${TARGETARCH}" in \
     amd64) NODE_ARCH="x64" ;; \
