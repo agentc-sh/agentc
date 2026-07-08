@@ -50,3 +50,23 @@ where
         Pin::new(&mut self.inner).poll_next(cx)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use futures::stream;
+    use tokio_util::sync::CancellationToken;
+
+    use super::CancelOnDropStream;
+
+    #[test]
+    fn cancel_on_drop_stream_cancels_token_when_dropped() {
+        let token = CancellationToken::new();
+
+        drop(CancelOnDropStream::new(
+            stream::empty::<()>(),
+            token.clone(),
+        ));
+
+        assert!(token.is_cancelled());
+    }
+}

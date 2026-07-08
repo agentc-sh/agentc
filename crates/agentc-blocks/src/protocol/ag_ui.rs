@@ -44,7 +44,14 @@ impl CodeGen<ResolvedContext> for AgUiCodeGen {
                 Ok(quote! {
                     builder = builder.with_router(
                         utoipa_axum::router::OpenApiRouter::new()
-                            .nest(#config_path, agentc_protocol_ag_ui::router::router(state.clone()))
+                            .nest(
+                                #config_path,
+                                agentc_protocol_ag_ui::router::router(
+                                    service.clone(),
+                                    default_tenant_id.clone(),
+                                    task_queue.clone(),
+                                ),
+                            )
                     );
                 })
             }
@@ -185,5 +192,8 @@ mod tests {
 
         assert!(rendered.contains("custom-ag-ui"));
         assert!(rendered.contains("agentc_protocol_ag_ui :: router :: router"));
+        assert!(rendered.contains("service . clone"));
+        assert!(rendered.contains("default_tenant_id . clone"));
+        assert!(rendered.contains("task_queue . clone"));
     }
 }

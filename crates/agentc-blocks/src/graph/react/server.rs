@@ -71,11 +71,16 @@ impl CodeGen<ResolvedContext> for ServerCodeGen {
         let server_source = quote! {
             use std::sync::Arc;
             use anyhow::Result;
+            use jobq::{
+                AnyExecutable,
+                FifoQueue,
+                JobQueue,
+            };
             use utoipa::OpenApi;
 
             use agentc_http::{
                 server::HttpServer,
-                state::ApiState,
+                state::DefaultTenantId,
             };
             use agentc_agent_react::{
                 service::ApplicationService,
@@ -98,16 +103,20 @@ impl CodeGen<ResolvedContext> for ServerCodeGen {
 
             pub fn build(
                 service: Arc<ApplicationService>,
+                task_queue: Arc<JobQueue<FifoQueue<AnyExecutable>>>,
                 config: &Config,
             ) -> Result<HttpServer> {
-                let state = ApiState::new_arc(
-                    service,
+                let default_tenant_id = DefaultTenantId::new(
                     #default_tenant_id_field.clone(),
                 );
 
                 let mut builder = HttpServer::builder()
                     .with_openapi(ApiDoc::openapi())
-                    .with_router(v1::router(state.clone()));
+                    .with_router(v1::router(
+                        service.clone(),
+                        default_tenant_id.clone(),
+                        task_queue.clone(),
+                    ));
 
                 #extra_routers
 

@@ -45,6 +45,12 @@ impl CodeGen<ResolvedContext> for CliServeCodeGen {
             use std::{sync::Arc, time::Duration};
             use anyhow::Result;
             use clap::Args;
+            use jobq::{
+                AnyExecutable,
+                BatchJobQueueSystemBuilder,
+                BatchJobWorkerOptions,
+                FifoQueue,
+            };
             use tokio_util::sync::CancellationToken;
 
             use agentc_telemetry::info;
@@ -89,7 +95,28 @@ impl CodeGen<ResolvedContext> for CliServeCodeGen {
                         .build()
                 );
 
-                let mut server = server::build(service, &config)?;
+                let (task_queue, worker_pool) =
+                    BatchJobQueueSystemBuilder::<FifoQueue<AnyExecutable>>::fifo(
+                        config.task_queue.max_queue_capacity,
+                    )
+                    .with_num_workers(config.task_queue.worker_count)
+                    .with_worker_options(BatchJobWorkerOptions {
+                        batch_size: config.task_queue.batch_size,
+                        batch_timeout: Duration::from_millis(
+                            config.task_queue.batch_timeout_ms as u64,
+                        ),
+                    })
+                    .build();
+
+                let worker_pool_handle = {
+                    let worker_pool = worker_pool.clone();
+
+                    tokio::spawn(async move {
+                        worker_pool.run().await;
+                    })
+                };
+
+                let mut server = server::build(service, task_queue.clone(), &config)?;
                 server.spawn();
 
                 info!(
@@ -104,9 +131,16 @@ impl CodeGen<ResolvedContext> for CliServeCodeGen {
                 );
 
                 server.graceful_shutdown(Some(Duration::from_secs(30)));
-                tokio::time::timeout(Duration::from_secs(35), server.join())
-                    .await
-                    .ok();
+                worker_pool.shutdown().await;
+
+                tokio::time::timeout(Duration::from_secs(35), async {
+                    let _ = tokio::join!(
+                        server.join(),
+                        worker_pool_handle,
+                    );
+                })
+                .await
+                .ok();
 
                 Ok(())
             }

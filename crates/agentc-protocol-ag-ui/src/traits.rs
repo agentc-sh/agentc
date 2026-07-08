@@ -88,3 +88,56 @@ pub trait ToAgUiType<T> {
 
     fn to_ag_ui_type(self) -> Result<T, Self::Error>;
 }
+
+#[cfg(test)]
+mod tests {
+    use async_trait::async_trait;
+    use futures::{
+        StreamExt,
+        stream,
+    };
+    use std::sync::{
+        Arc,
+        atomic::{
+            AtomicBool,
+            Ordering,
+        },
+    };
+
+    use agentc_http::errors::ApiError;
+
+    use crate::protocol::event::Event;
+
+    use super::{
+        AgUiRunCancel,
+        AgUiRunStream,
+    };
+
+    struct TestCancel {
+        called: Arc<AtomicBool>,
+    }
+
+    #[async_trait]
+    impl AgUiRunCancel for TestCancel {
+        async fn cancel(&self) -> Result<(), ApiError> {
+            self.called.store(true, Ordering::SeqCst);
+
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn ag_ui_run_stream_cancel_invokes_hook() {
+        let called = Arc::new(AtomicBool::new(false));
+        let mut stream = AgUiRunStream::new(
+            stream::empty::<Result<Event, ApiError>>().boxed(),
+        )
+        .with_cancel(TestCancel {
+            called: called.clone(),
+        });
+
+        stream.cancel().await.unwrap();
+
+        assert!(called.load(Ordering::SeqCst));
+    }
+}
