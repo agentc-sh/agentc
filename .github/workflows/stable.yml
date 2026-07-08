@@ -92,15 +92,15 @@ jobs:
 
       - name: Sync main into dev
         run: |
-          git fetch origin +main:main
-          git fetch origin +dev:dev
+          git fetch origin +refs/heads/main:refs/remotes/origin/main
+          git fetch origin +refs/heads/dev:refs/remotes/origin/dev
 
-          CHANGES=$(git log --oneline dev..main)
+          CHANGES=$(git log --oneline origin/dev..origin/main)
 
           if [ -n "$CHANGES" ]; then
             echo "Synchronizing 'main' into 'dev'."
-            git checkout dev
-            git merge main -m "Synchronize 'main' into 'dev' [skip-ci]" --no-ff
+            git checkout -B dev origin/dev
+            git merge origin/main -m "Synchronize 'main' into 'dev' [skip-ci]" --no-ff
             git push origin dev
           else
             echo "No changes to synchronize."
