@@ -1,5 +1,5 @@
 [workspace.package]
-version = "0.2.0"
+version = "0.2.1"
 edition = "2024"
 description = "An LLM agent compiler and runtime."
 authors = ["agentc authors <hello@agentc.sh>"]
@@ -98,5 +98,6 @@ indexmap = { version = "2" }
 walkdir = { version = "2" }
 
 jobq = { git = "https://github.com/wizrds/jobq-rs.git", version = "0.3.1" }
+subway = { git = "https://github.com/wizrds/subway-rs.git", version = "0.1.0" }
 
 criterion = { version = "0.8", features = ["html_reports"] }

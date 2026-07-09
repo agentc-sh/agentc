@@ -302,6 +302,11 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
                 database::DatabaseOptions,
                 errors::DatabaseError,
             };
+            use subway::{
+                Bus,
+                memory::InMemoryTransport,
+                redis::RedisTransport,
+            };
 
             use crate::migrator::Migrator;
 
@@ -387,6 +392,48 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
                 }
             }
 
+            #[derive(Debug, Clone, Serialize, Deserialize)]
+            #[serde(default, tag = "kind", rename_all = "snake_case")]
+            pub enum PubSubConfig {
+                Memory {
+                    capacity: usize,
+                },
+                Redis {
+                    url: String,
+                },
+            }
+
+            impl PubSubConfig {
+                pub fn kind(&self) -> &str {
+                    match self {
+                        PubSubConfig::Memory { .. } => "memory",
+                        PubSubConfig::Redis { .. } => "redis",
+                    }
+                }
+
+                pub async fn build(&self) -> Result<Bus, subway::Error> {
+                    match self {
+                        PubSubConfig::Memory { capacity } => Ok(Bus::new(
+                            InMemoryTransport::with_capacity(*capacity),
+                        )),
+                        PubSubConfig::Redis { url } => Ok(Bus::new(
+                            RedisTransport::builder()
+                                .url(url.clone())
+                                .build()
+                                .await?,
+                        )),
+                    }
+                }
+            }
+
+            impl Default for PubSubConfig {
+                fn default() -> Self {
+                    PubSubConfig::Memory {
+                        capacity: 4096,
+                    }
+                }
+            }
+
             #(#generated_structs)*
 
             #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -395,6 +442,7 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
                 pub database: DatabaseConfig,
                 pub mcp: McpConfig,
                 pub task_queue: TaskQueueConfig,
+                pub pubsub: PubSubConfig,
                 #(#config_generated_fields)*
                 #extra_fields
             }

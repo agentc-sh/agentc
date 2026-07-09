@@ -12,8 +12,8 @@ default = []
 javascript = ["agentc-compiler/javascript"]
 
 [dependencies]
-agentc-compiler = { path = "../agentc-compiler", version = "0.2.0" }
-agentc-blocks = { path = "../agentc-blocks", version = "0.2.0" }
+agentc-compiler = { path = "../agentc-compiler", version = "0.2.1" }
+agentc-blocks = { path = "../agentc-blocks", version = "0.2.1" }
 
 tokio = { workspace = true }
 async-trait = { workspace = true }

@@ -1,10 +1,17 @@
 ---
 title: Runs
-description: The native HTTP endpoints for creating runs, streaming run events, and reading run history.
+description: The native HTTP endpoints for starting, cancelling, reattaching to, and reading runs.
 ---
 
-A run is one execution of the graph within a session. These endpoints list and read runs, and create
-a new run whose events stream back as Server-Sent Events.
+A run is one execution of the graph within a session. These endpoints list and read runs, start runs
+either attached to the original streaming request or detached in the background, cancel visible runs,
+and open live Server-Sent Events streams to active runs.
+
+`POST /v1/runs` starts an attached run and streams events on the same response. If that response is
+dropped before the run finishes, the run is cancelled. `POST /v1/runs/start` starts a detached run and
+returns its IDs immediately; the run continues after the response is sent. Use
+`GET /v1/runs/{run_id}/events` to observe live events from a running run, and
+`PUT /v1/runs/{run_id}/cancel` to explicitly cancel a visible run.
 
 ## Find runs for a session
 
@@ -127,15 +134,15 @@ Get a run by ID.
 
 ## Create a new run
 
-Create a new run and stream its events back as Server-Sent Events (SSE).
+Create a new attached run and stream its events back as Server-Sent Events (SSE).
 
 <Endpoint method="POST" path="/v1/runs">
-  Create a new run and stream its events back as Server-Sent Events (SSE).
+  Create a new attached run and stream its events back as Server-Sent Events (SSE).
 </Endpoint>
 
 <Parameters in="body">
-  <Field name="session_id" type="string">
-    The session the run belongs to.
+  <Field name="session_id" type="string | null">
+    Optional session ID. If omitted, one is generated automatically.
   </Field>
   <Field name="run_id" type="string | null">
     Optional run ID. If omitted, one is generated automatically.
@@ -153,7 +160,7 @@ Create a new run and stream its events back as Server-Sent Events (SSE).
     Optional capability override for this run.
   </Field>
   <Field name="messages" type={<>{<Link href="/reference/graph/react/http/messages">Message</Link>}[]</>}>
-    Messages that seed the run.
+    Messages that seed the run. At least one message is required.
   </Field>
   <Field name="context_vars" type={<>{<Link href="#contextvar">ContextVar</Link>}[]</>}>
     Client-supplied context variables.
@@ -497,8 +504,8 @@ curl -X POST http://localhost:8080/v1/runs \
   </TabsContent>
 </Tabs>
 
-The stream keeps the connection alive with periodic `keep-alive` comments between events. A full run
-looks like this on the wire:
+The stream keeps the connection alive with periodic `keep-alive` comments between events. Closing the
+connection before the run finishes cancels the attached run. A full run looks like this on the wire:
 
 ```text
 event: run_started
@@ -519,6 +526,213 @@ data: {"kind":"text_message_end","timestamp":1710000000.4,"message_id":"..."}
 event: run_finished
 data: {"kind":"run_finished","timestamp":1710000000.5,"session_id":"...","run_id":"...","status":"completed","interrupt_payload":null,"result":null}
 ```
+
+## Start a detached run
+
+Start a new run and return immediately with its IDs instead of keeping a streaming response open.
+
+<Endpoint method="POST" path="/v1/runs/start">
+  Start a detached run and return its run and session IDs.
+</Endpoint>
+
+The request body accepts the same fields as `POST /v1/runs`. The run continues on the server after the
+HTTP response is returned. Dropping this request's connection after the response has been sent does
+not cancel the run.
+
+<Parameters in="body">
+  <Field name="session_id" type="string | null">
+    Optional session ID. If omitted, one is generated automatically.
+  </Field>
+  <Field name="run_id" type="string | null">
+    Optional run ID. If omitted, one is generated automatically.
+  </Field>
+  <Field name="checkpoint_id" type="string | null">
+    Optional checkpoint to resume from.
+  </Field>
+  <Field name="resume_payload" type="object | null">
+    Opaque resume data supplied by the graph.
+  </Field>
+  <Field name="model_override" type={<>{<Link href="#modeloverride">ModelOverride</Link>} | null</>}>
+    Optional model override for this run.
+  </Field>
+  <Field name="capability_override" type={<>{<Link href="#capabilityoverride">CapabilityOverride</Link>} | null</>}>
+    Optional capability override for this run.
+  </Field>
+  <Field name="messages" type={<>{<Link href="/reference/graph/react/http/messages">Message</Link>}[]</>}>
+    Messages that seed the run. At least one message is required.
+  </Field>
+  <Field name="context_vars" type={<>{<Link href="#contextvar">ContextVar</Link>}[]</>}>
+    Client-supplied context variables.
+  </Field>
+  <Field name="context" type="object | null">
+    Initial context object.
+  </Field>
+  <Field name="tools" type={<>{<Link href="#tooldefinition">ToolDefinition</Link>}[]</>}>
+    Client-defined tools available to the run.
+  </Field>
+</Parameters>
+
+<Responses>
+  <Response status="202" description="The run was started.">
+    <Fields label="StartRunResponse">
+      <Field name="run_id" type="string">
+        The run ID.
+      </Field>
+      <Field name="session_id" type="string">
+        The session ID.
+      </Field>
+    </Fields>
+  </Response>
+  <Response status="400" description="Bad request." />
+  <Response status="404" description="Session not found." />
+  <Response status="500" description="Internal server error." />
+</Responses>
+
+<Tabs defaultValue="curl">
+  <TabsList>
+    <TabsTrigger value="curl">cURL</TabsTrigger>
+  </TabsList>
+  <TabsContent value="curl">
+```bash
+curl -X POST http://localhost:8080/v1/runs/start \
+  -H "Content-Type: application/json" \
+  -H "X-Tenant-ID: acme" \
+  -d '{
+    "messages": [
+      {
+        "role": "user",
+        "content": [
+          { "type": "text", "value": "What is 42 plus 7?" }
+        ]
+      }
+    ]
+  }'
+```
+  </TabsContent>
+</Tabs>
+
+The response body contains the IDs to use for later lookup, cancellation, or live reattachment:
+
+```json
+{
+  "run_id": "f7b97459-06a7-4e01-bb91-b8072d40452f",
+  "session_id": "8f3e19d8-3bc0-4fd5-bb02-7ac89af9d7bc"
+}
+```
+
+## Cancel a run
+
+Cancel a visible run by ID.
+
+<Endpoint method="PUT" path="/v1/runs/{run_id}/cancel">
+  Cancel a run by ID.
+</Endpoint>
+
+Cancellation is idempotent for a run that exists in the caller's tenant. The endpoint returns
+`204 No Content` whether the call transitions a running run to cancelled or the run was already in a
+terminal state. A run that does not exist and a run that belongs to another tenant both return `404`.
+
+<Parameters in="path">
+  <Field name="run_id" type="string">
+    The run ID.
+  </Field>
+</Parameters>
+
+<Responses>
+  <Response status="204" description="The cancellation request was processed." />
+  <Response status="404" description="Run not found." />
+  <Response status="500" description="Internal server error." />
+</Responses>
+
+<Tabs defaultValue="curl">
+  <TabsList>
+    <TabsTrigger value="curl">cURL</TabsTrigger>
+  </TabsList>
+  <TabsContent value="curl">
+```bash
+curl -X PUT -o /dev/null -w "%{http_code}\n" \
+  http://localhost:8080/v1/runs/f7b97459-06a7-4e01-bb91-b8072d40452f/cancel \
+  -H "X-Tenant-ID: acme"
+```
+  </TabsContent>
+</Tabs>
+
+## Reattach to run events
+
+Open a live Server-Sent Events stream to a run that is currently running.
+
+<Endpoint method="GET" path="/v1/runs/{run_id}/events">
+  Stream live events for a running run from this point forward.
+</Endpoint>
+
+Reattachment is live-only. The stream receives events produced after the request attaches; it does not
+replay events that were produced earlier. Dropping this stream closes only this observer and does not
+cancel the run. Use `PUT /v1/runs/{run_id}/cancel` when the client wants to stop the run.
+
+<Parameters in="path">
+  <Field name="run_id" type="string">
+    The run ID.
+  </Field>
+</Parameters>
+
+<Responses>
+  <Response status="200" description="A stream of events (text/event-stream).">
+    The event payloads use the same `RunEvent` variants documented for `POST /v1/runs`.
+  </Response>
+  <Response status="404" description="Run not found." />
+  <Response status="409" description="Run is not currently active." />
+  <Response status="500" description="Internal server error." />
+</Responses>
+
+<Tabs defaultValue="curl">
+  <TabsList>
+    <TabsTrigger value="curl">cURL</TabsTrigger>
+  </TabsList>
+  <TabsContent value="curl">
+```bash
+curl -N http://localhost:8080/v1/runs/f7b97459-06a7-4e01-bb91-b8072d40452f/events \
+  -H "X-Tenant-ID: acme"
+```
+  </TabsContent>
+</Tabs>
+
+Only runs with status `running` can be reattached to. A visible run that has already completed,
+failed, interrupted, or been cancelled returns `409`. A missing run, or a run owned by another tenant,
+returns `404`.
+
+## Reattach across replicas
+
+Reattach uses pub/sub to deliver live run events to `GET /v1/runs/{run_id}/events` streams. By
+default, generated standalone agents use an in-memory transport with no external service:
+
+```bash
+export AGENT__PUBSUB__KIND=memory
+export AGENT__PUBSUB__CAPACITY=4096
+```
+
+The in-memory transport is process-local. If a deployment has multiple replicas and a reattach request
+may land on a different process than the one executing the run, configure the Redis-compatible
+transport:
+
+```bash
+export AGENT__PUBSUB__KIND=redis
+export AGENT__PUBSUB__URL=redis://localhost:6379
+```
+
+Dragonfly can provide that Redis-compatible pub/sub service:
+
+```yaml title="compose.yaml"
+services:
+  dragonfly:
+    image: docker.dragonflydb.io/dragonflydb/dragonfly
+    ulimits:
+      memlock: -1
+    ports:
+      - 6379:6379
+```
+
+Pub/sub carries live events only. It does not store run history or replay missed events. Cancelling a
+run is persisted through the shared database and does not depend on pub/sub.
 
 ## Types
 

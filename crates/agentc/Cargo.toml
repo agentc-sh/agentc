@@ -17,7 +17,7 @@ cli = ["dep:clap", "dep:mimalloc", "dep:console", "dep:indicatif", "dep:syntect"
 javascript = ["agentc-core/javascript"]
 
 [dependencies]
-agentc-core = { path = "../agentc-core", version = "0.2.0" }
+agentc-core = { path = "../agentc-core", version = "0.2.1" }
 
 tokio = { workspace = true }
 tokio-util = { workspace = true }

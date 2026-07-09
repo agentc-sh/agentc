@@ -278,6 +278,76 @@ impl CreateRunRequestDTO {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Validate, ToSchema)]
+pub struct StartRunRequestDTO {
+    #[serde(default = "Uuid::new_v4")]
+    pub session_id: Uuid,
+    #[serde(default = "Uuid::new_v4")]
+    pub run_id: Uuid,
+    #[serde(default)]
+    pub checkpoint_id: Option<Uuid>,
+    #[serde(default)]
+    pub resume_payload: Option<Value>,
+    #[validate(nested)]
+    #[serde(default)]
+    pub model_override: Option<ModelOverrideDTO>,
+    #[serde(default)]
+    pub capability_override: Option<CapabilityOverrideDTO>,
+    #[validate(length(min = 1))]
+    #[serde(default)]
+    pub messages: Vec<CreateMessageRequestDTO>,
+    #[validate(nested)]
+    #[serde(default)]
+    pub context_vars: Vec<ContextVarDTO>,
+    #[serde(default)]
+    pub context: Option<Value>,
+    #[validate(nested)]
+    #[serde(default)]
+    pub tools: Vec<ToolDefinitionDTO>,
+}
+
+impl StartRunRequestDTO {
+    pub fn to_params(&self, tenant_id: impl Into<String>) -> RunParams {
+        RunParams {
+            tenant_id: tenant_id.into(),
+            session_id: self.session_id,
+            run_id: self.run_id,
+            checkpoint_id: self.checkpoint_id,
+            resume_payload: self.resume_payload.clone(),
+            model_override: self
+                .model_override
+                .as_ref()
+                .map(|m| m.to_params()),
+            capability_override: self
+                .capability_override
+                .as_ref()
+                .map(|c| c.to_params()),
+            messages: self
+                .messages
+                .iter()
+                .map(|m| m.to_params())
+                .collect(),
+            context_vars: self
+                .context_vars
+                .iter()
+                .map(|c| c.to_params())
+                .collect(),
+            tools: self
+                .tools
+                .iter()
+                .map(|t| t.to_params())
+                .collect(),
+            context: self.context.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct StartRunResponseDTO {
+    pub run_id: Uuid,
+    pub session_id: Uuid,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct RunResponseDTO {
     pub id: Uuid,
