@@ -13,7 +13,7 @@ Every agent exposes a native HTTP contract derived from its graph. This contract
 the agent speaks directly: it manages runs, keeps sessions continuous, persists messages, and
 synchronizes state. Because it comes from the graph, its exact request and response shapes depend on
 which graph the agent uses. For the ReAct graph, a request maps onto a durable session, each execution
-is a run, and the run streams its progress back as Server-Sent Events.
+is a run, and the run emits events that clients can stream.
 
 ```mermaid
 graph TD
