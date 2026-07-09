@@ -349,6 +349,45 @@ impl Manifest {
             }));
         }
 
+        if let Some(huggingface) = &self.providers.huggingface {
+            providers.push(ResolvedContextProvider::HuggingFace(
+                ResolvedContextProviderHuggingFace {
+                    models: huggingface.models.as_ref().map(|models| {
+                        models
+                            .iter()
+                            .map(|m| match m {
+                                ManifestProviderHuggingFaceModel::Name(name) => {
+                                    ResolvedContextProviderHuggingFaceModel {
+                                        name: name.clone(),
+                                        params: None,
+                                    }
+                                }
+                                ManifestProviderHuggingFaceModel::Config(c) => {
+                                    ResolvedContextProviderHuggingFaceModel {
+                                        name: c.name.clone(),
+                                        params: c
+                                            .params
+                                            .clone()
+                                            .map(Self::resolve_provider_params),
+                                    }
+                                }
+                            })
+                            .collect()
+                    }),
+                    config: huggingface.config.as_ref().map(|c| {
+                        ResolvedContextProviderHuggingFaceConfig {
+                            api_key: c.api_key.clone(),
+                            base_url: c.base_url.clone(),
+                        }
+                    }),
+                    params: huggingface
+                        .params
+                        .clone()
+                        .map(Self::resolve_provider_params),
+                },
+            ));
+        }
+
         providers
     }
 

@@ -29,6 +29,9 @@ pub struct ManifestProvider {
     #[serde(default)]
     #[validate(nested)]
     pub gemini: Option<ManifestProviderGemini>,
+    #[serde(default)]
+    #[validate(nested)]
+    pub huggingface: Option<ManifestProviderHuggingFace>,
 }
 
 /// Common inference parameters shared across all providers. All fields are optional
@@ -244,4 +247,74 @@ pub struct ManifestProviderGeminiModelConfig {
 pub struct ManifestProviderGeminiConfig {
     #[serde(default)]
     pub api_key: Option<RuntimeValue<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Validate, Sanitizer)]
+pub struct ManifestProviderHuggingFace {
+    #[serde(default)]
+    pub models: Option<Vec<ManifestProviderHuggingFaceModel>>,
+    #[serde(default)]
+    pub config: Option<ManifestProviderHuggingFaceConfig>,
+    #[serde(default)]
+    pub params: Option<ManifestProviderParams>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+#[allow(clippy::large_enum_variant)]
+pub enum ManifestProviderHuggingFaceModel {
+    Name(String),
+    Config(ManifestProviderHuggingFaceModelConfig),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ManifestProviderHuggingFaceModelConfig {
+    pub name: String,
+    #[serde(default)]
+    pub params: Option<ManifestProviderParams>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Validate, Sanitizer)]
+pub struct ManifestProviderHuggingFaceConfig {
+    #[serde(default)]
+    pub api_key: Option<RuntimeValue<String>>,
+    #[serde(default)]
+    pub base_url: Option<RuntimeValue<String>>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::parser::format::SpecFormat;
+
+    #[test]
+    fn parses_huggingface_provider_configuration() {
+        let provider = SpecFormat::hcl()
+            .deserialize_string::<ManifestProvider>(
+                r#"
+huggingface {
+  models = ["google/gemma-2-2b-it"]
+
+  config {
+    api_key  = "test-key"
+    base_url = "https://router.example.com"
+  }
+
+  params {
+    temperature = 0.4
+  }
+}
+"#,
+            )
+            .unwrap();
+
+        let huggingface = provider.huggingface.unwrap();
+        assert!(matches!(
+            huggingface.models.as_deref(),
+            Some([ManifestProviderHuggingFaceModel::Name(name)])
+                if name == "google/gemma-2-2b-it"
+        ));
+        assert!(huggingface.config.is_some());
+        assert!(huggingface.params.is_some());
+    }
 }

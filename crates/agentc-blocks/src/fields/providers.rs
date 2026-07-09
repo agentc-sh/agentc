@@ -7,7 +7,8 @@ use agentc_compiler::generator::blocks::codegen::ToIdent;
 use crate::{
     context::{
         ResolvedContextProviderAnthropic, ResolvedContextProviderGemini,
-        ResolvedContextProviderOllama, ResolvedContextProviderOpenAi,
+        ResolvedContextProviderHuggingFace, ResolvedContextProviderOllama,
+        ResolvedContextProviderOpenAi,
         ResolvedContextProviderOpenRouter, ResolvedContextProviderParams,
         ResolvedContextProviderXai,
     },
@@ -197,13 +198,46 @@ impl IntoFieldSpecs for ResolvedContextProviderGemini {
     }
 }
 
+impl IntoFieldSpecs for ResolvedContextProviderHuggingFace {
+    fn extend_fields(&self, fields: &mut FieldsSpec) {
+        if let Some(config) = &self.config {
+            if let Some(v) = &config.api_key {
+                fields.push(&["provider", "huggingface", "api_key"], v);
+            }
+            if let Some(v) = &config.base_url {
+                fields.push(&["provider", "huggingface", "base_url"], v);
+            }
+        }
+
+        if let Some(params) = &self.params {
+            params.extend_param_fields(fields, "huggingface", "params");
+        }
+
+        if let Some(models) = &self.models {
+            for model in models {
+                if let Some(params) = &model.params {
+                    params.extend_param_fields(
+                        fields,
+                        "huggingface",
+                        model.name.to_ident().as_str(),
+                    );
+                }
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{
         context::{
             ResolvedContextProviderAnthropicConfig, ResolvedContextProviderAnthropicModel,
-            ResolvedContextProviderOllamaConfig, ResolvedContextProviderXaiConfig,
+            ResolvedContextProviderHuggingFace,
+            ResolvedContextProviderHuggingFaceConfig,
+            ResolvedContextProviderHuggingFaceModel,
+            ResolvedContextProviderOllamaConfig,
+            ResolvedContextProviderXaiConfig,
         },
         types::RuntimeValue,
     };
@@ -312,6 +346,55 @@ mod tests {
             fields
                 .get(&["provider", "xai", "base_url"])
                 .is_none()
+        );
+    }
+
+    #[test]
+    fn huggingface_registers_config_provider_params_and_model_params() {
+        let provider = ResolvedContextProviderHuggingFace {
+            config: Some(ResolvedContextProviderHuggingFaceConfig {
+                api_key: Some(RuntimeValue::secret_runtime("HUGGINGFACE_KEY")),
+                base_url: Some(RuntimeValue::constant("https://router.example.com".to_string())),
+            }),
+            params: Some(ResolvedContextProviderParams {
+                temperature: Some(RuntimeValue::constant(0.4f64)),
+                ..empty_params()
+            }),
+            models: Some(vec![ResolvedContextProviderHuggingFaceModel {
+                name: "google/gemma-2-2b-it".to_string(),
+                params: Some(ResolvedContextProviderParams {
+                    max_tokens: Some(RuntimeValue::constant(1024u64)),
+                    ..empty_params()
+                }),
+            }]),
+        };
+
+        let fields = FieldsSpec::collect_from(&provider);
+
+        assert!(
+            fields
+                .get(&["provider", "huggingface", "api_key"])
+                .is_some()
+        );
+        assert!(
+            fields
+                .get(&["provider", "huggingface", "base_url"])
+                .is_some()
+        );
+        assert!(
+            fields
+                .get(&["provider", "huggingface", "params", "temperature"])
+                .is_some()
+        );
+        assert!(
+            fields
+                .get(&[
+                    "provider",
+                    "huggingface",
+                    "google_gemma_2_2b_it",
+                    "max_tokens",
+                ])
+                .is_some()
         );
     }
 }
