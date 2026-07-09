@@ -76,7 +76,16 @@ impl CodeGen<ResolvedContext> for CliServeCodeGen {
 
                 let database = Arc::new(config.database.build(true).await?);
 
-                info!(event = "DatabaseInitialized");
+                info!(
+                    event = "DatabaseInitialized",
+                );
+
+                let pubsub = config.pubsub.build().await?;
+
+                info!(
+                    event = "PubSubInitialized",
+                    kind = ?config.pubsub.kind(),
+                );
 
                 let agent = build_agent(database.clone(), &config, shutdown.clone()).await?;
 
@@ -116,7 +125,12 @@ impl CodeGen<ResolvedContext> for CliServeCodeGen {
                     })
                 };
 
-                let mut server = server::build(service, task_queue.clone(), &config)?;
+                let mut server = server::build(
+                    service,
+                    task_queue.clone(),
+                    pubsub,
+                    &config,
+                )?;
                 server.spawn();
 
                 info!(

@@ -76,6 +76,7 @@ impl CodeGen<ResolvedContext> for ServerCodeGen {
                 FifoQueue,
                 JobQueue,
             };
+            use subway::Bus;
             use utoipa::OpenApi;
 
             use agentc_http::{
@@ -104,6 +105,7 @@ impl CodeGen<ResolvedContext> for ServerCodeGen {
             pub fn build(
                 service: Arc<ApplicationService>,
                 task_queue: Arc<JobQueue<FifoQueue<AnyExecutable>>>,
+                bus: Bus,
                 config: &Config,
             ) -> Result<HttpServer> {
                 let default_tenant_id = DefaultTenantId::new(
@@ -116,6 +118,7 @@ impl CodeGen<ResolvedContext> for ServerCodeGen {
                         service.clone(),
                         default_tenant_id.clone(),
                         task_queue.clone(),
+                        bus,
                     ));
 
                 #extra_routers
