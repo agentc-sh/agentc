@@ -97,6 +97,6 @@ tasks:
         done < .modified_files
 
         echo "Committing and tagging the release..."
-        git commit -m "chore(release): Release $NEXT_VERSION"
+        git commit -s -m "chore(release): Release $NEXT_VERSION"
         git tag "$NEXT_VERSION" -m "chore(release): Release $NEXT_VERSION"
         rm .modified_files

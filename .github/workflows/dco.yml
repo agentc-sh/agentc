@@ -1,0 +1,299 @@
+name: dco
+
+on:
+  workflow_call:
+    inputs:
+      repository:
+        description: GitHub repository in owner/name form
+        required: true
+        type: string
+      pull-request-number:
+        description: Pull request number to check
+        required: true
+        type: string
+      skip-shas:
+        description: Newline-delimited commit SHAs or SHA prefixes to skip
+        required: false
+        type: string
+        default: ""
+      skip-author-emails:
+        description: Newline-delimited author email addresses to skip
+        required: false
+        type: string
+        default: ""
+      skip-committer-emails:
+        description: Newline-delimited committer email addresses to skip
+        required: false
+        type: string
+        default: ""
+      skip-author-logins:
+        description: Newline-delimited GitHub author logins to skip
+        required: false
+        type: string
+        default: ""
+      skip-committer-logins:
+        description: Newline-delimited GitHub committer logins to skip
+        required: false
+        type: string
+        default: ""
+      skip-subject-regexes:
+        description: Newline-delimited Bash regexes for commit subjects to skip
+        required: false
+        type: string
+        default: ""
+      skip-message-regexes:
+        description: Newline-delimited Bash regexes for full commit messages to skip
+        required: false
+        type: string
+        default: ""
+      require-author-match:
+        description: Require a Signed-off-by email to match the commit author email
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  dco:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Check DCO
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ inputs.repository }}
+          PR_NUMBER: ${{ inputs.pull-request-number }}
+          SKIP_SHAS: ${{ inputs.skip-shas }}
+          SKIP_AUTHOR_EMAILS: ${{ inputs.skip-author-emails }}
+          SKIP_COMMITTER_EMAILS: ${{ inputs.skip-committer-emails }}
+          SKIP_AUTHOR_LOGINS: ${{ inputs.skip-author-logins }}
+          SKIP_COMMITTER_LOGINS: ${{ inputs.skip-committer-logins }}
+          SKIP_SUBJECT_REGEXES: ${{ inputs.skip-subject-regexes }}
+          SKIP_MESSAGE_REGEXES: ${{ inputs.skip-message-regexes }}
+          REQUIRE_AUTHOR_MATCH: ${{ inputs.require-author-match }}
+        run: |
+          set -euo pipefail
+
+          read_config_lines() {
+            local value="$1"
+            local -n target="$2"
+
+            target=()
+
+            while IFS= read -r line || [[ -n "$line" ]]; do
+              line="${line#"${line%%[![:space:]]*}"}"
+              line="${line%"${line##*[![:space:]]}"}"
+
+              if [[ -n "$line" && ! "$line" =~ ^# ]]; then
+                target+=("$line")
+              fi
+            done <<< "$value"
+          }
+
+          lower() {
+            tr '[:upper:]' '[:lower:]' <<< "$1"
+          }
+
+          list_contains_case_insensitive() {
+            local needle
+            needle="$(lower "$1")"
+            shift
+
+            local item
+
+            for item in "$@"; do
+              if [[ "$needle" == "$(lower "$item")" ]]; then
+                return 0
+              fi
+            done
+
+            return 1
+          }
+
+          sha_is_skipped() {
+            local sha="$1"
+            local skipped_sha
+
+            for skipped_sha in "${skip_shas[@]}"; do
+              if [[ "$sha" == "$skipped_sha"* ]]; then
+                skip_reason="sha matched ${skipped_sha}"
+                return 0
+              fi
+            done
+
+            return 1
+          }
+
+          regex_is_match() {
+            local value="$1"
+            local reason_prefix="$2"
+            shift 2
+
+            local regex
+
+            for regex in "$@"; do
+              if [[ "$value" =~ $regex ]]; then
+                skip_reason="${reason_prefix} matched ${regex}"
+                return 0
+              fi
+            done
+
+            return 1
+          }
+
+          append_summary_header() {
+            {
+              echo "## DCO check"
+              echo
+            } >> "$GITHUB_STEP_SUMMARY"
+          }
+
+          append_summary_table() {
+            local title="$1"
+            local rows="$2"
+
+            {
+              echo "### ${title}"
+              echo
+              echo "| Commit | Subject | Author | Committer | Reason |"
+              echo "| --- | --- | --- | --- | --- |"
+              printf '%s\n' "$rows"
+              echo
+            } >> "$GITHUB_STEP_SUMMARY"
+          }
+
+          markdown_escape() {
+            sed \
+              -e 's/\\/\\\\/g' \
+              -e 's/|/\\|/g' \
+              -e 's/`/\\`/g' \
+              <<< "$1"
+          }
+
+          read_config_lines "$SKIP_SHAS" skip_shas
+          read_config_lines "$SKIP_AUTHOR_EMAILS" skip_author_emails
+          read_config_lines "$SKIP_COMMITTER_EMAILS" skip_committer_emails
+          read_config_lines "$SKIP_AUTHOR_LOGINS" skip_author_logins
+          read_config_lines "$SKIP_COMMITTER_LOGINS" skip_committer_logins
+          read_config_lines "$SKIP_SUBJECT_REGEXES" skip_subject_regexes
+          read_config_lines "$SKIP_MESSAGE_REGEXES" skip_message_regexes
+
+          append_summary_header
+
+          echo "Checking DCO for pull request ${REPOSITORY}#${PR_NUMBER}"
+
+          mapfile -t commits < <(
+            gh api \
+              --paginate \
+              "repos/${REPOSITORY}/pulls/${PR_NUMBER}/commits" \
+              --jq '.[] | @base64'
+          )
+
+          if [[ "${#commits[@]}" -eq 0 ]]; then
+            echo "No commits found for pull request ${REPOSITORY}#${PR_NUMBER}"
+            echo "No commits found." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+          checked_count=0
+          skipped_count=0
+          failed_count=0
+          failed_rows=""
+          skipped_rows=""
+
+          for encoded_commit in "${commits[@]}"; do
+            commit_json="$(base64 --decode <<< "$encoded_commit")"
+            sha="$(jq -r '.sha' <<< "$commit_json")"
+            short_sha="${sha:0:7}"
+            message="$(jq -r '.commit.message // ""' <<< "$commit_json")"
+            subject="${message%%$'\n'*}"
+            author_name="$(jq -r '.commit.author.name // ""' <<< "$commit_json")"
+            author_email="$(jq -r '.commit.author.email // ""' <<< "$commit_json")"
+            committer_name="$(jq -r '.commit.committer.name // ""' <<< "$commit_json")"
+            committer_email="$(jq -r '.commit.committer.email // ""' <<< "$commit_json")"
+            author_login="$(jq -r '.author.login // ""' <<< "$commit_json")"
+            committer_login="$(jq -r '.committer.login // ""' <<< "$commit_json")"
+            author="${author_name} <${author_email}>"
+            committer="${committer_name} <${committer_email}>"
+            skip_reason=""
+
+            if sha_is_skipped "$sha"; then
+              :
+            elif list_contains_case_insensitive "$author_email" "${skip_author_emails[@]}"; then
+              skip_reason="author email matched ${author_email}"
+            elif list_contains_case_insensitive "$committer_email" "${skip_committer_emails[@]}"; then
+              skip_reason="committer email matched ${committer_email}"
+            elif [[ -n "$author_login" ]] && list_contains_case_insensitive "$author_login" "${skip_author_logins[@]}"; then
+              skip_reason="author login matched ${author_login}"
+            elif [[ -n "$committer_login" ]] && list_contains_case_insensitive "$committer_login" "${skip_committer_logins[@]}"; then
+              skip_reason="committer login matched ${committer_login}"
+            elif regex_is_match "$subject" "subject" "${skip_subject_regexes[@]}"; then
+              :
+            elif regex_is_match "$message" "message" "${skip_message_regexes[@]}"; then
+              :
+            fi
+
+            if [[ -n "$skip_reason" ]]; then
+              echo "Skipping ${short_sha} ${subject}"
+              echo "  Reason: ${skip_reason}"
+
+              skipped_rows+="| \`${short_sha}\` | $(markdown_escape "$subject") | $(markdown_escape "$author") | $(markdown_escape "$committer") | $(markdown_escape "$skip_reason") |"$'\n'
+              skipped_count=$((skipped_count + 1))
+              continue
+            fi
+
+            checked_count=$((checked_count + 1))
+
+            if ! grep -Eiq '^[[:space:]]*Signed-off-by:[[:space:]]+.+[[:space:]]+<[^<>[:space:]]+@[^<>[:space:]]+>[[:space:]]*$' <<< "$message"; then
+              reason="missing Signed-off-by trailer"
+              failed_count=$((failed_count + 1))
+              failed_rows+="| \`${short_sha}\` | $(markdown_escape "$subject") | $(markdown_escape "$author") | $(markdown_escape "$committer") | ${reason} |"$'\n'
+
+              echo "DCO failure in ${short_sha} ${subject}"
+              echo "  Author: ${author}"
+              echo "  Committer: ${committer}"
+              echo "  Reason: ${reason}"
+              continue
+            fi
+
+            if [[ "$REQUIRE_AUTHOR_MATCH" == "true" ]]; then
+              mapfile -t signed_off_emails < <(
+                grep -Ei '^[[:space:]]*Signed-off-by:[[:space:]]+.+[[:space:]]+<[^<>[:space:]]+@[^<>[:space:]]+>[[:space:]]*$' <<< "$message" |
+                  sed -E 's/.*<([^<>]+)>.*/\1/'
+              )
+
+              if ! list_contains_case_insensitive "$author_email" "${signed_off_emails[@]}"; then
+                reason="no Signed-off-by email matched author email ${author_email}"
+                failed_count=$((failed_count + 1))
+                failed_rows+="| \`${short_sha}\` | $(markdown_escape "$subject") | $(markdown_escape "$author") | $(markdown_escape "$committer") | $(markdown_escape "$reason") |"$'\n'
+
+                echo "DCO failure in ${short_sha} ${subject}"
+                echo "  Author: ${author}"
+                echo "  Committer: ${committer}"
+                echo "  Reason: ${reason}"
+              fi
+            fi
+          done
+
+          {
+            echo "Checked ${checked_count} commit(s)."
+            echo "Skipped ${skipped_count} commit(s)."
+            echo "Failed ${failed_count} commit(s)."
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ "$failed_count" -gt 0 ]]; then
+            append_summary_table "Failing commits" "$failed_rows"
+          fi
+
+          if [[ "$skipped_count" -gt 0 ]]; then
+            append_summary_table "Skipped commits" "$skipped_rows"
+          fi
+
+          if [[ "$failed_count" -gt 0 ]]; then
+            echo "DCO check failed for ${failed_count} commit(s)."
+            exit 1
+          fi
+
+          echo "DCO check passed for ${checked_count} commit(s)."
