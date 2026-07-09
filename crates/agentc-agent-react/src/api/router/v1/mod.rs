@@ -12,6 +12,7 @@ use jobq::{
     FifoQueue,
     JobQueue,
 };
+use subway::Bus;
 use utoipa_axum::router::OpenApiRouter;
 
 use agentc_http::state::DefaultTenantId;
@@ -25,6 +26,7 @@ pub fn router(
     service: Arc<ApplicationService>,
     default_tenant_id: DefaultTenantId,
     task_queue: Arc<JobQueue<FifoQueue<AnyExecutable>>>,
+    bus: Bus,
 ) -> OpenApiRouter {
     OpenApiRouter::new().nest("/v1", {
         OpenApiRouter::new()
@@ -35,6 +37,7 @@ pub fn router(
                 service,
                 default_tenant_id,
                 task_queue,
+                bus,
             ))
     })
 }

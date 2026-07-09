@@ -55,3 +55,4 @@ sea-orm = { workspace = true }
 sea-orm-migration = { workspace = true }
 
 jobq = { workspace = true }
+subway = { workspace = true }

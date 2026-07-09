@@ -98,5 +98,6 @@ indexmap = { version = "2" }
 walkdir = { version = "2" }
 
 jobq = { git = "https://github.com/wizrds/jobq-rs.git", version = "0.3.1" }
+subway = { git = "https://github.com/wizrds/subway-rs.git", version = "0.1.0" }
 
 criterion = { version = "0.8", features = ["html_reports"] }
