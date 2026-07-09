@@ -4,6 +4,7 @@
 
 pub mod anthropic;
 pub mod gemini;
+pub mod huggingface;
 pub mod ollama;
 pub mod openai;
 pub mod openrouter;
@@ -53,6 +54,7 @@ impl ModelRegistryCodeGen {
                 ResolvedContextProvider::OpenRouter(p) => p,
                 ResolvedContextProvider::Xai(p) => p,
                 ResolvedContextProvider::Gemini(p) => p,
+                ResolvedContextProvider::HuggingFace(p) => p,
             };
 
             imports.push(model.imports());

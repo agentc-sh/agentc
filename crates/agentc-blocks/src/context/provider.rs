@@ -22,6 +22,8 @@ pub enum ResolvedContextProvider {
     Xai(ResolvedContextProviderXai),
     /// Configuration for Gemini provider.
     Gemini(ResolvedContextProviderGemini),
+    /// Configuration for Hugging Face provider.
+    HuggingFace(ResolvedContextProviderHuggingFace),
 }
 
 /// Common inference parameters stored per provider or per model. Fields mirror the
@@ -199,4 +201,32 @@ pub struct ResolvedContextProviderGeminiModel {
 pub struct ResolvedContextProviderGeminiConfig {
     /// Provider API key, if required.
     pub api_key: Option<RuntimeValue<String>>,
+}
+
+/// Resolved provider configuration for Hugging Face.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResolvedContextProviderHuggingFace {
+    /// List of available models for this provider, if specified.
+    pub models: Option<Vec<ResolvedContextProviderHuggingFaceModel>>,
+    /// Provider-specific configuration options.
+    pub config: Option<ResolvedContextProviderHuggingFaceConfig>,
+    /// Provider-level inference parameter defaults.
+    pub params: Option<ResolvedContextProviderParams>,
+}
+
+/// A single model entry in the Hugging Face provider's models list.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResolvedContextProviderHuggingFaceModel {
+    pub name: String,
+    /// Model-specific inference parameter overrides.
+    pub params: Option<ResolvedContextProviderParams>,
+}
+
+/// Resolved configuration for Hugging Face provider.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResolvedContextProviderHuggingFaceConfig {
+    /// Provider API key, if required.
+    pub api_key: Option<RuntimeValue<String>>,
+    /// Base URL for the provider's API, if applicable.
+    pub base_url: Option<RuntimeValue<String>>,
 }
