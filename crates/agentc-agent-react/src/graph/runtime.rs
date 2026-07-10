@@ -22,8 +22,11 @@ use agentc_agent::{
         runtime::{Graph, GraphBuilder},
         state::{GraphNode, GraphStateUpdate},
     },
-    tools::activity::{ActivityDelta, ActivityEmitter},
-    tools::dispatcher::DispatchOutcome,
+    tools::{
+        activity::{ActivityDelta, ActivityEmitter},
+        dispatcher::DispatchOutcome,
+        types::ToolExecutionContext,
+    },
     types::{
         conversion::{FromModelType, ToModelType},
         tools::ToolCall,
@@ -548,6 +551,11 @@ impl ReActNode {
                 .dispatch::<ReActState>(
                     tool_call.clone(),
                     &state,
+                    ToolExecutionContext {
+                        tenant_id: ctx.tenant_id.clone(),
+                        session_id: ctx.session_id,
+                        run_id: ctx.run_id,
+                    },
                     Some(ActivityEmitter::new(activity_tx)),
                 )
                 .await

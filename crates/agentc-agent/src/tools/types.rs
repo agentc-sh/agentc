@@ -8,6 +8,7 @@ use std::{
     error::Error,
     fmt::{Debug, Formatter, Result as FmtResult},
 };
+use uuid::Uuid;
 
 use crate::{graph::state::AnyStateUpdate, tools::activity::ActivityEmitter};
 
@@ -76,16 +77,29 @@ impl Debug for ToolResponse {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct ToolExecutionContext {
+    pub tenant_id: String,
+    pub session_id: Uuid,
+    pub run_id: Uuid,
+}
+
 #[derive(Debug)]
 pub struct ToolInput<S = ()> {
     pub args: Value,
+    pub context: ToolExecutionContext,
     pub emitter: Option<ActivityEmitter>,
     pub state: Option<S>,
 }
 
 impl<S> ToolInput<S> {
-    pub fn new(args: Value) -> Self {
-        Self { args, emitter: None, state: None }
+    pub fn new(args: Value, context: ToolExecutionContext) -> Self {
+        Self {
+            args,
+            context,
+            emitter: None,
+            state: None,
+        }
     }
 
     pub fn with_activity_emitter(mut self, emitter: ActivityEmitter) -> Self {
@@ -112,13 +126,19 @@ impl<S> ToolInput<S> {
 #[derive(Debug)]
 pub struct TypedToolInput<I, S = ()> {
     pub args: I,
+    pub context: ToolExecutionContext,
     pub emitter: Option<ActivityEmitter>,
     pub state: Option<S>,
 }
 
 impl<I, S> TypedToolInput<I, S> {
-    pub fn new(args: I) -> Self {
-        Self { args, emitter: None, state: None }
+    pub fn new(args: I, context: ToolExecutionContext) -> Self {
+        Self {
+            args,
+            context,
+            emitter: None,
+            state: None,
+        }
     }
 
     pub fn with_activity_emitter(mut self, emitter: ActivityEmitter) -> Self {

@@ -236,6 +236,7 @@ mod tests {
             activity::{ActivityDelta, ActivityEmitter},
             dispatcher::{DispatchOutcome, ToolRegistryExt},
             registry::ToolRegistry,
+            types::ToolExecutionContext,
         },
         types::tools::ToolCall,
     };
@@ -444,6 +445,11 @@ class DoubleTool(Tool):
                     arguments: json!({"a": 3, "b": 4}),
                 },
                 &state,
+                ToolExecutionContext {
+                    tenant_id: "test".to_string(),
+                    session_id: Default::default(),
+                    run_id: Default::default(),
+                },
                 None,
             )
             .await;
@@ -456,6 +462,11 @@ class DoubleTool(Tool):
                     arguments: json!({"x": 5}),
                 },
                 &state,
+                ToolExecutionContext {
+                    tenant_id: "test".to_string(),
+                    session_id: Default::default(),
+                    run_id: Default::default(),
+                },
                 None,
             )
             .await;
@@ -523,6 +534,11 @@ class EmitterTool(Tool):
                     arguments: json!({}),
                 },
                 &state,
+                ToolExecutionContext {
+                    tenant_id: "test".to_string(),
+                    session_id: Default::default(),
+                    run_id: Default::default(),
+                },
                 Some(ActivityEmitter::new(tx)),
             )
             .await;
@@ -593,6 +609,11 @@ class StateTool(Tool):
                     arguments: json!({}),
                 },
                 &state,
+                ToolExecutionContext {
+                    tenant_id: "test".to_string(),
+                    session_id: Default::default(),
+                    run_id: Default::default(),
+                },
                 None,
             )
             .await;

@@ -107,10 +107,9 @@ where
             Err(e) => return Err(ToolError::InvalidArguments(e.to_string())),
         };
 
-        match self
-            .tool
+        match self.tool
             .execute(
-                TypedToolInput::new(typed_args)
+                TypedToolInput::new(typed_args, input.context)
                     .maybe_with_activity_emitter(input.emitter)
                     .maybe_with_state(input.state),
             )
@@ -177,10 +176,10 @@ where
             Err(err) => return ToolResponse::err(err),
         };
 
-        match self
-            .tool
+        match self.tool
             .execute(ToolInput {
                 args: input.args,
+                context: input.context,
                 emitter: input.emitter,
                 state: typed_state,
             })
@@ -264,6 +263,10 @@ where
         &self,
         input: TypedToolInput<Self::Input, Self::State>,
     ) -> Result<TypedToolOutput<O, SU>, ToolError> {
-        (self.f)(TypedToolInput::new(input.args).maybe_with_activity_emitter(input.emitter)).await
+        (self.f)(
+            TypedToolInput::new(input.args, input.context)
+                .maybe_with_activity_emitter(input.emitter),
+        )
+        .await
     }
 }
