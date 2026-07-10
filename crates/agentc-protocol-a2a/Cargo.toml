@@ -1,0 +1,53 @@
+[package]
+name = "agentc-protocol-a2a"
+version.workspace = true
+edition.workspace = true
+description.workspace = true
+repository.workspace = true
+license.workspace = true
+readme.workspace = true
+
+[features]
+default = ["server"]
+server = [
+    "agentc-http",
+    "axum",
+    "utoipa",
+    "utoipa-axum",
+    "jobq",
+]
+client = [
+    "agentc-telemetry",
+    "reqwest",
+    "reqwest-middleware",
+    "reqwest-tracing",
+]
+
+[dependencies]
+agentc-http = { path = "../agentc-http", version = "0.2.1", optional = true }
+agentc-telemetry = { path = "../agentc-telemetry", version = "0.2.1", optional = true }
+
+thiserror = { workspace = true }
+
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+tokio-stream = { workspace = true }
+futures = { workspace = true }
+async-trait = { workspace = true }
+async-stream = { workspace = true }
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+base64 = { workspace = true }
+
+jobq = { workspace = true, optional = true }
+
+axum = { workspace = true, optional = true }
+utoipa = { workspace = true, optional = true }
+utoipa-axum = { workspace = true, optional = true }
+
+reqwest = { version = "0.13", features = ["json", "stream"], optional = true }
+reqwest-middleware = { version = "0.5", features = ["json"], optional = true }
+reqwest-tracing = { version = "0.7", features = ["opentelemetry_0_32"], optional = true }

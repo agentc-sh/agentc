@@ -4,3 +4,6 @@
 
 #[cfg(feature = "ag-ui")]
 pub mod ag_ui;
+
+#[cfg(feature = "a2a")]
+pub mod a2a;

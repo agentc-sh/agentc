@@ -21,18 +21,28 @@ pub struct ResolvedContextHttpServer {
 #[serde(tag = "type", content = "config", rename_all = "snake_case")]
 pub enum ResolvedContextHttpServerProtocol {
     AgUi(ResolvedContextHttpServerProtocolAgUi),
+    A2a(ResolvedContextHttpServerProtocolA2a),
 }
 
 impl ResolvedContextHttpServerProtocol {
     pub fn as_ag_ui(&self) -> Option<&ResolvedContextHttpServerProtocolAgUi> {
         match self {
             ResolvedContextHttpServerProtocol::AgUi(protocol) => Some(protocol),
+            _ => None,
+        }
+    }
+
+    pub fn as_a2a(&self) -> Option<&ResolvedContextHttpServerProtocolA2a> {
+        match self {
+            ResolvedContextHttpServerProtocol::A2a(protocol) => Some(protocol),
+            _ => None,
         }
     }
 
     pub fn name(&self) -> &str {
         match self {
             ResolvedContextHttpServerProtocol::AgUi(_) => "ag_ui",
+            ResolvedContextHttpServerProtocol::A2a(_) => "a2a",
         }
     }
 
@@ -40,6 +50,8 @@ impl ResolvedContextHttpServerProtocol {
         match self {
             ResolvedContextHttpServerProtocol::AgUi(config) => to_value(config)
                 .expect("ag_ui protocol config must serialize to JSON"),
+            ResolvedContextHttpServerProtocol::A2a(config) => to_value(config)
+                .expect("a2a protocol config must serialize to JSON"),
         }
     }
 }
@@ -56,6 +68,18 @@ impl Default for ResolvedContextHttpServerProtocolAgUi {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResolvedContextHttpServerProtocolA2a {
+    /// The path to serve the A2A interface on.
+    pub path: String,
+}
+
+impl Default for ResolvedContextHttpServerProtocolA2a {
+    fn default() -> Self {
+        Self { path: "/a2a".to_string() }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -67,6 +91,16 @@ mod tests {
         );
 
         assert_eq!(protocol.name(), "ag_ui");
+        assert_eq!(protocol.config(), serde_json::json!({ "path": "/custom" }));
+    }
+
+    #[test]
+    fn name_and_config_identify_a2a() {
+        let protocol = ResolvedContextHttpServerProtocol::A2a(
+            ResolvedContextHttpServerProtocolA2a { path: "/custom".to_string() },
+        );
+
+        assert_eq!(protocol.name(), "a2a");
         assert_eq!(protocol.config(), serde_json::json!({ "path": "/custom" }));
     }
 }

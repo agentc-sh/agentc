@@ -59,6 +59,10 @@ impl AgentGraph for ReActGraph {
             .http_server
             .as_ref()
             .is_some_and(|server| server.protocols.iter().any(|p| p.as_ag_ui().is_some()));
+        let has_a2a = context
+            .http_server
+            .as_ref()
+            .is_some_and(|server| server.protocols.iter().any(|p| p.as_a2a().is_some()));
 
         let core_blocks = BlockSet::new()
             .add(
@@ -88,7 +92,7 @@ impl AgentGraph for ReActGraph {
                     .id("react_cargo")
                     .contribute(Contribution::strict("cargo::dependencies"))
                     .contribute(Contribution::strict("cargo::patches"))
-                    .build(ReActCargoFragment { has_ag_ui }),
+                    .build(ReActCargoFragment { has_ag_ui, has_a2a }),
             )
             .into_inner();
 
@@ -227,5 +231,45 @@ mod tests {
 
         assert!(!without.contains("ag-ui"));
         assert!(with.contains("ag-ui"));
+    }
+
+    #[tokio::test]
+    async fn react_cargo_enables_a2a_feature_only_when_protocol_present() {
+        let without_a2a =
+            ReActGraph.resolve(context(None), ReActGraphConfig::default()).unwrap();
+        let with_a2a = ReActGraph
+            .resolve(
+                context(Some(json!({
+                    "host": "0.0.0.0",
+                    "port": 8080,
+                    "protocols": [{ "type": "a2a", "config": { "path": "/a2a" } }]
+                }))),
+                ReActGraphConfig::default(),
+            )
+            .unwrap();
+
+        let ctx = GenerationContext::new(context(None));
+
+        let without = without_a2a
+            .contribution
+            .blocks
+            .iter()
+            .find(|b| b.id() == "react_cargo")
+            .unwrap()
+            .render_contribution(&ctx, "cargo::dependencies")
+            .await
+            .unwrap();
+        let with = with_a2a
+            .contribution
+            .blocks
+            .iter()
+            .find(|b| b.id() == "react_cargo")
+            .unwrap()
+            .render_contribution(&ctx, "cargo::dependencies")
+            .await
+            .unwrap();
+
+        assert!(!without.contains("\"a2a\""));
+        assert!(with.contains("\"a2a\""));
     }
 }
