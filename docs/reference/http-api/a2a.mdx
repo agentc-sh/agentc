@@ -1,0 +1,448 @@
+---
+title: A2A
+description: The Agent2Agent protocol add-on mounted alongside the native contract.
+---
+
+## Overview
+
+A2A is a standardized protocol for agent-to-agent delegation. It gives an upstream agent a
+task-oriented interface for discovering this agent, sending it work, streaming basic progress,
+retrieving a known task, and canceling that task.
+
+This implementation is intentionally foundational. It supports the core communication loop, not the
+entire A2A specification.
+
+Enable it in your manifest:
+
+```hcl title="agent.acl"
+http_server {
+  protocol {
+    a2a {}
+  }
+}
+```
+
+The default base path is `/a2a`. You can change the base path:
+
+```hcl
+protocol {
+  a2a {
+    path = "/custom-path"
+  }
+}
+```
+
+With a custom base path, the endpoints below are served under `<path>`.
+
+## Domain mapping
+
+The A2A add-on is a protocol adapter over the same service layer as the native HTTP API.
+
+| A2A concept | agentc concept |
+|-------------|----------------|
+| Task | Run |
+| Context | Session |
+| Message | User message input |
+| Text part | User text content |
+| Data part | Structured input context |
+| Task status | Run status |
+| Artifact | Assistant output or structured final state |
+
+## Agent Card
+
+<Endpoint method="GET" path="/a2a/.well-known/agent-card.json">
+  Returns the Agent Card describing this A2A service.
+</Endpoint>
+
+<Responses>
+  <Response status="200" description="The Agent Card for this service.">
+    <Fields label="AgentCard">
+      <Field name="name" type="string">
+        The agent name.
+      </Field>
+      <Field name="description" type="string">
+        A human-readable description of the agent.
+      </Field>
+      <Field name="version" type="string">
+        The agent version.
+      </Field>
+      <Field name="supportedInterfaces" type={<>{<Link href="#agent-interface">AgentInterface</Link>}[]</>}>
+        A list of supported A2A interfaces.
+      </Field>
+      <Field name="capabilities" type="object">
+        Supported protocol capabilities, including whether streaming is available.
+      </Field>
+      <Field name="skills" type="array">
+        Skills advertised by the agent.
+      </Field>
+    </Fields>
+  </Response>
+</Responses>
+
+### Agent Interface
+
+<Fields label="AgentInterface">
+  <Field name="url" type="string">
+    The URL where this A2A interface is served.
+  </Field>
+  <Field name="protocolBinding" type="string">
+    The transport binding for the interface.
+  </Field>
+  <Field name="protocolVersion" type="string">
+    The A2A protocol version advertised by this interface.
+  </Field>
+</Fields>
+
+## Send a message
+
+<Endpoint method="POST" path="/a2a/message:send">
+  Sends a message to the agent and waits for the resulting task or message response.
+</Endpoint>
+
+<Parameters in="header">
+  <Field name="X-Tenant-ID" type="string">
+    Optional tenant ID. If omitted, the configured default tenant ID is used.
+  </Field>
+</Parameters>
+
+<Parameters in="body">
+  <Field name="message" type={<Link href="#message">Message</Link>}>
+    The message to send to the agent.
+  </Field>
+  <Field name="configuration" type="object | null">
+    Optional A2A send-message configuration.
+  </Field>
+  <Field name="metadata" type="object | null">
+    Optional request metadata.
+  </Field>
+</Parameters>
+
+### Message
+
+<Fields label="Message">
+  <Field name="messageId" type="string">
+    Client-provided message ID.
+  </Field>
+  <Field name="contextId" type="string | null">
+    Optional context ID. In agentc, this maps to the session ID.
+  </Field>
+  <Field name="taskId" type="string | null">
+    Optional task ID. In agentc, this maps to the run ID.
+  </Field>
+  <Field name="role" type="string" enum={["ROLE_USER", "ROLE_AGENT", "ROLE_UNSPECIFIED"]}>
+    The sender role.
+  </Field>
+  <Field name="parts" type={<>{<Link href="#part">Part</Link>}[]</>}>
+    Message content parts.
+  </Field>
+  <Field name="metadata" type="object | null">
+    Optional message metadata.
+  </Field>
+</Fields>
+
+### Part
+
+<Fields label="Part">
+  <Field name="text" type="string">
+    A text content part.
+  </Field>
+  <Field name="data" type="object">
+    A structured JSON content part.
+  </Field>
+  <Field name="filename" type="string | null">
+    Optional filename metadata.
+  </Field>
+  <Field name="mediaType" type="string | null">
+    Optional media type metadata.
+  </Field>
+  <Field name="metadata" type="object | null">
+    Optional part metadata.
+  </Field>
+</Fields>
+
+For the first implementation, `text` and `data` parts are supported. `raw` and `url` parts are not
+supported yet.
+
+<Tabs defaultValue="curl">
+  <TabsList>
+    <TabsTrigger value="curl">cURL</TabsTrigger>
+  </TabsList>
+  <TabsContent value="curl">
+```bash
+curl -X POST http://localhost:8080/a2a/message:send \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": {
+      "messageId": "msg-1",
+      "role": "ROLE_USER",
+      "parts": [
+        { "text": "Return a short greeting." }
+      ]
+    }
+  }'
+```
+  </TabsContent>
+</Tabs>
+
+<Responses>
+  <Response status="200" description="The task or message response.">
+    <Variants label="SendMessageResponse">
+      <Variant label="task">
+        <Field name="task" type={<Link href="#task">Task</Link>}>
+          The task created or updated by the message.
+        </Field>
+      </Variant>
+      <Variant label="message">
+        <Field name="message" type={<Link href="#message">Message</Link>}>
+          A direct message response.
+        </Field>
+      </Variant>
+    </Variants>
+  </Response>
+  <Response status="400" description="The request is invalid." />
+  <Response status="500" description="The server failed to process the request." />
+</Responses>
+
+### Task
+
+<Fields label="Task">
+  <Field name="id" type="string">
+    The task ID. In agentc, this is the run ID.
+  </Field>
+  <Field name="contextId" type="string">
+    The context ID. In agentc, this is the session ID.
+  </Field>
+  <Field name="status" type={<Link href="#task-status">TaskStatus</Link>}>
+    The current task status.
+  </Field>
+  <Field name="artifacts" type={<>{<Link href="#artifact">Artifact</Link>}[] | null</>}>
+    Artifacts produced by the task.
+  </Field>
+  <Field name="history" type={<>{<Link href="#message">Message</Link>}[] | null</>}>
+    Optional task message history.
+  </Field>
+  <Field name="metadata" type="object | null">
+    Optional task metadata.
+  </Field>
+</Fields>
+
+### Task Status
+
+<Fields label="TaskStatus">
+  <Field name="state" type="string" enum={[
+    "TASK_STATE_SUBMITTED",
+    "TASK_STATE_WORKING",
+    "TASK_STATE_COMPLETED",
+    "TASK_STATE_FAILED",
+    "TASK_STATE_CANCELED",
+    "TASK_STATE_INPUT_REQUIRED",
+    "TASK_STATE_REJECTED",
+    "TASK_STATE_AUTH_REQUIRED",
+    "TASK_STATE_UNSPECIFIED",
+  ]}>
+    The current task lifecycle state.
+  </Field>
+  <Field name="message" type={<>{<Link href="#message">Message</Link>} | null</>}>
+    Optional status message.
+  </Field>
+  <Field name="timestamp" type="string | null">
+    Optional timestamp for the status.
+  </Field>
+</Fields>
+
+### Artifact
+
+<Fields label="Artifact">
+  <Field name="artifactId" type="string">
+    The artifact ID.
+  </Field>
+  <Field name="name" type="string | null">
+    Human-readable artifact name.
+  </Field>
+  <Field name="description" type="string | null">
+    Optional artifact description.
+  </Field>
+  <Field name="parts" type={<>{<Link href="#part">Part</Link>}[]</>}>
+    Artifact content parts.
+  </Field>
+  <Field name="metadata" type="object | null">
+    Optional artifact metadata.
+  </Field>
+</Fields>
+
+## Stream a message
+
+<Endpoint method="POST" path="/a2a/message:stream">
+  Sends a message to the agent and streams task updates using Server-Sent Events.
+</Endpoint>
+
+<Parameters in="header">
+  <Field name="X-Tenant-ID" type="string">
+    Optional tenant ID. If omitted, the configured default tenant ID is used.
+  </Field>
+</Parameters>
+
+<Parameters in="body">
+  <Field name="message" type={<Link href="#message">Message</Link>}>
+    The message to send to the agent.
+  </Field>
+  <Field name="configuration" type="object | null">
+    Optional A2A send-message configuration.
+  </Field>
+  <Field name="metadata" type="object | null">
+    Optional request metadata.
+  </Field>
+</Parameters>
+
+<Responses>
+  <Response status="200" description="The stream of task updates.">
+    <Variants label="StreamResponse">
+      <Variant label="task">
+        <Field name="task" type={<Link href="#task">Task</Link>}>
+          The initial task object.
+        </Field>
+      </Variant>
+      <Variant label="message">
+        <Field name="message" type={<Link href="#message">Message</Link>}>
+          A direct streamed message response.
+        </Field>
+      </Variant>
+      <Variant label="statusUpdate">
+        <Field name="statusUpdate" type={<Link href="#task-status-update">TaskStatusUpdateEvent</Link>}>
+          A task status update.
+        </Field>
+      </Variant>
+      <Variant label="artifactUpdate">
+        <Field name="artifactUpdate" type={<Link href="#task-artifact-update">TaskArtifactUpdateEvent</Link>}>
+          A task artifact update.
+        </Field>
+      </Variant>
+    </Variants>
+  </Response>
+</Responses>
+
+### Task Status Update
+
+<Fields label="TaskStatusUpdateEvent">
+  <Field name="taskId" type="string">
+    The task ID.
+  </Field>
+  <Field name="contextId" type="string">
+    The context ID.
+  </Field>
+  <Field name="status" type={<Link href="#task-status">TaskStatus</Link>}>
+    The updated task status.
+  </Field>
+  <Field name="metadata" type="object | null">
+    Optional update metadata.
+  </Field>
+</Fields>
+
+### Task Artifact Update
+
+<Fields label="TaskArtifactUpdateEvent">
+  <Field name="taskId" type="string">
+    The task ID.
+  </Field>
+  <Field name="contextId" type="string">
+    The context ID.
+  </Field>
+  <Field name="artifact" type={<Link href="#artifact">Artifact</Link>}>
+    The artifact update.
+  </Field>
+  <Field name="append" type="boolean | null">
+    Whether the artifact content should be appended.
+  </Field>
+  <Field name="lastChunk" type="boolean | null">
+    Whether this is the final chunk for the artifact.
+  </Field>
+  <Field name="metadata" type="object | null">
+    Optional update metadata.
+  </Field>
+</Fields>
+
+## SSE wire format
+
+The response is a Server-Sent Events stream. Each event contains a JSON `data` payload.
+
+```text
+data: {"task":{"id":"...","contextId":"...","status":{"state":"TASK_STATE_SUBMITTED"}}}
+
+data: {"statusUpdate":{"taskId":"...","contextId":"...","status":{"state":"TASK_STATE_WORKING"}}}
+
+data: {"artifactUpdate":{"taskId":"...","contextId":"...","artifact":{"artifactId":"assistant-response","name":"Assistant Response","parts":[{"text":"Hello"}]},"append":true,"lastChunk":false}}
+
+data: {"statusUpdate":{"taskId":"...","contextId":"...","status":{"state":"TASK_STATE_COMPLETED"}}}
+```
+
+## Retrieve a task
+
+<Endpoint method="GET" path="/a2a/tasks/{id}">
+  Retrieves the current state of a known A2A task.
+</Endpoint>
+
+<Parameters in="path">
+  <Field name="id" type="string">
+    The task ID.
+  </Field>
+</Parameters>
+
+<Parameters in="header">
+  <Field name="X-Tenant-ID" type="string">
+    Optional tenant ID. If omitted, the configured default tenant ID is used.
+  </Field>
+</Parameters>
+
+<Responses>
+  <Response status="200" description="The task.">
+    <Field name="task" type={<Link href="#task">Task</Link>}>
+      The current task state.
+    </Field>
+  </Response>
+  <Response status="404" description="The task was not found." />
+</Responses>
+
+## Cancel a task
+
+<Endpoint method="POST" path="/a2a/tasks/{id}:cancel">
+  Cancels an active A2A task.
+</Endpoint>
+
+<Parameters in="path">
+  <Field name="id" type="string">
+    The task ID.
+  </Field>
+</Parameters>
+
+<Parameters in="header">
+  <Field name="X-Tenant-ID" type="string">
+    Optional tenant ID. If omitted, the configured default tenant ID is used.
+  </Field>
+</Parameters>
+
+<Responses>
+  <Response status="200" description="The canceled task.">
+    <Field name="task" type={<Link href="#task">Task</Link>}>
+      The canceled task state.
+    </Field>
+  </Response>
+  <Response status="404" description="The task was not found." />
+</Responses>
+
+## Current scope
+
+The current A2A add-on supports:
+
+```
+Agent Card discovery
+Message send
+Message streaming over SSE
+Known task retrieval
+Known task cancellation
+Text input parts
+Structured JSON data input parts
+Text artifacts and structured final-state artifacts
+```
+
+It does not currently support task listing, push notifications, raw binary parts, URL parts, or the
+full A2A extension surface.

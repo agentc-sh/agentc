@@ -22,12 +22,15 @@ graph TD
     subgraph server [HTTP server]
         NATIVE[Native /v1 contract]
         AGUI[AG-UI add-on]
+        A2A[A2A add-on]
     end
 
     CLIENT -->|request| NATIVE
     CLIENT -->|request| AGUI
+    CLIENT -->|request| A2A
     NATIVE --> GRAPH[Graph runtime]
     AGUI --> GRAPH
+    A2A --> GRAPH
     GRAPH --> RUN[Run within a session]
     RUN -->|Server-Sent Events| CLIENT
 ```
@@ -43,6 +46,12 @@ CopilotKit and other frameworks built on that spec. Both the native contract and
 driven by the same underlying graph behavior; the add-on is a translation layer, not a second agent.
 Connecting a CopilotKit frontend is covered in
 [Connect a CopilotKit frontend](/guides/connect-a-copilotkit-frontend).
+
+The A2A add-on mounts a foundational Agent2Agent protocol surface for agent-to-agent delegation. An
+upstream agent can discover the generated agent through an Agent Card, send a message as a task,
+stream task updates, read a known task, and cancel a task. In the current implementation, an A2A task
+maps to an agent run, an A2A context maps to a session, and task artifacts carry the agent's text or
+structured output.
 
 ## Multi-tenancy
 
@@ -65,4 +74,5 @@ The exact fields that enable and tune the server are on the
 - [The graph](/concepts/the-graph): the loop the native contract exposes.
 - [HTTP reference](/reference/graph/react/http): the native endpoints and their shared conventions.
 - [AG-UI](/reference/http-api/ag-ui): the AG-UI protocol add-on.
+- [A2A](/reference/http-api/a2a): the Agent2Agent protocol add-on.
 - [http_server reference](/reference/manifest/http-server): the fields that configure the server.

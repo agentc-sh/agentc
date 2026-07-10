@@ -13,6 +13,7 @@ http_server {
 
   protocol {
     ag_ui {}
+    a2a {}
   }
 }
 ```
@@ -27,8 +28,8 @@ http_server {
 
 ## protocol block
 
-The `protocol` block enables specific protocol implementations on the HTTP server. Currently only
-`ag_ui` is supported.
+The `protocol` block enables specific protocol implementations on the HTTP server. Supported
+protocols are `ag_ui` and `a2a`.
 
 ### ag_ui
 
@@ -50,3 +51,24 @@ stream.
 
 See [AG-UI](/reference/http-api/ag-ui) for the full protocol documentation, event types, and client
 connection examples.
+
+### a2a
+
+```hcl
+protocol {
+  a2a {
+    path = "/a2a"
+  }
+}
+```
+
+Enabling `a2a` mounts the foundational Agent2Agent protocol surface on the server. This allows
+upstream agents to discover the agent, send work as tasks, stream basic task updates, inspect a known
+task, and cancel a task.
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `path` | string | no | `"/a2a"` | Base URL path at which the A2A endpoints are mounted. |
+
+See [A2A](/reference/http-api/a2a) for the supported endpoint shapes and current implementation
+scope.
