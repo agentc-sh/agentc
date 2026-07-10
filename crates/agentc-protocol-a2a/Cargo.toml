@@ -51,5 +51,3 @@ utoipa-axum = { workspace = true, optional = true }
 reqwest = { version = "0.13", features = ["json", "stream"], optional = true }
 reqwest-middleware = { version = "0.5", features = ["json"], optional = true }
 reqwest-tracing = { version = "0.7", features = ["opentelemetry_0_32"], optional = true }
-
-a2a = { package = "a2a-lf", git = "https://github.com/a2aproject/a2a-rs.git" }

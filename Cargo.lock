@@ -3,19 +3,6 @@
 version = 4
 
 [[package]]
-name = "a2a-lf"
-version = "0.3.0"
-source = "git+https://github.com/a2aproject/a2a-rs.git#e0047534d0f247654e26bc5cc67722619780a957"
-dependencies = [
- "base64",
- "chrono",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
- "uuid",
-]
-
-[[package]]
 name = "actix-codec"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -505,7 +492,6 @@ dependencies = [
 name = "agentc-protocol-a2a"
 version = "0.2.1"
 dependencies = [
- "a2a-lf",
  "agentc-http",
  "agentc-telemetry",
  "async-stream",
