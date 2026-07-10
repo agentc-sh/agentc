@@ -7,6 +7,9 @@ extern crate self as agentc_protocol_a2a;
 
 pub mod protocol;
 
+#[cfg(feature = "client")]
+pub mod client;
+
 #[cfg(feature = "server")]
 pub mod traits;
 
@@ -15,6 +18,9 @@ pub mod router;
 
 pub mod prelude {
     pub use crate::protocol::*;
+
+    #[cfg(feature = "client")]
+    pub use crate::client::*;
 
     #[cfg(feature = "server")]
     pub use crate::{router::*, traits::*};
