@@ -11,6 +11,7 @@ use crate::context::ResolvedContext;
 
 pub struct ReActCargoFragment {
     pub has_ag_ui: bool,
+    pub has_a2a: bool,
 }
 
 impl TemplateFragment<ResolvedContext> for ReActCargoFragment {
@@ -23,9 +24,18 @@ impl TemplateFragment<ResolvedContext> for ReActCargoFragment {
 
         match point {
             "cargo::dependencies" => {
-                if self.has_ag_ui {
+                let features = [
+                    self.has_ag_ui.then_some("\"ag-ui\""),
+                    self.has_a2a.then_some("\"a2a\""),
+                ]
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>();
+
+                if !features.is_empty() {
                     Ok(format!(
-                        "agentc-agent-react = {{ version = \"{version}\", features = [\"ag-ui\"] }}"
+                        "agentc-agent-react = {{ version = \"{version}\", features = [{}] }}",
+                        features.join(", "),
                     ))
                 } else {
                     Ok(format!(

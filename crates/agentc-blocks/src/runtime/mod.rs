@@ -178,6 +178,11 @@ pub static EMBEDDED_RUNTIME: &[EmbeddedAsset] = &[
         mode: ExtractionMode::TarGz,
     },
     EmbeddedAsset {
+        name: "agentc-protocol-a2a",
+        bytes: include_bytes!("../../embedded/agentc-protocol-a2a.crate"),
+        mode: ExtractionMode::TarGz,
+    },
+    EmbeddedAsset {
         name: "agentc-skills",
         bytes: include_bytes!("../../embedded/agentc-skills.crate"),
         mode: ExtractionMode::TarGz,

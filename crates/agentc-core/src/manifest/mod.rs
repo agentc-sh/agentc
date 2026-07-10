@@ -769,11 +769,22 @@ impl Manifest {
                     .protocol
                     .as_ref()
                     .map_or_else(Vec::new, |p| {
-                        vec![p.ag_ui.as_ref().map(|ag_ui| {
-                            ResolvedContextHttpServerProtocol::AgUi(
-                                ResolvedContextHttpServerProtocolAgUi { path: ag_ui.path.clone() },
-                            )
-                        })]
+                        vec![
+                            p.ag_ui.as_ref().map(|ag_ui| {
+                                ResolvedContextHttpServerProtocol::AgUi(
+                                    ResolvedContextHttpServerProtocolAgUi {
+                                        path: ag_ui.path.clone(),
+                                    },
+                                )
+                            }),
+                            p.a2a.as_ref().map(|a2a| {
+                                ResolvedContextHttpServerProtocol::A2a(
+                                    ResolvedContextHttpServerProtocolA2a {
+                                        path: a2a.path.clone(),
+                                    },
+                                )
+                            }),
+                        ]
                         .into_iter()
                         .flatten()
                         .collect()

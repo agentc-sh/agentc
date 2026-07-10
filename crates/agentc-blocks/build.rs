@@ -28,6 +28,7 @@ const RUNTIME_CRATES: &[&str] = &[
     "agentc-model",
     "agentc-prompt",
     "agentc-protocol-ag-ui",
+    "agentc-protocol-a2a",
     "agentc-skills",
     "agentc-telemetry",
     "agentc-tools",

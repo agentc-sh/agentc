@@ -100,6 +100,7 @@ builtin_feature!(HttpServer, "http_server");
 builtin_feature!(Streaming, "streaming");
 
 builtin_feature!(ProtocolAgUi, "protocol_ag_ui");
+builtin_feature!(ProtocolA2a, "protocol_a2a");
 
 builtin_feature!(GraphReAct, "graph_react");
 

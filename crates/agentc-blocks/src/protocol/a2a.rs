@@ -19,19 +19,19 @@ use agentc_compiler::generator::{
 
 use crate::{
     composition::GenerationContribution,
-    context::{ResolvedContext, ResolvedContextHttpServerProtocolAgUi},
+    context::{ResolvedContext, ResolvedContextHttpServerProtocolA2a},
     errors::BlocksError,
-    feature::{GenerationFeatureSet, HttpServer, ProtocolAgUi, Streaming},
+    feature::{GenerationFeatureSet, HttpServer, ProtocolA2a, Streaming},
     protocol::{traits::Protocol, types::ResolvedProtocol},
 };
 
-pub struct AgUiCodeGen {
-    pub config: ResolvedContextHttpServerProtocolAgUi,
+pub struct A2aCodeGen {
+    pub config: ResolvedContextHttpServerProtocolA2a,
 }
 
-pub struct AgUiCargoFragment;
+pub struct A2aCargoFragment;
 
-impl CodeGen<ResolvedContext> for AgUiCodeGen {
+impl CodeGen<ResolvedContext> for A2aCodeGen {
     fn generate_contribution(
         &self,
         _ctx: &GenerationContext<ResolvedContext>,
@@ -46,8 +46,12 @@ impl CodeGen<ResolvedContext> for AgUiCodeGen {
                         utoipa_axum::router::OpenApiRouter::new()
                             .nest(
                                 #config_path,
-                                agentc_protocol_ag_ui::router::router(
+                                agentc_protocol_a2a::router::router(
                                     service.clone(),
+                                    agentc_protocol_a2a::protocol::AgentInterface::new(
+                                        #config_path,
+                                        "HTTP+JSON",
+                                    ),
                                     default_tenant_id.clone(),
                                     task_queue.clone(),
                                 ),
@@ -68,7 +72,7 @@ impl CodeGen<ResolvedContext> for AgUiCodeGen {
     }
 }
 
-impl TemplateFragment<ResolvedContext> for AgUiCargoFragment {
+impl TemplateFragment<ResolvedContext> for A2aCargoFragment {
     fn generate_contribution(
         &self,
         _ctx: &GenerationContext<ResolvedContext>,
@@ -77,12 +81,12 @@ impl TemplateFragment<ResolvedContext> for AgUiCargoFragment {
         match point {
             "cargo::dependencies" => {
                 Ok(format!(
-                    "agentc-protocol-ag-ui = {{ version = \"{}\" }}",
+                    "agentc-protocol-a2a = {{ version = \"{}\" }}",
                     env!("CARGO_PKG_VERSION"),
                 ))
             }
             "cargo::patches" => Ok(
-                "agentc-protocol-ag-ui = { path = \"../runtime/agentc-protocol-ag-ui\" }"
+                "agentc-protocol-a2a = { path = \"../runtime/agentc-protocol-a2a\" }"
                     .to_string(),
             ),
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
@@ -90,15 +94,15 @@ impl TemplateFragment<ResolvedContext> for AgUiCargoFragment {
     }
 }
 
-/// The AG-UI protocol contribution. Requires an archetype-provided `HttpServer`
+/// The A2A protocol contribution. Requires an archetype-provided `HttpServer`
 /// and streaming support.
-pub struct AgUiProtocol;
+pub struct A2aProtocol;
 
-impl Protocol for AgUiProtocol {
-    type Config = ResolvedContextHttpServerProtocolAgUi;
+impl Protocol for A2aProtocol {
+    type Config = ResolvedContextHttpServerProtocolA2a;
 
     fn name(&self) -> &str {
-        "ag_ui"
+        "a2a"
     }
 
     fn resolve(
@@ -113,20 +117,20 @@ impl Protocol for AgUiProtocol {
                     BlockSet::new()
                         .add(
                             CodeGenBlock::builder()
-                                .id("protocol_ag_ui")
+                                .id("protocol_a2a")
                                 .contribute(Contribution::strict("server::routers"))
-                                .build(AgUiCodeGen { config }),
+                                .build(A2aCodeGen { config }),
                         )
                         .add(
                             TemplateFragmentBlock::builder()
-                                .id("protocol_ag_ui_cargo")
+                                .id("protocol_a2a_cargo")
                                 .contribute(Contribution::strict("cargo::dependencies"))
                                 .contribute(Contribution::strict("cargo::patches"))
-                                .build(AgUiCargoFragment),
+                                .build(A2aCargoFragment),
                         )
                         .into_inner(),
                 )
-                .with_provides(GenerationFeatureSet::new().with::<ProtocolAgUi>())
+                .with_provides(GenerationFeatureSet::new().with::<ProtocolA2a>())
                 .with_requires(
                     GenerationFeatureSet::new()
                         .with::<HttpServer>()
@@ -166,20 +170,20 @@ mod tests {
 
     #[test]
     fn resolves_with_expected_provides_and_requires() {
-        let resolved = AgUiProtocol
-            .resolve(context(), ResolvedContextHttpServerProtocolAgUi { path: "/ag-ui".to_string() })
+        let resolved = A2aProtocol
+            .resolve(context(), ResolvedContextHttpServerProtocolA2a { path: "/a2a".to_string() })
             .unwrap();
 
-        assert_eq!(resolved.name, "ag_ui");
-        assert!(resolved.contribution.provides.contains::<ProtocolAgUi>());
+        assert_eq!(resolved.name, "a2a");
+        assert!(resolved.contribution.provides.contains::<ProtocolA2a>());
         assert!(resolved.contribution.requires.contains::<HttpServer>());
         assert!(resolved.contribution.requires.contains::<Streaming>());
     }
 
     #[test]
-    fn ag_ui_codegen_router_contribution_nests_at_configured_path() {
-        let codegen = AgUiCodeGen {
-            config: ResolvedContextHttpServerProtocolAgUi { path: "/custom-ag-ui".to_string() },
+    fn a2a_codegen_router_contribution_nests_at_configured_path() {
+        let codegen = A2aCodeGen {
+            config: ResolvedContextHttpServerProtocolA2a { path: "/custom-a2a".to_string() },
         };
 
         let rendered = codegen
@@ -187,8 +191,9 @@ mod tests {
             .unwrap()
             .to_string();
 
-        assert!(rendered.contains("custom-ag-ui"));
-        assert!(rendered.contains("agentc_protocol_ag_ui :: router :: router"));
+        assert!(rendered.contains("custom-a2a"));
+        assert!(rendered.contains("agentc_protocol_a2a :: router :: router"));
+        assert!(rendered.contains("AgentInterface :: new"));
         assert!(rendered.contains("service . clone"));
         assert!(rendered.contains("default_tenant_id . clone"));
         assert!(rendered.contains("task_queue . clone"));
