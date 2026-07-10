@@ -478,8 +478,8 @@ impl ToA2aType<Vec<StreamResponse>> for A2aRunEvent {
                     task_id,
                     context_id: self.context_id,
                     artifact: Artifact {
-                        artifact_id: ArtifactId::new("assistant-response"),
-                        name: Some("Assistant Response".to_string()),
+                        artifact_id: ArtifactId::new("response"),
+                        name: Some("Agent Response".to_string()),
                         description: None,
                         parts: vec![Part::text(delta)],
                         metadata: None,
@@ -498,7 +498,7 @@ impl ToA2aType<Vec<StreamResponse>> for A2aRunEvent {
                         task_id: task_id.clone(),
                         context_id: self.context_id.clone(),
                         artifact: Artifact {
-                            artifact_id: ArtifactId::new("final-state"),
+                            artifact_id: ArtifactId::new("state"),
                             name: Some("Final State".to_string()),
                             description: None,
                             parts: vec![Part::data(result.context)],

@@ -370,7 +370,7 @@ data: {"task":{"id":"...","contextId":"...","status":{"state":"TASK_STATE_SUBMIT
 
 data: {"statusUpdate":{"taskId":"...","contextId":"...","status":{"state":"TASK_STATE_WORKING"}}}
 
-data: {"artifactUpdate":{"taskId":"...","contextId":"...","artifact":{"artifactId":"assistant-response","name":"Assistant Response","parts":[{"text":"Hello"}]},"append":true,"lastChunk":false}}
+data: {"artifactUpdate":{"taskId":"...","contextId":"...","artifact":{"artifactId":"response","name":"Agent Response","parts":[{"text":"Hello"}]},"append":true,"lastChunk":false}}
 
 data: {"statusUpdate":{"taskId":"...","contextId":"...","status":{"state":"TASK_STATE_COMPLETED"}}}
 ```
@@ -441,7 +441,7 @@ Known task retrieval
 Known task cancellation
 Text input parts
 Structured JSON data input parts
-Text artifacts and structured final-state artifacts
+Text artifacts and structured `state` artifacts
 ```
 
 It does not currently support task listing, push notifications, raw binary parts, URL parts, or the
