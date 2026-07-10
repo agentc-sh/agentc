@@ -20,6 +20,7 @@ use agentc_http::errors::ApiError;
 
 use crate::protocol::{
     AgentCard,
+    AgentInterface,
     CancelTaskRequest,
     GetTaskRequest,
     SendMessageRequest,
@@ -79,7 +80,7 @@ impl Stream for A2aStream {
 /// Service contract for exposing an agent through the server-side A2A protocol.
 #[async_trait]
 pub trait A2aService: Send + Sync {
-    fn agent_card(&self) -> AgentCard;
+    fn agent_card(&self, interface: &AgentInterface) -> AgentCard;
 
     async fn send_message(
         &self,

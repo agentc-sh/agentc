@@ -15,6 +15,10 @@ use std::{
     ops::Deref,
 };
 use utoipa::ToSchema;
+use uuid::{
+    Error as UuidError,
+    Uuid,
+};
 
 macro_rules! define_id_type {
     ($name:ident) => {
@@ -74,3 +78,19 @@ macro_rules! define_id_type {
 
 define_id_type!(ArtifactId);
 define_id_type!(TaskId);
+
+impl TryFrom<TaskId> for Uuid {
+    type Error = UuidError;
+
+    fn try_from(value: TaskId) -> Result<Self, Self::Error> {
+        Uuid::parse_str(value.as_ref())
+    }
+}
+
+impl TryFrom<&TaskId> for Uuid {
+    type Error = UuidError;
+
+    fn try_from(value: &TaskId) -> Result<Self, Self::Error> {
+        Uuid::parse_str(value.as_ref())
+    }
+}

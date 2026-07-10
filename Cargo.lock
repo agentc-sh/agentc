@@ -254,6 +254,7 @@ dependencies = [
  "agentc-http",
  "agentc-model",
  "agentc-prompt",
+ "agentc-protocol-a2a",
  "agentc-protocol-ag-ui",
  "agentc-telemetry",
  "anyhow",

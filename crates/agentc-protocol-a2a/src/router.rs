@@ -49,6 +49,7 @@ use agentc_http::{
 use crate::{
     protocol::{
         AgentCard,
+        AgentInterface,
         CancelTaskRequest,
         GetTaskRequest,
         SendMessageRequest,
@@ -63,6 +64,7 @@ use crate::{
 #[derive(Clone)]
 struct A2aRouterState {
     service: Arc<dyn A2aService>,
+    agent_interface: AgentInterface,
     default_tenant_id: DefaultTenantId,
     task_queue: Arc<JobQueue<FifoQueue<AnyExecutable>>>,
 }
@@ -133,6 +135,7 @@ impl StreamTask for A2aStreamTask {
 /// Builds the OpenAPI router for the A2A protocol.
 pub fn router(
     service: Arc<dyn A2aService>,
+    agent_interface: AgentInterface,
     default_tenant_id: DefaultTenantId,
     task_queue: Arc<JobQueue<FifoQueue<AnyExecutable>>>,
 ) -> OpenApiRouter {
@@ -144,6 +147,7 @@ pub fn router(
         .routes(routes!(cancel_task_endpoint))
         .with_state(A2aRouterState {
             service,
+            agent_interface,
             default_tenant_id,
             task_queue,
         })
@@ -164,7 +168,8 @@ pub fn router(
 async fn agent_card_endpoint(
     State(state): State<A2aRouterState>,
 ) -> Response {
-    Json(state.service.agent_card()).into_response()
+    Json(state.service.agent_card(&state.agent_interface))
+        .into_response()
 }
 
 /// Sends a message to the A2A service and waits for its task response.
@@ -194,9 +199,15 @@ async fn send_message_endpoint(
         .or_else(|| tenant_id.map(TenantIdHeader::into_inner))
         .or_else(|| Some(state.default_tenant_id.clone().into_inner()));
 
-    match state.service.send_message(request).await {
-        Ok(response) => Json(response).into_response(),
-        Err(err) => ErrorResponseDTO::from(err).into_response(),
+    match state
+        .service
+        .send_message(request)
+        .await
+    {
+        Ok(response) => Json(response)
+            .into_response(),
+        Err(err) => ErrorResponseDTO::from(err)
+            .into_response(),
     }
 }
 
@@ -306,8 +317,10 @@ async fn get_task_endpoint(
         })
         .await
     {
-        Ok(task) => Json(task).into_response(),
-        Err(err) => ErrorResponseDTO::from(err).into_response(),
+        Ok(task) => Json(task)
+            .into_response(),
+        Err(err) => ErrorResponseDTO::from(err)
+            .into_response(),
     }
 }
 
@@ -344,7 +357,9 @@ async fn cancel_task_endpoint(
         })
         .await
     {
-        Ok(task) => Json(task).into_response(),
-        Err(err) => ErrorResponseDTO::from(err).into_response(),
+        Ok(task) => Json(task)
+            .into_response(),
+        Err(err) => ErrorResponseDTO::from(err)
+            .into_response(),
     }
 }
