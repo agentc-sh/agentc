@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 pub mod build_script;
+pub mod cargo;
 pub mod cli;
 pub mod config;
 pub mod entrypoint;

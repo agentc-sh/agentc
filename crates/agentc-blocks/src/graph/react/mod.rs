@@ -21,6 +21,10 @@ use agentc_compiler::generator::{
 };
 
 use crate::{
+    archetype::standalone::codegen::cargo::{
+        CargoDependencyContribution,
+        CargoPatchContribution,
+    },
     composition::{GenerationContribution, OptionalGenerationContribution},
     context::ResolvedContext,
     errors::BlocksError,
@@ -70,9 +74,9 @@ impl AgentGraph for ReActGraph {
                     .id("agent_rs")
                     .extension_point("agent::use", reducers::concat)
                     .extension_point("agent::tools", reducers::concat)
-                    .contribute(Contribution::strict("config::loader"))
-                    .contribute(Contribution::strict("config::mapper"))
-                    .contribute(Contribution::lenient("tools::features"))
+                    .contribute(Contribution::<String>::strict("config::loader"))
+                    .contribute(Contribution::<String>::strict("config::mapper"))
+                    .contribute(Contribution::<String>::lenient("tools::features"))
                     .build(AgentCodeGen { fields: fields.clone() }),
             )
             .add(
@@ -83,15 +87,19 @@ impl AgentGraph for ReActGraph {
             .add(
                 CodeGenBlock::builder()
                     .id("react_migrations")
-                    .contribute(Contribution::strict("migrator::use"))
-                    .contribute(Contribution::strict("migrator::migrations"))
+                    .contribute(Contribution::<String>::strict("migrator::use"))
+                    .contribute(Contribution::<String>::strict("migrator::migrations"))
                     .build(ReActMigrationsCodeGen),
             )
             .add(
                 TemplateFragmentBlock::builder()
                     .id("react_cargo")
-                    .contribute(Contribution::strict("cargo::dependencies"))
-                    .contribute(Contribution::strict("cargo::patches"))
+                    .contribute(Contribution::<CargoDependencyContribution>::strict(
+                        "cargo::dependencies",
+                    ))
+                    .contribute(Contribution::<CargoPatchContribution>::strict(
+                        "cargo::patches",
+                    ))
                     .build(ReActCargoFragment { has_ag_ui, has_a2a }),
             )
             .into_inner();
@@ -105,15 +113,15 @@ impl AgentGraph for ReActGraph {
                                 .id("server_rs")
                                 .extension_point("server::use", reducers::concat)
                                 .extension_point("server::routers", reducers::concat)
-                                .contribute(Contribution::strict("main::modules"))
+                                .contribute(Contribution::<String>::strict("main::modules"))
                                 .build(ServerCodeGen { fields: fields.clone() }),
                         )
                         .add(
                             CodeGenBlock::builder()
                                 .id("cli_serve")
-                                .contribute(Contribution::strict("cli::mod::use"))
-                                .contribute(Contribution::strict("cli::mod::variants"))
-                                .contribute(Contribution::strict("cli::mod::arms"))
+                                .contribute(Contribution::<String>::strict("cli::mod::use"))
+                                .contribute(Contribution::<String>::strict("cli::mod::variants"))
+                                .contribute(Contribution::<String>::strict("cli::mod::arms"))
                                 .build(CliServeCodeGen),
                         )
                         .into_inner(),
@@ -218,6 +226,8 @@ mod tests {
             .unwrap()
             .render_contribution(&ctx, "cargo::dependencies")
             .await
+            .unwrap()
+            .downcast::<CargoDependencyContribution>()
             .unwrap();
         let with = with_ag_ui
             .contribution
@@ -227,10 +237,18 @@ mod tests {
             .unwrap()
             .render_contribution(&ctx, "cargo::dependencies")
             .await
+            .unwrap()
+            .downcast::<CargoDependencyContribution>()
             .unwrap();
 
-        assert!(!without.contains("ag-ui"));
-        assert!(with.contains("ag-ui"));
+        assert!(matches!(
+            without,
+            CargoDependencyContribution::Raw(value) if !value.contains("ag-ui")
+        ));
+        assert!(matches!(
+            with,
+            CargoDependencyContribution::Raw(value) if value.contains("ag-ui")
+        ));
     }
 
     #[tokio::test]
@@ -258,6 +276,8 @@ mod tests {
             .unwrap()
             .render_contribution(&ctx, "cargo::dependencies")
             .await
+            .unwrap()
+            .downcast::<CargoDependencyContribution>()
             .unwrap();
         let with = with_a2a
             .contribution
@@ -267,9 +287,17 @@ mod tests {
             .unwrap()
             .render_contribution(&ctx, "cargo::dependencies")
             .await
+            .unwrap()
+            .downcast::<CargoDependencyContribution>()
             .unwrap();
 
-        assert!(!without.contains("\"a2a\""));
-        assert!(with.contains("\"a2a\""));
+        assert!(matches!(
+            without,
+            CargoDependencyContribution::Raw(value) if !value.contains("\"a2a\"")
+        ));
+        assert!(matches!(
+            with,
+            CargoDependencyContribution::Raw(value) if value.contains("\"a2a\"")
+        ));
     }
 }
