@@ -216,7 +216,7 @@ pub struct ResolvedContextToolA2a {
     pub auth_token: Option<RuntimeValue<String>>,
     pub headers: HashMap<String, RuntimeValue<String>>,
     pub tenant: ResolvedContextToolA2aTenant,
-    pub timeout_secs: Option<RuntimeValue<String>>,
+    pub timeout_secs: Option<RuntimeValue<u64>>,
     pub default_accepted_output_modes: Vec<String>,
 }
 

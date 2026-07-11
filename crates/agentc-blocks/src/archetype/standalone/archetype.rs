@@ -273,9 +273,13 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+    use crate::contributions::dependency::RuntimeDependencyContribution;
     use agentc_compiler::generator::{
-        context::GenerationContext, extension::ExtensionRegistry, vfs::VirtualFileSystem,
+        context::GenerationContext,
+        extension::{ErasedContributionValue, ExtensionRegistry},
+        vfs::VirtualFileSystem,
     };
+    use std::collections::HashMap;
 
     fn context(http_server: Option<serde_json::Value>) -> ResolvedContext {
         serde_json::from_value(json!({
@@ -397,5 +401,61 @@ mod tests {
                     && dependency.features.len() == 1
                     && dependency.features.contains("client")
         ));
+    }
+
+    #[tokio::test]
+    async fn generated_cargo_toml_includes_a2a_client_dependency() {
+        let resolved = StandaloneArchetype
+            .resolve(context(None), StandaloneArchetypeConfig::default())
+            .unwrap();
+        let ctx = GenerationContext::new(context(None));
+        let cargo_toml_block = resolved
+            .contribution
+            .blocks
+            .iter()
+            .find(|block| block.id() == "cargo_toml")
+            .expect("cargo_toml block is registered");
+
+        let registry = ExtensionRegistry::resolve(
+            vec![
+                Box::new(CargoDependenciesExtensionPoint::new(
+                    "cargo::dependencies",
+                    env!("CARGO_PKG_VERSION"),
+                )),
+                Box::new(CargoPatchesExtensionPoint::new("cargo::patches")),
+            ],
+            HashMap::from([
+                (
+                    "cargo::dependencies".to_string(),
+                    vec![ErasedContributionValue::new(CargoDependencyContribution::runtime(
+                        RuntimeDependencyContribution::new("agentc-protocol-a2a")
+                            .default_features(false)
+                            .feature("client"),
+                    ))],
+                ),
+                (
+                    "cargo::patches".to_string(),
+                    vec![ErasedContributionValue::new(CargoPatchContribution::runtime(
+                        RuntimeDependencyContribution::new("agentc-protocol-a2a"),
+                    ))],
+                ),
+            ]),
+        )
+        .unwrap();
+        let mut vfs = VirtualFileSystem::new();
+
+        cargo_toml_block
+            .render(&ctx, &registry, &mut vfs)
+            .await
+            .unwrap();
+
+        let content = vfs
+            .get("Cargo.toml")
+            .expect("Cargo.toml is generated");
+
+        assert!(content.contains(&format!(
+            "agentc-protocol-a2a = {{ version = \"{}\", default-features = false, features = [\"client\"] }}",
+            env!("CARGO_PKG_VERSION"),
+        )));
     }
 }

@@ -81,7 +81,7 @@ impl A2aCodeGen {
                 )
             });
 
-            Self::push_bool_loader(
+            Self::push_rv_loader(
                 &["a2a", "agents", name, "enabled"],
                 &tool.enabled,
                 &mut calls,
@@ -120,7 +120,7 @@ impl A2aCodeGen {
                 a2a.timeout_secs.as_ref(),
                 &mut fields,
             );
-            Self::push_bool_mapper(
+            Self::push_rv_mapper(
                 &["a2a", "agents", name, "enabled"],
                 &tool.enabled,
                 &mut fields,
@@ -183,25 +183,36 @@ impl A2aCodeGen {
         }
     }
 
-    fn push_rv_loader_option(
+    fn push_rv_loader_option<T>(
         path: &[&str],
-        rv: Option<&RuntimeValue<String>>,
+        rv: Option<&RuntimeValue<T>>,
         calls: &mut Vec<TokenStream>,
-    ) {
+    )
+    where
+        T: serde::Serialize,
+    {
         if let Some(rv) = rv {
             Self::push_rv_loader(path, rv, calls);
         }
     }
 
-    fn push_rv_loader(
+    fn push_rv_loader<T>(
         path: &[&str],
-        rv: &RuntimeValue<String>,
+        rv: &RuntimeValue<T>,
         calls: &mut Vec<TokenStream>,
-    ) {
+    )
+    where
+        T: serde::Serialize,
+    {
         let path_segments = path.to_vec();
 
         match rv {
             RuntimeValue::Constant(value) => {
+                let value = serde_json::to_string(value)
+                    .unwrap()
+                    .parse::<TokenStream>()
+                    .unwrap();
+
                 calls.push(quote! {
                     .constant(
                         path![#(#path_segments),*],
@@ -211,6 +222,11 @@ impl A2aCodeGen {
             }
             RuntimeValue::Runtime { default, .. } => {
                 if let Some(default) = default {
+                    let default = serde_json::to_string(default)
+                        .unwrap()
+                        .parse::<TokenStream>()
+                        .unwrap();
+
                     calls.push(quote! {
                         .default(
                             path![#(#path_segments),*],
@@ -222,38 +238,9 @@ impl A2aCodeGen {
         }
     }
 
-    fn push_bool_loader(
+    fn push_rv_mapper_option<T>(
         path: &[&str],
-        rv: &RuntimeValue<bool>,
-        calls: &mut Vec<TokenStream>,
-    ) {
-        let path_segments = path.to_vec();
-
-        match rv {
-            RuntimeValue::Constant(value) => {
-                calls.push(quote! {
-                    .constant(
-                        path![#(#path_segments),*],
-                        serde_json::json!(#value)
-                    )
-                });
-            }
-            RuntimeValue::Runtime { default, .. } => {
-                if let Some(default) = default {
-                    calls.push(quote! {
-                        .default(
-                            path![#(#path_segments),*],
-                            serde_json::json!(#default)
-                        )
-                    });
-                }
-            }
-        }
-    }
-
-    fn push_rv_mapper_option(
-        path: &[&str],
-        rv: Option<&RuntimeValue<String>>,
+        rv: Option<&RuntimeValue<T>>,
         fields: &mut Vec<TokenStream>,
     ) {
         if let Some(rv) = rv {
@@ -261,23 +248,9 @@ impl A2aCodeGen {
         }
     }
 
-    fn push_rv_mapper(
+    fn push_rv_mapper<T>(
         path: &[&str],
-        rv: &RuntimeValue<String>,
-        fields: &mut Vec<TokenStream>,
-    ) {
-        let path_segments = path.to_vec();
-
-        if let RuntimeValue::Runtime { env, .. } = rv {
-            fields.push(quote! {
-                .field(path![#(#path_segments),*], #env)
-            });
-        }
-    }
-
-    fn push_bool_mapper(
-        path: &[&str],
-        rv: &RuntimeValue<bool>,
+        rv: &RuntimeValue<T>,
         fields: &mut Vec<TokenStream>,
     ) {
         let path_segments = path.to_vec();

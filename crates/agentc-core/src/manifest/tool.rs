@@ -66,6 +66,7 @@ pub enum ManifestToolKind {
     Mcp(ManifestMcpTool),
     Bash(ManifestBashTool),
     Python(ManifestPythonTool),
+    A2a(ManifestA2aTool),
 }
 
 impl<'v_a> ValidateArgs<'v_a> for ManifestToolKind {
@@ -77,6 +78,7 @@ impl<'v_a> ValidateArgs<'v_a> for ManifestToolKind {
             ManifestToolKind::Mcp(value) => value.validate_with_args(args),
             ManifestToolKind::Bash(value) => value.validate_with_args(args),
             ManifestToolKind::Python(value) => value.validate_with_args(args),
+            ManifestToolKind::A2a(value) => value.validate_with_args(args),
         }
     }
 }
@@ -176,6 +178,45 @@ impl Validate for ManifestMcpTool {
     fn validate(&self) -> Result<(), ValidationErrors> {
         self.validate_with_args(())
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Validate, Sanitizer)]
+pub struct ManifestA2aTool {
+    pub url: RuntimeValue<String>,
+
+    #[serde(default)]
+    pub auth_token: Option<RuntimeValue<String>>,
+
+    #[serde(default)]
+    pub headers: HashMap<String, RuntimeValue<String>>,
+
+    #[serde(default)]
+    pub tenant: ManifestA2aTenant,
+
+    #[serde(default)]
+    pub timeout_secs: Option<RuntimeValue<u64>>,
+
+    #[serde(default)]
+    pub default_accepted_output_modes: Vec<String>,
+}
+
+impl<'v_a> ValidateArgs<'v_a> for ManifestA2aTool {
+    type Args = ();
+
+    fn validate_with_args(&self, _args: Self::Args) -> Result<(), ValidationErrors> {
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(tag = "policy", rename_all = "snake_case")]
+pub enum ManifestA2aTenant {
+    #[default]
+    Inherit,
+    None,
+    Fixed {
+        id: RuntimeValue<String>,
+    },
 }
 
 /// Fields specific to a bash sandbox tool.
