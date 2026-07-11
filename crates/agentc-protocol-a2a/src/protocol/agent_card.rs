@@ -222,6 +222,26 @@ pub struct AgentInterface {
     pub tenant: Option<String>,
 }
 
+impl AgentInterface {
+    pub fn new(
+        url: impl Into<String>,
+        protocol_binding: impl Into<String>,
+    ) -> Self {
+        let protocol_binding = protocol_binding.into();
+
+        Self {
+            url: normalize_agent_interface_url(url.into(), &protocol_binding),
+            protocol_binding,
+            protocol_version: "1.0".to_string(),
+            tenant: None,
+        }
+    }
+
+    pub fn wire_url(&self) -> String {
+        normalize_agent_interface_url(self.url.clone(), &self.protocol_binding)
+    }
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct AgentInterfaceSerde {
@@ -548,22 +568,3 @@ pub struct AgentCardSignature {
     pub header: Option<HashMap<String, Value>>,
 }
 
-impl AgentInterface {
-    pub fn new(
-        url: impl Into<String>,
-        protocol_binding: impl Into<String>,
-    ) -> Self {
-        let protocol_binding = protocol_binding.into();
-
-        Self {
-            url: normalize_agent_interface_url(url.into(), &protocol_binding),
-            protocol_binding,
-            protocol_version: "1.0".to_string(),
-            tenant: None,
-        }
-    }
-
-    pub fn wire_url(&self) -> String {
-        normalize_agent_interface_url(self.url.clone(), &self.protocol_binding)
-    }
-}

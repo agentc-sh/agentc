@@ -200,14 +200,6 @@ pub struct ManifestA2aTool {
     pub default_accepted_output_modes: Vec<String>,
 }
 
-impl<'v_a> ValidateArgs<'v_a> for ManifestA2aTool {
-    type Args = ();
-
-    fn validate_with_args(&self, _args: Self::Args) -> Result<(), ValidationErrors> {
-        Ok(())
-    }
-}
-
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(tag = "policy", rename_all = "snake_case")]
 pub enum ManifestA2aTenant {
@@ -217,6 +209,20 @@ pub enum ManifestA2aTenant {
     Fixed {
         id: RuntimeValue<String>,
     },
+}
+
+impl<'v_a> ValidateArgs<'v_a> for ManifestA2aTenant {
+    type Args = ();
+
+    fn validate_with_args(&self, _args: Self::Args) -> Result<(), ValidationErrors> {
+        Ok(())
+    }
+}
+
+impl Validate for ManifestA2aTenant {
+    fn validate(&self) -> Result<(), ValidationErrors> {
+        self.validate_with_args(())
+    }
 }
 
 /// Fields specific to a bash sandbox tool.
