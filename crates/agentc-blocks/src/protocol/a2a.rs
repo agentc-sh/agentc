@@ -14,10 +14,18 @@ use agentc_compiler::generator::{
     },
     context::GenerationContext,
     errors::GeneratorError,
-    extension::{Contribution, ExtensionRegistry},
+    extension::{
+        Contribution,
+        ErasedContributionValue,
+        ExtensionRegistry,
+    },
 };
 
 use crate::{
+    archetype::standalone::codegen::cargo::{
+        CargoDependencyContribution,
+        CargoPatchContribution,
+    },
     composition::GenerationContribution,
     context::{ResolvedContext, ResolvedContextHttpServerProtocolA2a},
     errors::BlocksError,
@@ -77,18 +85,17 @@ impl TemplateFragment<ResolvedContext> for A2aCargoFragment {
         &self,
         _ctx: &GenerationContext<ResolvedContext>,
         point: &str,
-    ) -> Result<String, GeneratorError> {
+    ) -> Result<ErasedContributionValue, GeneratorError> {
         match point {
             "cargo::dependencies" => {
-                Ok(format!(
+                Ok(ErasedContributionValue::new(CargoDependencyContribution::raw(format!(
                     "agentc-protocol-a2a = {{ version = \"{}\" }}",
                     env!("CARGO_PKG_VERSION"),
-                ))
+                ))))
             }
-            "cargo::patches" => Ok(
+            "cargo::patches" => Ok(ErasedContributionValue::new(CargoPatchContribution::raw(
                 "agentc-protocol-a2a = { path = \"../runtime/agentc-protocol-a2a\" }"
-                    .to_string(),
-            ),
+            ))),
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
     }
@@ -118,14 +125,18 @@ impl Protocol for A2aProtocol {
                         .add(
                             CodeGenBlock::builder()
                                 .id("protocol_a2a")
-                                .contribute(Contribution::strict("server::routers"))
+                                .contribute(Contribution::<String>::strict("server::routers"))
                                 .build(A2aCodeGen { config }),
                         )
                         .add(
                             TemplateFragmentBlock::builder()
                                 .id("protocol_a2a_cargo")
-                                .contribute(Contribution::strict("cargo::dependencies"))
-                                .contribute(Contribution::strict("cargo::patches"))
+                                .contribute(Contribution::<CargoDependencyContribution>::strict(
+                                    "cargo::dependencies",
+                                ))
+                                .contribute(Contribution::<CargoPatchContribution>::strict(
+                                    "cargo::patches",
+                                ))
                                 .build(A2aCargoFragment),
                         )
                         .into_inner(),

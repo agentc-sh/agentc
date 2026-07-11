@@ -23,6 +23,7 @@ use crate::{
     archetype::{
         standalone::codegen::{
             build_script::BuildScriptCodeGen,
+            cargo::{CargoDependenciesExtensionPoint, CargoPatchesExtensionPoint},
             cli::{CliModCodeGen, config::CliConfigCodeGen, shutdown::CliShutdownCodeGen},
             config::ConfigCodeGen,
             entrypoint::EntrypointCodeGen,
@@ -155,14 +156,6 @@ impl Archetype for StandaloneArchetype {
                                     }],
                                     extension_points: vec![
                                         ExtensionPointSpec {
-                                            name: "cargo::dependencies".to_string(),
-                                            reducer: Reducer::Concat,
-                                        },
-                                        ExtensionPointSpec {
-                                            name: "cargo::patches".to_string(),
-                                            reducer: Reducer::Concat,
-                                        },
-                                        ExtensionPointSpec {
                                             name: "tools::features".to_string(),
                                             reducer: Reducer::JoinComma,
                                         },
@@ -170,6 +163,13 @@ impl Archetype for StandaloneArchetype {
                                     slot_fills: vec![],
                                     description: None,
                                 })
+                                .typed_extension_point(CargoDependenciesExtensionPoint::new(
+                                    "cargo::dependencies",
+                                    env!("CARGO_PKG_VERSION"),
+                                ))
+                                .typed_extension_point(CargoPatchesExtensionPoint::new(
+                                    "cargo::patches",
+                                ))
                                 .with_template("cargo_toml", include_str!("templates/Cargo.toml.j2"))
                                 .with_var("runtime_version", env!("CARGO_PKG_VERSION"))
                                 .build(),
