@@ -9,10 +9,7 @@ use serde::Serialize;
 use crate::generator::{
     context::GenerationContext,
     errors::GeneratorError,
-    extension::{
-        ErasedContributionValue,
-        ExtensionRegistry,
-    },
+    extension::{ErasedContributionValue, ExtensionRegistry},
 };
 
 pub trait TemplateFragment<T>: Send + Sync

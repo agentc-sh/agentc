@@ -24,16 +24,16 @@ impl IntoFieldSpecs for NamedTool<'_> {
                 for (config_key, config_value) in &tool.config {
                     fields.push(&["tool", name, config_key.as_str()], config_value);
                 }
-            },
+            }
 
             // MCP loader calls are contributed to `config::loader` by AgentCodeGen.
-            ResolvedContextToolKind::Mcp(_) => {},
+            ResolvedContextToolKind::Mcp(_) => {}
 
             // NOTE: Determine what is needed here, if at all for A2A
-            ResolvedContextToolKind::A2a(_) => {},
+            ResolvedContextToolKind::A2a(_) => {}
 
             // Bash tools have no runtime-configurable fields beyond what is baked at compile time.
-            ResolvedContextToolKind::Bash(_) => {},
+            ResolvedContextToolKind::Bash(_) => {}
         }
     }
 }

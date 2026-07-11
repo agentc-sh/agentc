@@ -5,76 +5,37 @@
 use async_trait::async_trait;
 use chrono::Utc;
 use futures::StreamExt;
-use serde_json::{
-    json,
-    Value,
-};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
 use agentc_agent::types::identity::AgentIdentity;
-use agentc_domain::{
-    repository::scope::RepoScopeFactory,
-    types::RunStatus,
-};
-use agentc_protocol_a2a::{
-    protocol::{
-        AgentCapabilities,
-        AgentCard,
-        AgentInterface,
-        AgentSkill,
-        Artifact,
-        ArtifactId,
-        CancelTaskRequest,
-        GetTaskRequest,
-        Message,
-        Part,
-        PartContent,
-        Role,
-        SendMessageRequest,
-        SendMessageResponse,
-        StreamResponse,
-        Task,
-        TaskArtifactUpdateEvent,
-        TaskId,
-        TaskState,
-        TaskStatus,
-        TaskStatusUpdateEvent,
-    },
-    traits::{
-        A2aRunCancel,
-        A2aService,
-        A2aStream,
-        FromA2aType,
-        ToA2aType,
-    },
-};
+use agentc_domain::{repository::scope::RepoScopeFactory, types::RunStatus};
 use agentc_domain_sql::scope::SqlScopeFactoryError;
 use agentc_http::errors::ApiError;
+use agentc_protocol_a2a::{
+    protocol::{
+        AgentCapabilities, AgentCard, AgentInterface, AgentSkill, Artifact, ArtifactId,
+        CancelTaskRequest, GetTaskRequest, Message, Part, PartContent, Role, SendMessageRequest,
+        SendMessageResponse, StreamResponse, Task, TaskArtifactUpdateEvent, TaskId, TaskState,
+        TaskStatus, TaskStatusUpdateEvent,
+    },
+    traits::{A2aRunCancel, A2aService, A2aStream, FromA2aType, ToA2aType},
+};
 
 use crate::{
+    repository::state_snapshot::{
+        params::FindStateSnapshotParams,
+        traits::{StateSnapshotRepoProvider, StateSnapshotRepository},
+    },
     service::{
         ApplicationService,
         operations::run::RunOperations,
         types::{
-            message::{
-                CreateMessageParams,
-                CreateUserMessageParams,
-            },
-            run::{
-                RunEvent,
-                RunParams,
-                RunResponse,
-            },
+            message::{CreateMessageParams, CreateUserMessageParams},
+            run::{RunEvent, RunParams, RunResponse},
         },
     },
-    repository::state_snapshot::{
-        params::FindStateSnapshotParams,
-        traits::{StateSnapshotRepository, StateSnapshotRepoProvider},
-    },
-    types::{
-        message::UserContent,
-        state_snapshot::StateSnapshot,
-    },
+    types::{message::UserContent, state_snapshot::StateSnapshot},
 };
 
 struct A2aRunInput {
@@ -119,12 +80,8 @@ impl FromA2aType<SendMessageRequest> for A2aRunInput {
             .message
             .context_id
             .unwrap_or_else(|| Uuid::new_v4().to_string());
-        let session_id = Uuid::parse_str(&context_id).unwrap_or_else(|_| {
-            Uuid::new_v5(
-                &Uuid::NAMESPACE_URL,
-                context_id.as_bytes(),
-            )
-        });
+        let session_id = Uuid::parse_str(&context_id)
+            .unwrap_or_else(|_| Uuid::new_v5(&Uuid::NAMESPACE_URL, context_id.as_bytes()));
         let run_id = request
             .message
             .task_id
@@ -151,9 +108,7 @@ impl FromA2aType<SendMessageRequest> for A2aRunInput {
         }
 
         if user_content.is_empty() && data_parts.is_empty() {
-            return Err(ApiError::bad_request(
-                "A2A messages must contain a supported part",
-            ));
+            return Err(ApiError::bad_request("A2A messages must contain a supported part"));
         }
 
         let context = (!data_parts.is_empty()).then(|| {
@@ -196,14 +151,8 @@ impl ToA2aType<AgentCard> for A2aAgentCardInput<'_> {
                 extensions: None,
                 extended_agent_card: Some(false),
             },
-            default_input_modes: vec![
-                "text/plain".to_string(),
-                "application/json".to_string(),
-            ],
-            default_output_modes: vec![
-                "text/plain".to_string(),
-                "application/json".to_string(),
-            ],
+            default_input_modes: vec!["text/plain".to_string(), "application/json".to_string()],
+            default_output_modes: vec!["text/plain".to_string(), "application/json".to_string()],
             skills: vec![AgentSkill {
                 id: "react".to_string(),
                 name: self.identity.name.clone(),
@@ -305,7 +254,10 @@ impl A2aService for ApplicationService {
                 }
                 StreamResponse::ArtifactUpdate(update) => {
                     if let Some(value) = task.as_mut() {
-                        value.artifacts.get_or_insert_default().push(update.artifact);
+                        value
+                            .artifacts
+                            .get_or_insert_default()
+                            .push(update.artifact);
                     }
                 }
                 StreamResponse::Message(message) => {
@@ -318,10 +270,7 @@ impl A2aService for ApplicationService {
             .ok_or_else(|| ApiError::unexpected_error("A2A stream ended without a task"))
     }
 
-    async fn stream_message(
-        &self,
-        request: SendMessageRequest,
-    ) -> Result<A2aStream, ApiError> {
+    async fn stream_message(&self, request: SendMessageRequest) -> Result<A2aStream, ApiError> {
         let tenant_id = request.tenant.clone().ok_or_else(|| {
             ApiError::bad_request(
                 "A2A requests must include a tenant resolved by the endpoint layer",
@@ -335,67 +284,61 @@ impl A2aService for ApplicationService {
             .await
             .map_err(ApiError::from)?;
 
-        Ok(
-            A2aStream::new(Box::pin(async_stream::stream! {
-                yield Ok(StreamResponse::Task(Task {
-                    id: TaskId::new(run_id.to_string()),
+        Ok(A2aStream::new(Box::pin(async_stream::stream! {
+            yield Ok(StreamResponse::Task(Task {
+                id: TaskId::new(run_id.to_string()),
+                context_id: context_id.clone(),
+                status: TaskStatus {
+                    state: TaskState::Submitted,
+                    message: None,
+                    timestamp: Some(Utc::now()),
+                },
+                artifacts: None,
+                history: None,
+                metadata: None,
+            }));
+
+            let mut events = stream;
+
+            while let Some(event) = events.next().await {
+                match (A2aRunEvent {
+                    event,
+                    run_id,
                     context_id: context_id.clone(),
-                    status: TaskStatus {
-                        state: TaskState::Submitted,
-                        message: None,
-                        timestamp: Some(Utc::now()),
-                    },
-                    artifacts: None,
-                    history: None,
-                    metadata: None,
-                }));
-
-                let mut events = stream;
-
-                while let Some(event) = events.next().await {
-                    match (A2aRunEvent {
-                        event,
-                        run_id,
-                        context_id: context_id.clone(),
-                    })
-                    .to_a2a_type()
-                    {
-                        Ok(events) => {
-                            for event in events {
-                                yield Ok(event);
-                            }
+                })
+                .to_a2a_type()
+                {
+                    Ok(events) => {
+                        for event in events {
+                            yield Ok(event);
                         }
-                        Err(error) => yield Err(error),
                     }
+                    Err(error) => yield Err(error),
                 }
-            }))
-            .with_cancel(ApplicationServiceA2aCancel {
-                service: self.clone(),
-                tenant_id,
-                run_id,
-            }),
-        )
+            }
+        }))
+        .with_cancel(ApplicationServiceA2aCancel {
+            service: self.clone(),
+            tenant_id,
+            run_id,
+        }))
     }
 
-    async fn get_task(
-        &self,
-        request: GetTaskRequest,
-    ) -> Result<Task, ApiError> {
+    async fn get_task(&self, request: GetTaskRequest) -> Result<Task, ApiError> {
         let run_id = Uuid::try_from(&request.id)
             .map_err(|_| ApiError::bad_request("A2A task IDs must contain UUID values"))?;
 
-        let tenant_id = request.tenant.ok_or_else(|| {
-            ApiError::bad_request(
-                "A2A requests must include a tenant",
-            )
-        })?;
+        let tenant_id = request
+            .tenant
+            .ok_or_else(|| ApiError::bad_request("A2A requests must include a tenant"))?;
 
         let run = self
             .get_run(&tenant_id, run_id)
             .await
             .map_err(ApiError::from)?;
 
-        let snapshot = self.scope_factory
+        let snapshot = self
+            .scope_factory
             .ro_scope(|scope| {
                 Box::pin(async move {
                     scope
@@ -429,10 +372,7 @@ impl A2aService for ApplicationService {
         .to_a2a_type()
     }
 
-    async fn cancel_task(
-        &self,
-        request: CancelTaskRequest,
-    ) -> Result<Task, ApiError> {
+    async fn cancel_task(&self, request: CancelTaskRequest) -> Result<Task, ApiError> {
         let run_id = Uuid::try_from(&request.id)
             .map_err(|_| ApiError::bad_request("A2A task IDs must contain UUID values"))?;
         let tenant_id = request.tenant.clone().ok_or_else(|| {

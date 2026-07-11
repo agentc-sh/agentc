@@ -12,13 +12,8 @@ use crate::generator::{
     context::GenerationContext,
     errors::GeneratorError,
     extension::{
-        Contribution,
-        ErasedContribution,
-        ErasedContributionValue,
-        ErasedExtensionPoint,
-        ExtensionPoint,
-        ExtensionRegistry,
-        StringExtensionPoint,
+        Contribution, ErasedContribution, ErasedContributionValue, ErasedExtensionPoint,
+        ExtensionPoint, ExtensionRegistry, StringExtensionPoint,
     },
     vfs::VirtualFileSystem,
 };
@@ -145,7 +140,8 @@ where
     where
         P: ExtensionPoint + Clone + 'static,
     {
-        self.extension_points.push(Box::new(point));
+        self.extension_points
+            .push(Box::new(point));
         self
     }
 
@@ -153,7 +149,8 @@ where
     where
         C: Send + Sync + 'static,
     {
-        self.contributions.push(contribution.erase());
+        self.contributions
+            .push(contribution.erase());
         self
     }
 

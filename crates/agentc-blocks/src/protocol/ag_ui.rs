@@ -14,18 +14,11 @@ use agentc_compiler::generator::{
     },
     context::GenerationContext,
     errors::GeneratorError,
-    extension::{
-        Contribution,
-        ErasedContributionValue,
-        ExtensionRegistry,
-    },
+    extension::{Contribution, ErasedContributionValue, ExtensionRegistry},
 };
 
 use crate::{
-    archetype::standalone::codegen::cargo::{
-        CargoDependencyContribution,
-        CargoPatchContribution,
-    },
+    archetype::standalone::codegen::cargo::{CargoDependencyContribution, CargoPatchContribution},
     composition::GenerationContribution,
     context::{ResolvedContext, ResolvedContextHttpServerProtocolAgUi},
     errors::BlocksError,
@@ -90,7 +83,7 @@ impl TemplateFragment<ResolvedContext> for AgUiCargoFragment {
                 ))))
             }
             "cargo::patches" => Ok(ErasedContributionValue::new(CargoPatchContribution::raw(
-                "agentc-protocol-ag-ui = { path = \"../runtime/agentc-protocol-ag-ui\" }"
+                "agentc-protocol-ag-ui = { path = \"../runtime/agentc-protocol-ag-ui\" }",
             ))),
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
@@ -178,13 +171,31 @@ mod tests {
     #[test]
     fn resolves_with_expected_provides_and_requires() {
         let resolved = AgUiProtocol
-            .resolve(context(), ResolvedContextHttpServerProtocolAgUi { path: "/ag-ui".to_string() })
+            .resolve(
+                context(),
+                ResolvedContextHttpServerProtocolAgUi { path: "/ag-ui".to_string() },
+            )
             .unwrap();
 
         assert_eq!(resolved.name, "ag_ui");
-        assert!(resolved.contribution.provides.contains::<ProtocolAgUi>());
-        assert!(resolved.contribution.requires.contains::<HttpServer>());
-        assert!(resolved.contribution.requires.contains::<Streaming>());
+        assert!(
+            resolved
+                .contribution
+                .provides
+                .contains::<ProtocolAgUi>()
+        );
+        assert!(
+            resolved
+                .contribution
+                .requires
+                .contains::<HttpServer>()
+        );
+        assert!(
+            resolved
+                .contribution
+                .requires
+                .contains::<Streaming>()
+        );
     }
 
     #[test]

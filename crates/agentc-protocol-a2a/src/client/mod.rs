@@ -2,52 +2,34 @@
 //
 // SPDX-License-Identifier: MIT
 
-mod errors;
-mod config;
 mod base;
-mod constants;
 mod call;
+mod config;
+mod constants;
+mod errors;
 mod sse;
 
 pub use config::A2aClientConfig;
-pub use constants::{
-    A2A_CONTENT_TYPE,
-    A2A_TENANT_HEADER,
-    A2A_VERSION,
-    A2A_VERSION_HEADER,
-};
+pub use constants::{A2A_CONTENT_TYPE, A2A_TENANT_HEADER, A2A_VERSION, A2A_VERSION_HEADER};
 pub use errors::A2aClientError;
 
+use futures::{StreamExt, TryStreamExt, stream::BoxStream};
 use reqwest::{
-    header::{
-        ACCEPT,
-        CONTENT_TYPE,
-    },
     Response,
-};
-use futures::{
-    stream::BoxStream,
-    StreamExt,
-    TryStreamExt,
+    header::{ACCEPT, CONTENT_TYPE},
 };
 
 use crate::{
-    protocol::{
-        AgentCard,
-        CancelTaskRequest,
-        GetTaskRequest,
-        SendMessageRequest,
-        SendMessageResponse,
-        StreamResponse,
-        Task,
-    },
     client::{
         base::BaseClient,
         call::Call,
-        sse::{Sse, Item},
+        sse::{Item, Sse},
+    },
+    protocol::{
+        AgentCard, CancelTaskRequest, GetTaskRequest, SendMessageRequest, SendMessageResponse,
+        StreamResponse, Task,
     },
 };
-
 
 #[derive(Debug, Clone)]
 pub struct A2aClient {
@@ -56,9 +38,7 @@ pub struct A2aClient {
 
 impl A2aClient {
     pub fn new(config: A2aClientConfig) -> Result<Self, A2aClientError> {
-        Ok(Self {
-            client: BaseClient::from_config(config)?,
-        })
+        Ok(Self { client: BaseClient::from_config(config)? })
     }
 
     pub fn agent_card(&self) -> Call<'_, Response, AgentCard> {
@@ -92,30 +72,27 @@ impl A2aClient {
             .maybe_header_lossy(A2A_TENANT_HEADER, request.tenant.as_deref())
             .body(&request)
             .map(|response| async move {
-                Ok(
-                    response
-                        .sse()
-                        .map_err(|e| A2aClientError::stream_decode(e.to_string()))
-                        .try_filter_map(|item| async move {
-                            match item {
-                                Item::Comment(_) => Ok(None),
-                                Item::Event(event) if event.event_type.as_deref() == Some("error") => Err(
-                                    A2aClientError::stream_decode(event.data),
-                                ),
-                                Item::Event(event) => serde_json::from_str::<StreamResponse>(&event.data)
-                                    .map(Some)
-                                    .map_err(|e| A2aClientError::stream_decode(e.to_string())),
+                Ok(response
+                    .sse()
+                    .map_err(|e| A2aClientError::stream_decode(e.to_string()))
+                    .try_filter_map(|item| async move {
+                        match item {
+                            Item::Comment(_) => Ok(None),
+                            Item::Event(event) if event.event_type.as_deref() == Some("error") => {
+                                Err(A2aClientError::stream_decode(event.data))
                             }
-                        })
-                        .boxed()
-                )
+                            Item::Event(event) => {
+                                serde_json::from_str::<StreamResponse>(&event.data)
+                                    .map(Some)
+                                    .map_err(|e| A2aClientError::stream_decode(e.to_string()))
+                            }
+                        }
+                    })
+                    .boxed())
             })
     }
 
-    pub fn get_task(
-        &self,
-        request: GetTaskRequest,
-    ) -> Call<'_, Response, Task> {
+    pub fn get_task(&self, request: GetTaskRequest) -> Call<'_, Response, Task> {
         #[derive(serde::Serialize)]
         #[serde(rename_all = "camelCase")]
         struct GetTaskParams {
@@ -127,16 +104,11 @@ impl A2aClient {
             .header_lossy(A2A_VERSION_HEADER, A2A_VERSION)
             .header_lossy(ACCEPT, A2A_CONTENT_TYPE)
             .maybe_header_lossy(A2A_TENANT_HEADER, request.tenant.as_deref())
-            .params(&GetTaskParams {
-                history_length: request.history_length,
-            })
+            .params(&GetTaskParams { history_length: request.history_length })
             .json()
     }
 
-    pub fn cancel_task(
-        &self,
-        request: CancelTaskRequest,
-    ) -> Call<'_, Response, Task> {
+    pub fn cancel_task(&self, request: CancelTaskRequest) -> Call<'_, Response, Task> {
         Call::post(&self.client, format!("/tasks/{}:cancel", request.id.as_ref()))
             .header_lossy(A2A_VERSION_HEADER, A2A_VERSION)
             .header_lossy(CONTENT_TYPE, A2A_CONTENT_TYPE)
@@ -154,28 +126,13 @@ mod tests {
     use futures::TryStreamExt;
     use serde_json::json;
     use wiremock::{
-        Mock,
-        MockServer,
-        ResponseTemplate,
-        matchers::{
-            body_partial_json,
-            header,
-            method,
-            path,
-        },
+        Mock, MockServer, ResponseTemplate,
+        matchers::{body_partial_json, header, method, path},
     };
 
     use crate::protocol::{
-        Message,
-        Part,
-        Role,
-        SendMessageRequest,
-        SendMessageResponse,
-        StreamResponse,
-        Task,
-        TaskId,
-        TaskState,
-        TaskStatus,
+        Message, Part, Role, SendMessageRequest, SendMessageResponse, StreamResponse, Task, TaskId,
+        TaskState, TaskStatus,
     };
 
     struct ClientFixture;
@@ -205,11 +162,7 @@ mod tests {
             Task {
                 id: TaskId::new("task-1"),
                 context_id: "context-1".to_string(),
-                status: TaskStatus {
-                    state,
-                    message: None,
-                    timestamp: None,
-                },
+                status: TaskStatus { state, message: None, timestamp: None },
                 artifacts: None,
                 history: None,
                 metadata: None,
@@ -234,9 +187,9 @@ mod tests {
                     "role": "ROLE_USER",
                 },
             })))
-            .respond_with(ResponseTemplate::new(200).set_body_json(
-                SendMessageResponse::Task(ClientFixture::task(TaskState::Submitted)),
-            ))
+            .respond_with(ResponseTemplate::new(200).set_body_json(SendMessageResponse::Task(
+                ClientFixture::task(TaskState::Submitted),
+            )))
             .mount(&server)
             .await;
 
@@ -263,9 +216,9 @@ mod tests {
                     .append_header(CONTENT_TYPE.as_str(), "text/event-stream")
                     .set_body_string(format!(
                         ": keep-alive\n\ndata: {}\n\n",
-                        serde_json::to_string(&StreamResponse::Task(
-                            ClientFixture::task(TaskState::Completed),
-                        ))
+                        serde_json::to_string(&StreamResponse::Task(ClientFixture::task(
+                            TaskState::Completed
+                        ),))
                         .expect("stream response should serialize"),
                     )),
             )

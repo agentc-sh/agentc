@@ -3,10 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 use serde::Serialize;
-use std::collections::{
-    HashMap,
-    HashSet,
-};
+use std::collections::{HashMap, HashSet};
 
 use crate::generator::{blocks::traits::Block, errors::GeneratorError};
 

@@ -18,10 +18,10 @@ use agentc_http::{
 };
 
 use crate::{
-    api::state::ReActApiState,
     api::dto::v1::message::{
         CreateMessageRequestDTO, FindMessageEndpointParams, MessageResponseDTO,
     },
+    api::state::ReActApiState,
     service::operations::{message::MessageOperations, session::SessionOperations},
 };
 
@@ -63,7 +63,10 @@ async fn find_messages_endpoint(
     }
 
     let tenant_id = tenant_id.map_or(
-        state.default_tenant_id.clone().into_inner(),
+        state
+            .default_tenant_id
+            .clone()
+            .into_inner(),
         TenantIdHeader::into_inner,
     );
 
@@ -118,7 +121,10 @@ async fn create_message_endpoint(
     }
 
     let tenant_id = tenant_id.map_or(
-        state.default_tenant_id.clone().into_inner(),
+        state
+            .default_tenant_id
+            .clone()
+            .into_inner(),
         TenantIdHeader::into_inner,
     );
 
@@ -168,10 +174,7 @@ async fn get_message_endpoint(
     match state
         .service
         .get_message(
-            &tenant_id.map_or(
-                state.default_tenant_id.into_inner(),
-                TenantIdHeader::into_inner,
-            ),
+            &tenant_id.map_or(state.default_tenant_id.into_inner(), TenantIdHeader::into_inner),
             message_id,
         )
         .await
@@ -209,10 +212,7 @@ async fn delete_message_endpoint(
     match state
         .service
         .delete_messages(
-            &tenant_id.map_or(
-                state.default_tenant_id.into_inner(),
-                TenantIdHeader::into_inner,
-            ),
+            &tenant_id.map_or(state.default_tenant_id.into_inner(), TenantIdHeader::into_inner),
             &[message_id],
         )
         .await

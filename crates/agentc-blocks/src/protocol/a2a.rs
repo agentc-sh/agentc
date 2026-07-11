@@ -14,21 +14,14 @@ use agentc_compiler::generator::{
     },
     context::GenerationContext,
     errors::GeneratorError,
-    extension::{
-        Contribution,
-        ErasedContributionValue,
-        ExtensionRegistry,
-    },
+    extension::{Contribution, ErasedContributionValue, ExtensionRegistry},
 };
 
 use crate::{
-    archetype::standalone::codegen::cargo::{
-        CargoDependencyContribution,
-        CargoPatchContribution,
-    },
+    archetype::standalone::codegen::cargo::{CargoDependencyContribution, CargoPatchContribution},
     composition::GenerationContribution,
-    contributions::dependency::RuntimeDependencyContribution,
     context::{ResolvedContext, ResolvedContextHttpServerProtocolA2a},
+    contributions::dependency::RuntimeDependencyContribution,
     errors::BlocksError,
     feature::{GenerationFeatureSet, HttpServer, ProtocolA2a, Streaming},
     protocol::{traits::Protocol, types::ResolvedProtocol},
@@ -188,9 +181,24 @@ mod tests {
             .unwrap();
 
         assert_eq!(resolved.name, "a2a");
-        assert!(resolved.contribution.provides.contains::<ProtocolA2a>());
-        assert!(resolved.contribution.requires.contains::<HttpServer>());
-        assert!(resolved.contribution.requires.contains::<Streaming>());
+        assert!(
+            resolved
+                .contribution
+                .provides
+                .contains::<ProtocolA2a>()
+        );
+        assert!(
+            resolved
+                .contribution
+                .requires
+                .contains::<HttpServer>()
+        );
+        assert!(
+            resolved
+                .contribution
+                .requires
+                .contains::<Streaming>()
+        );
     }
 
     #[test]

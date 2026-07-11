@@ -352,28 +352,31 @@ impl Manifest {
         if let Some(huggingface) = &self.providers.huggingface {
             providers.push(ResolvedContextProvider::HuggingFace(
                 ResolvedContextProviderHuggingFace {
-                    models: huggingface.models.as_ref().map(|models| {
-                        models
-                            .iter()
-                            .map(|m| match m {
-                                ManifestProviderHuggingFaceModel::Name(name) => {
-                                    ResolvedContextProviderHuggingFaceModel {
-                                        name: name.clone(),
-                                        params: None,
+                    models: huggingface
+                        .models
+                        .as_ref()
+                        .map(|models| {
+                            models
+                                .iter()
+                                .map(|m| match m {
+                                    ManifestProviderHuggingFaceModel::Name(name) => {
+                                        ResolvedContextProviderHuggingFaceModel {
+                                            name: name.clone(),
+                                            params: None,
+                                        }
                                     }
-                                }
-                                ManifestProviderHuggingFaceModel::Config(c) => {
-                                    ResolvedContextProviderHuggingFaceModel {
-                                        name: c.name.clone(),
-                                        params: c
-                                            .params
-                                            .clone()
-                                            .map(Self::resolve_provider_params),
+                                    ManifestProviderHuggingFaceModel::Config(c) => {
+                                        ResolvedContextProviderHuggingFaceModel {
+                                            name: c.name.clone(),
+                                            params: c
+                                                .params
+                                                .clone()
+                                                .map(Self::resolve_provider_params),
+                                        }
                                     }
-                                }
-                            })
-                            .collect()
-                    }),
+                                })
+                                .collect()
+                        }),
                     config: huggingface.config.as_ref().map(|c| {
                         ResolvedContextProviderHuggingFaceConfig {
                             api_key: c.api_key.clone(),
@@ -798,9 +801,7 @@ impl Manifest {
                             }),
                             p.a2a.as_ref().map(|a2a| {
                                 ResolvedContextHttpServerProtocol::A2a(
-                                    ResolvedContextHttpServerProtocolA2a {
-                                        path: a2a.path.clone(),
-                                    },
+                                    ResolvedContextHttpServerProtocolA2a { path: a2a.path.clone() },
                                 )
                             }),
                         ]
@@ -860,8 +861,8 @@ mod tests {
     use async_trait::async_trait;
 
     use super::*;
-    use agentc_compiler::generator::errors::GeneratorError;
     use crate::parser::SpecFormat;
+    use agentc_compiler::generator::errors::GeneratorError;
 
     struct EmptyLoader;
 
@@ -1009,6 +1010,10 @@ mod tests {
 
     #[test]
     fn a2a_tool_collects_no_assets() {
-        assert!(A2aManifestFixture::manifest().collect_assets().is_empty());
+        assert!(
+            A2aManifestFixture::manifest()
+                .collect_assets()
+                .is_empty()
+        );
     }
 }

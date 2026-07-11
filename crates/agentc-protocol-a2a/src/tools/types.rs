@@ -2,41 +2,20 @@
 //
 // SPDX-License-Identifier: MIT
 
+use json_patch::{AddOperation, PatchOperation};
 use schemars::JsonSchema;
 use serde::Deserialize;
-use serde_json::{
-    Value,
-    json,
-    to_value,
-};
-use json_patch::{
-    AddOperation,
-    PatchOperation,
-};
+use serde_json::{Value, json, to_value};
 
-use agentc_agent::{
-    tools::{
-        activity::ActivityDelta,
-        errors::ToolError,
-        types::ToolExecutionContext,
-    },
+use agentc_agent::tools::{
+    activity::ActivityDelta, errors::ToolError, types::ToolExecutionContext,
 };
 
 use crate::{
     protocol::{
-        CancelTaskRequest,
-        GetTaskRequest,
-        Message,
-        Part,
-        Role,
-        SendMessageConfiguration,
-        SendMessageRequest,
-        TaskId,
-        Task,
+        CancelTaskRequest, GetTaskRequest, Message, Part, Role, SendMessageConfiguration,
+        SendMessageRequest, StreamResponse, Task, TaskArtifactUpdateEvent, TaskId, TaskState,
         TaskStatusUpdateEvent,
-        TaskArtifactUpdateEvent,
-        TaskState,
-        StreamResponse,
     },
     tools::target::A2aToolTarget,
 };
@@ -84,18 +63,13 @@ impl A2aStreamActivity {
             StreamResponse::Task(task) => Self::append_task(&mut patch, task)?,
             StreamResponse::Message(message) => Self::append_message(&mut patch, message)?,
             StreamResponse::StatusUpdate(update) => Self::append_status(&mut patch, update)?,
-            StreamResponse::ArtifactUpdate(update) => {
-                Self::append_artifact(&mut patch, update)?
-            },
+            StreamResponse::ArtifactUpdate(update) => Self::append_artifact(&mut patch, update)?,
         }
 
         Ok(patch)
     }
 
-    fn append_task(
-        patch: &mut Vec<PatchOperation>,
-        task: &Task,
-    ) -> Result<(), ToolError> {
+    fn append_task(patch: &mut Vec<PatchOperation>, task: &Task) -> Result<(), ToolError> {
         patch.push(Self::add("/task_id", json!(task.id.to_string()))?);
         patch.push(Self::add("/context_id", json!(&task.context_id))?);
         patch.push(Self::add("/state", Self::state(&task.status.state)?)?);
@@ -111,10 +85,7 @@ impl A2aStreamActivity {
         Ok(())
     }
 
-    fn append_message(
-        patch: &mut Vec<PatchOperation>,
-        message: &Message,
-    ) -> Result<(), ToolError> {
+    fn append_message(patch: &mut Vec<PatchOperation>, message: &Message) -> Result<(), ToolError> {
         if let Some(task_id) = &message.task_id {
             patch.push(Self::add("/task_id", json!(task_id.to_string()))?);
         }
@@ -162,12 +133,7 @@ impl A2aStreamActivity {
         Ok(PatchOperation::Add(AddOperation {
             path: path
                 .try_into()
-                .map_err(|_| {
-                    ToolError::execution_error(
-                        "a2a_stream",
-                        "invalid activity path",
-                    )
-                })?,
+                .map_err(|_| ToolError::execution_error("a2a_stream", "invalid activity path"))?,
             value,
         }))
     }
@@ -187,13 +153,12 @@ impl A2aSendTaskToolInputMessage {
             ));
         }
 
-        Ok(
-            self.text
-                .map(Part::text)
-                .into_iter()
-                .chain(self.data.map(Part::data))
-                .collect(),
-        )
+        Ok(self
+            .text
+            .map(Part::text)
+            .into_iter()
+            .chain(self.data.map(Part::data))
+            .collect())
     }
 }
 
@@ -222,7 +187,11 @@ impl A2aSendTaskToolInput {
             accepted_output_modes,
             history_length,
         } = self;
-        let accepted_output_modes = accepted_output_modes.or_else(|| target.default_accepted_output_modes.clone());
+        let accepted_output_modes = accepted_output_modes.or_else(|| {
+            target
+                .default_accepted_output_modes
+                .clone()
+        });
 
         Ok(SendMessageRequest {
             message: Message {
@@ -230,11 +199,9 @@ impl A2aSendTaskToolInput {
                 task_id: task_id.map(TaskId::new),
                 ..Message::new(Role::User, message.into_parts()?)
             },
-            configuration: (
-                accepted_output_modes.is_some()
-                    || history_length.is_some()
-                    || return_immediately.is_some()
-            )
+            configuration: (accepted_output_modes.is_some()
+                || history_length.is_some()
+                || return_immediately.is_some())
             .then_some(SendMessageConfiguration {
                 accepted_output_modes,
                 task_push_notification_config: None,
@@ -244,10 +211,8 @@ impl A2aSendTaskToolInput {
             metadata: match metadata {
                 Some(Value::Object(map)) => Some(map.into_iter().collect()),
                 Some(_) => {
-                    return Err(ToolError::invalid_args(
-                        "A2A metadata must be a JSON object",
-                    ))
-                },
+                    return Err(ToolError::invalid_args("A2A metadata must be a JSON object"));
+                }
                 None => None,
             },
             tenant: target.tenant_policy.resolve(context),
@@ -292,10 +257,8 @@ impl A2aCancelTaskToolInput {
             metadata: match self.metadata {
                 Some(Value::Object(map)) => Some(map.into_iter().collect()),
                 Some(_) => {
-                    return Err(ToolError::invalid_args(
-                        "A2A metadata must be a JSON object",
-                    ))
-                },
+                    return Err(ToolError::invalid_args("A2A metadata must be a JSON object"));
+                }
                 None => None,
             },
             tenant: target.tenant_policy.resolve(context),
@@ -307,10 +270,7 @@ impl A2aCancelTaskToolInput {
 mod tests {
     use super::*;
 
-    use agentc_agent::tools::{
-        activity::ActivityDelta,
-        types::ToolExecutionContext,
-    };
+    use agentc_agent::tools::{activity::ActivityDelta, types::ToolExecutionContext};
     use json_patch::PatchOperation;
     use serde_json::json;
     use uuid::Uuid;
@@ -318,13 +278,7 @@ mod tests {
     use crate::{
         client::A2aClientConfig,
         protocol::{
-            PartContent,
-            StreamResponse,
-            Task,
-            TaskId,
-            TaskState,
-            TaskStatusUpdateEvent,
-            TaskStatus,
+            PartContent, StreamResponse, Task, TaskId, TaskState, TaskStatus, TaskStatusUpdateEvent,
         },
         tools::target::A2aTenantPolicy,
     };
@@ -344,10 +298,8 @@ mod tests {
             A2aToolTarget::builder()
                 .id("planner")
                 .client(
-                    crate::client::A2aClient::new(A2aClientConfig::new(
-                        "http://localhost:8080",
-                    ))
-                    .expect("client config should be valid"),
+                    crate::client::A2aClient::new(A2aClientConfig::new("http://localhost:8080"))
+                        .expect("client config should be valid"),
                 )
                 .default_accepted_output_modes(["text/plain"])
                 .build()
@@ -358,10 +310,8 @@ mod tests {
             A2aToolTarget::builder()
                 .id("planner")
                 .client(
-                    crate::client::A2aClient::new(A2aClientConfig::new(
-                        "http://localhost:8080",
-                    ))
-                    .expect("client config should be valid"),
+                    crate::client::A2aClient::new(A2aClientConfig::new("http://localhost:8080"))
+                        .expect("client config should be valid"),
                 )
                 .tenant_policy(A2aTenantPolicy::Fixed("downstream".to_string()))
                 .build()
@@ -384,17 +334,14 @@ mod tests {
             }
         }
 
-        fn add_value<'a>(
-            delta: &'a ActivityDelta,
-            path: &str,
-        ) -> Option<&'a Value> {
+        fn add_value<'a>(delta: &'a ActivityDelta, path: &str) -> Option<&'a Value> {
             delta
                 .patch
                 .iter()
                 .find_map(|operation| match operation {
                     PatchOperation::Add(operation) if operation.path.to_string() == path => {
                         Some(&operation.value)
-                    },
+                    }
                     _ => None,
                 })
         }
@@ -403,11 +350,7 @@ mod tests {
     #[test]
     fn send_input_builds_user_request_with_target_defaults_and_inherited_tenant() {
         let request = ToolTypesFixture::send_input()
-            .into_request(
-                &ToolTypesFixture::target(),
-                &ToolTypesFixture::context(),
-                Some(true),
-            )
+            .into_request(&ToolTypesFixture::target(), &ToolTypesFixture::context(), Some(true))
             .expect("request should build");
 
         assert_eq!(request.message.context_id.as_deref(), Some("context-1"));
@@ -447,7 +390,7 @@ mod tests {
         match request.message.parts.as_slice() {
             [Part { content: PartContent::Text(text), .. }] => {
                 assert_eq!(text, "plan this");
-            },
+            }
             _ => panic!("expected one text part"),
         }
     }
@@ -459,10 +402,7 @@ mod tests {
                 task_id: "task-1".to_string(),
                 history_length: Some(2),
             }
-            .into_request(
-                &ToolTypesFixture::fixed_tenant_target(),
-                &ToolTypesFixture::context(),
-            )
+            .into_request(&ToolTypesFixture::fixed_tenant_target(), &ToolTypesFixture::context(),)
             .tenant
             .as_deref(),
             Some("downstream")
@@ -476,10 +416,7 @@ mod tests {
                 task_id: "task-1".to_string(),
                 metadata: Some(json!("invalid")),
             }
-            .into_request(
-                &ToolTypesFixture::target(),
-                &ToolTypesFixture::context(),
-            )
+            .into_request(&ToolTypesFixture::target(), &ToolTypesFixture::context(),)
             .is_err()
         );
     }
@@ -502,18 +439,9 @@ mod tests {
         .expect("delta should build");
 
         assert_eq!(delta.activity_type, "a2a_task_status");
-        assert_eq!(
-            ToolTypesFixture::add_value(&delta, "/target_id"),
-            Some(&json!("planner"))
-        );
-        assert_eq!(
-            ToolTypesFixture::add_value(&delta, "/task_id"),
-            Some(&json!("task-1"))
-        );
-        assert_eq!(
-            ToolTypesFixture::add_value(&delta, "/context_id"),
-            Some(&json!("context-1"))
-        );
+        assert_eq!(ToolTypesFixture::add_value(&delta, "/target_id"), Some(&json!("planner")));
+        assert_eq!(ToolTypesFixture::add_value(&delta, "/task_id"), Some(&json!("task-1")));
+        assert_eq!(ToolTypesFixture::add_value(&delta, "/context_id"), Some(&json!("context-1")));
         assert_eq!(
             ToolTypesFixture::add_value(&delta, "/state"),
             Some(&json!("TASK_STATE_WORKING"))

@@ -38,10 +38,7 @@ impl A2aClientError {
     }
 
     pub fn response(status: impl Into<reqwest::StatusCode>, body: impl Into<String>) -> Self {
-        A2aClientError::Response {
-            status: status.into(),
-            body: body.into(),
-        }
+        A2aClientError::Response { status: status.into(), body: body.into() }
     }
 
     pub fn decode(error: impl Into<reqwest::Error>) -> Self {

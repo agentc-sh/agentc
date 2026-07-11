@@ -3,17 +3,9 @@
 // SPDX-License-Identifier: MIT
 
 use serde::{
-    de::Error as DeError,
-    ser::SerializeMap,
-    Deserialize,
-    Deserializer,
-    Serialize,
-    Serializer,
+    Deserialize, Deserializer, Serialize, Serializer, de::Error as DeError, ser::SerializeMap,
 };
-use serde_json::{
-    from_value,
-    Value,
-};
+use serde_json::{Value, from_value};
 use std::collections::HashMap;
 use utoipa::ToSchema;
 
@@ -21,10 +13,7 @@ use crate::protocol::{
     artifact::Artifact,
     ids::TaskId,
     message::Message,
-    task::{
-        Task,
-        TaskStatus,
-    },
+    task::{Task, TaskStatus},
 };
 
 #[derive(Debug, Clone, PartialEq, ToSchema)]
@@ -55,21 +44,15 @@ impl<'de> Deserialize<'de> for StreamResponse {
         let raw = HashMap::<String, Value>::deserialize(deserializer)?;
 
         if let Some(task) = raw.get("task") {
-            return Ok(Self::Task(
-                from_value(task.clone()).map_err(DeError::custom)?,
-            ));
+            return Ok(Self::Task(from_value(task.clone()).map_err(DeError::custom)?));
         }
 
         if let Some(message) = raw.get("message") {
-            return Ok(Self::Message(
-                from_value(message.clone()).map_err(DeError::custom)?,
-            ));
+            return Ok(Self::Message(from_value(message.clone()).map_err(DeError::custom)?));
         }
 
         if let Some(status) = raw.get("statusUpdate") {
-            return Ok(Self::StatusUpdate(
-                from_value(status.clone()).map_err(DeError::custom)?,
-            ));
+            return Ok(Self::StatusUpdate(from_value(status.clone()).map_err(DeError::custom)?));
         }
 
         if let Some(artifact) = raw.get("artifactUpdate") {

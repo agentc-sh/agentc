@@ -2,26 +2,13 @@
 //
 // SPDX-License-Identifier: MIT
 
-use chrono::{
-    DateTime,
-    Utc,
-};
-use serde::{
-    de::Error as DeError,
-    Deserialize,
-    Deserializer,
-    Serialize,
-    Serializer,
-};
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error as DeError};
 use serde_json::Value;
 use std::collections::HashMap;
 use utoipa::ToSchema;
 
-use crate::protocol::{
-    artifact::Artifact,
-    ids::TaskId,
-    message::Message,
-};
+use crate::protocol::{artifact::Artifact, ids::TaskId, message::Message};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default, ToSchema)]
 pub enum TaskState {
@@ -39,10 +26,7 @@ pub enum TaskState {
 
 impl TaskState {
     pub fn is_terminal(&self) -> bool {
-        matches!(
-            self,
-            Self::Completed | Self::Failed | Self::Canceled | Self::Rejected
-        )
+        matches!(self, Self::Completed | Self::Failed | Self::Canceled | Self::Rejected)
     }
 }
 

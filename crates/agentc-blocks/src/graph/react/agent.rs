@@ -15,8 +15,8 @@ use crate::{
     context::ResolvedContext,
     fields::FieldsSpec,
     graph::codegen::{
-        a2a::A2aCodeGen, identity::IdentityCodeGen, mcp::McpCodeGen,
-        models::ModelRegistryCodeGen, skills::SkillsCodeGen, tools::ToolsCodeGen,
+        a2a::A2aCodeGen, identity::IdentityCodeGen, mcp::McpCodeGen, models::ModelRegistryCodeGen,
+        skills::SkillsCodeGen, tools::ToolsCodeGen,
     },
 };
 
@@ -258,10 +258,7 @@ mod tests {
             AgentCodeGen {
                 fields: FieldsSpec::collect_from(&Self::context()),
             }
-            .generate_files(
-                &GenerationContext::new(Self::context()),
-                &ExtensionRegistry::empty(),
-            )
+            .generate_files(&GenerationContext::new(Self::context()), &ExtensionRegistry::empty())
             .unwrap()
             .into_iter()
             .find(|(path, _)| path == &PathBuf::from("src/agent.rs"))

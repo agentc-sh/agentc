@@ -574,16 +574,14 @@ mod tests {
             .unwrap(),
         );
 
-        let rendered = ConfigCodeGen {
-            fields: FieldsSpec::new(vec![]),
-        }
-        .generate_files(&context, &ExtensionRegistry::empty())
-        .unwrap()
-        .into_iter()
-        .find(|(path, _)| path == &PathBuf::from("src/config.rs"))
-        .expect("config file should be generated")
-        .1
-        .to_string();
+        let rendered = ConfigCodeGen { fields: FieldsSpec::new(vec![]) }
+            .generate_files(&context, &ExtensionRegistry::empty())
+            .unwrap()
+            .into_iter()
+            .find(|(path, _)| path == &PathBuf::from("src/config.rs"))
+            .expect("config file should be generated")
+            .1
+            .to_string();
 
         assert!(rendered.contains("struct A2aConfig"));
         assert!(rendered.contains("struct A2aAgentConfig"));

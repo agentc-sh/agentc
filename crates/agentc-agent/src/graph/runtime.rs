@@ -336,8 +336,7 @@ where
     where
         C: Canceller + 'static,
     {
-        self.graph
-            .set_canceller(canceller);
+        self.graph.set_canceller(canceller);
         self
     }
 
@@ -1161,9 +1160,7 @@ mod tests {
             _tenant_id: &str,
             _run_id: Uuid,
         ) -> Result<bool, CancellationError> {
-            Ok(self
-                .cancelled
-                .load(Ordering::SeqCst))
+            Ok(self.cancelled.load(Ordering::SeqCst))
         }
     }
 

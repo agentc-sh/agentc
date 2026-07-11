@@ -4,34 +4,21 @@
 
 use async_trait::async_trait;
 use futures::TryStreamExt;
-use serde_json::{
-    Value,
-    to_value,
-};
+use serde_json::{Value, to_value};
 
 use agentc_agent::{
     graph::state::GraphState,
     tools::{
         errors::ToolError,
         traits::TypedTool,
-        types::{
-            TypedToolInput,
-            TypedToolOutput,
-        },
+        types::{TypedToolInput, TypedToolOutput},
     },
     types::capability::CapabilitySet,
 };
 
-use crate::{
-    tools::{
-        target::A2aToolTarget,
-        types::{
-            A2aStreamActivity,
-            A2aCancelTaskToolInput,
-            A2aGetTaskToolInput,
-            A2aSendTaskToolInput,
-        },
-    },
+use crate::tools::{
+    target::A2aToolTarget,
+    types::{A2aCancelTaskToolInput, A2aGetTaskToolInput, A2aSendTaskToolInput, A2aStreamActivity},
 };
 
 #[derive(Debug, Clone)]
@@ -83,13 +70,16 @@ where
         Ok(TypedToolOutput::ok(to_value(
             self.target
                 .client
-                .send_message(input.args.into_request(
-                    &self.target,
-                    &input.context,
-                    Some(true),
-                )?)
+                .send_message(
+                    input
+                        .args
+                        .into_request(&self.target, &input.context, Some(true))?,
+                )
                 .await
-                .map_err(|err| self.target.operation_error("send", err.to_string()))?,
+                .map_err(|err| {
+                    self.target
+                        .operation_error("send", err.to_string())
+                })?,
         )?))
     }
 }
@@ -141,20 +131,24 @@ where
         input: TypedToolInput<Self::Input, Self::State>,
     ) -> Result<TypedToolOutput<Self::Output, Self::StateUpdate>, ToolError> {
         let mut events = Vec::new();
-        let mut stream = self.target.client
-            .stream_message(input.args.into_request(
-                &self.target,
-                &input.context,
-                None,
-            )?)
+        let mut stream = self
+            .target
+            .client
+            .stream_message(
+                input
+                    .args
+                    .into_request(&self.target, &input.context, None)?,
+            )
             .await
-            .map_err(|err| self.target.operation_error("stream", err.to_string()))?;
+            .map_err(|err| {
+                self.target
+                    .operation_error("stream", err.to_string())
+            })?;
 
-        while let Some(response) = stream
-            .try_next()
-            .await
-            .map_err(|err| self.target.operation_error("stream", err.to_string()))?
-        {
+        while let Some(response) = stream.try_next().await.map_err(|err| {
+            self.target
+                .operation_error("stream", err.to_string())
+        })? {
             if let Some(emitter) = &input.emitter {
                 emitter
                     .emit(A2aStreamActivity::delta(&self.target, &response)?)
@@ -223,9 +217,16 @@ where
         Ok(TypedToolOutput::ok(to_value(
             self.target
                 .client
-                .get_task(input.args.into_request(&self.target, &input.context))
+                .get_task(
+                    input
+                        .args
+                        .into_request(&self.target, &input.context),
+                )
                 .await
-                .map_err(|err| self.target.operation_error("get_task", err.to_string()))?,
+                .map_err(|err| {
+                    self.target
+                        .operation_error("get_task", err.to_string())
+                })?,
         )?))
     }
 }
@@ -279,7 +280,11 @@ where
         Ok(TypedToolOutput::ok(to_value(
             self.target
                 .client
-                .cancel_task(input.args.into_request(&self.target, &input.context)?)
+                .cancel_task(
+                    input
+                        .args
+                        .into_request(&self.target, &input.context)?,
+                )
                 .await
                 .map_err(|err| {
                     self.target
@@ -294,54 +299,27 @@ mod tests {
     use super::*;
 
     use agentc_agent::{
-        graph::state::{
-            GraphState,
-            GraphStateInput,
-            GraphStateUpdate,
-        },
+        graph::state::{GraphState, GraphStateInput, GraphStateUpdate},
         tools::{
             activity::ActivityEmitter,
             traits::TypedTool,
-            types::{
-                ToolExecutionContext,
-                TypedToolInput,
-            },
+            types::{ToolExecutionContext, TypedToolInput},
         },
     };
-    use serde::{
-        Deserialize,
-        Serialize,
-    };
+    use serde::{Deserialize, Serialize};
     use tokio::sync::mpsc;
     use uuid::Uuid;
     use wiremock::{
-        Mock,
-        MockServer,
-        ResponseTemplate,
-        matchers::{
-            method,
-            path,
-        },
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
     };
 
     use crate::{
-        client::{
-            A2aClient,
-            A2aClientConfig,
-        },
-        protocol::{
-            StreamResponse,
-            Task,
-            TaskId,
-            TaskState,
-            TaskStatus,
-        },
+        client::{A2aClient, A2aClientConfig},
+        protocol::{StreamResponse, Task, TaskId, TaskState, TaskStatus},
         tools::{
             target::A2aToolTarget,
-            types::{
-                A2aSendTaskToolInput,
-                A2aSendTaskToolInputMessage,
-            },
+            types::{A2aSendTaskToolInput, A2aSendTaskToolInputMessage},
         },
     };
 
@@ -439,15 +417,13 @@ mod tests {
 
         Mock::given(method("POST"))
             .and(path("/message:stream"))
-            .respond_with(
-                ResponseTemplate::new(200).set_body_string(format!(
+            .respond_with(ResponseTemplate::new(200).set_body_string(format!(
                     "data: {}\n\n",
                     serde_json::to_string(&StreamResponse::Task(
                         ToolFixture::completed_task(),
                     ))
                     .expect("stream response should serialize"),
-                )),
-            )
+                )))
             .mount(&server)
             .await;
 
@@ -462,13 +438,7 @@ mod tests {
         .await
         .expect("tool should execute");
 
-        assert_eq!(
-            output
-                .output
-                .as_array()
-                .map(Vec::len),
-            Some(1)
-        );
+        assert_eq!(output.output.as_array().map(Vec::len), Some(1));
         assert_eq!(
             rx.recv()
                 .await

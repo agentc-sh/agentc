@@ -3,24 +3,13 @@
 // SPDX-License-Identifier: MIT
 
 use agentc_agent::{
-    tools::{
-        errors::ToolError,
-        types::ToolExecutionContext,
-    },
-    types::capability::{
-        Capability,
-        CapabilitySet,
-    },
+    tools::{errors::ToolError, types::ToolExecutionContext},
+    types::capability::{Capability, CapabilitySet},
 };
 
 use crate::{
     client::A2aClient,
-    tools::tool::{
-        A2aCancelTaskTool,
-        A2aGetTaskTool,
-        A2aSendTaskTool,
-        A2aStreamTaskTool,
-    },
+    tools::tool::{A2aCancelTaskTool, A2aGetTaskTool, A2aSendTaskTool, A2aStreamTaskTool},
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -87,18 +76,10 @@ impl A2aToolTarget {
         format!("a2a_{}_{}", self.id, operation)
     }
 
-    pub(crate) fn operation_error(
-        &self,
-        operation: &str,
-        message: impl Into<String>,
-    ) -> ToolError {
+    pub(crate) fn operation_error(&self, operation: &str, message: impl Into<String>) -> ToolError {
         ToolError::execution_error(
             self.tool_name(operation),
-            format!(
-                "A2A {operation} failed for target '{}': {}",
-                self.id,
-                message.into(),
-            ),
+            format!("A2A {operation} failed for target '{}': {}", self.id, message.into(),),
         )
     }
 }
@@ -199,19 +180,13 @@ impl A2aToolTargetBuilder {
         if id.is_empty()
             || !id
                 .chars()
-                .all(|value| {
-                    value.is_ascii_lowercase()
-                        || value.is_ascii_digit()
-                        || value == '_'
-                })
+                .all(|value| value.is_ascii_lowercase() || value.is_ascii_digit() || value == '_')
         {
             return Err(A2aToolConfigError::InvalidTargetId(id));
         }
 
         Ok(A2aToolTarget {
-            name: self
-                .name
-                .unwrap_or_else(|| id.clone()),
+            name: self.name.unwrap_or_else(|| id.clone()),
             client: self
                 .client
                 .ok_or_else(|| A2aToolConfigError::MissingClient(id.clone()))?,

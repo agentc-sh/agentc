@@ -5,9 +5,7 @@
 use async_trait::async_trait;
 use futures::StreamExt;
 use rig_core::{
-    client::CompletionClient,
-    completion::CompletionModel as RigCompletionModel,
-    message::Message,
+    client::CompletionClient, completion::CompletionModel as RigCompletionModel, message::Message,
     providers::huggingface,
 };
 use serde_json::json;
@@ -63,7 +61,8 @@ impl CompletionModel for HuggingFaceModel {
     async fn send(&self, request: CompletionRequest) -> Result<ChatCompletionStream, ModelError> {
         let request = request.with_defaults(&self.inference_params);
         let (system, latest, rest) = request.messages.split()?;
-        let mut builder = self.model
+        let mut builder = self
+            .model
             .completion_request(Message::try_from(latest)?);
 
         let mut additional = json!(

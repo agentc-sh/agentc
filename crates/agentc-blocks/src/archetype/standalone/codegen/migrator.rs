@@ -62,9 +62,7 @@ mod tests {
 
     use super::*;
     use agentc_compiler::generator::extension::{
-        ErasedContributionValue,
-        StringExtensionPoint,
-        reducers,
+        ErasedContributionValue, StringExtensionPoint, reducers,
     };
     use serde_json::json;
 
@@ -116,7 +114,9 @@ mod tests {
                     ))],
                     HashMap::from([(
                         "migrator::migrations".to_string(),
-                        vec![ErasedContributionValue::new("fake_migrations(),".to_string())],
+                        vec![ErasedContributionValue::new(
+                            "fake_migrations(),".to_string(),
+                        )],
                     )]),
                 )
                 .unwrap(),

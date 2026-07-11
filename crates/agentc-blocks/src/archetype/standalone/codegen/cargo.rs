@@ -2,25 +2,17 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::{
-    collections::BTreeMap,
-    path::PathBuf,
-};
+use std::{collections::BTreeMap, path::PathBuf};
 
 use agentc_compiler::generator::{
     blocks::template::TemplateFragment,
     context::GenerationContext,
     errors::GeneratorError,
-    extension::{
-        ErasedContributionValue,
-        ExtensionPoint,
-        ExtensionRegistry,
-    },
+    extension::{ErasedContributionValue, ExtensionPoint, ExtensionRegistry},
 };
 
 use crate::{
-    contributions::dependency::RuntimeDependencyContribution,
-    context::ResolvedContext,
+    context::ResolvedContext, contributions::dependency::RuntimeDependencyContribution,
     errors::BlocksError,
 };
 
@@ -120,10 +112,7 @@ pub struct CargoDependenciesExtensionPoint {
 
 impl CargoDependenciesExtensionPoint {
     pub fn new(name: &'static str, runtime_version: &'static str) -> Self {
-        Self {
-            name,
-            runtime_version,
-        }
+        Self { name, runtime_version }
     }
 
     fn render_runtime_dependency(&self, dependency: RuntimeDependencyContribution) -> String {
@@ -169,10 +158,7 @@ impl ExtensionPoint for CargoDependenciesExtensionPoint {
         self.name
     }
 
-    fn reduce(
-        &self,
-        contributions: Vec<Self::Contribution>,
-    ) -> Result<String, GeneratorError> {
+    fn reduce(&self, contributions: Vec<Self::Contribution>) -> Result<String, GeneratorError> {
         let mut raw = Vec::new();
         let mut runtime = BTreeMap::new();
 
@@ -186,16 +172,15 @@ impl ExtensionPoint for CargoDependenciesExtensionPoint {
             }
         }
 
-        Ok(
-            raw.into_iter()
-                .chain(
-                    runtime
-                        .into_values()
-                        .map(|dependency| self.render_runtime_dependency(dependency)),
-                )
-                .collect::<Vec<_>>()
-                .join("\n"),
-        )
+        Ok(raw
+            .into_iter()
+            .chain(
+                runtime
+                    .into_values()
+                    .map(|dependency| self.render_runtime_dependency(dependency)),
+            )
+            .collect::<Vec<_>>()
+            .join("\n"))
     }
 }
 
@@ -210,11 +195,7 @@ impl CargoPatchesExtensionPoint {
     }
 
     fn render_runtime_patch(&self, dependency: RuntimeDependencyContribution) -> String {
-        format!(
-            "{} = {{ path = \"../runtime/{}\" }}",
-            dependency.name,
-            dependency.name,
-        )
+        format!("{} = {{ path = \"../runtime/{}\" }}", dependency.name, dependency.name,)
     }
 
     fn merge_runtime_patch(
@@ -238,10 +219,7 @@ impl ExtensionPoint for CargoPatchesExtensionPoint {
         self.name
     }
 
-    fn reduce(
-        &self,
-        contributions: Vec<Self::Contribution>,
-    ) -> Result<String, GeneratorError> {
+    fn reduce(&self, contributions: Vec<Self::Contribution>) -> Result<String, GeneratorError> {
         let mut raw = Vec::new();
         let mut runtime = BTreeMap::new();
 
@@ -255,16 +233,15 @@ impl ExtensionPoint for CargoPatchesExtensionPoint {
             }
         }
 
-        Ok(
-            raw.into_iter()
-                .chain(
-                    runtime
-                        .into_values()
-                        .map(|dependency| self.render_runtime_patch(dependency)),
-                )
-                .collect::<Vec<_>>()
-                .join("\n"),
-        )
+        Ok(raw
+            .into_iter()
+            .chain(
+                runtime
+                    .into_values()
+                    .map(|dependency| self.render_runtime_patch(dependency)),
+            )
+            .collect::<Vec<_>>()
+            .join("\n"))
     }
 }
 

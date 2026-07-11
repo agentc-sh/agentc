@@ -25,11 +25,8 @@ use crate::{
         standalone::codegen::{
             build_script::BuildScriptCodeGen,
             cargo::{
-                A2aClientCargoFragment,
-                CargoDependenciesExtensionPoint,
-                CargoDependencyContribution,
-                CargoPatchContribution,
-                CargoPatchesExtensionPoint,
+                A2aClientCargoFragment, CargoDependenciesExtensionPoint,
+                CargoDependencyContribution, CargoPatchContribution, CargoPatchesExtensionPoint,
             },
             cli::{CliModCodeGen, config::CliConfigCodeGen, shutdown::CliShutdownCodeGen},
             config::ConfigCodeGen,
@@ -161,12 +158,10 @@ impl Archetype for StandaloneArchetype {
                                         template: "cargo_toml".to_string(),
                                         condition: None,
                                     }],
-                                    extension_points: vec![
-                                        ExtensionPointSpec {
-                                            name: "tools::features".to_string(),
-                                            reducer: Reducer::JoinComma,
-                                        },
-                                    ],
+                                    extension_points: vec![ExtensionPointSpec {
+                                        name: "tools::features".to_string(),
+                                        reducer: Reducer::JoinComma,
+                                    }],
                                     slot_fills: vec![],
                                     description: None,
                                 })
@@ -177,7 +172,10 @@ impl Archetype for StandaloneArchetype {
                                 .typed_extension_point(CargoPatchesExtensionPoint::new(
                                     "cargo::patches",
                                 ))
-                                .with_template("cargo_toml", include_str!("templates/Cargo.toml.j2"))
+                                .with_template(
+                                    "cargo_toml",
+                                    include_str!("templates/Cargo.toml.j2"),
+                                )
                                 .with_var("runtime_version", env!("CARGO_PKG_VERSION"))
                                 .build(),
                         )
@@ -194,7 +192,10 @@ impl Archetype for StandaloneArchetype {
                                     slot_fills: vec![],
                                     description: None,
                                 })
-                                .with_template("rust-toolchain_toml", include_str!("templates/rust-toolchain.toml.j2"))
+                                .with_template(
+                                    "rust-toolchain_toml",
+                                    include_str!("templates/rust-toolchain.toml.j2"),
+                                )
                                 .build(),
                         )
                         .add(
@@ -315,14 +316,24 @@ mod tests {
                 .provides
                 .contains::<ArchetypeStandalone>()
         );
-        assert!(resolved.contribution.provides.contains::<Cli>());
+        assert!(
+            resolved
+                .contribution
+                .provides
+                .contains::<Cli>()
+        );
         assert!(
             resolved
                 .contribution
                 .provides
                 .contains::<LongLivedProcess>()
         );
-        assert!(!resolved.contribution.provides.contains::<HttpServer>());
+        assert!(
+            !resolved
+                .contribution
+                .provides
+                .contains::<HttpServer>()
+        );
     }
 
     #[test]
@@ -334,7 +345,12 @@ mod tests {
             )
             .unwrap();
 
-        assert!(resolved.contribution.provides.contains::<HttpServer>());
+        assert!(
+            resolved
+                .contribution
+                .provides
+                .contains::<HttpServer>()
+        );
     }
 
     #[tokio::test]
@@ -384,10 +400,7 @@ mod tests {
             .iter()
             .find(|block| block.id() == "a2a_client_cargo")
             .expect("a2a client cargo block is registered")
-            .render_contribution(
-                &GenerationContext::new(context(None)),
-                "cargo::dependencies",
-            )
+            .render_contribution(&GenerationContext::new(context(None)), "cargo::dependencies")
             .await
             .unwrap()
             .downcast::<CargoDependencyContribution>()
@@ -427,17 +440,21 @@ mod tests {
             HashMap::from([
                 (
                     "cargo::dependencies".to_string(),
-                    vec![ErasedContributionValue::new(CargoDependencyContribution::runtime(
-                        RuntimeDependencyContribution::new("agentc-protocol-a2a")
-                            .default_features(false)
-                            .feature("client"),
-                    ))],
+                    vec![ErasedContributionValue::new(
+                        CargoDependencyContribution::runtime(
+                            RuntimeDependencyContribution::new("agentc-protocol-a2a")
+                                .default_features(false)
+                                .feature("client"),
+                        ),
+                    )],
                 ),
                 (
                     "cargo::patches".to_string(),
-                    vec![ErasedContributionValue::new(CargoPatchContribution::runtime(
-                        RuntimeDependencyContribution::new("agentc-protocol-a2a"),
-                    ))],
+                    vec![ErasedContributionValue::new(
+                        CargoPatchContribution::runtime(RuntimeDependencyContribution::new(
+                            "agentc-protocol-a2a",
+                        )),
+                    )],
                 ),
             ]),
         )

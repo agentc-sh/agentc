@@ -2,12 +2,8 @@
 //
 // SPDX-License-Identifier: MIT
 
+use jobq::{AnyExecutable, FifoQueue, JobQueue};
 use std::sync::Arc;
-use jobq::{
-    AnyExecutable,
-    FifoQueue,
-    JobQueue,
-};
 use subway::Bus;
 
 use agentc_http::state::DefaultTenantId;

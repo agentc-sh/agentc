@@ -2,10 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::{
-    any::TypeId,
-    collections::HashMap,
-};
+use std::{any::TypeId, collections::HashMap};
 
 pub trait GenerationFeature: Send + Sync + 'static {
     const NAME: &'static str;
@@ -51,13 +48,19 @@ impl GenerationFeatureSet {
     where
         T: GenerationFeature,
     {
-        self.names.contains_key(&TypeId::of::<T>())
+        self.names
+            .contains_key(&TypeId::of::<T>())
     }
 
     pub fn union(&self, other: &Self) -> Self {
         let mut union = self.clone();
 
-        union.names.extend(other.names.iter().map(|(id, name)| (*id, *name)));
+        union.names.extend(
+            other
+                .names
+                .iter()
+                .map(|(id, name)| (*id, *name)),
+        );
         union
     }
 

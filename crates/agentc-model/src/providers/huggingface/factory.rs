@@ -5,9 +5,7 @@
 use crate::{
     errors::ModelError,
     providers::huggingface::{
-        client::HuggingFaceClient,
-        config::HuggingFaceConfig,
-        constants::PROVIDER,
+        client::HuggingFaceClient, config::HuggingFaceConfig, constants::PROVIDER,
     },
     traits::ClientFactory,
     types::identity::ProviderId,

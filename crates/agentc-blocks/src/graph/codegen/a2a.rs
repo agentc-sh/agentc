@@ -6,11 +6,7 @@ use proc_macro2::TokenStream;
 use quote::quote;
 
 use crate::{
-    context::{
-        ResolvedContext,
-        ResolvedContextToolA2aTenant,
-        ResolvedContextToolKind,
-    },
+    context::{ResolvedContext, ResolvedContextToolA2aTenant, ResolvedContextToolKind},
     types::RuntimeValue,
 };
 
@@ -33,11 +29,7 @@ impl A2aCodeGen {
             );
 
             for (key, value) in &a2a.headers {
-                Self::push_rv_loader(
-                    &["a2a", "agents", name, "headers", key],
-                    value,
-                    &mut calls,
-                );
+                Self::push_rv_loader(&["a2a", "agents", name, "headers", key], value, &mut calls);
             }
 
             Self::push_tenant_loader(name, &a2a.tenant, &mut calls);
@@ -81,11 +73,7 @@ impl A2aCodeGen {
                 )
             });
 
-            Self::push_rv_loader(
-                &["a2a", "agents", name, "enabled"],
-                &tool.enabled,
-                &mut calls,
-            );
+            Self::push_rv_loader(&["a2a", "agents", name, "enabled"], &tool.enabled, &mut calls);
         }
 
         quote! { #(#calls)* }
@@ -107,11 +95,7 @@ impl A2aCodeGen {
             );
 
             for (key, value) in &a2a.headers {
-                Self::push_rv_mapper(
-                    &["a2a", "agents", name, "headers", key],
-                    value,
-                    &mut fields,
-                );
+                Self::push_rv_mapper(&["a2a", "agents", name, "headers", key], value, &mut fields);
             }
 
             Self::push_tenant_mapper(name, &a2a.tenant, &mut fields);
@@ -120,11 +104,7 @@ impl A2aCodeGen {
                 a2a.timeout_secs.as_ref(),
                 &mut fields,
             );
-            Self::push_rv_mapper(
-                &["a2a", "agents", name, "enabled"],
-                &tool.enabled,
-                &mut fields,
-            );
+            Self::push_rv_mapper(&["a2a", "agents", name, "enabled"], &tool.enabled, &mut fields);
         }
 
         quote! { #(#fields)* }
@@ -160,11 +140,7 @@ impl A2aCodeGen {
                     )
                 });
 
-                Self::push_rv_loader(
-                    &["a2a", "agents", name, "tenant", "id"],
-                    id,
-                    calls,
-                );
+                Self::push_rv_loader(&["a2a", "agents", name, "tenant", "id"], id, calls);
             }
         }
     }
@@ -175,11 +151,7 @@ impl A2aCodeGen {
         fields: &mut Vec<TokenStream>,
     ) {
         if let ResolvedContextToolA2aTenant::Fixed { id } = tenant {
-            Self::push_rv_mapper(
-                &["a2a", "agents", name, "tenant", "id"],
-                id,
-                fields,
-            );
+            Self::push_rv_mapper(&["a2a", "agents", name, "tenant", "id"], id, fields);
         }
     }
 
@@ -187,8 +159,7 @@ impl A2aCodeGen {
         path: &[&str],
         rv: Option<&RuntimeValue<T>>,
         calls: &mut Vec<TokenStream>,
-    )
-    where
+    ) where
         T: serde::Serialize,
     {
         if let Some(rv) = rv {
@@ -196,11 +167,7 @@ impl A2aCodeGen {
         }
     }
 
-    fn push_rv_loader<T>(
-        path: &[&str],
-        rv: &RuntimeValue<T>,
-        calls: &mut Vec<TokenStream>,
-    )
+    fn push_rv_loader<T>(path: &[&str], rv: &RuntimeValue<T>, calls: &mut Vec<TokenStream>)
     where
         T: serde::Serialize,
     {
@@ -248,11 +215,7 @@ impl A2aCodeGen {
         }
     }
 
-    fn push_rv_mapper<T>(
-        path: &[&str],
-        rv: &RuntimeValue<T>,
-        fields: &mut Vec<TokenStream>,
-    ) {
+    fn push_rv_mapper<T>(path: &[&str], rv: &RuntimeValue<T>, fields: &mut Vec<TokenStream>) {
         let path_segments = path.to_vec();
 
         if let RuntimeValue::Runtime { env, .. } = rv {
@@ -269,11 +232,8 @@ mod tests {
 
     use super::*;
     use crate::context::{
-        ResolvedContextAgent,
-        ResolvedContextAgentModel,
-        ResolvedContextRuntime,
-        ResolvedContextTool,
-        ResolvedContextToolA2a,
+        ResolvedContextAgent, ResolvedContextAgentModel, ResolvedContextRuntime,
+        ResolvedContextTool, ResolvedContextToolA2a,
     };
 
     struct A2aCodeGenFixture;
@@ -354,37 +314,32 @@ mod tests {
 
     #[test]
     fn loader_calls_lift_a2a_tool_into_a2a_agents_config() {
-        let rendered = A2aCodeGenFixture::compact(
-            A2aCodeGen::loader_calls(&A2aCodeGenFixture::context()),
-        );
+        let rendered =
+            A2aCodeGenFixture::compact(A2aCodeGen::loader_calls(&A2aCodeGenFixture::context()));
 
         assert!(rendered.contains("path ! [\"a2a\" , \"agents\" , \"planner\" , \"url\"]"));
+        assert!(rendered.contains("serde_json :: json ! (\"https://planner.example.com\")"));
         assert!(
-            rendered.contains("serde_json :: json ! (\"https://planner.example.com\")")
+            rendered
+                .contains("path ! [\"a2a\" , \"agents\" , \"planner\" , \"tenant\" , \"policy\"]")
         );
-        assert!(rendered.contains(
-            "path ! [\"a2a\" , \"agents\" , \"planner\" , \"tenant\" , \"policy\"]"
-        ));
         assert!(rendered.contains("serde_json :: json ! (\"fixed\")"));
-        assert!(rendered.contains(
-            "path ! [\"a2a\" , \"agents\" , \"planner\" , \"tenant\" , \"id\"]"
-        ));
-        assert!(rendered.contains("serde_json :: json ! (\"tenant-1\")"));
         assert!(
-            rendered.contains("path ! [\"a2a\" , \"agents\" , \"planner\" , \"enabled\"]")
+            rendered.contains("path ! [\"a2a\" , \"agents\" , \"planner\" , \"tenant\" , \"id\"]")
         );
+        assert!(rendered.contains("serde_json :: json ! (\"tenant-1\")"));
+        assert!(rendered.contains("path ! [\"a2a\" , \"agents\" , \"planner\" , \"enabled\"]"));
         assert!(rendered.contains("serde_json :: json ! (true)"));
-        assert!(rendered.contains(
-            "path ! [\"a2a\" , \"agents\" , \"planner\" , \"capabilities\"]"
-        ));
+        assert!(
+            rendered.contains("path ! [\"a2a\" , \"agents\" , \"planner\" , \"capabilities\"]")
+        );
         assert!(rendered.contains("serde_json :: json ! ([\"a2a:planner\"])"));
     }
 
     #[test]
     fn mapper_fields_lift_runtime_a2a_values_into_a2a_agents_config() {
-        let rendered = A2aCodeGenFixture::compact(
-            A2aCodeGen::mapper_fields(&A2aCodeGenFixture::context()),
-        );
+        let rendered =
+            A2aCodeGenFixture::compact(A2aCodeGen::mapper_fields(&A2aCodeGenFixture::context()));
 
         assert!(rendered.contains(
             "path ! [\"a2a\" , \"agents\" , \"planner\" , \"url\"] , \"PLANNER_A2A_URL\""

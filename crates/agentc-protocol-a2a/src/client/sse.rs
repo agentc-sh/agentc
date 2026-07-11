@@ -2,11 +2,11 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::str;
-use async_trait::async_trait;
 use async_stream::try_stream;
+use async_trait::async_trait;
 use futures::stream::{Stream, StreamExt};
 use reqwest::Response;
+use std::str;
 
 use crate::client::A2aClientError;
 
@@ -67,9 +67,10 @@ impl Decoder {
                 line.pop();
             }
 
-            if let Some(item) = self.push_line(str::from_utf8(&line).map_err(|err| {
-                A2aClientError::stream_decode(err.to_string())
-            })?)? {
+            if let Some(item) = self.push_line(
+                str::from_utf8(&line)
+                    .map_err(|err| A2aClientError::stream_decode(err.to_string()))?,
+            )? {
                 items.push(item);
             }
         }
@@ -83,9 +84,10 @@ impl Decoder {
         if !self.buffer.is_empty() {
             let line = std::mem::take(&mut self.buffer);
 
-            if let Some(item) = self.push_line(str::from_utf8(&line).map_err(|err| {
-                A2aClientError::stream_decode(err.to_string())
-            })?)? {
+            if let Some(item) = self.push_line(
+                str::from_utf8(&line)
+                    .map_err(|err| A2aClientError::stream_decode(err.to_string()))?,
+            )? {
                 items.push(item);
             }
         }
@@ -108,14 +110,7 @@ impl Decoder {
 
         let (field, value) = line
             .split_once(':')
-            .map(|(field, value)| {
-                (
-                    field,
-                    value
-                        .strip_prefix(' ')
-                        .unwrap_or(value),
-                )
-            })
+            .map(|(field, value)| (field, value.strip_prefix(' ').unwrap_or(value)))
             .unwrap_or((line, ""));
 
         match field {
@@ -129,8 +124,8 @@ impl Decoder {
                 {
                     self.retry = value.parse().ok();
                 }
-            },
-            _ => {},
+            }
+            _ => {}
         }
 
         Ok(None)
@@ -145,7 +140,8 @@ impl Decoder {
 
         Some(Item::event(Event {
             event_type: self.event_type.take(),
-            data: self.data
+            data: self
+                .data
                 .drain(..)
                 .collect::<Vec<_>>()
                 .join("\n"),
@@ -255,10 +251,7 @@ mod tests {
     #[test]
     fn decoder_handles_lines_split_across_chunks() {
         assert_eq!(
-            SseFixture::decode(&[
-                "data: par".as_bytes(),
-                "tial\n\n".as_bytes(),
-            ]),
+            SseFixture::decode(&["data: par".as_bytes(), "tial\n\n".as_bytes(),]),
             vec![Item::Event(Event {
                 event_type: None,
                 data: "partial".to_string(),

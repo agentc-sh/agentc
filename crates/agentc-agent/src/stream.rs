@@ -113,7 +113,7 @@ impl<E> Stream for RunStream<E> {
                     Poll::Ready(()) => {
                         this.fut = None;
                         continue;
-                    },
+                    }
                     Poll::Pending => return Poll::Pending,
                 },
                 None => return Poll::Pending,
@@ -129,10 +129,7 @@ pub struct RunStreamBuilder<E> {
 
 impl<E> RunStreamBuilder<E> {
     pub fn new() -> Self {
-        Self {
-            fut: None,
-            inner: None
-        }
+        Self { fut: None, inner: None }
     }
 
     pub fn with_future<Fut>(mut self, fut: Fut) -> Self
@@ -150,8 +147,10 @@ impl<E> RunStreamBuilder<E> {
 
     pub fn build(self) -> RunStream<E> {
         RunStream::new(
-            self.fut.expect("RunStreamBuilder: future not set"),
-            self.inner.expect("RunStreamBuilder: inner stream not set")
+            self.fut
+                .expect("RunStreamBuilder: future not set"),
+            self.inner
+                .expect("RunStreamBuilder: inner stream not set"),
         )
     }
 }
@@ -283,7 +282,9 @@ mod tests {
             emitter.emit(3).unwrap();
         });
 
-        let collected = RunStream::new(fut, inner).collect::<Vec<_>>().await;
+        let collected = RunStream::new(fut, inner)
+            .collect::<Vec<_>>()
+            .await;
         assert_eq!(collected, vec![1, 2, 3]);
     }
 

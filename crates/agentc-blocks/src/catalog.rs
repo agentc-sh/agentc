@@ -25,11 +25,7 @@ impl CompilationCatalog {
         graphs: GraphResolver,
         protocols: ProtocolResolver,
     ) -> Self {
-        Self {
-            archetypes,
-            graphs,
-            protocols,
-        }
+        Self { archetypes, graphs, protocols }
     }
 
     pub fn archetypes(&self) -> &ArchetypeResolver {
@@ -80,7 +76,9 @@ impl CompilationCatalogBuilder {
             return self;
         }
 
-        self.archetype_builder = self.archetype_builder.with_archetype(archetype);
+        self.archetype_builder = self
+            .archetype_builder
+            .with_archetype(archetype);
         self
     }
 
@@ -112,7 +110,9 @@ impl CompilationCatalogBuilder {
             return self;
         }
 
-        self.protocol_builder = self.protocol_builder.with_protocol(protocol);
+        self.protocol_builder = self
+            .protocol_builder
+            .with_protocol(protocol);
         self
     }
 
@@ -316,13 +316,11 @@ mod tests {
             .build()
             .unwrap();
 
-        assert!(catalog
-            .graphs()
-            .resolve(
-                "test",
-                context(),
-                json!({})
-            )
-            .is_ok());
+        assert!(
+            catalog
+                .graphs()
+                .resolve("test", context(), json!({}))
+                .is_ok()
+        );
     }
 }

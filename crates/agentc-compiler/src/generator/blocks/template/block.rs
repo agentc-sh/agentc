@@ -21,13 +21,8 @@ use crate::generator::{
     context::GenerationContext,
     errors::GeneratorError,
     extension::{
-        Contribution,
-        ErasedContribution,
-        ErasedContributionValue,
-        ErasedExtensionPoint,
-        ExtensionPoint,
-        ExtensionRegistry,
-        StringExtensionPoint,
+        Contribution, ErasedContribution, ErasedContributionValue, ErasedExtensionPoint,
+        ExtensionPoint, ExtensionRegistry, StringExtensionPoint,
     },
     vfs::VirtualFileSystem,
 };
@@ -117,7 +112,9 @@ where
         let evaluator = ConditionEvaluator::new(ctx.as_inner())?;
         let renderer = self.renderer(ctx.as_inner());
 
-        let fill = self.manifest.slot_fills
+        let fill = self
+            .manifest
+            .slot_fills
             .iter()
             .find(|sf| sf.point == point)
             .ok_or_else(|| GeneratorError::TemplateNotFound {
@@ -139,12 +136,7 @@ where
             })?;
 
         renderer
-            .render(
-                &self.manifest.id,
-                &fill.template,
-                template_src,
-                &ExtensionRegistry::empty(),
-            )
+            .render(&self.manifest.id, &fill.template, template_src, &ExtensionRegistry::empty())
             .map(ErasedContributionValue::new)
     }
 
@@ -218,7 +210,8 @@ impl TemplateBlockBuilder {
     where
         P: ExtensionPoint + Clone + 'static,
     {
-        self.extra_extension_points.push(Box::new(point));
+        self.extra_extension_points
+            .push(Box::new(point));
         self
     }
 
@@ -359,7 +352,8 @@ where
     where
         P: ExtensionPoint + Clone + 'static,
     {
-        self.extension_points.push(Box::new(point));
+        self.extension_points
+            .push(Box::new(point));
         self
     }
 
@@ -367,7 +361,8 @@ where
     where
         C: Send + Sync + 'static,
     {
-        self.contributions.push(contribution.erase());
+        self.contributions
+            .push(contribution.erase());
         self
     }
 

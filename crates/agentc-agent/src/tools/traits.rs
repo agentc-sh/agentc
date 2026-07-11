@@ -107,7 +107,8 @@ where
             Err(e) => return Err(ToolError::InvalidArguments(e.to_string())),
         };
 
-        match self.tool
+        match self
+            .tool
             .execute(
                 TypedToolInput::new(typed_args, input.context)
                     .maybe_with_activity_emitter(input.emitter)
@@ -176,7 +177,8 @@ where
             Err(err) => return ToolResponse::err(err),
         };
 
-        match self.tool
+        match self
+            .tool
             .execute(ToolInput {
                 args: input.args,
                 context: input.context,

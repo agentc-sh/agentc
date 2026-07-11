@@ -48,10 +48,12 @@ impl ResolvedContextHttpServerProtocol {
 
     pub fn config(&self) -> Value {
         match self {
-            ResolvedContextHttpServerProtocol::AgUi(config) => to_value(config)
-                .expect("ag_ui protocol config must serialize to JSON"),
-            ResolvedContextHttpServerProtocol::A2a(config) => to_value(config)
-                .expect("a2a protocol config must serialize to JSON"),
+            ResolvedContextHttpServerProtocol::AgUi(config) => {
+                to_value(config).expect("ag_ui protocol config must serialize to JSON")
+            }
+            ResolvedContextHttpServerProtocol::A2a(config) => {
+                to_value(config).expect("a2a protocol config must serialize to JSON")
+            }
         }
     }
 }
@@ -86,9 +88,10 @@ mod tests {
 
     #[test]
     fn name_and_config_identify_ag_ui() {
-        let protocol = ResolvedContextHttpServerProtocol::AgUi(
-            ResolvedContextHttpServerProtocolAgUi { path: "/custom".to_string() },
-        );
+        let protocol =
+            ResolvedContextHttpServerProtocol::AgUi(ResolvedContextHttpServerProtocolAgUi {
+                path: "/custom".to_string(),
+            });
 
         assert_eq!(protocol.name(), "ag_ui");
         assert_eq!(protocol.config(), serde_json::json!({ "path": "/custom" }));
@@ -96,9 +99,10 @@ mod tests {
 
     #[test]
     fn name_and_config_identify_a2a() {
-        let protocol = ResolvedContextHttpServerProtocol::A2a(
-            ResolvedContextHttpServerProtocolA2a { path: "/custom".to_string() },
-        );
+        let protocol =
+            ResolvedContextHttpServerProtocol::A2a(ResolvedContextHttpServerProtocolA2a {
+                path: "/custom".to_string(),
+            });
 
         assert_eq!(protocol.name(), "a2a");
         assert_eq!(protocol.config(), serde_json::json!({ "path": "/custom" }));

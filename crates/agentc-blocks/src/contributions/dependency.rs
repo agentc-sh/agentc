@@ -36,8 +36,7 @@ impl RuntimeDependencyContribution {
         if self.name != other.name {
             return Err(BlocksError::invalid(format!(
                 "cannot merge runtime dependencies '{}' and '{}'",
-                self.name,
-                other.name,
+                self.name, other.name,
             )));
         }
 

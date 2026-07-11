@@ -9,15 +9,13 @@ use std::{
 };
 
 use reqwest::{
-    Method,
-    Response,
+    Method, Response,
     header::{HeaderMap, HeaderValue, IntoHeaderName, InvalidHeaderValue},
 };
 use reqwest_middleware::RequestBuilder;
 use serde::{Serialize, de::DeserializeOwned};
 
 use crate::client::{base::BaseClient, errors::A2aClientError};
-
 
 /// Per-call request extras applied to the outgoing [`RequestBuilder`] just before send.
 ///
@@ -41,17 +39,24 @@ impl<'a> Default for Request<'a> {
 }
 
 impl<'a> Request<'a> {
-    pub fn header(mut self, key: impl IntoHeaderName, value: impl TryInto<HeaderValue, Error = InvalidHeaderValue>) -> Result<Self, A2aClientError> {
-        self.headers
-            .insert(key, {
-                value
-                    .try_into()
-                    .map_err(|e| A2aClientError::configuration(e.to_string()))?
-            });
+    pub fn header(
+        mut self,
+        key: impl IntoHeaderName,
+        value: impl TryInto<HeaderValue, Error = InvalidHeaderValue>,
+    ) -> Result<Self, A2aClientError> {
+        self.headers.insert(key, {
+            value
+                .try_into()
+                .map_err(|e| A2aClientError::configuration(e.to_string()))?
+        });
         Ok(self)
     }
 
-    pub fn header_lossy(mut self, key: impl IntoHeaderName, value: impl TryInto<HeaderValue, Error = InvalidHeaderValue>) -> Self {
+    pub fn header_lossy(
+        mut self,
+        key: impl IntoHeaderName,
+        value: impl TryInto<HeaderValue, Error = InvalidHeaderValue>,
+    ) -> Self {
         if let Ok(value) = value.try_into() {
             self.headers.insert(key, value);
         }
@@ -72,11 +77,10 @@ impl<'a> Request<'a> {
     }
 
     pub(crate) fn apply(self, req: RequestBuilder) -> RequestBuilder {
-        let req = self.headers
+        let req = self
+            .headers
             .into_iter()
-            .fold(req, |r, (k, v)| {
-                if let Some(k) = k { r.header(k, v) } else { r }
-            });
+            .fold(req, |r, (k, v)| if let Some(k) = k { r.header(k, v) } else { r });
 
         let req = if let Some(t) = self.timeout {
             req.timeout(t)
@@ -90,26 +94,23 @@ impl<'a> Request<'a> {
     }
 }
 
-
 // The one piece that differs between transports: turns the prepared request into
 // the intermediate value `I` (a `Response` for HTTP, a `WebSocket` for an upgrade).
-type Execute<'a, I> =
-    Box<
-        dyn FnOnce(&'a BaseClient, RequestBuilder)
-            -> Pin<Box<dyn Future<Output = Result<I, A2aClientError>> + Send + 'a>>
+type Execute<'a, I> = Box<
+    dyn FnOnce(
+            &'a BaseClient,
+            RequestBuilder,
+        ) -> Pin<Box<dyn Future<Output = Result<I, A2aClientError>> + Send + 'a>>
         + Send
         + 'a,
-    >;
+>;
 
 // Turns the intermediate value `I` into the call's output `T`. Defaults to identity.
-type Mapper<'a, I, T> =
-    Box<
-        dyn FnOnce(I)
-            -> Pin<Box<dyn Future<Output = Result<T, A2aClientError>> + Send + 'a>>
+type Mapper<'a, I, T> = Box<
+    dyn FnOnce(I) -> Pin<Box<dyn Future<Output = Result<T, A2aClientError>> + Send + 'a>>
         + Send
         + 'a,
-    >;
-
+>;
 
 /// An awaitable request builder. Awaiting it sends the request; there is no
 /// separate `.send()` step.
@@ -157,24 +158,40 @@ impl<'a> Call<'a, Response> {
 }
 
 impl<'a, I, T> Call<'a, I, T> {
-    pub fn header(mut self, key: impl IntoHeaderName, value: impl TryInto<HeaderValue, Error = InvalidHeaderValue>) -> Result<Self, A2aClientError> {
+    pub fn header(
+        mut self,
+        key: impl IntoHeaderName,
+        value: impl TryInto<HeaderValue, Error = InvalidHeaderValue>,
+    ) -> Result<Self, A2aClientError> {
         self.request = self.request.header(key, value)?;
         Ok(self)
     }
 
-    pub fn header_lossy(mut self, key: impl IntoHeaderName, value: impl TryInto<HeaderValue, Error = InvalidHeaderValue>) -> Self {
+    pub fn header_lossy(
+        mut self,
+        key: impl IntoHeaderName,
+        value: impl TryInto<HeaderValue, Error = InvalidHeaderValue>,
+    ) -> Self {
         self.request = self.request.header_lossy(key, value);
         self
     }
 
-    pub fn maybe_header(mut self, key: impl IntoHeaderName, value: Option<impl TryInto<HeaderValue, Error = InvalidHeaderValue>>) -> Result<Self, A2aClientError> {
+    pub fn maybe_header(
+        mut self,
+        key: impl IntoHeaderName,
+        value: Option<impl TryInto<HeaderValue, Error = InvalidHeaderValue>>,
+    ) -> Result<Self, A2aClientError> {
         if let Some(value) = value {
             self.request = self.request.header(key, value)?;
         }
         Ok(self)
     }
 
-    pub fn maybe_header_lossy(mut self, key: impl IntoHeaderName, value: Option<impl TryInto<HeaderValue, Error = InvalidHeaderValue>>) -> Self {
+    pub fn maybe_header_lossy(
+        mut self,
+        key: impl IntoHeaderName,
+        value: Option<impl TryInto<HeaderValue, Error = InvalidHeaderValue>>,
+    ) -> Self {
         if let Some(value) = value {
             self.request = self.request.header_lossy(key, value);
         }
@@ -304,7 +321,9 @@ where
     I: Send + 'a,
     T: 'a,
 {
-    pub fn into_local_future(self) -> Pin<Box<dyn Future<Output = Result<T, A2aClientError>> + 'a>> {
+    pub fn into_local_future(
+        self,
+    ) -> Pin<Box<dyn Future<Output = Result<T, A2aClientError>> + 'a>> {
         let Call {
             client,
             method,
@@ -320,8 +339,7 @@ where
             let mut builder = client.request(method, &url, query.transpose()?.as_deref());
 
             if let Some(body) = body {
-                builder = builder
-                    .body(body?);
+                builder = builder.body(body?);
             }
 
             mapper(execute(client, request.apply(builder)).await?).await
@@ -334,7 +352,9 @@ where
     I: Send + 'a,
     T: Send + 'a,
 {
-    pub fn into_future(self) -> Pin<Box<dyn Future<Output = Result<T, A2aClientError>> + Send + 'a>> {
+    pub fn into_future(
+        self,
+    ) -> Pin<Box<dyn Future<Output = Result<T, A2aClientError>> + Send + 'a>> {
         let Call {
             client,
             method,
@@ -350,8 +370,7 @@ where
             let mut builder = client.request(method, &url, query.transpose()?.as_deref());
 
             if let Some(body) = body {
-                builder = builder
-                    .body(body?);
+                builder = builder.body(body?);
             }
 
             mapper(execute(client, request.apply(builder)).await?).await

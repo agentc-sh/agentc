@@ -3,17 +3,11 @@
 // SPDX-License-Identifier: MIT
 
 use async_trait::async_trait;
-use futures::{
-    Stream,
-    stream::BoxStream,
-};
+use futures::{Stream, stream::BoxStream};
 use std::{
     pin::Pin,
     sync::Arc,
-    task::{
-        Context,
-        Poll,
-    },
+    task::{Context, Poll},
 };
 
 use agentc_http::errors::ApiError;
@@ -32,10 +26,7 @@ pub struct AgUiRunStream {
 
 impl AgUiRunStream {
     pub fn new(inner: BoxStream<'static, Result<Event, ApiError>>) -> Self {
-        Self {
-            inner,
-            cancel: None,
-        }
+        Self { inner, cancel: None }
     }
 
     pub fn with_cancel<C>(mut self, cancel: C) -> Self
@@ -58,10 +49,7 @@ impl AgUiRunStream {
 impl Stream for AgUiRunStream {
     type Item = Result<Event, ApiError>;
 
-    fn poll_next(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         Pin::new(&mut self.inner).poll_next(cx)
     }
 }
@@ -92,26 +80,17 @@ pub trait ToAgUiType<T> {
 #[cfg(test)]
 mod tests {
     use async_trait::async_trait;
-    use futures::{
-        StreamExt,
-        stream,
-    };
+    use futures::{StreamExt, stream};
     use std::sync::{
         Arc,
-        atomic::{
-            AtomicBool,
-            Ordering,
-        },
+        atomic::{AtomicBool, Ordering},
     };
 
     use agentc_http::errors::ApiError;
 
     use crate::protocol::event::Event;
 
-    use super::{
-        AgUiRunCancel,
-        AgUiRunStream,
-    };
+    use super::{AgUiRunCancel, AgUiRunStream};
 
     struct TestCancel {
         called: Arc<AtomicBool>,
@@ -120,7 +99,8 @@ mod tests {
     #[async_trait]
     impl AgUiRunCancel for TestCancel {
         async fn cancel(&self) -> Result<(), ApiError> {
-            self.called.store(true, Ordering::SeqCst);
+            self.called
+                .store(true, Ordering::SeqCst);
 
             Ok(())
         }
@@ -129,12 +109,8 @@ mod tests {
     #[tokio::test]
     async fn ag_ui_run_stream_cancel_invokes_hook() {
         let called = Arc::new(AtomicBool::new(false));
-        let mut stream = AgUiRunStream::new(
-            stream::empty::<Result<Event, ApiError>>().boxed(),
-        )
-        .with_cancel(TestCancel {
-            called: called.clone(),
-        });
+        let mut stream = AgUiRunStream::new(stream::empty::<Result<Event, ApiError>>().boxed())
+            .with_cancel(TestCancel { called: called.clone() });
 
         stream.cancel().await.unwrap();
 

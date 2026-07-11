@@ -225,7 +225,5 @@ pub struct ResolvedContextToolA2a {
 pub enum ResolvedContextToolA2aTenant {
     Inherit,
     None,
-    Fixed {
-        id: RuntimeValue<String>,
-    },
+    Fixed { id: RuntimeValue<String> },
 }

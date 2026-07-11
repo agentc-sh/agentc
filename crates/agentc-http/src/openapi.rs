@@ -2,11 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-use utoipa::{
-    Path,
-    __dev::SchemaReferences,
-    openapi::Components,
-};
+use utoipa::{__dev::SchemaReferences, Path, openapi::Components};
 use utoipa_axum::router::OpenApiRouter;
 
 /// Extension methods for [`OpenApiRouter`].

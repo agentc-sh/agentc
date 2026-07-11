@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
+use async_stream::try_stream;
 use axum::{
     extract::State,
     http::StatusCode,
@@ -10,17 +11,9 @@ use axum::{
         sse::{Event, KeepAlive, Sse},
     },
 };
-use async_stream::try_stream;
 use futures::stream::{BoxStream, StreamExt};
-use jobq::{
-    Error as JobQueueError,
-    JobStreamOptions,
-    StreamTask,
-};
-use std::{
-    convert::Infallible,
-    time::Duration,
-};
+use jobq::{Error as JobQueueError, JobStreamOptions, StreamTask};
+use std::{convert::Infallible, time::Duration};
 use subway::Bus;
 use tokio_util::sync::CancellationToken;
 use utoipa_axum::{router::OpenApiRouter, routes};
@@ -37,22 +30,15 @@ use agentc_http::{
 
 use crate::{
     api::dto::v1::run::{
-        CreateRunRequestDTO,
-        FindRunEndpointParams,
-        RunEventDTO,
-        RunResponseDTO,
-        StartRunRequestDTO,
-        StartRunResponseDTO,
+        CreateRunRequestDTO, FindRunEndpointParams, RunEventDTO, RunResponseDTO,
+        StartRunRequestDTO, StartRunResponseDTO,
     },
     api::state::ReActApiState,
     service::{
         ApplicationService,
         errors::ServiceError,
         operations::{run::RunOperations, session::SessionOperations},
-        types::run::{
-            RunEvent,
-            RunParams,
-        },
+        types::run::{RunEvent, RunParams},
     },
 };
 
@@ -70,12 +56,7 @@ impl RunStreamTask {
         disconnect: CancellationToken,
         bus: Bus,
     ) -> Self {
-        Self {
-            service,
-            params,
-            disconnect,
-            bus,
-        }
+        Self { service, params, disconnect, bus }
     }
 }
 
@@ -149,14 +130,16 @@ async fn find_runs_endpoint(
     Path(session_id): Path<Uuid>,
     Query(params): Query<FindRunEndpointParams>,
     tenant_id: Option<TenantIdHeader>,
-) -> Response
-{
+) -> Response {
     if let Err(err) = params.validate() {
         return ErrorResponseDTO::from(ApiError::from(err)).into_response();
     }
 
     let tenant_id = tenant_id.map_or(
-        state.default_tenant_id.clone().into_inner(),
+        state
+            .default_tenant_id
+            .clone()
+            .into_inner(),
         TenantIdHeader::into_inner,
     );
 
@@ -165,8 +148,7 @@ async fn find_runs_endpoint(
         .get_session(&tenant_id, session_id)
         .await
     {
-        return ErrorResponseDTO::from(ApiError::from(err))
-            .into_response();
+        return ErrorResponseDTO::from(ApiError::from(err)).into_response();
     }
 
     match state
@@ -176,8 +158,7 @@ async fn find_runs_endpoint(
     {
         Ok(response) => PaginatedResponseDTO::from_result(response, RunResponseDTO::from_response)
             .into_response(),
-        Err(err) => ErrorResponseDTO::from(ApiError::from(err))
-            .into_response(),
+        Err(err) => ErrorResponseDTO::from(ApiError::from(err)).into_response(),
     }
 }
 
@@ -203,25 +184,19 @@ async fn get_run_endpoint(
     State(state): State<ReActApiState>,
     Path(run_id): Path<Uuid>,
     tenant_id: Option<TenantIdHeader>,
-) -> Response
-{
+) -> Response {
     match state
         .service
         .get_run(
-            &tenant_id.map_or(
-                state.default_tenant_id.into_inner(),
-                TenantIdHeader::into_inner,
-            ),
+            &tenant_id.map_or(state.default_tenant_id.into_inner(), TenantIdHeader::into_inner),
             run_id,
         )
         .await
     {
         Ok(response) => {
-            (StatusCode::OK, Json(RunResponseDTO::from_response(response)))
-                .into_response()
+            (StatusCode::OK, Json(RunResponseDTO::from_response(response))).into_response()
         }
-        Err(err) => ErrorResponseDTO::from(ApiError::from(err))
-            .into_response(),
+        Err(err) => ErrorResponseDTO::from(ApiError::from(err)).into_response(),
     }
 }
 
@@ -247,11 +222,9 @@ async fn create_run_endpoint(
     State(state): State<ReActApiState>,
     tenant_id: Option<TenantIdHeader>,
     Json(payload): Json<CreateRunRequestDTO>,
-) -> Response
-{
+) -> Response {
     if let Err(err) = payload.validate() {
-        return ErrorResponseDTO::from(ApiError::from(err))
-            .into_response();
+        return ErrorResponseDTO::from(ApiError::from(err)).into_response();
     }
 
     let disconnect = CancellationToken::new();
@@ -261,10 +234,7 @@ async fn create_run_endpoint(
         .enqueue_stream(JobStreamOptions::new(RunStreamTask::new(
             (*state.service).clone(),
             payload.to_params(
-                tenant_id.map_or(
-                    state.default_tenant_id.into_inner(),
-                    TenantIdHeader::into_inner,
-                ),
+                tenant_id.map_or(state.default_tenant_id.into_inner(), TenantIdHeader::into_inner),
             ),
             disconnect.clone(),
             state.bus.clone(),
@@ -279,20 +249,18 @@ async fn create_run_endpoint(
                         .json_data(RunEventDTO::from_event(event))
                         .expect("failed to serialize event data"),
                 ),
-                Err(err) => Ok(
-                    Event::default()
-                        .event("error")
-                        .json_data(ErrorResponseDTO::from(match err {
-                            JobQueueError::TaskExecution { source, .. } => {
-                                match source.downcast::<ServiceError>() {
-                                    Ok(err) => ApiError::from(*err),
-                                    Err(source) => ApiError::unexpected_error(source.to_string()),
-                                }
+                Err(err) => Ok(Event::default()
+                    .event("error")
+                    .json_data(ErrorResponseDTO::from(match err {
+                        JobQueueError::TaskExecution { source, .. } => {
+                            match source.downcast::<ServiceError>() {
+                                Ok(err) => ApiError::from(*err),
+                                Err(source) => ApiError::unexpected_error(source.to_string()),
                             }
-                            err => ApiError::unexpected_error(err.to_string()),
-                        }))
-                        .expect("failed to serialize error response")
-                ),
+                        }
+                        err => ApiError::unexpected_error(err.to_string()),
+                    }))
+                    .expect("failed to serialize error response")),
             }
         }))
         .keep_alive(
@@ -302,8 +270,7 @@ async fn create_run_endpoint(
         )
         .into_response(),
         Err(err) => {
-            ErrorResponseDTO::from(ApiError::unexpected_error(err.to_string()))
-                .into_response()
+            ErrorResponseDTO::from(ApiError::unexpected_error(err.to_string())).into_response()
         }
     }
 }
@@ -330,11 +297,9 @@ async fn start_run_endpoint(
     State(state): State<ReActApiState>,
     tenant_id: Option<TenantIdHeader>,
     Json(payload): Json<StartRunRequestDTO>,
-) -> Response
-{
+) -> Response {
     if let Err(err) = payload.validate() {
-        return ErrorResponseDTO::from(ApiError::from(err))
-            .into_response();
+        return ErrorResponseDTO::from(ApiError::from(err)).into_response();
     }
 
     match state
@@ -342,10 +307,7 @@ async fn start_run_endpoint(
         .enqueue_stream(JobStreamOptions::new(RunStreamTask::new(
             (*state.service).clone(),
             payload.to_params(
-                tenant_id.map_or(
-                    state.default_tenant_id.into_inner(),
-                    TenantIdHeader::into_inner,
-                ),
+                tenant_id.map_or(state.default_tenant_id.into_inner(), TenantIdHeader::into_inner),
             ),
             CancellationToken::new(),
             state.bus.clone(),
@@ -374,8 +336,9 @@ async fn start_run_endpoint(
             )
                 .into_response()
         }
-        Err(err) => ErrorResponseDTO::from(ApiError::unexpected_error(err.to_string()))
-            .into_response(),
+        Err(err) => {
+            ErrorResponseDTO::from(ApiError::unexpected_error(err.to_string())).into_response()
+        }
     }
 }
 
@@ -400,10 +363,12 @@ async fn cancel_run_endpoint(
     State(state): State<ReActApiState>,
     Path(run_id): Path<Uuid>,
     tenant_id: Option<TenantIdHeader>,
-) -> Response
-{
+) -> Response {
     let tenant_id = tenant_id.map_or(
-        state.default_tenant_id.clone().into_inner(),
+        state
+            .default_tenant_id
+            .clone()
+            .into_inner(),
         TenantIdHeader::into_inner,
     );
 
@@ -412,8 +377,7 @@ async fn cancel_run_endpoint(
         .get_run(&tenant_id, run_id)
         .await
     {
-        return ErrorResponseDTO::from(ApiError::from(err))
-            .into_response();
+        return ErrorResponseDTO::from(ApiError::from(err)).into_response();
     }
 
     match state
@@ -421,10 +385,8 @@ async fn cancel_run_endpoint(
         .cancel_run(&tenant_id, run_id)
         .await
     {
-        Ok(_) => StatusCode::NO_CONTENT
-            .into_response(),
-        Err(err) => ErrorResponseDTO::from(ApiError::from(err))
-            .into_response(),
+        Ok(_) => StatusCode::NO_CONTENT.into_response(),
+        Err(err) => ErrorResponseDTO::from(ApiError::from(err)).into_response(),
     }
 }
 
@@ -450,10 +412,12 @@ async fn reattach_run_endpoint(
     State(state): State<ReActApiState>,
     Path(run_id): Path<Uuid>,
     tenant_id: Option<TenantIdHeader>,
-) -> Response
-{
+) -> Response {
     let tenant_id = tenant_id.map_or(
-        state.default_tenant_id.clone().into_inner(),
+        state
+            .default_tenant_id
+            .clone()
+            .into_inner(),
         TenantIdHeader::into_inner,
     );
 
@@ -469,8 +433,7 @@ async fn reattach_run_endpoint(
             ))
             .into_response();
         }
-        Err(err) => return ErrorResponseDTO::from(ApiError::from(err))
-            .into_response(),
+        Err(err) => return ErrorResponseDTO::from(ApiError::from(err)).into_response(),
         Ok(_) => {}
     }
 
@@ -496,7 +459,8 @@ async fn reattach_run_endpoint(
                 .text("keep-alive"),
         )
         .into_response(),
-        Err(err) => ErrorResponseDTO::from(ApiError::unexpected_error(err.to_string()))
-            .into_response(),
+        Err(err) => {
+            ErrorResponseDTO::from(ApiError::unexpected_error(err.to_string())).into_response()
+        }
     }
 }

@@ -12,19 +12,12 @@ pub mod server;
 use serde::{Deserialize, Serialize};
 
 use agentc_compiler::generator::{
-    blocks::{
-        BlockSet,
-        codegen::CodeGenBlock,
-        template::TemplateFragmentBlock,
-    },
+    blocks::{BlockSet, codegen::CodeGenBlock, template::TemplateFragmentBlock},
     extension::{Contribution, reducers},
 };
 
 use crate::{
-    archetype::standalone::codegen::cargo::{
-        CargoDependencyContribution,
-        CargoPatchContribution,
-    },
+    archetype::standalone::codegen::cargo::{CargoDependencyContribution, CargoPatchContribution},
     composition::{GenerationContribution, OptionalGenerationContribution},
     context::ResolvedContext,
     errors::BlocksError,
@@ -62,11 +55,21 @@ impl AgentGraph for ReActGraph {
         let has_ag_ui = context
             .http_server
             .as_ref()
-            .is_some_and(|server| server.protocols.iter().any(|p| p.as_ag_ui().is_some()));
+            .is_some_and(|server| {
+                server
+                    .protocols
+                    .iter()
+                    .any(|p| p.as_ag_ui().is_some())
+            });
         let has_a2a = context
             .http_server
             .as_ref()
-            .is_some_and(|server| server.protocols.iter().any(|p| p.as_a2a().is_some()));
+            .is_some_and(|server| {
+                server
+                    .protocols
+                    .iter()
+                    .any(|p| p.as_a2a().is_some())
+            });
 
         let core_blocks = BlockSet::new()
             .add(
@@ -97,9 +100,7 @@ impl AgentGraph for ReActGraph {
                     .contribute(Contribution::<CargoDependencyContribution>::strict(
                         "cargo::dependencies",
                     ))
-                    .contribute(Contribution::<CargoPatchContribution>::strict(
-                        "cargo::patches",
-                    ))
+                    .contribute(Contribution::<CargoPatchContribution>::strict("cargo::patches"))
                     .build(ReActCargoFragment { has_ag_ui, has_a2a }),
             )
             .into_inner();
@@ -174,15 +175,29 @@ mod tests {
 
     #[test]
     fn provides_graph_react_and_streaming() {
-        let resolved = ReActGraph.resolve(context(None), ReActGraphConfig::default()).unwrap();
+        let resolved = ReActGraph
+            .resolve(context(None), ReActGraphConfig::default())
+            .unwrap();
 
-        assert!(resolved.contribution.provides.contains::<GraphReAct>());
-        assert!(resolved.contribution.provides.contains::<Streaming>());
+        assert!(
+            resolved
+                .contribution
+                .provides
+                .contains::<GraphReAct>()
+        );
+        assert!(
+            resolved
+                .contribution
+                .provides
+                .contains::<Streaming>()
+        );
     }
 
     #[test]
     fn core_contribution_has_no_http_dependent_blocks() {
-        let resolved = ReActGraph.resolve(context(None), ReActGraphConfig::default()).unwrap();
+        let resolved = ReActGraph
+            .resolve(context(None), ReActGraphConfig::default())
+            .unwrap();
 
         let ids = resolved
             .contribution
@@ -203,8 +218,9 @@ mod tests {
 
     #[tokio::test]
     async fn react_cargo_enables_ag_ui_feature_only_when_protocol_present() {
-        let without_ag_ui =
-            ReActGraph.resolve(context(None), ReActGraphConfig::default()).unwrap();
+        let without_ag_ui = ReActGraph
+            .resolve(context(None), ReActGraphConfig::default())
+            .unwrap();
         let with_ag_ui = ReActGraph
             .resolve(
                 context(Some(json!({
@@ -253,8 +269,9 @@ mod tests {
 
     #[tokio::test]
     async fn react_cargo_enables_a2a_feature_only_when_protocol_present() {
-        let without_a2a =
-            ReActGraph.resolve(context(None), ReActGraphConfig::default()).unwrap();
+        let without_a2a = ReActGraph
+            .resolve(context(None), ReActGraphConfig::default())
+            .unwrap();
         let with_a2a = ReActGraph
             .resolve(
                 context(Some(json!({

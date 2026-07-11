@@ -2,24 +2,11 @@
 //
 // SPDX-License-Identifier: MIT
 
-use reqwest::{
-    Client,
-    header::HeaderMap,
-    Method,
-    Response,
-};
-use reqwest_middleware::{
-    ClientBuilder,
-    ClientWithMiddleware,
-    RequestBuilder,
-};
+use reqwest::{Client, Method, Response, header::HeaderMap};
+use reqwest_middleware::{ClientBuilder, ClientWithMiddleware, RequestBuilder};
 use reqwest_tracing::TracingMiddleware;
 
-use crate::client::{
-    errors::A2aClientError,
-    config::A2aClientConfig,
-};
-
+use crate::client::{config::A2aClientConfig, errors::A2aClientError};
 
 #[derive(Debug, Clone)]
 pub struct BaseClient {
@@ -37,7 +24,7 @@ impl BaseClient {
                     .timeout(config.timeout)
                     .default_headers(config.default_headers.clone())
                     .build()
-                    .map_err(|err| A2aClientError::configuration(err.to_string()))?
+                    .map_err(|err| A2aClientError::configuration(err.to_string()))?,
             )
             .with(TracingMiddleware::default())
             .build(),
@@ -45,17 +32,15 @@ impl BaseClient {
         })
     }
 
-    pub(crate) fn request(
-        &self,
-        method: Method,
-        url: &str,
-        query: Option<&str>,
-    ) -> RequestBuilder {
+    pub(crate) fn request(&self, method: Method, url: &str, query: Option<&str>) -> RequestBuilder {
         self.client
-            .request(method, match query {
-                Some(q) if !q.is_empty() => format!("{}{}?{}", self.base_url, url, q),
-                _ => format!("{}{}", self.base_url, url),
-            })
+            .request(
+                method,
+                match query {
+                    Some(q) if !q.is_empty() => format!("{}{}?{}", self.base_url, url, q),
+                    _ => format!("{}{}", self.base_url, url),
+                },
+            )
             .headers(self.default_headers.clone())
     }
 
