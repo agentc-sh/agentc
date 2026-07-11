@@ -83,7 +83,7 @@ impl CodeGen<ResolvedContext> for AgentCodeGen {
                 },
             };
 
-            use crate::config::{A2aAgentConfig, A2aTenantConfig, Config, McpTransportConfig};
+            use crate::config::{A2aTenantConfig, Config, McpTransportConfig};
 
             #(#model_imports)*
             #(#tool_imports)*
@@ -150,7 +150,17 @@ impl CodeGen<ResolvedContext> for AgentCodeGen {
 
                     let mut client_config = A2aClientConfig::new(agent.url.clone())
                         .timeout(std::time::Duration::from_secs(agent.timeout_secs));
-                    client_config.default_headers = build_a2a_headers(agent)?;
+
+                    if let Some(token) = &agent.auth_token {
+                        client_config = client_config.try_header(
+                            "Authorization",
+                            format!("Bearer {token}"),
+                        )?;
+                    }
+
+                    for (key, value) in &agent.headers {
+                        client_config = client_config.try_header(key, value)?;
+                    }
 
                     let target = A2aToolTarget::builder()
                         .id(name)
@@ -177,26 +187,6 @@ impl CodeGen<ResolvedContext> for AgentCodeGen {
                         .with_identity(#agent_identity)
                         .build()?
                 )
-            }
-
-            fn build_a2a_headers(agent: &A2aAgentConfig) -> Result<reqwest::header::HeaderMap> {
-                let mut headers = reqwest::header::HeaderMap::new();
-
-                if let Some(token) = &agent.auth_token {
-                    headers.insert(
-                        reqwest::header::AUTHORIZATION,
-                        reqwest::header::HeaderValue::from_str(&format!("Bearer {token}"))?,
-                    );
-                }
-
-                for (key, value) in &agent.headers {
-                    headers.insert(
-                        reqwest::header::HeaderName::from_bytes(key.as_bytes())?,
-                        reqwest::header::HeaderValue::from_str(value)?,
-                    );
-                }
-
-                Ok(headers)
             }
         };
 
@@ -230,5 +220,69 @@ impl CodeGen<ResolvedContext> for AgentCodeGen {
             "tools::features" => Ok(ToolsCodeGen::features(ctx)),
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+
+    struct AgentCodeGenFixture;
+
+    impl AgentCodeGenFixture {
+        fn context() -> ResolvedContext {
+            serde_json::from_value(json!({
+                "slug": "assistant",
+                "agent_name": "assistant",
+                "runtime": { "default_tenant_id": "default" },
+                "providers": [],
+                "agent": {
+                    "version": "0.1.0",
+                    "description": null,
+                    "prompt": null,
+                    "capabilities": null,
+                    "capability_policy": null,
+                    "model": { "provider": "anthropic", "name": "claude" }
+                },
+                "blocks": {},
+                "tools": {},
+                "skills": {},
+                "http_server": null
+            }))
+            .unwrap()
+        }
+
+        fn generated_agent() -> String {
+            AgentCodeGen {
+                fields: FieldsSpec::collect_from(&Self::context()),
+            }
+            .generate_files(
+                &GenerationContext::new(Self::context()),
+                &ExtensionRegistry::empty(),
+            )
+            .unwrap()
+            .into_iter()
+            .find(|(path, _)| path == &PathBuf::from("src/agent.rs"))
+            .expect("agent file should be generated")
+            .1
+            .to_string()
+        }
+    }
+
+    #[test]
+    fn generated_agent_registers_startup_configured_a2a_agents() {
+        let rendered = AgentCodeGenFixture::generated_agent();
+
+        assert!(rendered.contains("config . a2a . agents"));
+        assert!(rendered.contains("A2aClientConfig :: new"));
+        assert!(rendered.contains("client_config . try_header"));
+        assert!(rendered.contains("target . send_task_tool"));
+        assert!(rendered.contains("target . stream_task_tool"));
+        assert!(rendered.contains("target . get_task_tool"));
+        assert!(rendered.contains("target . cancel_task_tool"));
+        assert!(!rendered.contains("build_a2a_headers"));
+        assert!(!rendered.contains("reqwest :: header"));
     }
 }

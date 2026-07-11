@@ -2,15 +2,25 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::collections::BTreeMap;
+use std::{
+    collections::BTreeMap,
+    path::PathBuf,
+};
 
 use agentc_compiler::generator::{
+    blocks::template::TemplateFragment,
+    context::GenerationContext,
     errors::GeneratorError,
-    extension::ExtensionPoint,
+    extension::{
+        ErasedContributionValue,
+        ExtensionPoint,
+        ExtensionRegistry,
+    },
 };
 
 use crate::{
     contributions::dependency::RuntimeDependencyContribution,
+    context::ResolvedContext,
     errors::BlocksError,
 };
 
@@ -67,6 +77,38 @@ impl From<String> for CargoPatchContribution {
 impl From<&str> for CargoPatchContribution {
     fn from(value: &str) -> Self {
         Self::Raw(value.to_string())
+    }
+}
+
+pub struct A2aClientCargoFragment;
+
+impl TemplateFragment<ResolvedContext> for A2aClientCargoFragment {
+    fn generate_contribution(
+        &self,
+        _ctx: &GenerationContext<ResolvedContext>,
+        point: &str,
+    ) -> Result<ErasedContributionValue, GeneratorError> {
+        match point {
+            "cargo::dependencies" => {
+                Ok(ErasedContributionValue::new(CargoDependencyContribution::runtime(
+                    RuntimeDependencyContribution::new("agentc-protocol-a2a")
+                        .default_features(false)
+                        .feature("client"),
+                )))
+            }
+            "cargo::patches" => Ok(ErasedContributionValue::new(CargoPatchContribution::runtime(
+                RuntimeDependencyContribution::new("agentc-protocol-a2a"),
+            ))),
+            _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
+        }
+    }
+
+    fn generate_files(
+        &self,
+        _ctx: &GenerationContext<ResolvedContext>,
+        _registry: &ExtensionRegistry,
+    ) -> Result<Vec<(PathBuf, String)>, GeneratorError> {
+        Ok(vec![])
     }
 }
 
@@ -230,8 +272,36 @@ impl ExtensionPoint for CargoPatchesExtensionPoint {
 mod tests {
     use super::*;
 
+    use serde_json::json;
+
+    use crate::context::ResolvedContext;
+
     fn dependencies() -> CargoDependenciesExtensionPoint {
         CargoDependenciesExtensionPoint::new("cargo::dependencies", "0.2.1")
+    }
+
+    fn context() -> GenerationContext<ResolvedContext> {
+        GenerationContext::new(
+            serde_json::from_value(json!({
+                "slug": "assistant",
+                "agent_name": "assistant",
+                "runtime": { "default_tenant_id": "default" },
+                "providers": [],
+                "agent": {
+                    "version": "0.1.0",
+                    "description": null,
+                    "prompt": null,
+                    "capabilities": null,
+                    "capability_policy": null,
+                    "model": { "provider": "anthropic", "name": "claude" }
+                },
+                "blocks": {},
+                "tools": {},
+                "skills": {},
+                "http_server": null
+            }))
+            .unwrap(),
+        )
     }
 
     #[test]
@@ -382,5 +452,38 @@ mod tests {
             .unwrap(),
             "agentc-protocol-a2a = { path = \"../runtime/agentc-protocol-a2a\" }",
         );
+    }
+
+    #[test]
+    fn a2a_client_fragment_contributes_client_runtime_dependency() {
+        let dependency = A2aClientCargoFragment
+            .generate_contribution(&context(), "cargo::dependencies")
+            .unwrap()
+            .downcast::<CargoDependencyContribution>()
+            .unwrap();
+
+        assert!(matches!(
+            dependency,
+            CargoDependencyContribution::Runtime(dependency)
+                if dependency.name == "agentc-protocol-a2a"
+                    && dependency.default_features == Some(false)
+                    && dependency.features.len() == 1
+                    && dependency.features.contains("client")
+        ));
+    }
+
+    #[test]
+    fn a2a_client_fragment_contributes_runtime_patch() {
+        let patch = A2aClientCargoFragment
+            .generate_contribution(&context(), "cargo::patches")
+            .unwrap()
+            .downcast::<CargoPatchContribution>()
+            .unwrap();
+
+        assert!(matches!(
+            patch,
+            CargoPatchContribution::Runtime(dependency)
+                if dependency.name == "agentc-protocol-a2a"
+        ));
     }
 }

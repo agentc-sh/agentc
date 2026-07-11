@@ -289,3 +289,142 @@ impl A2aCodeGen {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use super::*;
+    use crate::context::{
+        ResolvedContextAgent,
+        ResolvedContextAgentModel,
+        ResolvedContextRuntime,
+        ResolvedContextTool,
+        ResolvedContextToolA2a,
+    };
+
+    struct A2aCodeGenFixture;
+
+    impl A2aCodeGenFixture {
+        fn context() -> ResolvedContext {
+            ResolvedContext {
+                slug: "assistant".to_string(),
+                agent_name: "assistant".to_string(),
+                runtime: ResolvedContextRuntime {
+                    default_tenant_id: RuntimeValue::constant("default".to_string()),
+                },
+                providers: vec![],
+                agent: ResolvedContextAgent {
+                    version: "0.1.0".to_string(),
+                    description: None,
+                    prompt: None,
+                    capabilities: None,
+                    capability_policy: None,
+                    model: ResolvedContextAgentModel {
+                        provider: RuntimeValue::constant("anthropic".to_string()),
+                        name: RuntimeValue::constant("claude".to_string()),
+                    },
+                },
+                blocks: HashMap::new(),
+                tools: HashMap::from([(
+                    "planner".to_string(),
+                    ResolvedContextTool {
+                        name: "planner".to_string(),
+                        description: Some("Delegate planning.".to_string()),
+                        enabled: RuntimeValue::Runtime {
+                            env: "PLANNER_A2A_ENABLED".to_string(),
+                            default: Some(true),
+                            secret: false,
+                        },
+                        capabilities: vec!["a2a:planner".to_string()],
+                        config: HashMap::new(),
+                        kind: ResolvedContextToolKind::A2a(ResolvedContextToolA2a {
+                            url: RuntimeValue::Runtime {
+                                env: "PLANNER_A2A_URL".to_string(),
+                                default: Some("https://planner.example.com".to_string()),
+                                secret: false,
+                            },
+                            auth_token: Some(RuntimeValue::Runtime {
+                                env: "PLANNER_A2A_TOKEN".to_string(),
+                                default: None,
+                                secret: true,
+                            }),
+                            headers: HashMap::from([(
+                                "X-Agent".to_string(),
+                                RuntimeValue::constant("assistant".to_string()),
+                            )]),
+                            tenant: ResolvedContextToolA2aTenant::Fixed {
+                                id: RuntimeValue::Runtime {
+                                    env: "PLANNER_A2A_TENANT".to_string(),
+                                    default: Some("tenant-1".to_string()),
+                                    secret: false,
+                                },
+                            },
+                            timeout_secs: None,
+                            default_accepted_output_modes: vec!["text/plain".to_string()],
+                        }),
+                    },
+                )]),
+                skills: HashMap::new(),
+                http_server: None,
+            }
+        }
+
+        fn compact(tokens: TokenStream) -> String {
+            tokens
+                .to_string()
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ")
+        }
+    }
+
+    #[test]
+    fn loader_calls_lift_a2a_tool_into_a2a_agents_config() {
+        let rendered = A2aCodeGenFixture::compact(
+            A2aCodeGen::loader_calls(&A2aCodeGenFixture::context()),
+        );
+
+        assert!(rendered.contains("path ! [\"a2a\" , \"agents\" , \"planner\" , \"url\"]"));
+        assert!(
+            rendered.contains("serde_json :: json ! (\"https://planner.example.com\")")
+        );
+        assert!(rendered.contains(
+            "path ! [\"a2a\" , \"agents\" , \"planner\" , \"tenant\" , \"policy\"]"
+        ));
+        assert!(rendered.contains("serde_json :: json ! (\"fixed\")"));
+        assert!(rendered.contains(
+            "path ! [\"a2a\" , \"agents\" , \"planner\" , \"tenant\" , \"id\"]"
+        ));
+        assert!(rendered.contains("serde_json :: json ! (\"tenant-1\")"));
+        assert!(
+            rendered.contains("path ! [\"a2a\" , \"agents\" , \"planner\" , \"enabled\"]")
+        );
+        assert!(rendered.contains("serde_json :: json ! (true)"));
+        assert!(rendered.contains(
+            "path ! [\"a2a\" , \"agents\" , \"planner\" , \"capabilities\"]"
+        ));
+        assert!(rendered.contains("serde_json :: json ! ([\"a2a:planner\"])"));
+    }
+
+    #[test]
+    fn mapper_fields_lift_runtime_a2a_values_into_a2a_agents_config() {
+        let rendered = A2aCodeGenFixture::compact(
+            A2aCodeGen::mapper_fields(&A2aCodeGenFixture::context()),
+        );
+
+        assert!(rendered.contains(
+            "path ! [\"a2a\" , \"agents\" , \"planner\" , \"url\"] , \"PLANNER_A2A_URL\""
+        ));
+        assert!(rendered.contains(
+            "path ! [\"a2a\" , \"agents\" , \"planner\" , \"auth_token\"] , \"PLANNER_A2A_TOKEN\""
+        ));
+        assert!(rendered.contains(
+            "path ! [\"a2a\" , \"agents\" , \"planner\" , \"tenant\" , \"id\"] , \"PLANNER_A2A_TENANT\""
+        ));
+        assert!(rendered.contains(
+            "path ! [\"a2a\" , \"agents\" , \"planner\" , \"enabled\"] , \"PLANNER_A2A_ENABLED\""
+        ));
+        assert!(!rendered.contains("\"tool\" , \"planner\""));
+    }
+}

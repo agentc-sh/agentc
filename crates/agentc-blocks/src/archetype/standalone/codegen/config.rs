@@ -527,6 +527,7 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
 mod tests {
     use super::*;
     use crate::types::RuntimeValue;
+    use serde_json::json;
 
     #[test]
     fn nested_field_references_a_pascal_cased_struct_name() {
@@ -547,5 +548,46 @@ mod tests {
             .replace(' ', "");
 
         assert!(rendered.contains("gpt_4o:ConfigGpt4O"));
+    }
+
+    #[test]
+    fn generated_config_contains_a2a_config_types() {
+        let context = GenerationContext::new(
+            serde_json::from_value(json!({
+                "slug": "assistant",
+                "agent_name": "assistant",
+                "runtime": { "default_tenant_id": "default" },
+                "providers": [],
+                "agent": {
+                    "version": "0.1.0",
+                    "description": null,
+                    "prompt": null,
+                    "capabilities": null,
+                    "capability_policy": null,
+                    "model": { "provider": "anthropic", "name": "claude" }
+                },
+                "blocks": {},
+                "tools": {},
+                "skills": {},
+                "http_server": null
+            }))
+            .unwrap(),
+        );
+
+        let rendered = ConfigCodeGen {
+            fields: FieldsSpec::new(vec![]),
+        }
+        .generate_files(&context, &ExtensionRegistry::empty())
+        .unwrap()
+        .into_iter()
+        .find(|(path, _)| path == &PathBuf::from("src/config.rs"))
+        .expect("config file should be generated")
+        .1
+        .to_string();
+
+        assert!(rendered.contains("struct A2aConfig"));
+        assert!(rendered.contains("struct A2aAgentConfig"));
+        assert!(rendered.contains("enum A2aTenantConfig"));
+        assert!(rendered.contains("pub a2a : A2aConfig"));
     }
 }

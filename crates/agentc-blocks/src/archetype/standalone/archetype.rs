@@ -13,9 +13,10 @@ use agentc_compiler::{
             codegen::CodeGenBlock,
             template::{
                 ExtensionPointSpec, FileSpec, Reducer, TemplateBlock, TemplateBlockManifest,
+                TemplateFragmentBlock,
             },
         },
-        extension::reducers,
+        extension::{Contribution, reducers},
     },
 };
 
@@ -23,7 +24,13 @@ use crate::{
     archetype::{
         standalone::codegen::{
             build_script::BuildScriptCodeGen,
-            cargo::{CargoDependenciesExtensionPoint, CargoPatchesExtensionPoint},
+            cargo::{
+                A2aClientCargoFragment,
+                CargoDependenciesExtensionPoint,
+                CargoDependencyContribution,
+                CargoPatchContribution,
+                CargoPatchesExtensionPoint,
+            },
             cli::{CliModCodeGen, config::CliConfigCodeGen, shutdown::CliShutdownCodeGen},
             config::ConfigCodeGen,
             entrypoint::EntrypointCodeGen,
@@ -196,6 +203,17 @@ impl Archetype for StandaloneArchetype {
                                 .build(BuildScriptCodeGen),
                         )
                         .add(
+                            TemplateFragmentBlock::builder()
+                                .id("a2a_client_cargo")
+                                .contribute(Contribution::<CargoDependencyContribution>::strict(
+                                    "cargo::dependencies",
+                                ))
+                                .contribute(Contribution::<CargoPatchContribution>::strict(
+                                    "cargo::patches",
+                                ))
+                                .build(A2aClientCargoFragment),
+                        )
+                        .add(
                             CodeGenBlock::builder()
                                 .id("migrator_rs")
                                 .extension_point("migrator::use", reducers::concat)
@@ -348,5 +366,36 @@ mod tests {
         assert!(!content.contains("agentc-agent-react"));
         assert!(!content.contains("agentc-protocol-ag-ui"));
         assert!(!content.contains("has_ag_ui_protocol"));
+    }
+
+    #[tokio::test]
+    async fn contributes_a2a_client_dependency_without_declared_a2a_tool() {
+        let resolved = StandaloneArchetype
+            .resolve(context(None), StandaloneArchetypeConfig::default())
+            .unwrap();
+
+        let dependency = resolved
+            .contribution
+            .blocks
+            .iter()
+            .find(|block| block.id() == "a2a_client_cargo")
+            .expect("a2a client cargo block is registered")
+            .render_contribution(
+                &GenerationContext::new(context(None)),
+                "cargo::dependencies",
+            )
+            .await
+            .unwrap()
+            .downcast::<CargoDependencyContribution>()
+            .unwrap();
+
+        assert!(matches!(
+            dependency,
+            CargoDependencyContribution::Runtime(dependency)
+                if dependency.name == "agentc-protocol-a2a"
+                    && dependency.default_features == Some(false)
+                    && dependency.features.len() == 1
+                    && dependency.features.contains("client")
+        ));
     }
 }
