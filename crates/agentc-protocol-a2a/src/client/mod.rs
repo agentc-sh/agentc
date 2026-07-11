@@ -146,3 +146,141 @@ impl A2aClient {
             .json()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use futures::TryStreamExt;
+    use serde_json::json;
+    use wiremock::{
+        Mock,
+        MockServer,
+        ResponseTemplate,
+        matchers::{
+            body_partial_json,
+            header,
+            method,
+            path,
+        },
+    };
+
+    use crate::protocol::{
+        Message,
+        Part,
+        Role,
+        SendMessageRequest,
+        SendMessageResponse,
+        StreamResponse,
+        Task,
+        TaskId,
+        TaskState,
+        TaskStatus,
+    };
+
+    struct ClientFixture;
+
+    impl ClientFixture {
+        async fn client() -> (MockServer, A2aClient) {
+            let server = MockServer::start().await;
+            let client = A2aClient::new(A2aClientConfig::new(server.uri()))
+                .expect("client config should be valid");
+
+            (server, client)
+        }
+
+        fn request() -> SendMessageRequest {
+            SendMessageRequest {
+                message: Message {
+                    context_id: Some("context-1".to_string()),
+                    ..Message::new(Role::User, vec![Part::text("plan this")])
+                },
+                configuration: None,
+                metadata: None,
+                tenant: Some("tenant-1".to_string()),
+            }
+        }
+
+        fn task(state: TaskState) -> Task {
+            Task {
+                id: TaskId::new("task-1"),
+                context_id: "context-1".to_string(),
+                status: TaskStatus {
+                    state,
+                    message: None,
+                    timestamp: None,
+                },
+                artifacts: None,
+                history: None,
+                metadata: None,
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn send_message_sets_protocol_headers_tenant_and_decodes_response() {
+        let (server, client) = ClientFixture::client().await;
+
+        Mock::given(method("POST"))
+            .and(path("/message:send"))
+            .and(header(A2A_VERSION_HEADER, A2A_VERSION))
+            .and(header(A2A_TENANT_HEADER, "tenant-1"))
+            .and(header(CONTENT_TYPE.as_str(), A2A_CONTENT_TYPE))
+            .and(header(ACCEPT.as_str(), A2A_CONTENT_TYPE))
+            .and(body_partial_json(json!({
+                "tenant": "tenant-1",
+                "message": {
+                    "contextId": "context-1",
+                    "role": "ROLE_USER",
+                },
+            })))
+            .respond_with(ResponseTemplate::new(200).set_body_json(
+                SendMessageResponse::Task(ClientFixture::task(TaskState::Submitted)),
+            ))
+            .mount(&server)
+            .await;
+
+        assert!(matches!(
+            client
+                .send_message(ClientFixture::request())
+                .await
+                .expect("send should succeed"),
+            SendMessageResponse::Task(task) if task.id.as_ref() == "task-1"
+        ));
+    }
+
+    #[tokio::test]
+    async fn stream_message_ignores_comments_and_decodes_structured_events() {
+        let (server, client) = ClientFixture::client().await;
+
+        Mock::given(method("POST"))
+            .and(path("/message:stream"))
+            .and(header(A2A_VERSION_HEADER, A2A_VERSION))
+            .and(header(A2A_TENANT_HEADER, "tenant-1"))
+            .and(header(ACCEPT.as_str(), "text/event-stream"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .append_header(CONTENT_TYPE.as_str(), "text/event-stream")
+                    .set_body_string(format!(
+                        ": keep-alive\n\ndata: {}\n\n",
+                        serde_json::to_string(&StreamResponse::Task(
+                            ClientFixture::task(TaskState::Completed),
+                        ))
+                        .expect("stream response should serialize"),
+                    )),
+            )
+            .mount(&server)
+            .await;
+
+        assert!(matches!(
+            client
+                .stream_message(ClientFixture::request())
+                .await
+                .expect("stream should open")
+                .try_next()
+                .await
+                .expect("stream event should decode"),
+            Some(StreamResponse::Task(task)) if task.status.state == TaskState::Completed
+        ));
+    }
+}

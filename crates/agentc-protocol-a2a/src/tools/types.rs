@@ -302,3 +302,237 @@ impl A2aCancelTaskToolInput {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use agentc_agent::tools::{
+        activity::ActivityDelta,
+        types::ToolExecutionContext,
+    };
+    use json_patch::PatchOperation;
+    use serde_json::json;
+    use uuid::Uuid;
+
+    use crate::{
+        client::A2aClientConfig,
+        protocol::{
+            PartContent,
+            StreamResponse,
+            Task,
+            TaskId,
+            TaskState,
+            TaskStatusUpdateEvent,
+            TaskStatus,
+        },
+        tools::target::A2aTenantPolicy,
+    };
+
+    struct ToolTypesFixture;
+
+    impl ToolTypesFixture {
+        fn context() -> ToolExecutionContext {
+            ToolExecutionContext {
+                tenant_id: "parent-tenant".to_string(),
+                session_id: Uuid::nil(),
+                run_id: Uuid::nil(),
+            }
+        }
+
+        fn target() -> A2aToolTarget {
+            A2aToolTarget::builder()
+                .id("planner")
+                .client(
+                    crate::client::A2aClient::new(A2aClientConfig::new(
+                        "http://localhost:8080",
+                    ))
+                    .expect("client config should be valid"),
+                )
+                .default_accepted_output_modes(["text/plain"])
+                .build()
+                .expect("target should build")
+        }
+
+        fn fixed_tenant_target() -> A2aToolTarget {
+            A2aToolTarget::builder()
+                .id("planner")
+                .client(
+                    crate::client::A2aClient::new(A2aClientConfig::new(
+                        "http://localhost:8080",
+                    ))
+                    .expect("client config should be valid"),
+                )
+                .tenant_policy(A2aTenantPolicy::Fixed("downstream".to_string()))
+                .build()
+                .expect("target should build")
+        }
+
+        fn send_input() -> A2aSendTaskToolInput {
+            A2aSendTaskToolInput {
+                message: A2aSendTaskToolInputMessage {
+                    text: Some("plan this".to_string()),
+                    data: None,
+                },
+                context_id: Some("context-1".to_string()),
+                task_id: None,
+                metadata: Some(json!({
+                    "priority": "high",
+                })),
+                accepted_output_modes: None,
+                history_length: Some(4),
+            }
+        }
+
+        fn add_value<'a>(
+            delta: &'a ActivityDelta,
+            path: &str,
+        ) -> Option<&'a Value> {
+            delta
+                .patch
+                .iter()
+                .find_map(|operation| match operation {
+                    PatchOperation::Add(operation) if operation.path.to_string() == path => {
+                        Some(&operation.value)
+                    },
+                    _ => None,
+                })
+        }
+    }
+
+    #[test]
+    fn send_input_builds_user_request_with_target_defaults_and_inherited_tenant() {
+        let request = ToolTypesFixture::send_input()
+            .into_request(
+                &ToolTypesFixture::target(),
+                &ToolTypesFixture::context(),
+                Some(true),
+            )
+            .expect("request should build");
+
+        assert_eq!(request.message.context_id.as_deref(), Some("context-1"));
+        assert_eq!(request.tenant.as_deref(), Some("parent-tenant"));
+        assert_eq!(
+            request
+                .configuration
+                .as_ref()
+                .and_then(|config| config.accepted_output_modes.as_ref())
+                .map(Vec::len),
+            Some(1)
+        );
+        assert_eq!(
+            request
+                .configuration
+                .as_ref()
+                .and_then(|config| config.accepted_output_modes.as_ref())
+                .and_then(|modes| modes.first())
+                .map(String::as_str),
+            Some("text/plain")
+        );
+        assert_eq!(
+            request
+                .configuration
+                .as_ref()
+                .and_then(|config| config.history_length),
+            Some(4)
+        );
+        assert_eq!(
+            request
+                .configuration
+                .as_ref()
+                .and_then(|config| config.return_immediately),
+            Some(true)
+        );
+
+        match request.message.parts.as_slice() {
+            [Part { content: PartContent::Text(text), .. }] => {
+                assert_eq!(text, "plan this");
+            },
+            _ => panic!("expected one text part"),
+        }
+    }
+
+    #[test]
+    fn get_task_uses_target_tenant_policy() {
+        assert_eq!(
+            A2aGetTaskToolInput {
+                task_id: "task-1".to_string(),
+                history_length: Some(2),
+            }
+            .into_request(
+                &ToolTypesFixture::fixed_tenant_target(),
+                &ToolTypesFixture::context(),
+            )
+            .tenant
+            .as_deref(),
+            Some("downstream")
+        );
+    }
+
+    #[test]
+    fn cancel_task_rejects_non_object_metadata() {
+        assert!(
+            A2aCancelTaskToolInput {
+                task_id: "task-1".to_string(),
+                metadata: Some(json!("invalid")),
+            }
+            .into_request(
+                &ToolTypesFixture::target(),
+                &ToolTypesFixture::context(),
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn stream_activity_status_delta_exposes_task_identity_and_state() {
+        let delta = A2aStreamActivity::delta(
+            &ToolTypesFixture::target(),
+            &StreamResponse::StatusUpdate(TaskStatusUpdateEvent {
+                task_id: TaskId::new("task-1"),
+                context_id: "context-1".to_string(),
+                status: TaskStatus {
+                    state: TaskState::Working,
+                    message: None,
+                    timestamp: None,
+                },
+                metadata: None,
+            }),
+        )
+        .expect("delta should build");
+
+        assert_eq!(delta.activity_type, "a2a_task_status");
+        assert_eq!(
+            ToolTypesFixture::add_value(&delta, "/target_id"),
+            Some(&json!("planner"))
+        );
+        assert_eq!(
+            ToolTypesFixture::add_value(&delta, "/task_id"),
+            Some(&json!("task-1"))
+        );
+        assert_eq!(
+            ToolTypesFixture::add_value(&delta, "/context_id"),
+            Some(&json!("context-1"))
+        );
+        assert_eq!(
+            ToolTypesFixture::add_value(&delta, "/state"),
+            Some(&json!("TASK_STATE_WORKING"))
+        );
+    }
+
+    #[test]
+    fn stream_activity_identifies_terminal_task_events() {
+        assert!(A2aStreamActivity::is_terminal(&StreamResponse::Task(Task {
+            id: TaskId::new("task-1"),
+            context_id: "context-1".to_string(),
+            status: TaskStatus {
+                state: TaskState::Completed,
+                message: None,
+                timestamp: None,
+            },
+            artifacts: None,
+            history: None,
+            metadata: None,
+        })));
+    }
+}

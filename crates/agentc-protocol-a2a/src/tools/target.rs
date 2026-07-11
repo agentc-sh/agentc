@@ -222,3 +222,55 @@ impl A2aToolTargetBuilder {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::client::A2aClientConfig;
+
+    struct TargetFixture;
+
+    impl TargetFixture {
+        fn client() -> A2aClient {
+            A2aClient::new(A2aClientConfig::new("http://localhost:8080"))
+                .expect("client config should be valid")
+        }
+    }
+
+    #[test]
+    fn build_uses_safe_defaults() {
+        let target = A2aToolTarget::builder()
+            .id("planner")
+            .client(TargetFixture::client())
+            .build()
+            .expect("target should build");
+
+        assert_eq!(target.id, "planner");
+        assert_eq!(target.name, "planner");
+        assert!(matches!(target.tenant_policy, A2aTenantPolicy::Inherit));
+        assert!(target.capabilities.is_empty());
+        assert_eq!(target.tool_name("send"), "a2a_planner_send");
+    }
+
+    #[test]
+    fn build_rejects_invalid_tool_name_segments() {
+        assert!(matches!(
+            A2aToolTarget::builder()
+                .id("bad-id")
+                .client(TargetFixture::client())
+                .build(),
+            Err(A2aToolConfigError::InvalidTargetId(value)) if value == "bad-id"
+        ));
+    }
+
+    #[test]
+    fn build_requires_client() {
+        assert!(matches!(
+            A2aToolTarget::builder()
+                .id("planner")
+                .build(),
+            Err(A2aToolConfigError::MissingClient(value)) if value == "planner"
+        ));
+    }
+}

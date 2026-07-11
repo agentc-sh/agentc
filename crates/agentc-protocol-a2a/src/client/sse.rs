@@ -183,3 +183,88 @@ impl Sse for Response {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct SseFixture;
+
+    impl SseFixture {
+        fn decode(chunks: &[&[u8]]) -> Vec<Item> {
+            let mut decoder = Decoder::default();
+            let mut items = Vec::new();
+
+            for chunk in chunks {
+                items.extend(
+                    decoder
+                        .push(chunk)
+                        .expect("chunk should decode"),
+                );
+            }
+
+            items.extend(
+                decoder
+                    .finish()
+                    .expect("stream should finish"),
+            );
+
+            items
+        }
+    }
+
+    #[test]
+    fn decoder_joins_data_lines_and_preserves_event_fields() {
+        assert_eq!(
+            SseFixture::decode(&[
+                "id: event-1\n".as_bytes(),
+                "event: task\n".as_bytes(),
+                "retry: 2500\n".as_bytes(),
+                "data: first\n".as_bytes(),
+                "data: second\n\n".as_bytes(),
+            ]),
+            vec![Item::Event(Event {
+                event_type: Some("task".to_string()),
+                data: "first\nsecond".to_string(),
+                id: Some("event-1".to_string()),
+                retry: Some(2500),
+            })]
+        );
+    }
+
+    #[test]
+    fn decoder_emits_comments_without_flushing_event_data() {
+        assert_eq!(
+            SseFixture::decode(&[
+                "data: value\n".as_bytes(),
+                ": keep-alive\n".as_bytes(),
+                "\n".as_bytes(),
+            ]),
+            vec![
+                Item::Comment(" keep-alive".to_string()),
+                Item::Event(Event {
+                    event_type: None,
+                    data: "value".to_string(),
+                    id: None,
+                    retry: None,
+                }),
+            ]
+        );
+    }
+
+    #[test]
+    fn decoder_handles_lines_split_across_chunks() {
+        assert_eq!(
+            SseFixture::decode(&[
+                "data: par".as_bytes(),
+                "tial\n\n".as_bytes(),
+            ]),
+            vec![Item::Event(Event {
+                event_type: None,
+                data: "partial".to_string(),
+                id: None,
+                retry: None,
+            })]
+        );
+    }
+}

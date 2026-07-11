@@ -288,3 +288,193 @@ where
         )?))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use agentc_agent::{
+        graph::state::{
+            GraphState,
+            GraphStateInput,
+            GraphStateUpdate,
+        },
+        tools::{
+            activity::ActivityEmitter,
+            traits::TypedTool,
+            types::{
+                ToolExecutionContext,
+                TypedToolInput,
+            },
+        },
+    };
+    use serde::{
+        Deserialize,
+        Serialize,
+    };
+    use tokio::sync::mpsc;
+    use uuid::Uuid;
+    use wiremock::{
+        Mock,
+        MockServer,
+        ResponseTemplate,
+        matchers::{
+            method,
+            path,
+        },
+    };
+
+    use crate::{
+        client::{
+            A2aClient,
+            A2aClientConfig,
+        },
+        protocol::{
+            StreamResponse,
+            Task,
+            TaskId,
+            TaskState,
+            TaskStatus,
+        },
+        tools::{
+            target::A2aToolTarget,
+            types::{
+                A2aSendTaskToolInput,
+                A2aSendTaskToolInputMessage,
+            },
+        },
+    };
+
+    #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+    struct DummyState;
+
+    #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+    struct DummyStateUpdate;
+
+    #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+    struct DummyStateInput;
+
+    impl GraphState for DummyState {
+        type Update = DummyStateUpdate;
+        type Input = DummyStateInput;
+    }
+
+    impl GraphStateUpdate for DummyStateUpdate {
+        type State = DummyState;
+
+        fn apply(self, _update: &mut Self::State) {}
+
+        fn merge(self, _other: Self) -> Self {
+            self
+        }
+    }
+
+    impl GraphStateInput for DummyStateInput {
+        type State = DummyState;
+
+        fn initialize(self) -> Self::State {
+            DummyState
+        }
+    }
+
+    struct ToolFixture;
+
+    impl ToolFixture {
+        async fn target() -> (MockServer, A2aToolTarget) {
+            let server = MockServer::start().await;
+            let client = A2aClient::new(A2aClientConfig::new(server.uri()))
+                .expect("client config should be valid");
+
+            (
+                server,
+                A2aToolTarget::builder()
+                    .id("planner")
+                    .client(client)
+                    .build()
+                    .expect("target should build"),
+            )
+        }
+
+        fn input() -> A2aSendTaskToolInput {
+            A2aSendTaskToolInput {
+                message: A2aSendTaskToolInputMessage {
+                    text: Some("plan this".to_string()),
+                    data: None,
+                },
+                context_id: None,
+                task_id: None,
+                metadata: None,
+                accepted_output_modes: None,
+                history_length: None,
+            }
+        }
+
+        fn context() -> ToolExecutionContext {
+            ToolExecutionContext {
+                tenant_id: "tenant-1".to_string(),
+                session_id: Uuid::nil(),
+                run_id: Uuid::nil(),
+            }
+        }
+
+        fn completed_task() -> Task {
+            Task {
+                id: TaskId::new("task-1"),
+                context_id: "context-1".to_string(),
+                status: TaskStatus {
+                    state: TaskState::Completed,
+                    message: None,
+                    timestamp: None,
+                },
+                artifacts: None,
+                history: None,
+                metadata: None,
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn stream_task_tool_returns_events_and_emits_activity() {
+        let (server, target) = ToolFixture::target().await;
+
+        Mock::given(method("POST"))
+            .and(path("/message:stream"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_string(format!(
+                    "data: {}\n\n",
+                    serde_json::to_string(&StreamResponse::Task(
+                        ToolFixture::completed_task(),
+                    ))
+                    .expect("stream response should serialize"),
+                )),
+            )
+            .mount(&server)
+            .await;
+
+        let (tx, mut rx) = mpsc::channel(4);
+        let tool = target.stream_task_tool();
+
+        let output = <A2aStreamTaskTool as TypedTool<DummyState>>::execute(
+            &tool,
+            TypedToolInput::new(ToolFixture::input(), ToolFixture::context())
+                .with_activity_emitter(ActivityEmitter::new(tx)),
+        )
+        .await
+        .expect("tool should execute");
+
+        assert_eq!(
+            output
+                .output
+                .as_array()
+                .map(Vec::len),
+            Some(1)
+        );
+        assert_eq!(
+            rx.recv()
+                .await
+                .expect("activity should be emitted")
+                .activity_type,
+            "a2a_task"
+        );
+    }
+}
