@@ -5,6 +5,7 @@
 use std::time::Duration;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 
+use crate::client::errors::A2aClientError;
 
 #[derive(Debug, Clone)]
 pub struct A2aClientConfig {
@@ -31,6 +32,34 @@ impl A2aClientConfig {
             HeaderValue::from_str(value.as_ref()).unwrap(),
         );
         self
+    }
+
+    pub fn headers(mut self, headers: impl IntoIterator<Item = (impl AsRef<str>, impl AsRef<str>)>) -> Self {
+        for (key, value) in headers {
+            self.default_headers.insert(
+                HeaderName::from_bytes(key.as_ref().as_bytes()).unwrap(),
+                HeaderValue::from_str(value.as_ref()).unwrap(),
+            );
+        }
+        self
+    }
+
+    pub fn try_header(mut self, key: impl AsRef<str>, value: impl AsRef<str>) -> Result<Self, A2aClientError> {
+        self.default_headers.insert(
+            HeaderName::from_bytes(key.as_ref().as_bytes())?,
+            HeaderValue::from_str(value.as_ref())?,
+        );
+        Ok(self)
+    }
+
+    pub fn try_headers(mut self, headers: impl IntoIterator<Item = (impl AsRef<str>, impl AsRef<str>)>) -> Result<Self, A2aClientError> {
+        for (key, value) in headers {
+            self.default_headers.insert(
+                HeaderName::from_bytes(key.as_ref().as_bytes())?,
+                HeaderValue::from_str(value.as_ref())?,
+            );
+        }
+        Ok(self)
     }
 
     pub fn timeout(mut self, duration: Duration) -> Self {

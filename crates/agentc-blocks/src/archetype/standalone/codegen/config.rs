@@ -372,6 +372,58 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
                 pub servers: HashMap<String, McpTransportConfig>,
             }
 
+            #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+            #[serde(default)]
+            pub struct A2aConfig {
+                pub agents: HashMap<String, A2aAgentConfig>,
+            }
+
+            #[derive(Debug, Clone, Serialize, Deserialize)]
+            #[serde(default)]
+            pub struct A2aAgentConfig {
+                pub url: String,
+                pub auth_token: Option<String>,
+                pub headers: HashMap<String, String>,
+                pub tenant: A2aTenantConfig,
+                pub timeout_secs: u64,
+                pub default_accepted_output_modes: Vec<String>,
+                pub description: Option<String>,
+                pub capabilities: Vec<String>,
+                pub enabled: bool,
+            }
+
+            impl Default for A2aAgentConfig {
+                fn default() -> Self {
+                    A2aAgentConfig {
+                        url: String::new(),
+                        auth_token: None,
+                        headers: HashMap::new(),
+                        tenant: A2aTenantConfig::default(),
+                        timeout_secs: 60,
+                        default_accepted_output_modes: Vec::new(),
+                        description: None,
+                        capabilities: Vec::new(),
+                        enabled: true,
+                    }
+                }
+            }
+
+            #[derive(Debug, Clone, Serialize, Deserialize)]
+            #[serde(tag = "policy", rename_all = "snake_case")]
+            pub enum A2aTenantConfig {
+                Inherit,
+                None,
+                Fixed {
+                    id: String,
+                },
+            }
+
+            impl Default for A2aTenantConfig {
+                fn default() -> Self {
+                    A2aTenantConfig::Inherit
+                }
+            }
+
             #[derive(Debug, Clone, Serialize, Deserialize)]
             #[serde(default)]
             pub struct TaskQueueConfig {
@@ -441,6 +493,7 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
             pub struct Config {
                 pub database: DatabaseConfig,
                 pub mcp: McpConfig,
+                pub a2a: A2aConfig,
                 pub task_queue: TaskQueueConfig,
                 pub pubsub: PubSubConfig,
                 #(#config_generated_fields)*

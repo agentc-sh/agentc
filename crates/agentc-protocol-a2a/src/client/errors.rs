@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: MIT
 
+use reqwest::header::{InvalidHeaderName, InvalidHeaderValue};
+
 #[derive(Debug, thiserror::Error)]
 pub enum A2aClientError {
     #[error("invalid A2A client configuration: {0}")]
@@ -52,5 +54,17 @@ impl A2aClientError {
 
     pub fn serialize(error: impl Into<serde_json::Error>) -> Self {
         A2aClientError::Serialize(error.into())
+    }
+}
+
+impl From<InvalidHeaderName> for A2aClientError {
+    fn from(error: InvalidHeaderName) -> Self {
+        A2aClientError::configuration(format!("invalid header name: {}", error))
+    }
+}
+
+impl From<InvalidHeaderValue> for A2aClientError {
+    fn from(error: InvalidHeaderValue) -> Self {
+        A2aClientError::configuration(format!("invalid header value: {}", error))
     }
 }

@@ -15,8 +15,8 @@ use crate::{
     context::ResolvedContext,
     fields::FieldsSpec,
     graph::codegen::{
-        identity::IdentityCodeGen, mcp::McpCodeGen, models::ModelRegistryCodeGen,
-        skills::SkillsCodeGen, tools::ToolsCodeGen,
+        a2a::A2aCodeGen, identity::IdentityCodeGen, mcp::McpCodeGen,
+        models::ModelRegistryCodeGen, skills::SkillsCodeGen, tools::ToolsCodeGen,
     },
 };
 
@@ -69,6 +69,10 @@ impl CodeGen<ResolvedContext> for AgentCodeGen {
                 config::{McpServerConfig, McpTransport},
                 registry::McpRegistry,
             };
+            use agentc_protocol_a2a::{
+                client::{A2aClient, A2aClientConfig},
+                tools::{A2aTenantPolicy, A2aToolTarget},
+            };
             use agentc_agent_react::{
                 cancel::SqlReActCanceller,
                 checkpoint::handle::SqlReActCheckpointStoreHandle,
@@ -79,7 +83,7 @@ impl CodeGen<ResolvedContext> for AgentCodeGen {
                 },
             };
 
-            use crate::config::{Config, McpTransportConfig};
+            use crate::config::{A2aAgentConfig, A2aTenantConfig, Config, McpTransportConfig};
 
             #(#model_imports)*
             #(#tool_imports)*
@@ -139,11 +143,60 @@ impl CodeGen<ResolvedContext> for AgentCodeGen {
                     builder = builder.with_mcp_registry(&mcp_builder.build().await?).await;
                 }
 
+                for (name, agent) in &config.a2a.agents {
+                    if !agent.enabled {
+                        continue;
+                    }
+
+                    let mut client_config = A2aClientConfig::new(agent.url.clone())
+                        .timeout(std::time::Duration::from_secs(agent.timeout_secs));
+                    client_config.default_headers = build_a2a_headers(agent)?;
+
+                    let target = A2aToolTarget::builder()
+                        .id(name)
+                        .name(agent.description.as_deref().unwrap_or(name))
+                        .client(A2aClient::new(client_config)?)
+                        .tenant_policy(match &agent.tenant {
+                            A2aTenantConfig::Inherit => A2aTenantPolicy::Inherit,
+                            A2aTenantConfig::None => A2aTenantPolicy::None,
+                            A2aTenantConfig::Fixed { id } => A2aTenantPolicy::Fixed(id.clone()),
+                        })
+                        .capabilities(agent.capabilities.clone())
+                        .default_accepted_output_modes(agent.default_accepted_output_modes.clone())
+                        .build()?;
+
+                    builder = builder
+                        .with_typed_tool(target.send_task_tool())
+                        .with_typed_tool(target.stream_task_tool())
+                        .with_typed_tool(target.get_task_tool())
+                        .with_typed_tool(target.cancel_task_tool());
+                }
+
                 Ok(
                     builder
                         .with_identity(#agent_identity)
                         .build()?
                 )
+            }
+
+            fn build_a2a_headers(agent: &A2aAgentConfig) -> Result<reqwest::header::HeaderMap> {
+                let mut headers = reqwest::header::HeaderMap::new();
+
+                if let Some(token) = &agent.auth_token {
+                    headers.insert(
+                        reqwest::header::AUTHORIZATION,
+                        reqwest::header::HeaderValue::from_str(&format!("Bearer {token}"))?,
+                    );
+                }
+
+                for (key, value) in &agent.headers {
+                    headers.insert(
+                        reqwest::header::HeaderName::from_bytes(key.as_bytes())?,
+                        reqwest::header::HeaderValue::from_str(value)?,
+                    );
+                }
+
+                Ok(headers)
             }
         };
 
@@ -156,8 +209,24 @@ impl CodeGen<ResolvedContext> for AgentCodeGen {
         point: &str,
     ) -> Result<TokenStream, GeneratorError> {
         match point {
-            "config::loader" => Ok(McpCodeGen::loader_calls(ctx)),
-            "config::mapper" => Ok(McpCodeGen::mapper_fields(ctx)),
+            "config::loader" => {
+                let mcp = McpCodeGen::loader_calls(ctx);
+                let a2a = A2aCodeGen::loader_calls(ctx);
+
+                Ok(quote! {
+                    #mcp
+                    #a2a
+                })
+            }
+            "config::mapper" => {
+                let mcp = McpCodeGen::mapper_fields(ctx);
+                let a2a = A2aCodeGen::mapper_fields(ctx);
+
+                Ok(quote! {
+                    #mcp
+                    #a2a
+                })
+            }
             "tools::features" => Ok(ToolsCodeGen::features(ctx)),
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }

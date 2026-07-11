@@ -37,6 +37,7 @@ pub enum ResolvedContextToolKind {
     Mcp(ResolvedContextToolMcp),
     Bash(ResolvedContextToolBash),
     Python(ResolvedContextToolPython),
+    A2a(ResolvedContextToolA2a),
 }
 
 impl ResolvedContextToolKind {
@@ -54,6 +55,10 @@ impl ResolvedContextToolKind {
 
     pub fn is_python(&self) -> bool {
         matches!(self, Self::Python(_))
+    }
+
+    pub fn is_a2a(&self) -> bool {
+        matches!(self, Self::A2a(_))
     }
 }
 
@@ -202,5 +207,25 @@ pub enum ResolvedContextToolMcpTransport {
         url: RuntimeValue<String>,
         auth_token: Option<RuntimeValue<String>>,
         headers: HashMap<String, RuntimeValue<String>>,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResolvedContextToolA2a {
+    pub url: RuntimeValue<String>,
+    pub auth_token: Option<RuntimeValue<String>>,
+    pub headers: HashMap<String, RuntimeValue<String>>,
+    pub tenant: ResolvedContextToolA2aTenant,
+    pub timeout_secs: Option<RuntimeValue<String>>,
+    pub default_accepted_output_modes: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "policy", rename_all = "snake_case")]
+pub enum ResolvedContextToolA2aTenant {
+    Inherit,
+    None,
+    Fixed {
+        id: RuntimeValue<String>,
     },
 }
