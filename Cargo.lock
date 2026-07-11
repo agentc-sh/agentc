@@ -492,6 +492,7 @@ dependencies = [
 name = "agentc-protocol-a2a"
 version = "0.2.1"
 dependencies = [
+ "agentc-agent",
  "agentc-http",
  "agentc-telemetry",
  "async-stream",
@@ -501,10 +502,11 @@ dependencies = [
  "chrono",
  "futures",
  "jobq",
+ "json-patch",
  "reqwest",
  "reqwest-middleware",
- "reqwest-sse",
  "reqwest-tracing",
+ "schemars",
  "serde",
  "serde_json",
  "serde_qs",
@@ -6910,19 +6912,6 @@ dependencies = [
  "serde",
  "thiserror 2.0.18",
  "tower-service",
-]
-
-[[package]]
-name = "reqwest-sse"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97e36f9508407d80f97d0715f92ffdfe7aca394c7fffbf238ae80775b23330cb"
-dependencies = [
- "async-stream",
- "reqwest",
- "tokio",
- "tokio-stream",
- "tokio-util",
 ]
 
 [[package]]

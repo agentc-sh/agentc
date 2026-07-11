@@ -10,6 +10,9 @@ pub mod protocol;
 #[cfg(feature = "client")]
 pub mod client;
 
+#[cfg(feature = "client")]
+pub mod tools;
+
 #[cfg(feature = "server")]
 pub mod traits;
 
@@ -20,7 +23,7 @@ pub mod prelude {
     pub use crate::protocol::*;
 
     #[cfg(feature = "client")]
-    pub use crate::client::*;
+    pub use crate::{client::*, tools::*};
 
     #[cfg(feature = "server")]
     pub use crate::{router::*, traits::*};

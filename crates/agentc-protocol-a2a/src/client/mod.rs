@@ -7,6 +7,16 @@ mod config;
 mod base;
 mod constants;
 mod call;
+mod sse;
+
+pub use config::A2aClientConfig;
+pub use constants::{
+    A2A_CONTENT_TYPE,
+    A2A_TENANT_HEADER,
+    A2A_VERSION,
+    A2A_VERSION_HEADER,
+};
+pub use errors::A2aClientError;
 
 use reqwest::{
     header::{
@@ -15,9 +25,8 @@ use reqwest::{
     },
     Response,
 };
-use reqwest_sse::EventSource;
 use futures::{
-    stream::LocalBoxStream,
+    stream::BoxStream,
     StreamExt,
     TryStreamExt,
 };
@@ -33,16 +42,9 @@ use crate::{
         Task,
     },
     client::{
-        errors::A2aClientError,
-        config::A2aClientConfig,
         base::BaseClient,
         call::Call,
-        constants::{
-            A2A_CONTENT_TYPE,
-            A2A_TENANT_HEADER,
-            A2A_VERSION,
-            A2A_VERSION_HEADER,
-        },
+        sse::{Sse, Item},
     },
 };
 
@@ -82,7 +84,7 @@ impl A2aClient {
     pub fn stream_message(
         &self,
         request: SendMessageRequest,
-    ) -> Call<'_, Response, LocalBoxStream<'static, Result<StreamResponse, A2aClientError>>> {
+    ) -> Call<'_, Response, BoxStream<'static, Result<StreamResponse, A2aClientError>>> {
         Call::post(&self.client, "/message:stream")
             .header_lossy(A2A_VERSION_HEADER, A2A_VERSION)
             .header_lossy(CONTENT_TYPE, A2A_CONTENT_TYPE)
@@ -90,25 +92,23 @@ impl A2aClient {
             .maybe_header_lossy(A2A_TENANT_HEADER, request.tenant.as_deref())
             .body(&request)
             .map(|response| async move {
-                response
-                    .events()
-                    .await
-                    .map_err(|err| A2aClientError::stream_decode(err.to_string()))
-                    .map(|events| {
-                        events
-                            .map_err(|err| A2aClientError::stream_decode(err.to_string()))
-                            .and_then(|event| async move {
-                                if event.event_type == "error" {
-                                    return Err(A2aClientError::stream_decode(event.data));
-                                }
-
-                                serde_json::from_str::<StreamResponse>(&event.data)
-                                    .map_err(|err| {
-                                        A2aClientError::stream_decode(err.to_string())
-                                    })
-                            })
-                            .boxed_local()
-                    })
+                Ok(
+                    response
+                        .sse()
+                        .map_err(|e| A2aClientError::stream_decode(e.to_string()))
+                        .try_filter_map(|item| async move {
+                            match item {
+                                Item::Comment(_) => Ok(None),
+                                Item::Event(event) if event.event_type.as_deref() == Some("error") => Err(
+                                    A2aClientError::stream_decode(event.data),
+                                ),
+                                Item::Event(event) => serde_json::from_str::<StreamResponse>(&event.data)
+                                    .map(Some)
+                                    .map_err(|e| A2aClientError::stream_decode(e.to_string())),
+                            }
+                        })
+                        .boxed()
+                )
             })
     }
 

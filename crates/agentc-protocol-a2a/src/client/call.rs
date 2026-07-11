@@ -154,14 +154,6 @@ impl<'a> Call<'a, Response> {
     pub(crate) fn post(client: &'a BaseClient, url: impl Into<String>) -> Self {
         Self::http(client, Method::POST, url)
     }
-
-    pub(crate) fn put(client: &'a BaseClient, url: impl Into<String>) -> Self {
-        Self::http(client, Method::PUT, url)
-    }
-
-    pub(crate) fn delete(client: &'a BaseClient, url: impl Into<String>) -> Self {
-        Self::http(client, Method::DELETE, url)
-    }
 }
 
 impl<'a, I, T> Call<'a, I, T> {
@@ -307,15 +299,12 @@ impl<'a> Call<'a, Response, Response> {
     }
 }
 
-impl<'a, I, T> IntoFuture for Call<'a, I, T>
+impl<'a, I, T> Call<'a, I, T>
 where
     I: Send + 'a,
-    T: Send + 'a,
+    T: 'a,
 {
-    type Output = Result<T, A2aClientError>;
-    type IntoFuture = Pin<Box<dyn Future<Output = Self::Output> + Send + 'a>>;
-
-    fn into_future(self) -> Self::IntoFuture {
+    pub fn into_local_future(self) -> Pin<Box<dyn Future<Output = Result<T, A2aClientError>> + 'a>> {
         let Call {
             client,
             method,
@@ -337,5 +326,48 @@ where
 
             mapper(execute(client, request.apply(builder)).await?).await
         })
+    }
+}
+
+impl<'a, I, T> Call<'a, I, T>
+where
+    I: Send + 'a,
+    T: Send + 'a,
+{
+    pub fn into_future(self) -> Pin<Box<dyn Future<Output = Result<T, A2aClientError>> + Send + 'a>> {
+        let Call {
+            client,
+            method,
+            url,
+            body,
+            query,
+            request,
+            execute,
+            mapper,
+        } = self;
+
+        Box::pin(async move {
+            let mut builder = client.request(method, &url, query.transpose()?.as_deref());
+
+            if let Some(body) = body {
+                builder = builder
+                    .body(body?);
+            }
+
+            mapper(execute(client, request.apply(builder)).await?).await
+        })
+    }
+}
+
+impl<'a, I, T> IntoFuture for Call<'a, I, T>
+where
+    I: Send + 'a,
+    T: Send + 'a,
+{
+    type Output = Result<T, A2aClientError>;
+    type IntoFuture = Pin<Box<dyn Future<Output = Self::Output> + Send + 'a>>;
+
+    fn into_future(self) -> Self::IntoFuture {
+        Call::into_future(self)
     }
 }
