@@ -47,6 +47,8 @@ jobs:
       - name: Lint code
         run: task rust:lint
 
+      - name: Format code
+        run: task rust:fmt
 
   tests:
     if: |

@@ -9,6 +9,7 @@ use axum::{
         Response,
         sse::{Event, KeepAlive, Sse},
     },
+    routing::post,
 };
 use async_stream::stream;
 use futures::{
@@ -42,6 +43,7 @@ use agentc_http::{
         Path,
         TenantIdHeader,
     },
+    openapi::OpenApiRouterExt,
     state::DefaultTenantId,
     stream::CancelOnDropStream,
 };
@@ -144,7 +146,8 @@ pub fn router(
         .routes(routes!(send_message_endpoint))
         .routes(routes!(stream_message_endpoint))
         .routes(routes!(get_task_endpoint))
-        .routes(routes!(cancel_task_endpoint))
+        .route("/tasks/{id}", post(post_task_action_endpoint))
+        .document::<__path_cancel_task_endpoint>()
         .with_state(A2aRouterState {
             service,
             agent_interface,
@@ -321,6 +324,29 @@ async fn get_task_endpoint(
             .into_response(),
         Err(err) => ErrorResponseDTO::from(err)
             .into_response(),
+    }
+}
+
+async fn post_task_action_endpoint(
+    State(state): State<A2aRouterState>,
+    tenant_id: Option<TenantIdHeader>,
+    Path(id_and_action): Path<String>,
+) -> Response {
+    let Some((id, action)) = id_and_action.rsplit_once(':') else {
+        return ErrorResponseDTO::from(ApiError::not_found(format!(
+            "unknown task action: {id_and_action}"
+        )))
+        .into_response();
+    };
+
+    match action {
+        "cancel" => {
+            cancel_task_endpoint(State(state), tenant_id, Path(TaskId::from(id))).await
+        }
+        _ => ErrorResponseDTO::from(ApiError::not_found(format!(
+            "unknown task action: {action}"
+        )))
+        .into_response(),
     }
 }
 
