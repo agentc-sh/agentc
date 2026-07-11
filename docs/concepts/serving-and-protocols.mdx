@@ -53,9 +53,13 @@ stream task updates, read a known task, and cancel a task. In the current implem
 maps to an agent run, an A2A context maps to a session, and task artifacts carry the agent's text or
 structured output.
 
+This is inbound A2A serving. Outbound A2A delegation is configured as a tool with
+`tool { kind = "a2a" }`, which lets this agent call a specific downstream A2A server. See
+[Connect agents via A2A](/guides/connect-agents-via-a2a).
+
 ## Multi-tenancy
 
-The server is multi-tenant aware. A request can carry an `X-Tenant-ID` header to attribute the run to
+The server is multi-tenant aware. A request can carry an `X-Tenant-Id` header to attribute the run to
 a specific tenant, and requests without the header fall back to a configured default tenant. This lets
 one deployment serve many isolated callers.
 
@@ -75,4 +79,5 @@ The exact fields that enable and tune the server are on the
 - [HTTP reference](/reference/graph/react/http): the native endpoints and their shared conventions.
 - [AG-UI](/reference/http-api/ag-ui): the AG-UI protocol add-on.
 - [A2A](/reference/http-api/a2a): the Agent2Agent protocol add-on.
+- [Connect agents via A2A](/guides/connect-agents-via-a2a): configure outbound A2A delegation.
 - [http_server reference](/reference/manifest/http-server): the fields that configure the server.
