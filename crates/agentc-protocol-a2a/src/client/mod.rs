@@ -45,6 +45,7 @@ impl A2aClient {
         Call::get(&self.client, "/.well-known/agent-card.json")
             .header_lossy(A2A_VERSION_HEADER, A2A_VERSION)
             .header_lossy(ACCEPT, A2A_CONTENT_TYPE)
+            .timeout(self.client.config().timeout)
             .json()
     }
 
@@ -57,6 +58,7 @@ impl A2aClient {
             .header_lossy(CONTENT_TYPE, A2A_CONTENT_TYPE)
             .header_lossy(ACCEPT, A2A_CONTENT_TYPE)
             .maybe_header_lossy(A2A_TENANT_HEADER, request.tenant.as_deref())
+            .timeout(self.client.config().timeout)
             .body(&request)
             .json()
     }
@@ -74,7 +76,6 @@ impl A2aClient {
             .map(|response| async move {
                 Ok(response
                     .sse()
-                    .map_err(|e| A2aClientError::stream_decode(e.to_string()))
                     .try_filter_map(|item| async move {
                         match item {
                             Item::Comment(_) => Ok(None),
@@ -104,6 +105,7 @@ impl A2aClient {
             .header_lossy(A2A_VERSION_HEADER, A2A_VERSION)
             .header_lossy(ACCEPT, A2A_CONTENT_TYPE)
             .maybe_header_lossy(A2A_TENANT_HEADER, request.tenant.as_deref())
+            .timeout(self.client.config().timeout)
             .params(&GetTaskParams { history_length: request.history_length })
             .json()
     }
@@ -114,6 +116,7 @@ impl A2aClient {
             .header_lossy(CONTENT_TYPE, A2A_CONTENT_TYPE)
             .header_lossy(ACCEPT, A2A_CONTENT_TYPE)
             .maybe_header_lossy(A2A_TENANT_HEADER, request.tenant.as_deref())
+            .timeout(self.client.config().timeout)
             .body(&request)
             .json()
     }
