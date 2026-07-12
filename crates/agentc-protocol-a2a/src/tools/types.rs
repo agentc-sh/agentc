@@ -14,8 +14,8 @@ use agentc_agent::tools::{
 use crate::{
     protocol::{
         Artifact, CancelTaskRequest, GetTaskRequest, Message, Part, PartContent, Role,
-        SendMessageConfiguration, SendMessageRequest, StreamResponse, Task, TaskArtifactUpdateEvent,
-        TaskId, TaskState, TaskStatusUpdateEvent,
+        SendMessageConfiguration, SendMessageRequest, StreamResponse, Task,
+        TaskArtifactUpdateEvent, TaskId, TaskState, TaskStatusUpdateEvent,
     },
     tools::target::A2aToolTarget,
 };
@@ -188,8 +188,14 @@ impl A2aStreamTaskToolResult {
                     result.merge_artifact(update.artifact, update.append.unwrap_or(false));
                 }
                 StreamResponse::Message(message) => {
-                    result.task_id = message.task_id.clone().or(result.task_id);
-                    result.context_id = message.context_id.clone().or(result.context_id);
+                    result.task_id = message
+                        .task_id
+                        .clone()
+                        .or(result.task_id);
+                    result.context_id = message
+                        .context_id
+                        .clone()
+                        .or(result.context_id);
                     result.message = Some(message);
                 }
             }
@@ -240,13 +246,12 @@ impl A2aSendTaskToolInputMessage {
             ));
         }
 
-        Ok(
-            self.text
-                .map(Part::text)
-                .into_iter()
-                .chain(self.data.map(Part::data))
-                .collect()
-        )
+        Ok(self
+            .text
+            .map(Part::text)
+            .into_iter()
+            .chain(self.data.map(Part::data))
+            .collect())
     }
 }
 
@@ -364,7 +369,7 @@ mod tests {
     use uuid::Uuid;
 
     use crate::{
-        client::{A2aClientConfig, A2aClient},
+        client::{A2aClient, A2aClientConfig},
         protocol::{
             Artifact, ArtifactId, Message, Part, PartContent, Role, StreamResponse, Task,
             TaskArtifactUpdateEvent, TaskId, TaskState, TaskStatus, TaskStatusUpdateEvent,
