@@ -4,27 +4,16 @@
 
 use base64::prelude::*;
 use serde::{
-    de::Error as DeError,
-    ser::SerializeMap,
-    Deserialize,
-    Deserializer,
-    Serialize,
-    Serializer,
+    Deserialize, Deserializer, Serialize, Serializer, de::Error as DeError, ser::SerializeMap,
 };
-use serde_json::{
-    from_value,
-    Value,
-};
+use serde_json::{Value, from_value};
 use std::collections::HashMap;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::protocol::{
     ids::TaskId,
-    task::{
-        Task,
-        TaskPushNotificationConfig,
-    },
+    task::{Task, TaskPushNotificationConfig},
 };
 
 /// Identifies the sender of a message.
@@ -170,15 +159,17 @@ impl<'de> Deserialize<'de> for Part {
         let content = if let Some(Value::String(text)) = raw.get("text") {
             PartContent::Text(text.clone())
         } else if let Some(Value::String(raw)) = raw.get("raw") {
-            PartContent::Raw(BASE64_STANDARD.decode(raw).map_err(DeError::custom)?)
+            PartContent::Raw(
+                BASE64_STANDARD
+                    .decode(raw)
+                    .map_err(DeError::custom)?,
+            )
         } else if let Some(Value::String(url)) = raw.get("url") {
             PartContent::Url(url.clone())
         } else if let Some(data) = raw.get("data") {
             PartContent::Data(data.clone())
         } else {
-            return Err(DeError::custom(
-                "Part must have one of: text, raw, url, data",
-            ));
+            return Err(DeError::custom("Part must have one of: text, raw, url, data"));
         };
 
         Ok(Self {
@@ -232,7 +223,9 @@ impl Message {
     }
 
     pub fn text(&self) -> Option<&str> {
-        self.parts.iter().find_map(Part::as_text)
+        self.parts
+            .iter()
+            .find_map(Part::as_text)
     }
 }
 
@@ -287,19 +280,13 @@ impl<'de> Deserialize<'de> for SendMessageResponse {
         let raw = HashMap::<String, Value>::deserialize(deserializer)?;
 
         if let Some(task) = raw.get("task") {
-            return Ok(Self::Task(
-                from_value(task.clone()).map_err(DeError::custom)?,
-            ));
+            return Ok(Self::Task(from_value(task.clone()).map_err(DeError::custom)?));
         }
 
         if let Some(message) = raw.get("message") {
-            return Ok(Self::Message(
-                from_value(message.clone()).map_err(DeError::custom)?,
-            ));
+            return Ok(Self::Message(from_value(message.clone()).map_err(DeError::custom)?));
         }
 
-        Err(DeError::custom(
-            "SendMessageResponse must have 'task' or 'message'",
-        ))
+        Err(DeError::custom("SendMessageResponse must have 'task' or 'message'"))
     }
 }

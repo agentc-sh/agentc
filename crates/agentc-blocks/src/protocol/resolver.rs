@@ -63,10 +63,7 @@ pub struct ProtocolResolverBuilder {
 
 impl ProtocolResolverBuilder {
     pub fn new() -> Self {
-        Self {
-            error: None,
-            protocols: HashMap::new(),
-        }
+        Self { error: None, protocols: HashMap::new() }
     }
 
     pub fn with_protocol<T>(mut self, protocol: T) -> Self
@@ -175,10 +172,7 @@ mod tests {
 
         assert!(matches!(
             result,
-            Err(BlocksError::DuplicateRegistration {
-                component: "protocol",
-                ..
-            })
+            Err(BlocksError::DuplicateRegistration { component: "protocol", .. })
         ));
     }
 
@@ -189,8 +183,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let result = resolver
-            .resolve("missing", context(), json!({}));
+        let result = resolver.resolve("missing", context(), json!({}));
 
         assert!(matches!(result, Err(BlocksError::UnknownProtocol(_))));
     }

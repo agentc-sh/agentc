@@ -22,13 +22,8 @@ mod tests {
         context::GenerationContext,
         errors::GeneratorError,
         extension::{
-            Contribution,
-            ErasedContribution,
-            ErasedExtensionPoint,
-            ExtensionRegistry,
-            ExtensionPoint,
-            StringExtensionPoint,
-            reducers,
+            Contribution, ErasedContribution, ErasedExtensionPoint, ExtensionPoint,
+            ExtensionRegistry, StringExtensionPoint, reducers,
         },
         vfs::VirtualFileSystem,
     };
@@ -43,17 +38,12 @@ mod tests {
             "number"
         }
 
-        fn reduce(
-            &self,
-            contributions: Vec<Self::Contribution>,
-        ) -> Result<String, GeneratorError> {
-            Ok(
-                contributions
-                    .into_iter()
-                    .map(|value| value.to_string())
-                    .collect::<Vec<_>>()
-                    .join(","),
-            )
+        fn reduce(&self, contributions: Vec<Self::Contribution>) -> Result<String, GeneratorError> {
+            Ok(contributions
+                .into_iter()
+                .map(|value| value.to_string())
+                .collect::<Vec<_>>()
+                .join(","))
         }
     }
 
@@ -75,10 +65,7 @@ mod tests {
 
         fn with_extension_point(mut self, name: &str) -> Self {
             self.extension_points
-                .push(Box::new(StringExtensionPoint::new(
-                    name,
-                    reducers::concat,
-                )));
+                .push(Box::new(StringExtensionPoint::new(name, reducers::concat)));
             self
         }
 

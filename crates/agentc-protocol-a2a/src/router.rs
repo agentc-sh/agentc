@@ -2,61 +2,36 @@
 //
 // SPDX-License-Identifier: MIT
 
+use async_stream::stream;
 use axum::{
     extract::State,
     response::{
-        IntoResponse,
-        Response,
+        IntoResponse, Response,
         sse::{Event, KeepAlive, Sse},
     },
+    routing::post,
 };
-use async_stream::stream;
-use futures::{
-    StreamExt,
-    stream::BoxStream,
-};
+use futures::{StreamExt, stream::BoxStream};
 use jobq::{
-    AnyExecutable,
-    Error as JobQueueError,
-    FifoQueue,
-    JobQueue,
-    JobStreamOptions,
-    StreamTask,
+    AnyExecutable, Error as JobQueueError, FifoQueue, JobQueue, JobStreamOptions, StreamTask,
 };
-use std::{
-    convert::Infallible,
-    sync::Arc,
-    time::Duration,
-};
+use std::{convert::Infallible, sync::Arc, time::Duration};
 use tokio_util::sync::CancellationToken;
-use utoipa_axum::{
-    router::OpenApiRouter,
-    routes,
-};
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 use agentc_http::{
     dto::errors::ErrorResponseDTO,
     errors::ApiError,
-    extractors::{
-        Json,
-        Path,
-        TenantIdHeader,
-    },
+    extractors::{Json, Path, TenantIdHeader},
+    openapi::OpenApiRouterExt,
     state::DefaultTenantId,
     stream::CancelOnDropStream,
 };
 
 use crate::{
     protocol::{
-        AgentCard,
-        AgentInterface,
-        CancelTaskRequest,
-        GetTaskRequest,
-        SendMessageRequest,
-        SendMessageResponse,
-        StreamResponse,
-        Task,
-        TaskId,
+        AgentCard, AgentInterface, CancelTaskRequest, GetTaskRequest, SendMessageRequest,
+        SendMessageResponse, StreamResponse, Task, TaskId,
     },
     traits::A2aService,
 };
@@ -81,11 +56,7 @@ impl A2aStreamTask {
         request: SendMessageRequest,
         disconnect: CancellationToken,
     ) -> Self {
-        Self {
-            service,
-            request,
-            disconnect,
-        }
+        Self { service, request, disconnect }
     }
 }
 
@@ -144,7 +115,8 @@ pub fn router(
         .routes(routes!(send_message_endpoint))
         .routes(routes!(stream_message_endpoint))
         .routes(routes!(get_task_endpoint))
-        .routes(routes!(cancel_task_endpoint))
+        .route("/tasks/{id}", post(post_task_action_endpoint))
+        .document::<__path_cancel_task_endpoint>()
         .with_state(A2aRouterState {
             service,
             agent_interface,
@@ -165,11 +137,13 @@ pub fn router(
         (status = 500, description = "Internal server error", body = ErrorResponseDTO)
     )
 )]
-async fn agent_card_endpoint(
-    State(state): State<A2aRouterState>,
-) -> Response {
-    Json(state.service.agent_card(&state.agent_interface))
-        .into_response()
+async fn agent_card_endpoint(State(state): State<A2aRouterState>) -> Response {
+    Json(
+        state
+            .service
+            .agent_card(&state.agent_interface),
+    )
+    .into_response()
 }
 
 /// Sends a message to the A2A service and waits for its task response.
@@ -197,17 +171,22 @@ async fn send_message_endpoint(
     request.tenant = request
         .tenant
         .or_else(|| tenant_id.map(TenantIdHeader::into_inner))
-        .or_else(|| Some(state.default_tenant_id.clone().into_inner()));
+        .or_else(|| {
+            Some(
+                state
+                    .default_tenant_id
+                    .clone()
+                    .into_inner(),
+            )
+        });
 
     match state
         .service
         .send_message(request)
         .await
     {
-        Ok(response) => Json(response)
-            .into_response(),
-        Err(err) => ErrorResponseDTO::from(err)
-            .into_response(),
+        Ok(response) => Json(response).into_response(),
+        Err(err) => ErrorResponseDTO::from(err).into_response(),
     }
 }
 
@@ -236,11 +215,19 @@ async fn stream_message_endpoint(
     request.tenant = request
         .tenant
         .or_else(|| tenant_id.map(TenantIdHeader::into_inner))
-        .or_else(|| Some(state.default_tenant_id.clone().into_inner()));
+        .or_else(|| {
+            Some(
+                state
+                    .default_tenant_id
+                    .clone()
+                    .into_inner(),
+            )
+        });
 
     let disconnect = CancellationToken::new();
 
-    match state.task_queue
+    match state
+        .task_queue
         .enqueue_stream(JobStreamOptions::new(A2aStreamTask::new(
             state.service.clone(),
             request,
@@ -255,20 +242,18 @@ async fn stream_message_endpoint(
                         .json_data(event)
                         .expect("failed to serialize event data"),
                 ),
-                Err(err) => Ok(
-                    Event::default()
-                        .event("error")
-                        .json_data(ErrorResponseDTO::from(match err {
-                            JobQueueError::TaskExecution { source, .. } => {
-                                match source.downcast::<ApiError>() {
-                                    Ok(err) => *err,
-                                    Err(source) => ApiError::unexpected_error(source.to_string()),
-                                }
+                Err(err) => Ok(Event::default()
+                    .event("error")
+                    .json_data(ErrorResponseDTO::from(match err {
+                        JobQueueError::TaskExecution { source, .. } => {
+                            match source.downcast::<ApiError>() {
+                                Ok(err) => *err,
+                                Err(source) => ApiError::unexpected_error(source.to_string()),
                             }
-                            err => ApiError::unexpected_error(err.to_string()),
-                        }))
-                        .expect("failed to serialize error response")
-                ),
+                        }
+                        err => ApiError::unexpected_error(err.to_string()),
+                    }))
+                    .expect("failed to serialize error response")),
             }
         }))
         .keep_alive(
@@ -278,8 +263,7 @@ async fn stream_message_endpoint(
         )
         .into_response(),
         Err(err) => {
-            ErrorResponseDTO::from(ApiError::unexpected_error(err.to_string()))
-                .into_response()
+            ErrorResponseDTO::from(ApiError::unexpected_error(err.to_string())).into_response()
         }
     }
 }
@@ -307,19 +291,44 @@ async fn get_task_endpoint(
     tenant_id: Option<TenantIdHeader>,
     Path(id): Path<TaskId>,
 ) -> Response {
-    match state.service
+    match state
+        .service
         .get_task(GetTaskRequest {
             id,
             history_length: None,
             tenant: tenant_id
                 .map(TenantIdHeader::into_inner)
-                .or_else(|| Some(state.default_tenant_id.clone().into_inner())),
+                .or_else(|| {
+                    Some(
+                        state
+                            .default_tenant_id
+                            .clone()
+                            .into_inner(),
+                    )
+                }),
         })
         .await
     {
-        Ok(task) => Json(task)
-            .into_response(),
-        Err(err) => ErrorResponseDTO::from(err)
+        Ok(task) => Json(task).into_response(),
+        Err(err) => ErrorResponseDTO::from(err).into_response(),
+    }
+}
+
+async fn post_task_action_endpoint(
+    State(state): State<A2aRouterState>,
+    tenant_id: Option<TenantIdHeader>,
+    Path(id_and_action): Path<String>,
+) -> Response {
+    let Some((id, action)) = id_and_action.rsplit_once(':') else {
+        return ErrorResponseDTO::from(ApiError::not_found(format!(
+            "unknown task action: {id_and_action}"
+        )))
+        .into_response();
+    };
+
+    match action {
+        "cancel" => cancel_task_endpoint(State(state), tenant_id, Path(TaskId::from(id))).await,
+        _ => ErrorResponseDTO::from(ApiError::not_found(format!("unknown task action: {action}")))
             .into_response(),
     }
 }
@@ -347,19 +356,25 @@ async fn cancel_task_endpoint(
     tenant_id: Option<TenantIdHeader>,
     Path(id): Path<TaskId>,
 ) -> Response {
-    match state.service
+    match state
+        .service
         .cancel_task(CancelTaskRequest {
             id,
             metadata: None,
             tenant: tenant_id
                 .map(TenantIdHeader::into_inner)
-                .or_else(|| Some(state.default_tenant_id.clone().into_inner())),
+                .or_else(|| {
+                    Some(
+                        state
+                            .default_tenant_id
+                            .clone()
+                            .into_inner(),
+                    )
+                }),
         })
         .await
     {
-        Ok(task) => Json(task)
-            .into_response(),
-        Err(err) => ErrorResponseDTO::from(err)
-            .into_response(),
+        Ok(task) => Json(task).into_response(),
+        Err(err) => ErrorResponseDTO::from(err).into_response(),
     }
 }

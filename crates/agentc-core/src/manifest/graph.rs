@@ -98,9 +98,6 @@ agent "assistant" {{
             .deserialize_string::<Manifest>(&manifest_with_graph(r#"    type = "unknown""#))
             .unwrap_err();
 
-        assert!(
-            error.to_string().contains("unknown"),
-            "unexpected parser error: {error}"
-        );
+        assert!(error.to_string().contains("unknown"), "unexpected parser error: {error}");
     }
 }

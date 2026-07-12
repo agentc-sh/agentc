@@ -14,20 +14,14 @@ use agentc_compiler::generator::{
     },
     context::GenerationContext,
     errors::GeneratorError,
-    extension::{
-        Contribution,
-        ErasedContributionValue,
-        ExtensionRegistry,
-    },
+    extension::{Contribution, ErasedContributionValue, ExtensionRegistry},
 };
 
 use crate::{
-    archetype::standalone::codegen::cargo::{
-        CargoDependencyContribution,
-        CargoPatchContribution,
-    },
+    archetype::standalone::codegen::cargo::{CargoDependencyContribution, CargoPatchContribution},
     composition::GenerationContribution,
     context::{ResolvedContext, ResolvedContextHttpServerProtocolA2a},
+    contributions::dependency::RuntimeDependencyContribution,
     errors::BlocksError,
     feature::{GenerationFeatureSet, HttpServer, ProtocolA2a, Streaming},
     protocol::{traits::Protocol, types::ResolvedProtocol},
@@ -88,13 +82,14 @@ impl TemplateFragment<ResolvedContext> for A2aCargoFragment {
     ) -> Result<ErasedContributionValue, GeneratorError> {
         match point {
             "cargo::dependencies" => {
-                Ok(ErasedContributionValue::new(CargoDependencyContribution::raw(format!(
-                    "agentc-protocol-a2a = {{ version = \"{}\" }}",
-                    env!("CARGO_PKG_VERSION"),
-                ))))
+                Ok(ErasedContributionValue::new(CargoDependencyContribution::runtime(
+                    RuntimeDependencyContribution::new("agentc-protocol-a2a")
+                        .default_features(false)
+                        .feature("server"),
+                )))
             }
-            "cargo::patches" => Ok(ErasedContributionValue::new(CargoPatchContribution::raw(
-                "agentc-protocol-a2a = { path = \"../runtime/agentc-protocol-a2a\" }"
+            "cargo::patches" => Ok(ErasedContributionValue::new(CargoPatchContribution::runtime(
+                RuntimeDependencyContribution::new("agentc-protocol-a2a"),
             ))),
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
@@ -186,9 +181,24 @@ mod tests {
             .unwrap();
 
         assert_eq!(resolved.name, "a2a");
-        assert!(resolved.contribution.provides.contains::<ProtocolA2a>());
-        assert!(resolved.contribution.requires.contains::<HttpServer>());
-        assert!(resolved.contribution.requires.contains::<Streaming>());
+        assert!(
+            resolved
+                .contribution
+                .provides
+                .contains::<ProtocolA2a>()
+        );
+        assert!(
+            resolved
+                .contribution
+                .requires
+                .contains::<HttpServer>()
+        );
+        assert!(
+            resolved
+                .contribution
+                .requires
+                .contains::<Streaming>()
+        );
     }
 
     #[test]
@@ -208,5 +218,38 @@ mod tests {
         assert!(rendered.contains("service . clone"));
         assert!(rendered.contains("default_tenant_id . clone"));
         assert!(rendered.contains("task_queue . clone"));
+    }
+
+    #[test]
+    fn a2a_cargo_fragment_contributes_server_runtime_dependency() {
+        let dependency = A2aCargoFragment
+            .generate_contribution(&GenerationContext::new(context()), "cargo::dependencies")
+            .unwrap()
+            .downcast::<CargoDependencyContribution>()
+            .unwrap();
+
+        assert!(matches!(
+            dependency,
+            CargoDependencyContribution::Runtime(dependency)
+                if dependency.name == "agentc-protocol-a2a"
+                    && dependency.default_features == Some(false)
+                    && dependency.features.len() == 1
+                    && dependency.features.contains("server")
+        ));
+    }
+
+    #[test]
+    fn a2a_cargo_fragment_contributes_runtime_patch() {
+        let patch = A2aCargoFragment
+            .generate_contribution(&GenerationContext::new(context()), "cargo::patches")
+            .unwrap()
+            .downcast::<CargoPatchContribution>()
+            .unwrap();
+
+        assert!(matches!(
+            patch,
+            CargoPatchContribution::Runtime(dependency)
+                if dependency.name == "agentc-protocol-a2a"
+        ));
     }
 }

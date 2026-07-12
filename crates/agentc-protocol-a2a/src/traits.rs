@@ -3,30 +3,18 @@
 // SPDX-License-Identifier: MIT
 
 use async_trait::async_trait;
-use futures::{
-    Stream,
-    stream::BoxStream,
-};
+use futures::{Stream, stream::BoxStream};
 use std::{
     pin::Pin,
     sync::Arc,
-    task::{
-        Context,
-        Poll,
-    },
+    task::{Context, Poll},
 };
 
 use agentc_http::errors::ApiError;
 
 use crate::protocol::{
-    AgentCard,
-    AgentInterface,
-    CancelTaskRequest,
-    GetTaskRequest,
-    SendMessageRequest,
-    SendMessageResponse,
-    StreamResponse,
-    Task,
+    AgentCard, AgentInterface, CancelTaskRequest, GetTaskRequest, SendMessageRequest,
+    SendMessageResponse, StreamResponse, Task,
 };
 
 #[async_trait]
@@ -40,13 +28,8 @@ pub struct A2aStream {
 }
 
 impl A2aStream {
-    pub fn new(
-        inner: BoxStream<'static, Result<StreamResponse, ApiError>>,
-    ) -> Self {
-        Self {
-            inner,
-            cancel: None,
-        }
+    pub fn new(inner: BoxStream<'static, Result<StreamResponse, ApiError>>) -> Self {
+        Self { inner, cancel: None }
     }
 
     pub fn with_cancel<C>(mut self, cancel: C) -> Self
@@ -69,10 +52,7 @@ impl A2aStream {
 impl Stream for A2aStream {
     type Item = Result<StreamResponse, ApiError>;
 
-    fn poll_next(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         Pin::new(&mut self.inner).poll_next(cx)
     }
 }
@@ -87,20 +67,11 @@ pub trait A2aService: Send + Sync {
         request: SendMessageRequest,
     ) -> Result<SendMessageResponse, ApiError>;
 
-    async fn stream_message(
-        &self,
-        request: SendMessageRequest,
-    ) -> Result<A2aStream, ApiError>;
+    async fn stream_message(&self, request: SendMessageRequest) -> Result<A2aStream, ApiError>;
 
-    async fn get_task(
-        &self,
-        request: GetTaskRequest,
-    ) -> Result<Task, ApiError>;
+    async fn get_task(&self, request: GetTaskRequest) -> Result<Task, ApiError>;
 
-    async fn cancel_task(
-        &self,
-        request: CancelTaskRequest,
-    ) -> Result<Task, ApiError>;
+    async fn cancel_task(&self, request: CancelTaskRequest) -> Result<Task, ApiError>;
 }
 
 pub trait FromA2aType<T>: Sized {

@@ -66,9 +66,12 @@ Enabling `a2a` mounts the foundational Agent2Agent protocol surface on the serve
 upstream agents to discover the agent, send work as tasks, stream basic task updates, inspect a known
 task, and cancel a task.
 
+This setting exposes the current agent as an inbound A2A server. To let the current agent call
+another A2A server, configure an A2A tool with `tool { kind = "a2a" }`.
+
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `path` | string | no | `"/a2a"` | Base URL path at which the A2A endpoints are mounted. |
 
 See [A2A](/reference/http-api/a2a) for the supported endpoint shapes and current implementation
-scope.
+scope. See [Connect agents via A2A](/guides/connect-agents-via-a2a) for outbound A2A tools.

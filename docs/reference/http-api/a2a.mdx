@@ -100,7 +100,7 @@ The A2A add-on is a protocol adapter over the same service layer as the native H
 </Endpoint>
 
 <Parameters in="header">
-  <Field name="X-Tenant-ID" type="string">
+  <Field name="X-Tenant-Id" type="string">
     Optional tenant ID. If omitted, the configured default tenant ID is used.
   </Field>
 </Parameters>
@@ -277,7 +277,7 @@ curl -X POST http://localhost:8080/a2a/message:send \
 </Endpoint>
 
 <Parameters in="header">
-  <Field name="X-Tenant-ID" type="string">
+  <Field name="X-Tenant-Id" type="string">
     Optional tenant ID. If omitted, the configured default tenant ID is used.
   </Field>
 </Parameters>
@@ -388,7 +388,7 @@ data: {"statusUpdate":{"taskId":"...","contextId":"...","status":{"state":"TASK_
 </Parameters>
 
 <Parameters in="header">
-  <Field name="X-Tenant-ID" type="string">
+  <Field name="X-Tenant-Id" type="string">
     Optional tenant ID. If omitted, the configured default tenant ID is used.
   </Field>
 </Parameters>
@@ -415,7 +415,7 @@ data: {"statusUpdate":{"taskId":"...","contextId":"...","status":{"state":"TASK_
 </Parameters>
 
 <Parameters in="header">
-  <Field name="X-Tenant-ID" type="string">
+  <Field name="X-Tenant-Id" type="string">
     Optional tenant ID. If omitted, the configured default tenant ID is used.
   </Field>
 </Parameters>
@@ -446,3 +446,6 @@ Text artifacts and structured `state` artifacts
 
 It does not currently support task listing, push notifications, raw binary parts, URL parts, or the
 full A2A extension surface.
+
+This page documents inbound A2A serving. To configure this agent to call other A2A servers as tools,
+see [Connect agents via A2A](/guides/connect-agents-via-a2a).

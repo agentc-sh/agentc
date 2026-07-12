@@ -69,9 +69,10 @@ archetype is choosing a deployment target.
 execution, so the agent can survive process crashes, restarts, or infrastructure failures and resume
 exactly where it left off. This guarantee applies regardless of which graph implementation is in use.
 
-**Polyglot tools.** Tools can be written in JavaScript, TypeScript, or Python, or sourced from
-any Model Context Protocol server. The compiler handles bundling and embedding. At runtime, the agent
-dispatches to the correct execution environment automatically.
+**Polyglot tools.** Tools can be written in JavaScript, TypeScript, or Python, sourced from any Model
+Context Protocol server, or configured as A2A delegation targets. The compiler handles bundling and
+embedding where needed. At runtime, the agent dispatches to the correct execution environment
+automatically.
 
 **Build-time and runtime configuration.** The manifest separates what is baked into the artifact at
 compile time from what is resolved from the environment at startup. Sensitive values like API keys are

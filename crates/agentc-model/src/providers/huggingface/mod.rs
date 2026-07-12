@@ -9,8 +9,6 @@ pub mod factory;
 pub mod model;
 
 pub use crate::providers::huggingface::{
-    client::HuggingFaceClient,
-    config::HuggingFaceConfig,
-    factory::HuggingFaceFactory,
+    client::HuggingFaceClient, config::HuggingFaceConfig, factory::HuggingFaceFactory,
     model::HuggingFaceModel,
 };

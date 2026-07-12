@@ -89,8 +89,28 @@ an agent to use skills at all, grant it the `skills` capability:
 capabilities = ["skills", "math"]
 ```
 
+## Gate an A2A target
+
+An A2A tool block creates four operation tools for one downstream agent. The `capabilities` list on
+the block gates all four operations together:
+
+```hcl
+tool "planner" {
+  kind         = "a2a"
+  url          = runtime("PLANNER_A2A_URL")
+  capabilities = ["a2a::planner"]
+}
+```
+
+Grant the agent that capability when it is allowed to delegate work to the planner:
+
+```hcl
+capabilities = ["a2a::planner"]
+```
+
 ## Where to go next
 
 - [Tools and capabilities](/concepts/tools-and-capabilities): the model behind capability matching.
+- [Connect agents via A2A](/guides/connect-agents-via-a2a): configure downstream agent delegation.
 - [agent reference](/reference/manifest/agent): the `capabilities` and `capability_policy` fields.
 - [tool reference](/reference/manifest/tool): the `capabilities` field on each tool kind.

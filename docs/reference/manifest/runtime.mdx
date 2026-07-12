@@ -29,3 +29,8 @@ runtime {
   default_tenant_id = runtime("DEFAULT_TENANT", "main")
 }
 ```
+
+This value also affects outbound A2A tools that use inherited tenant policy. If an inbound request
+does not carry a tenant, the parent run uses `default_tenant_id`. An A2A target with
+`tenant.policy = "inherit"` forwards that effective tenant to the downstream A2A server with the
+`X-Tenant-Id` header.

@@ -210,6 +210,7 @@ mod tests {
         tools::{
             dispatcher::{DispatchOutcome, ToolRegistryExt},
             registry::ToolRegistry,
+            types::ToolExecutionContext,
         },
         types::tools::ToolCall,
     };
@@ -306,6 +307,11 @@ mod tests {
                     arguments: json!({"a": 3, "b": 4}),
                 },
                 &state,
+                ToolExecutionContext {
+                    tenant_id: "test".to_string(),
+                    session_id: Default::default(),
+                    run_id: Default::default(),
+                },
                 None,
             )
             .await;
@@ -318,6 +324,11 @@ mod tests {
                     arguments: json!({"x": 5}),
                 },
                 &state,
+                ToolExecutionContext {
+                    tenant_id: "test".to_string(),
+                    session_id: Default::default(),
+                    run_id: Default::default(),
+                },
                 None,
             )
             .await;
@@ -382,6 +393,11 @@ mod tests {
                     arguments: json!({}),
                 },
                 &state,
+                ToolExecutionContext {
+                    tenant_id: "test".to_string(),
+                    session_id: Default::default(),
+                    run_id: Default::default(),
+                },
                 Some(ActivityEmitter::new(tx)),
             )
             .await;
@@ -431,6 +447,11 @@ mod tests {
                     arguments: json!({}),
                 },
                 &DummyState,
+                ToolExecutionContext {
+                    tenant_id: "test".to_string(),
+                    session_id: Default::default(),
+                    run_id: Default::default(),
+                },
                 None,
             )
             .await;
@@ -492,6 +513,11 @@ mod tests {
                     arguments: json!({}),
                 },
                 &DummyState,
+                ToolExecutionContext {
+                    tenant_id: "test".to_string(),
+                    session_id: Default::default(),
+                    run_id: Default::default(),
+                },
                 Some(ActivityEmitter::new(tx)),
             )
             .await;
@@ -558,6 +584,11 @@ mod tests {
                     arguments: json!({}),
                 },
                 &DummyState,
+                ToolExecutionContext {
+                    tenant_id: "test".to_string(),
+                    session_id: Default::default(),
+                    run_id: Default::default(),
+                },
                 None,
             )
             .await;
@@ -615,6 +646,11 @@ mod tests {
                     arguments: json!({}),
                 },
                 &DummyState,
+                ToolExecutionContext {
+                    tenant_id: "test".to_string(),
+                    session_id: Default::default(),
+                    run_id: Default::default(),
+                },
                 None,
             )
             .await;

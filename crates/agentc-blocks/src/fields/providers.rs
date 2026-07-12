@@ -8,9 +8,8 @@ use crate::{
     context::{
         ResolvedContextProviderAnthropic, ResolvedContextProviderGemini,
         ResolvedContextProviderHuggingFace, ResolvedContextProviderOllama,
-        ResolvedContextProviderOpenAi,
-        ResolvedContextProviderOpenRouter, ResolvedContextProviderParams,
-        ResolvedContextProviderXai,
+        ResolvedContextProviderOpenAi, ResolvedContextProviderOpenRouter,
+        ResolvedContextProviderParams, ResolvedContextProviderXai,
     },
     fields::spec::{FieldsSpec, IntoFieldSpecs},
 };
@@ -233,10 +232,8 @@ mod tests {
     use crate::{
         context::{
             ResolvedContextProviderAnthropicConfig, ResolvedContextProviderAnthropicModel,
-            ResolvedContextProviderHuggingFace,
-            ResolvedContextProviderHuggingFaceConfig,
-            ResolvedContextProviderHuggingFaceModel,
-            ResolvedContextProviderOllamaConfig,
+            ResolvedContextProviderHuggingFace, ResolvedContextProviderHuggingFaceConfig,
+            ResolvedContextProviderHuggingFaceModel, ResolvedContextProviderOllamaConfig,
             ResolvedContextProviderXaiConfig,
         },
         types::RuntimeValue,

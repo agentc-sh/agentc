@@ -3,11 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 use std::{
-    any::{
-        Any,
-        TypeId,
-        type_name,
-    },
+    any::{Any, TypeId, type_name},
     collections::HashMap,
     marker::PhantomData,
 };
@@ -25,10 +21,7 @@ pub trait ExtensionPoint: Send + Sync {
 
     fn name(&self) -> &str;
 
-    fn reduce(
-        &self,
-        contributions: Vec<Self::Contribution>,
-    ) -> Result<String, GeneratorError>;
+    fn reduce(&self, contributions: Vec<Self::Contribution>) -> Result<String, GeneratorError>;
 }
 
 pub trait ErasedExtensionPoint: Send + Sync {
@@ -40,10 +33,8 @@ pub trait ErasedExtensionPoint: Send + Sync {
 
     fn clone_box(&self) -> Box<dyn ErasedExtensionPoint>;
 
-    fn reduce(
-        &self,
-        contributions: Vec<ErasedContributionValue>,
-    ) -> Result<String, GeneratorError>;
+    fn reduce(&self, contributions: Vec<ErasedContributionValue>)
+    -> Result<String, GeneratorError>;
 }
 
 impl<P> ErasedExtensionPoint for P
@@ -132,10 +123,7 @@ pub struct StringExtensionPoint {
 
 impl StringExtensionPoint {
     pub fn new(name: impl Into<String>, reducer: fn(Vec<String>) -> String) -> Self {
-        Self {
-            name: name.into(),
-            reducer,
-        }
+        Self { name: name.into(), reducer }
     }
 }
 
@@ -146,10 +134,7 @@ impl ExtensionPoint for StringExtensionPoint {
         &self.name
     }
 
-    fn reduce(
-        &self,
-        contributions: Vec<Self::Contribution>,
-    ) -> Result<String, GeneratorError> {
+    fn reduce(&self, contributions: Vec<Self::Contribution>) -> Result<String, GeneratorError> {
         Ok((self.reducer)(contributions))
     }
 }
@@ -261,7 +246,11 @@ impl ExtensionRegistry {
                     let name = point.name().to_string();
 
                     point
-                        .reduce(contributions.remove(&name).unwrap_or_default())
+                        .reduce(
+                            contributions
+                                .remove(&name)
+                                .unwrap_or_default(),
+                        )
                         .map(|value| (name, value))
                 })
                 .collect::<Result<HashMap<_, _>, _>>()?,
@@ -304,17 +293,12 @@ mod tests {
             "numbers"
         }
 
-        fn reduce(
-            &self,
-            contributions: Vec<Self::Contribution>,
-        ) -> Result<String, GeneratorError> {
-            Ok(
-                contributions
-                    .into_iter()
-                    .map(|value| value.to_string())
-                    .collect::<Vec<_>>()
-                    .join(","),
-            )
+        fn reduce(&self, contributions: Vec<Self::Contribution>) -> Result<String, GeneratorError> {
+            Ok(contributions
+                .into_iter()
+                .map(|value| value.to_string())
+                .collect::<Vec<_>>()
+                .join(","))
         }
     }
 
@@ -338,10 +322,7 @@ mod tests {
 
     #[test]
     fn reducer_concat_empty_produces_empty_string() {
-        assert_eq!(
-            ExtensionPoint::reduce(&point(reducers::concat), vec![]).unwrap(),
-            "",
-        );
+        assert_eq!(ExtensionPoint::reduce(&point(reducers::concat), vec![]).unwrap(), "",);
     }
 
     #[test]
@@ -375,10 +356,7 @@ mod tests {
 
     #[test]
     fn reducer_first_empty_produces_empty_string() {
-        assert_eq!(
-            ExtensionPoint::reduce(&point(reducers::first), vec![]).unwrap(),
-            "",
-        );
+        assert_eq!(ExtensionPoint::reduce(&point(reducers::first), vec![]).unwrap(), "",);
     }
 
     #[test]
@@ -395,10 +373,7 @@ mod tests {
 
     #[test]
     fn reducer_last_empty_produces_empty_string() {
-        assert_eq!(
-            ExtensionPoint::reduce(&point(reducers::last), vec![]).unwrap(),
-            "",
-        );
+        assert_eq!(ExtensionPoint::reduce(&point(reducers::last), vec![]).unwrap(), "",);
     }
 
     #[test]
@@ -430,10 +405,7 @@ mod tests {
                         ErasedContributionValue::new("serde".to_string()),
                     ],
                 ),
-                (
-                    "mods".to_string(),
-                    vec![ErasedContributionValue::new("mod api;".to_string())],
-                ),
+                ("mods".to_string(), vec![ErasedContributionValue::new("mod api;".to_string())]),
             ]),
         )
         .unwrap();

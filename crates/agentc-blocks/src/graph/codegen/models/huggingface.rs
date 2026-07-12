@@ -112,11 +112,8 @@ mod tests {
 
     #[test]
     fn imports_and_registration_reference_the_huggingface_factory() {
-        let provider = ResolvedContextProviderHuggingFace {
-            config: None,
-            params: None,
-            models: None,
-        };
+        let provider =
+            ResolvedContextProviderHuggingFace { config: None, params: None, models: None };
 
         assert!(
             provider

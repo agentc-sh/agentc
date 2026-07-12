@@ -34,13 +34,11 @@ impl HuggingFaceConfig {
 
     /// Construct a [`HuggingFaceClient`] from this config.
     pub fn build_client(&self) -> Result<HuggingFaceClient, ModelError> {
-        let mut builder = huggingface::Client::builder().api_key(
-            match &self.api_key {
-                Some(key) => key.clone(),
-                None => env::var("HUGGINGFACE_API_KEY")
-                    .expect("HUGGINGFACE_API_KEY must be set if api_key is not provided"),
-            },
-        );
+        let mut builder = huggingface::Client::builder().api_key(match &self.api_key {
+            Some(key) => key.clone(),
+            None => env::var("HUGGINGFACE_API_KEY")
+                .expect("HUGGINGFACE_API_KEY must be set if api_key is not provided"),
+        });
 
         if let Some(url) = &self.base_url {
             builder = builder.base_url(url);

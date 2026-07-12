@@ -9,10 +9,7 @@ use crate::generator::{
     context::GenerationContext,
     errors::GeneratorError,
     extension::{
-        ErasedContribution,
-        ErasedContributionValue,
-        ErasedExtensionPoint,
-        ExtensionRegistry,
+        ErasedContribution, ErasedContributionValue, ErasedExtensionPoint, ExtensionRegistry,
     },
     vfs::VirtualFileSystem,
 };

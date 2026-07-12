@@ -13,9 +13,10 @@ use agentc_compiler::{
             codegen::CodeGenBlock,
             template::{
                 ExtensionPointSpec, FileSpec, Reducer, TemplateBlock, TemplateBlockManifest,
+                TemplateFragmentBlock,
             },
         },
-        extension::reducers,
+        extension::{Contribution, reducers},
     },
 };
 
@@ -23,7 +24,10 @@ use crate::{
     archetype::{
         standalone::codegen::{
             build_script::BuildScriptCodeGen,
-            cargo::{CargoDependenciesExtensionPoint, CargoPatchesExtensionPoint},
+            cargo::{
+                A2aClientCargoFragment, CargoDependenciesExtensionPoint,
+                CargoDependencyContribution, CargoPatchContribution, CargoPatchesExtensionPoint,
+            },
             cli::{CliModCodeGen, config::CliConfigCodeGen, shutdown::CliShutdownCodeGen},
             config::ConfigCodeGen,
             entrypoint::EntrypointCodeGen,
@@ -154,12 +158,10 @@ impl Archetype for StandaloneArchetype {
                                         template: "cargo_toml".to_string(),
                                         condition: None,
                                     }],
-                                    extension_points: vec![
-                                        ExtensionPointSpec {
-                                            name: "tools::features".to_string(),
-                                            reducer: Reducer::JoinComma,
-                                        },
-                                    ],
+                                    extension_points: vec![ExtensionPointSpec {
+                                        name: "tools::features".to_string(),
+                                        reducer: Reducer::JoinComma,
+                                    }],
                                     slot_fills: vec![],
                                     description: None,
                                 })
@@ -170,7 +172,10 @@ impl Archetype for StandaloneArchetype {
                                 .typed_extension_point(CargoPatchesExtensionPoint::new(
                                     "cargo::patches",
                                 ))
-                                .with_template("cargo_toml", include_str!("templates/Cargo.toml.j2"))
+                                .with_template(
+                                    "cargo_toml",
+                                    include_str!("templates/Cargo.toml.j2"),
+                                )
                                 .with_var("runtime_version", env!("CARGO_PKG_VERSION"))
                                 .build(),
                         )
@@ -187,13 +192,27 @@ impl Archetype for StandaloneArchetype {
                                     slot_fills: vec![],
                                     description: None,
                                 })
-                                .with_template("rust-toolchain_toml", include_str!("templates/rust-toolchain.toml.j2"))
+                                .with_template(
+                                    "rust-toolchain_toml",
+                                    include_str!("templates/rust-toolchain.toml.j2"),
+                                )
                                 .build(),
                         )
                         .add(
                             CodeGenBlock::builder()
                                 .id("build_rs")
                                 .build(BuildScriptCodeGen),
+                        )
+                        .add(
+                            TemplateFragmentBlock::builder()
+                                .id("a2a_client_cargo")
+                                .contribute(Contribution::<CargoDependencyContribution>::strict(
+                                    "cargo::dependencies",
+                                ))
+                                .contribute(Contribution::<CargoPatchContribution>::strict(
+                                    "cargo::patches",
+                                ))
+                                .build(A2aClientCargoFragment),
                         )
                         .add(
                             CodeGenBlock::builder()
@@ -255,9 +274,13 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+    use crate::contributions::dependency::RuntimeDependencyContribution;
     use agentc_compiler::generator::{
-        context::GenerationContext, extension::ExtensionRegistry, vfs::VirtualFileSystem,
+        context::GenerationContext,
+        extension::{ErasedContributionValue, ExtensionRegistry},
+        vfs::VirtualFileSystem,
     };
+    use std::collections::HashMap;
 
     fn context(http_server: Option<serde_json::Value>) -> ResolvedContext {
         serde_json::from_value(json!({
@@ -293,14 +316,24 @@ mod tests {
                 .provides
                 .contains::<ArchetypeStandalone>()
         );
-        assert!(resolved.contribution.provides.contains::<Cli>());
+        assert!(
+            resolved
+                .contribution
+                .provides
+                .contains::<Cli>()
+        );
         assert!(
             resolved
                 .contribution
                 .provides
                 .contains::<LongLivedProcess>()
         );
-        assert!(!resolved.contribution.provides.contains::<HttpServer>());
+        assert!(
+            !resolved
+                .contribution
+                .provides
+                .contains::<HttpServer>()
+        );
     }
 
     #[test]
@@ -312,7 +345,12 @@ mod tests {
             )
             .unwrap();
 
-        assert!(resolved.contribution.provides.contains::<HttpServer>());
+        assert!(
+            resolved
+                .contribution
+                .provides
+                .contains::<HttpServer>()
+        );
     }
 
     #[tokio::test]
@@ -348,5 +386,93 @@ mod tests {
         assert!(!content.contains("agentc-agent-react"));
         assert!(!content.contains("agentc-protocol-ag-ui"));
         assert!(!content.contains("has_ag_ui_protocol"));
+    }
+
+    #[tokio::test]
+    async fn contributes_a2a_client_dependency_without_declared_a2a_tool() {
+        let resolved = StandaloneArchetype
+            .resolve(context(None), StandaloneArchetypeConfig::default())
+            .unwrap();
+
+        let dependency = resolved
+            .contribution
+            .blocks
+            .iter()
+            .find(|block| block.id() == "a2a_client_cargo")
+            .expect("a2a client cargo block is registered")
+            .render_contribution(&GenerationContext::new(context(None)), "cargo::dependencies")
+            .await
+            .unwrap()
+            .downcast::<CargoDependencyContribution>()
+            .unwrap();
+
+        assert!(matches!(
+            dependency,
+            CargoDependencyContribution::Runtime(dependency)
+                if dependency.name == "agentc-protocol-a2a"
+                    && dependency.default_features == Some(false)
+                    && dependency.features.len() == 1
+                    && dependency.features.contains("client")
+        ));
+    }
+
+    #[tokio::test]
+    async fn generated_cargo_toml_includes_a2a_client_dependency() {
+        let resolved = StandaloneArchetype
+            .resolve(context(None), StandaloneArchetypeConfig::default())
+            .unwrap();
+        let ctx = GenerationContext::new(context(None));
+        let cargo_toml_block = resolved
+            .contribution
+            .blocks
+            .iter()
+            .find(|block| block.id() == "cargo_toml")
+            .expect("cargo_toml block is registered");
+
+        let registry = ExtensionRegistry::resolve(
+            vec![
+                Box::new(CargoDependenciesExtensionPoint::new(
+                    "cargo::dependencies",
+                    env!("CARGO_PKG_VERSION"),
+                )),
+                Box::new(CargoPatchesExtensionPoint::new("cargo::patches")),
+            ],
+            HashMap::from([
+                (
+                    "cargo::dependencies".to_string(),
+                    vec![ErasedContributionValue::new(
+                        CargoDependencyContribution::runtime(
+                            RuntimeDependencyContribution::new("agentc-protocol-a2a")
+                                .default_features(false)
+                                .feature("client"),
+                        ),
+                    )],
+                ),
+                (
+                    "cargo::patches".to_string(),
+                    vec![ErasedContributionValue::new(
+                        CargoPatchContribution::runtime(RuntimeDependencyContribution::new(
+                            "agentc-protocol-a2a",
+                        )),
+                    )],
+                ),
+            ]),
+        )
+        .unwrap();
+        let mut vfs = VirtualFileSystem::new();
+
+        cargo_toml_block
+            .render(&ctx, &registry, &mut vfs)
+            .await
+            .unwrap();
+
+        let content = vfs
+            .get("Cargo.toml")
+            .expect("Cargo.toml is generated");
+
+        assert!(content.contains(&format!(
+            "agentc-protocol-a2a = {{ version = \"{}\", default-features = false, features = [\"client\"] }}",
+            env!("CARGO_PKG_VERSION"),
+        )));
     }
 }

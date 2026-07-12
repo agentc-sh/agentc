@@ -2,7 +2,6 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::fmt::{Display, Formatter, Result as FmtResult};
 use anyhow::Error;
 use axum::extract::{
     path::ErrorKind,
@@ -10,6 +9,7 @@ use axum::extract::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::to_value;
+use std::fmt::{Display, Formatter, Result as FmtResult};
 use validator::{ValidationError, ValidationErrors, ValidationErrorsKind};
 
 use crate::dto::errors::{
@@ -219,12 +219,12 @@ impl From<QueryRejection> for ApiError {
 impl Display for ApiError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
-            ApiError::Generic { code, message } => write!(f, "ApiError (code {}): {}", code, message),
-            ApiError::Validation { code, errors } => write!(
-                f,
-                "ApiError (code {}): Validation errors: {:?}",
-                code, errors
-            ),
+            ApiError::Generic { code, message } => {
+                write!(f, "ApiError (code {}): {}", code, message)
+            }
+            ApiError::Validation { code, errors } => {
+                write!(f, "ApiError (code {}): Validation errors: {:?}", code, errors)
+            }
         }
     }
 }

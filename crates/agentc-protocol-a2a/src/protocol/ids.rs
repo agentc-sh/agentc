@@ -2,23 +2,13 @@
 //
 // SPDX-License-Identifier: MIT
 
-use serde::{
-    Deserialize,
-    Serialize,
-};
+use serde::{Deserialize, Serialize};
 use std::{
-    fmt::{
-        Display,
-        Formatter,
-        Result as FmtResult,
-    },
+    fmt::{Display, Formatter, Result as FmtResult},
     ops::Deref,
 };
 use utoipa::ToSchema;
-use uuid::{
-    Error as UuidError,
-    Uuid,
-};
+use uuid::{Error as UuidError, Uuid};
 
 macro_rules! define_id_type {
     ($name:ident) => {

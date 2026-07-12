@@ -3,18 +3,14 @@
 // SPDX-License-Identifier: MIT
 
 use agentc_compiler::generator::{
-    blocks::template::TemplateFragment, context::GenerationContext, errors::GeneratorError,
-    extension::{
-        ErasedContributionValue,
-        ExtensionRegistry,
-    },
+    blocks::template::TemplateFragment,
+    context::GenerationContext,
+    errors::GeneratorError,
+    extension::{ErasedContributionValue, ExtensionRegistry},
 };
 
 use crate::{
-    archetype::standalone::codegen::cargo::{
-        CargoDependencyContribution,
-        CargoPatchContribution,
-    },
+    archetype::standalone::codegen::cargo::{CargoDependencyContribution, CargoPatchContribution},
     context::ResolvedContext,
 };
 
@@ -52,11 +48,9 @@ impl TemplateFragment<ResolvedContext> for ReActCargoFragment {
                     ))))
                 }
             }
-            "cargo::patches" => {
-                Ok(ErasedContributionValue::new(CargoPatchContribution::raw(
-                    "agentc-agent-react = { path = \"../runtime/agentc-agent-react\" }"
-                )))
-            }
+            "cargo::patches" => Ok(ErasedContributionValue::new(CargoPatchContribution::raw(
+                "agentc-agent-react = { path = \"../runtime/agentc-agent-react\" }",
+            ))),
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
     }

@@ -2,18 +2,12 @@
 //
 // SPDX-License-Identifier: MIT
 
+use futures::Stream;
 use std::{
     pin::Pin,
-    task::{
-        Context,
-        Poll,
-    },
+    task::{Context, Poll},
 };
-use futures::Stream;
-use tokio_util::sync::{
-    CancellationToken,
-    DropGuard,
-};
+use tokio_util::sync::{CancellationToken, DropGuard};
 
 /// Cancels a token when the wrapped stream is dropped.
 pub struct CancelOnDropStream<S> {
@@ -22,14 +16,8 @@ pub struct CancelOnDropStream<S> {
 }
 
 impl<S> CancelOnDropStream<S> {
-    pub fn new(
-        inner: S,
-        token: CancellationToken,
-    ) -> Self {
-        Self {
-            inner,
-            _guard: token.drop_guard(),
-        }
+    pub fn new(inner: S, token: CancellationToken) -> Self {
+        Self { inner, _guard: token.drop_guard() }
     }
 
     pub fn into_inner(self) -> S {
@@ -43,10 +31,7 @@ where
 {
     type Item = S::Item;
 
-    fn poll_next(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         Pin::new(&mut self.inner).poll_next(cx)
     }
 }
@@ -62,10 +47,7 @@ mod tests {
     fn cancel_on_drop_stream_cancels_token_when_dropped() {
         let token = CancellationToken::new();
 
-        drop(CancelOnDropStream::new(
-            stream::empty::<()>(),
-            token.clone(),
-        ));
+        drop(CancelOnDropStream::new(stream::empty::<()>(), token.clone()));
 
         assert!(token.is_cancelled());
     }

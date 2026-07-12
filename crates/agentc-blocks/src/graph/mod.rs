@@ -3,12 +3,12 @@
 // SPDX-License-Identifier: MIT
 
 pub mod codegen;
-pub mod resolver;
 pub mod react;
+pub mod resolver;
 pub mod traits;
 pub mod types;
 
-pub use resolver::{GraphResolver, GraphResolverBuilder};
 pub use react::ReActGraphConfig;
+pub use resolver::{GraphResolver, GraphResolverBuilder};
 pub use traits::{AgentGraph, ErasedAgentGraph};
 pub use types::ResolvedGraph;

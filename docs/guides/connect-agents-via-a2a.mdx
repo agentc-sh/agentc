@@ -1,0 +1,155 @@
+---
+title: Connect agents via A2A
+description: Configure an agent to delegate subtasks to other agents over A2A.
+---
+
+A2A lets one agent delegate work to another agent as a task. Use it when the downstream system is
+itself an agent that can plan, run, stream progress, and return artifacts. Use MCP when the downstream
+system exposes tools for the current agent to call directly.
+
+An A2A target is always preconfigured. The model never receives a free-form URL field. Each configured
+target becomes four tools named after that target:
+
+- `a2a_{target_id}_send`
+- `a2a_{target_id}_stream`
+- `a2a_{target_id}_get_task`
+- `a2a_{target_id}_cancel_task`
+
+## Declare a downstream agent
+
+Add a normal `tool` block with `kind = "a2a"`:
+
+```hcl title="agent.acl"
+tool "planner" {
+  kind        = "a2a"
+  description = "Delegate planning subtasks to the planning agent."
+  url         = runtime("PLANNER_A2A_URL", "https://planner.example.com")
+  auth_token  = secret(runtime("PLANNER_A2A_TOKEN"))
+
+  tenant = {
+    policy = "inherit"
+  }
+
+  default_accepted_output_modes = ["text/plain"]
+  capabilities                  = ["a2a::planner"]
+}
+```
+
+This target registers:
+
+- `a2a_planner_send`
+- `a2a_planner_stream`
+- `a2a_planner_get_task`
+- `a2a_planner_cancel_task`
+
+The `capabilities` list applies to every operation tool for the target.
+
+## Choose the operation
+
+Use `send` when the current agent should submit work and move on. The downstream server returns the
+created or updated task, and the current agent can inspect it later with `get_task`.
+
+Use `stream` when the current agent should wait for the downstream result. The stream tool emits
+activity updates while the downstream task runs and returns the final summarized task output.
+
+Use `get_task` to inspect a known downstream task. Use `cancel_task` to request cancellation of a
+known downstream task.
+
+## Configure tenants
+
+A2A tenant policy controls the `X-Tenant-Id` header sent to the downstream server.
+
+Use inherited tenant policy for same-platform orchestration:
+
+```hcl
+tenant = {
+  policy = "inherit"
+}
+```
+
+The downstream request receives the effective tenant from the parent run. If the inbound request did
+not provide a tenant, the parent run uses `runtime.default_tenant_id`, and that effective value is
+forwarded.
+
+Use a fixed tenant when the downstream server has a known tenant mapping:
+
+```hcl
+tenant = {
+  policy = "fixed"
+  id     = runtime("PLANNER_A2A_TENANT", "tenant-1")
+}
+```
+
+Use `none` for public, single-tenant, or externally authenticated downstream servers:
+
+```hcl
+tenant = {
+  policy = "none"
+}
+```
+
+## Add auth and headers
+
+`auth_token` sends a bearer token through the `Authorization` header. Wrap it in `secret(runtime(...))`
+so it stays out of build output and logs:
+
+```hcl
+auth_token = secret(runtime("PLANNER_A2A_TOKEN"))
+```
+
+Use `headers` for additional request headers:
+
+```hcl
+headers = {
+  "X-Client-ID" = runtime("PLANNER_CLIENT_ID", "assistant")
+}
+```
+
+## Add targets at startup
+
+The standalone artifact always includes `config.a2a.agents`, so operators can add downstream agents
+without changing the manifest. Environment variables use the generated config path under
+`AGENT__A2A__AGENTS__<NAME>`.
+
+```bash
+export AGENT__A2A__AGENTS__PLANNER__URL=https://planner.example.com
+export AGENT__A2A__AGENTS__PLANNER__AUTH_TOKEN=token_here
+export AGENT__A2A__AGENTS__PLANNER__TENANT__POLICY=inherit
+export AGENT__A2A__AGENTS__PLANNER__TIMEOUT_SECS=90
+export AGENT__A2A__AGENTS__PLANNER__ENABLED=true
+```
+
+Startup-configured targets register the same four operation tools as manifest-declared targets.
+
+## Stream activity updates
+
+The stream operation emits activity deltas through the normal tool activity channel. Activity updates
+are not persisted as graph state. They are intended for live UI display while the downstream task is
+running.
+
+Activity types are:
+
+- `a2a_task`
+- `a2a_task_status`
+- `a2a_artifact`
+- `a2a_message`
+
+The accumulated activity state has fields such as `target_id`, `task_id`, `context_id`, `state`,
+`latest_message`, and `artifacts`:
+
+```json
+{
+  "target_id": "planner",
+  "task_id": "task-123",
+  "context_id": "ctx-123",
+  "state": "TASK_STATE_WORKING",
+  "latest_message": "Drafting plan.",
+  "artifacts": []
+}
+```
+
+## Where to go next
+
+- [tool reference](/reference/manifest/tool): every A2A manifest field.
+- [A2A HTTP reference](/reference/http-api/a2a): expose this agent as an inbound A2A server.
+- [Control tool access with capabilities](/guides/control-tool-access-with-capabilities): gate A2A operation tools.

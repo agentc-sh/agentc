@@ -18,10 +18,10 @@ use agentc_http::{
 };
 
 use crate::{
-    api::state::ReActApiState,
     api::dto::v1::session::{
         CreateSessionRequestDTO, FindSessionEndpointParams, SessionResponseDTO,
     },
+    api::state::ReActApiState,
     service::operations::session::SessionOperations,
 };
 
@@ -62,10 +62,7 @@ async fn find_sessions_endpoint(
     match state
         .service
         .find_sessions(params.to_params(
-            tenant_id.map_or(
-                state.default_tenant_id.into_inner(),
-                TenantIdHeader::into_inner,
-            ),
+            tenant_id.map_or(state.default_tenant_id.into_inner(), TenantIdHeader::into_inner),
         ))
         .await
     {
@@ -107,10 +104,7 @@ async fn create_session_endpoint(
     match state
         .service
         .create_session(payload.to_params(
-            tenant_id.map_or(
-                state.default_tenant_id.into_inner(),
-                TenantIdHeader::into_inner,
-            ),
+            tenant_id.map_or(state.default_tenant_id.into_inner(), TenantIdHeader::into_inner),
         ))
         .await
     {
@@ -147,10 +141,7 @@ async fn get_session_endpoint(
     match state
         .service
         .get_session(
-            &tenant_id.map_or(
-                state.default_tenant_id.into_inner(),
-                TenantIdHeader::into_inner,
-            ),
+            &tenant_id.map_or(state.default_tenant_id.into_inner(), TenantIdHeader::into_inner),
             session_id,
         )
         .await
@@ -188,10 +179,7 @@ async fn delete_session_endpoint(
     match state
         .service
         .delete_sessions(
-            &tenant_id.map_or(
-                state.default_tenant_id.into_inner(),
-                TenantIdHeader::into_inner,
-            ),
+            &tenant_id.map_or(state.default_tenant_id.into_inner(), TenantIdHeader::into_inner),
             &[session_id],
         )
         .await

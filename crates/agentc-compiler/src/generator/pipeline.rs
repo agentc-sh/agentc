@@ -9,10 +9,7 @@ use crate::generator::{
     blocks::{Block, BlockGraph},
     context::GenerationContext,
     errors::GeneratorError,
-    extension::{
-        ErasedContributionValue,
-        ExtensionRegistry,
-    },
+    extension::{ErasedContributionValue, ExtensionRegistry},
     vfs::VirtualFileSystem,
 };
 
@@ -151,13 +148,8 @@ mod tests {
         context::GenerationContext,
         errors::GeneratorError,
         extension::{
-            Contribution,
-            ErasedContribution,
-            ErasedContributionValue,
-            ErasedExtensionPoint,
-            ExtensionRegistry,
-            StringExtensionPoint,
-            reducers,
+            Contribution, ErasedContribution, ErasedContributionValue, ErasedExtensionPoint,
+            ExtensionRegistry, StringExtensionPoint, reducers,
         },
         pipeline::Generator,
         vfs::VirtualFileSystem,
@@ -235,10 +227,7 @@ mod tests {
         ) -> Result<ErasedContributionValue, GeneratorError> {
             self.tracker
                 .record("contributor:render_contribution");
-            Ok(ErasedContributionValue::new(format!(
-                "hello-from-{}",
-                ctx.name,
-            )))
+            Ok(ErasedContributionValue::new(format!("hello-from-{}", ctx.name,)))
         }
 
         async fn render(

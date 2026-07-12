@@ -11,7 +11,7 @@ use crate::{
     tools::{
         activity::ActivityEmitter,
         registry::ToolRegistry,
-        types::{ToolInput, ToolResponse},
+        types::{ToolExecutionContext, ToolInput, ToolResponse},
     },
     types::tools::ToolCall,
 };
@@ -62,6 +62,7 @@ impl ToolDispatcher {
         &self,
         call: ToolCall,
         state: &S,
+        context: ToolExecutionContext,
         emitter: Option<ActivityEmitter>,
     ) -> DispatchOutcome<S::Update>
     where
@@ -72,7 +73,7 @@ impl ToolDispatcher {
         if let Some(tool) = self.registry.get(&call.name) {
             match tool
                 .execute(
-                    ToolInput::new(call.arguments)
+                    ToolInput::new(call.arguments, context)
                         .with_state(any_state)
                         .maybe_with_activity_emitter(emitter),
                 )
@@ -108,6 +109,7 @@ impl ToolDispatcher {
         &self,
         calls: Vec<(ToolCall, Option<ActivityEmitter>)>,
         state: &S,
+        context: ToolExecutionContext,
     ) -> Vec<DispatchOutcome<S::Update>>
     where
         S: GraphState + 'static,
@@ -115,7 +117,7 @@ impl ToolDispatcher {
         join_all(
             calls
                 .into_iter()
-                .map(|(call, emitter)| self.dispatch(call, state, emitter)),
+                .map(|(call, emitter)| self.dispatch(call, state, context.clone(), emitter)),
         )
         .await
     }

@@ -3,20 +3,11 @@
 // SPDX-License-Identifier: MIT
 
 use serde::{
+    Deserialize, Deserializer, Serialize, Serializer,
     de::Error as DeError,
-    ser::{
-        SerializeMap,
-        SerializeStruct,
-    },
-    Deserialize,
-    Deserializer,
-    Serialize,
-    Serializer,
+    ser::{SerializeMap, SerializeStruct},
 };
-use serde_json::{
-    from_value,
-    Value,
-};
+use serde_json::{Value, from_value};
 use std::collections::HashMap;
 use utoipa::ToSchema;
 
@@ -26,10 +17,7 @@ pub type SecurityRequirement = HashMap<String, Vec<String>>;
 
 pub const TRANSPORT_PROTOCOL_GRPC: &str = "GRPC";
 
-fn normalize_agent_interface_url(
-    url: String,
-    protocol_binding: &str,
-) -> String {
+fn normalize_agent_interface_url(url: String, protocol_binding: &str) -> String {
     if protocol_binding.eq_ignore_ascii_case(TRANSPORT_PROTOCOL_GRPC) {
         if let Some(stripped) = url.strip_prefix("http://") {
             return stripped.to_string();
@@ -69,9 +57,7 @@ pub struct AgentCard {
     pub signatures: Option<Vec<AgentCardSignature>>,
 }
 
-fn deserialize_vec_null_as_default<'de, D, T>(
-    deserializer: D,
-) -> Result<Vec<T>, D::Error>
+fn deserialize_vec_null_as_default<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error>
 where
     D: Deserializer<'de>,
     T: Deserialize<'de>,
@@ -127,29 +113,20 @@ where
 
     for (scheme, scopes_value) in object {
         let scopes = match scopes_value {
-            Value::Array(_) => from_value::<Vec<String>>(scopes_value)
-                .map_err(|error| {
-                    E::custom(format!(
-                        "invalid security scopes for {scheme}: {error}"
-                    ))
-                })?,
+            Value::Array(_) => from_value::<Vec<String>>(scopes_value).map_err(|error| {
+                E::custom(format!("invalid security scopes for {scheme}: {error}"))
+            })?,
             Value::Object(mut wrapped) => {
                 let Some(list) = wrapped.remove("list") else {
-                    return Err(E::custom(format!(
-                        "invalid wrapped security scopes for {scheme}"
-                    )));
+                    return Err(E::custom(format!("invalid wrapped security scopes for {scheme}")));
                 };
 
                 from_value::<Vec<String>>(list).map_err(|error| {
-                    E::custom(format!(
-                        "invalid wrapped security scopes for {scheme}: {error}"
-                    ))
+                    E::custom(format!("invalid wrapped security scopes for {scheme}: {error}"))
                 })?
             }
             _ => {
-                return Err(E::custom(format!(
-                    "security scopes for {scheme} must be a list"
-                )));
+                return Err(E::custom(format!("security scopes for {scheme} must be a list")));
             }
         };
 
@@ -222,6 +199,23 @@ pub struct AgentInterface {
     pub tenant: Option<String>,
 }
 
+impl AgentInterface {
+    pub fn new(url: impl Into<String>, protocol_binding: impl Into<String>) -> Self {
+        let protocol_binding = protocol_binding.into();
+
+        Self {
+            url: normalize_agent_interface_url(url.into(), &protocol_binding),
+            protocol_binding,
+            protocol_version: "1.0".to_string(),
+            tenant: None,
+        }
+    }
+
+    pub fn wire_url(&self) -> String {
+        normalize_agent_interface_url(self.url.clone(), &self.protocol_binding)
+    }
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct AgentInterfaceSerde {
@@ -234,10 +228,8 @@ struct AgentInterfaceSerde {
 
 impl Serialize for AgentInterface {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut state = serializer.serialize_struct(
-            "AgentInterface",
-            if self.tenant.is_some() { 4 } else { 3 },
-        )?;
+        let mut state = serializer
+            .serialize_struct("AgentInterface", if self.tenant.is_some() { 4 } else { 3 })?;
         state.serialize_field("url", &self.wire_url())?;
         state.serialize_field("protocolBinding", &self.protocol_binding)?;
         state.serialize_field("protocolVersion", &self.protocol_version)?;
@@ -348,33 +340,23 @@ impl<'de> Deserialize<'de> for SecurityScheme {
         let raw = HashMap::<String, Value>::deserialize(deserializer)?;
 
         if let Some(value) = raw.get("apiKeySecurityScheme") {
-            return Ok(Self::ApiKey(
-                from_value(value.clone()).map_err(DeError::custom)?,
-            ));
+            return Ok(Self::ApiKey(from_value(value.clone()).map_err(DeError::custom)?));
         }
 
         if let Some(value) = raw.get("httpAuthSecurityScheme") {
-            return Ok(Self::HttpAuth(
-                from_value(value.clone()).map_err(DeError::custom)?,
-            ));
+            return Ok(Self::HttpAuth(from_value(value.clone()).map_err(DeError::custom)?));
         }
 
         if let Some(value) = raw.get("oauth2SecurityScheme") {
-            return Ok(Self::OAuth2(
-                from_value(value.clone()).map_err(DeError::custom)?,
-            ));
+            return Ok(Self::OAuth2(from_value(value.clone()).map_err(DeError::custom)?));
         }
 
         if let Some(value) = raw.get("openIdConnectSecurityScheme") {
-            return Ok(Self::OpenIdConnect(
-                from_value(value.clone()).map_err(DeError::custom)?,
-            ));
+            return Ok(Self::OpenIdConnect(from_value(value.clone()).map_err(DeError::custom)?));
         }
 
         if let Some(value) = raw.get("mtlsSecurityScheme") {
-            return Ok(Self::MutualTls(
-                from_value(value.clone()).map_err(DeError::custom)?,
-            ));
+            return Ok(Self::MutualTls(from_value(value.clone()).map_err(DeError::custom)?));
         }
 
         Err(DeError::custom("unknown security scheme variant"))
@@ -440,9 +422,7 @@ impl Serialize for OAuthFlows {
 
         match self {
             Self::AuthorizationCode(value) => map.serialize_entry("authorizationCode", value)?,
-            Self::ClientCredentials(value) => {
-                map.serialize_entry("clientCredentials", value)?
-            }
+            Self::ClientCredentials(value) => map.serialize_entry("clientCredentials", value)?,
             Self::DeviceCode(value) => map.serialize_entry("deviceCode", value)?,
             Self::Implicit(value) => map.serialize_entry("implicit", value)?,
             Self::Password(value) => map.serialize_entry("password", value)?,
@@ -469,21 +449,15 @@ impl<'de> Deserialize<'de> for OAuthFlows {
         }
 
         if let Some(value) = raw.get("deviceCode") {
-            return Ok(Self::DeviceCode(
-                from_value(value.clone()).map_err(DeError::custom)?,
-            ));
+            return Ok(Self::DeviceCode(from_value(value.clone()).map_err(DeError::custom)?));
         }
 
         if let Some(value) = raw.get("implicit") {
-            return Ok(Self::Implicit(
-                from_value(value.clone()).map_err(DeError::custom)?,
-            ));
+            return Ok(Self::Implicit(from_value(value.clone()).map_err(DeError::custom)?));
         }
 
         if let Some(value) = raw.get("password") {
-            return Ok(Self::Password(
-                from_value(value.clone()).map_err(DeError::custom)?,
-            ));
+            return Ok(Self::Password(from_value(value.clone()).map_err(DeError::custom)?));
         }
 
         Err(DeError::custom("unknown OAuth flow variant"))
@@ -546,24 +520,4 @@ pub struct AgentCardSignature {
     pub signature: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub header: Option<HashMap<String, Value>>,
-}
-
-impl AgentInterface {
-    pub fn new(
-        url: impl Into<String>,
-        protocol_binding: impl Into<String>,
-    ) -> Self {
-        let protocol_binding = protocol_binding.into();
-
-        Self {
-            url: normalize_agent_interface_url(url.into(), &protocol_binding),
-            protocol_binding,
-            protocol_version: "1.0".to_string(),
-            tenant: None,
-        }
-    }
-
-    pub fn wire_url(&self) -> String {
-        normalize_agent_interface_url(self.url.clone(), &self.protocol_binding)
-    }
 }

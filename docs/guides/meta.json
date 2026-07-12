@@ -4,6 +4,7 @@
     "author-a-manifest",
     "write-a-tool",
     "connect-external-tools-via-mcp",
+    "connect-agents-via-a2a",
     "use-the-bash-tool",
     "control-tool-access-with-capabilities",
     "write-dynamic-prompts",
