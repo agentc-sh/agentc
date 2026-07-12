@@ -70,7 +70,7 @@ jobs:
       edition: community
       targets: ${{ !github.event.repository.private && 'linux-x86_64,linux-aarch64,darwin-x86_64,darwin-aarch64,windows-x86_64' || 'linux-x86_64' }}
       signing_enabled: ${{ !github.event.repository.private }}
-      signing_identity_regexp: ^https://github\.com/${{ github.repository }}/\.github/workflows/release\.yml@.*$
+      signing_identity_regexp: ^https://github\.com/${{ github.repository }}/\.github/workflows/build\.yml@.*$
     secrets: inherit
 
   build-docker-slim:

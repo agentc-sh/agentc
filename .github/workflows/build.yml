@@ -67,6 +67,7 @@ jobs:
                 TARGET_TRIPLE="x86_64-unknown-linux-gnu"
                 TARGET_PLATFORM_NAME="linux-x86_64"
                 TARGET_ARTIFACT_SUFFIX="linux-x86_64"
+                TARGET_NATIVE="true"
                 ;;
               linux-aarch64)
                 TARGET_NAME="linux-aarch64"
@@ -74,6 +75,7 @@ jobs:
                 TARGET_TRIPLE="aarch64-unknown-linux-gnu"
                 TARGET_PLATFORM_NAME="linux-aarch64"
                 TARGET_ARTIFACT_SUFFIX="linux-aarch64"
+                TARGET_NATIVE="true"
                 ;;
               darwin-x86_64)
                 TARGET_NAME="darwin-x86_64"
@@ -81,6 +83,7 @@ jobs:
                 TARGET_TRIPLE="x86_64-apple-darwin"
                 TARGET_PLATFORM_NAME="darwin-x86_64"
                 TARGET_ARTIFACT_SUFFIX="darwin-x86_64"
+                TARGET_NATIVE="true"
                 ;;
               darwin-aarch64)
                 TARGET_NAME="darwin-aarch64"
@@ -88,6 +91,7 @@ jobs:
                 TARGET_TRIPLE="aarch64-apple-darwin"
                 TARGET_PLATFORM_NAME="darwin-aarch64"
                 TARGET_ARTIFACT_SUFFIX="darwin-aarch64"
+                TARGET_NATIVE="true"
                 ;;
               windows-x86_64)
                 TARGET_NAME="windows-x86_64"
@@ -95,6 +99,7 @@ jobs:
                 TARGET_TRIPLE="x86_64-pc-windows-msvc"
                 TARGET_PLATFORM_NAME="windows-x86_64"
                 TARGET_ARTIFACT_SUFFIX="windows-x86_64"
+                TARGET_NATIVE="true"
                 ;;
               *)
                 echo "Unsupported target: $requested_target"
@@ -107,7 +112,7 @@ jobs:
             fi
 
             SEEN_TARGETS[$TARGET_NAME]=1
-            TARGET_ENTRIES+=("{\"name\":\"${TARGET_NAME}\",\"os\":\"${TARGET_OS}\",\"triple\":\"${TARGET_TRIPLE}\",\"platform_name\":\"${TARGET_PLATFORM_NAME}\",\"artifact_suffix\":\"${TARGET_ARTIFACT_SUFFIX}\"}")
+            TARGET_ENTRIES+=("{\"name\":\"${TARGET_NAME}\",\"os\":\"${TARGET_OS}\",\"triple\":\"${TARGET_TRIPLE}\",\"platform_name\":\"${TARGET_PLATFORM_NAME}\",\"artifact_suffix\":\"${TARGET_ARTIFACT_SUFFIX}\",\"native\":${TARGET_NATIVE}}")
           done
 
           TARGET_MATRIX="["
@@ -152,13 +157,13 @@ jobs:
           fetch-depth: 0
 
       - name: Install cross
-        if: runner.os == 'Linux'
+        if: ${{ !matrix.target.native }}
         uses: taiki-e/install-action@v2
         with:
           tool: cross
 
       - name: Add Rust target
-        if: runner.os != 'Linux'
+        if: matrix.target.native
         run: rustup target add "${{ matrix.target.triple }}"
 
       - name: Install Syft
@@ -177,10 +182,10 @@ jobs:
         run: |
           export BUILD_TAG="${ASSET_TAG}"
 
-          if [[ "${{ runner.os }}" == "Linux" ]]; then
-            cross build --package "${BIN_NAME}" --release --target "${{ matrix.target.triple }}"
-          else
+          if [[ "${{ matrix.target.native }}" == "true" ]]; then
             cargo build --package "${BIN_NAME}" --release --target "${{ matrix.target.triple }}"
+          else
+            cross build --package "${BIN_NAME}" --release --target "${{ matrix.target.triple }}"
           fi
 
       - name: Prepare release files
