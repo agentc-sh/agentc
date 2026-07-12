@@ -70,9 +70,8 @@ where
         input: ToolInput<Self::State>,
     ) -> Result<ToolOutput<Self::StateUpdate>, ToolError> {
         // We use a weak reference for the emitter in the callback because the keyword_callable method converts
-        // to an arc captured that gets passed into the Python runtime and causes the runtime to have a strong
-        // reference on the emitter, preventing the drain from being dropped and causing a deadlock in the react
-        // graph call_tools method.
+        // to an arc captured that gets passed into the Python runtime. This causes the runtime to have a strong
+        // reference on the emitter, preventing the drain from being dropped and causing a deadlock.
         let emit_tx = Arc::new(input.emitter.and_then(|e| e.sender()));
         let weak_tx = Arc::downgrade(&emit_tx);
 

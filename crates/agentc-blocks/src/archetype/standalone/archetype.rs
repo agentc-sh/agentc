@@ -340,7 +340,7 @@ mod tests {
     fn provides_http_server_only_when_configured() {
         let resolved = StandaloneArchetype
             .resolve(
-                context(Some(json!({ "host": "0.0.0.0", "port": 8080, "protocols": [] }))),
+                context(Some(json!({ "host": "0.0.0.0", "port": 8080, "max_request_size": 2097152, "protocols": [] }))),
                 StandaloneArchetypeConfig::default(),
             )
             .unwrap();
@@ -357,7 +357,7 @@ mod tests {
     async fn generated_cargo_toml_has_no_react_or_ag_ui_references() {
         let resolved = StandaloneArchetype
             .resolve(
-                context(Some(json!({ "host": "0.0.0.0", "port": 8080, "protocols": [] }))),
+                context(Some(json!({ "host": "0.0.0.0", "port": 8080, "max_request_size": 2097152, "protocols": [] }))),
                 StandaloneArchetypeConfig::default(),
             )
             .unwrap();
@@ -370,7 +370,7 @@ mod tests {
             .expect("cargo_toml block is registered");
 
         let ctx = GenerationContext::new(context(Some(
-            json!({ "host": "0.0.0.0", "port": 8080, "protocols": [] }),
+            json!({ "host": "0.0.0.0", "port": 8080, "max_request_size": 2097152, "protocols": [] }),
         )));
         let mut vfs = VirtualFileSystem::new();
 

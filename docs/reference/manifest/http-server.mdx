@@ -10,6 +10,7 @@ runs as a process without an HTTP interface.
 http_server {
   host = runtime("HTTP_HOST", "127.0.0.1")
   port = runtime("HTTP_PORT", 8080)
+  max_request_size = runtime("HTTP_MAX_REQUEST_SIZE", 2097152)
 
   protocol {
     ag_ui {}
@@ -24,6 +25,7 @@ http_server {
 |-------|------|----------|-----------|---------|-------------|
 | `host` | string | no | yes | `"127.0.0.1"` | Host address to bind the server to. Overridable via the `HTTP_HOST` environment variable. |
 | `port` | integer | no | yes | `8080` | Port to listen on. Overridable via the `HTTP_PORT` environment variable. |
+| `max_request_size` | integer | no | yes | `2097152` | Maximum accepted request body size, in bytes. Requests exceeding it are rejected with `413 Payload Too Large`. Overridable via the `HTTP_MAX_REQUEST_SIZE` environment variable. |
 | `protocol` | block | no | | | Enables optional protocol implementations. |
 
 ## protocol block

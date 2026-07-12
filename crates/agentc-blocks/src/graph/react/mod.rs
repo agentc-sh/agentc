@@ -226,6 +226,7 @@ mod tests {
                 context(Some(json!({
                     "host": "0.0.0.0",
                     "port": 8080,
+                    "max_request_size": 2097152,
                     "protocols": [{ "type": "ag_ui", "config": { "path": "/ag-ui" } }]
                 }))),
                 ReActGraphConfig::default(),
@@ -277,6 +278,7 @@ mod tests {
                 context(Some(json!({
                     "host": "0.0.0.0",
                     "port": 8080,
+                    "max_request_size": 2097152,
                     "protocols": [{ "type": "a2a", "config": { "path": "/a2a" } }]
                 }))),
                 ReActGraphConfig::default(),

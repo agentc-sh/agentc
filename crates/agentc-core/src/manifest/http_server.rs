@@ -15,6 +15,8 @@ pub struct ManifestHttpServer {
     pub host: RuntimeValue<String>,
     /// The port to bind the server to.
     pub port: RuntimeValue<u16>,
+    /// The maximum size, in bytes, of an accepted request body.
+    pub max_request_size: RuntimeValue<usize>,
     /// Additional protocols to include in the HTTP server.
     #[serde(default)]
     #[validate(nested)]
@@ -36,6 +38,7 @@ impl Default for ManifestHttpServer {
         Self {
             host: RuntimeValue::default_runtime("HTTP_HOST", "127.0.0.1".to_string()),
             port: RuntimeValue::default_runtime("HTTP_PORT", 8080u16),
+            max_request_size: RuntimeValue::default_runtime("HTTP_MAX_REQUEST_SIZE", 2097152usize),
             protocol: None,
         }
     }

@@ -44,3 +44,6 @@ http = { workspace = true }
 
 tracing = { workspace = true }
 sentry = { workspace = true }
+
+[dev-dependencies]
+tower = { workspace = true, features = ["util"] }
