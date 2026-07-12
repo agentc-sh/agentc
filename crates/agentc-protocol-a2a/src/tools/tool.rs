@@ -443,9 +443,9 @@ mod tests {
 
         assert_eq!(
             output.output,
-            to_value(A2aStreamTaskToolResult::from_events(vec![
-                StreamResponse::Task(ToolFixture::completed_task())
-            ]))
+            to_value(A2aStreamTaskToolResult::from_events(vec![StreamResponse::Task(
+                ToolFixture::completed_task()
+            )]))
             .expect("output should serialize"),
         );
         assert_eq!(
