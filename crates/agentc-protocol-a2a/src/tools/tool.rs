@@ -415,7 +415,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn stream_task_tool_returns_events_and_emits_activity() {
+    async fn stream_task_tool_returns_summary_and_emits_activity() {
         let (server, target) = ToolFixture::target().await;
 
         Mock::given(method("POST"))
@@ -441,7 +441,13 @@ mod tests {
         .await
         .expect("tool should execute");
 
-        assert_eq!(output.output.as_array().map(Vec::len), Some(1));
+        assert_eq!(
+            output.output,
+            to_value(A2aStreamTaskToolResult::from_events(vec![
+                StreamResponse::Task(ToolFixture::completed_task())
+            ]))
+            .expect("output should serialize"),
+        );
         assert_eq!(
             rx.recv()
                 .await
