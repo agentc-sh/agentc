@@ -18,7 +18,10 @@ use agentc_agent::{
 
 use crate::tools::{
     target::A2aToolTarget,
-    types::{A2aCancelTaskToolInput, A2aGetTaskToolInput, A2aSendTaskToolInput, A2aStreamActivity},
+    types::{
+        A2aCancelTaskToolInput, A2aGetTaskToolInput, A2aSendTaskToolInput, A2aStreamActivity,
+        A2aStreamTaskToolResult,
+    },
 };
 
 #[derive(Debug, Clone)]
@@ -157,14 +160,14 @@ where
 
             let is_terminal = A2aStreamActivity::is_terminal(&response);
 
-            events.push(to_value(response)?);
+            events.push(response);
 
             if is_terminal {
                 break;
             }
         }
 
-        Ok(TypedToolOutput::ok(Value::Array(events)))
+        Ok(TypedToolOutput::ok(to_value(A2aStreamTaskToolResult::from_events(events))?))
     }
 }
 

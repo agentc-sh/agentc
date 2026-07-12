@@ -4,7 +4,7 @@
 
 use json_patch::{AddOperation, PatchOperation};
 use schemars::JsonSchema;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json, to_value};
 
 use agentc_agent::tools::{
@@ -13,9 +13,9 @@ use agentc_agent::tools::{
 
 use crate::{
     protocol::{
-        CancelTaskRequest, GetTaskRequest, Message, Part, Role, SendMessageConfiguration,
-        SendMessageRequest, StreamResponse, Task, TaskArtifactUpdateEvent, TaskId, TaskState,
-        TaskStatusUpdateEvent,
+        Artifact, CancelTaskRequest, GetTaskRequest, Message, Part, PartContent, Role,
+        SendMessageConfiguration, SendMessageRequest, StreamResponse, Task, TaskArtifactUpdateEvent,
+        TaskId, TaskState, TaskStatusUpdateEvent,
     },
     tools::target::A2aToolTarget,
 };
@@ -139,6 +139,93 @@ impl A2aStreamActivity {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct A2aStreamTaskToolResult {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task_id: Option<TaskId>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub state: Option<TaskState>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub artifacts: Vec<Artifact>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<Message>,
+}
+
+impl A2aStreamTaskToolResult {
+    pub fn from_events(events: Vec<StreamResponse>) -> Self {
+        let mut result = Self::default();
+
+        for event in events {
+            match event {
+                StreamResponse::Task(task) => {
+                    result.task_id = Some(task.id);
+                    result.context_id = Some(task.context_id);
+                    result.state = Some(task.status.state);
+
+                    if task.status.message.is_some() {
+                        result.message = task.status.message;
+                    }
+
+                    for artifact in task.artifacts.into_iter().flatten() {
+                        result.merge_artifact(artifact, false);
+                    }
+                }
+                StreamResponse::StatusUpdate(update) => {
+                    result.task_id = Some(update.task_id);
+                    result.context_id = Some(update.context_id);
+                    result.state = Some(update.status.state);
+
+                    if update.status.message.is_some() {
+                        result.message = update.status.message;
+                    }
+                }
+                StreamResponse::ArtifactUpdate(update) => {
+                    result.task_id = Some(update.task_id);
+                    result.context_id = Some(update.context_id);
+                    result.merge_artifact(update.artifact, update.append.unwrap_or(false));
+                }
+                StreamResponse::Message(message) => {
+                    result.task_id = message.task_id.clone().or(result.task_id);
+                    result.context_id = message.context_id.clone().or(result.context_id);
+                    result.message = Some(message);
+                }
+            }
+        }
+
+        result
+    }
+
+    fn merge_artifact(&mut self, incoming: Artifact, append: bool) {
+        match self
+            .artifacts
+            .iter_mut()
+            .find(|artifact| artifact.artifact_id == incoming.artifact_id)
+        {
+            Some(existing) if append => {
+                for part in incoming.parts {
+                    Self::append_part(&mut existing.parts, part);
+                }
+            }
+            Some(existing) => *existing = incoming,
+            None => self.artifacts.push(incoming),
+        }
+    }
+
+    fn append_part(parts: &mut Vec<Part>, part: Part) {
+        if let PartContent::Text(next) = &part.content {
+            if let Some(Part { content: PartContent::Text(existing), .. }) = parts.last_mut() {
+                existing.push_str(next);
+                return;
+            }
+        }
+
+        parts.push(part);
+    }
+}
+
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct A2aSendTaskToolInputMessage {
     pub text: Option<String>,
@@ -153,12 +240,13 @@ impl A2aSendTaskToolInputMessage {
             ));
         }
 
-        Ok(self
-            .text
-            .map(Part::text)
-            .into_iter()
-            .chain(self.data.map(Part::data))
-            .collect())
+        Ok(
+            self.text
+                .map(Part::text)
+                .into_iter()
+                .chain(self.data.map(Part::data))
+                .collect()
+        )
     }
 }
 
@@ -276,9 +364,10 @@ mod tests {
     use uuid::Uuid;
 
     use crate::{
-        client::A2aClientConfig,
+        client::{A2aClientConfig, A2aClient},
         protocol::{
-            PartContent, StreamResponse, Task, TaskId, TaskState, TaskStatus, TaskStatusUpdateEvent,
+            Artifact, ArtifactId, Message, Part, PartContent, Role, StreamResponse, Task,
+            TaskArtifactUpdateEvent, TaskId, TaskState, TaskStatus, TaskStatusUpdateEvent,
         },
         tools::target::A2aTenantPolicy,
     };
@@ -298,7 +387,7 @@ mod tests {
             A2aToolTarget::builder()
                 .id("planner")
                 .client(
-                    crate::client::A2aClient::new(A2aClientConfig::new("http://localhost:8080"))
+                    A2aClient::new(A2aClientConfig::new("http://localhost:8080"))
                         .expect("client config should be valid"),
                 )
                 .default_accepted_output_modes(["text/plain"])
@@ -310,7 +399,7 @@ mod tests {
             A2aToolTarget::builder()
                 .id("planner")
                 .client(
-                    crate::client::A2aClient::new(A2aClientConfig::new("http://localhost:8080"))
+                    A2aClient::new(A2aClientConfig::new("http://localhost:8080"))
                         .expect("client config should be valid"),
                 )
                 .tenant_policy(A2aTenantPolicy::Fixed("downstream".to_string()))
@@ -344,6 +433,53 @@ mod tests {
                     }
                     _ => None,
                 })
+        }
+
+        fn submitted(task_id: &TaskId) -> StreamResponse {
+            StreamResponse::Task(Task {
+                id: task_id.clone(),
+                context_id: "context-1".to_string(),
+                status: TaskStatus {
+                    state: TaskState::Submitted,
+                    message: None,
+                    timestamp: None,
+                },
+                artifacts: None,
+                history: None,
+                metadata: None,
+            })
+        }
+
+        fn status(task_id: &TaskId, state: TaskState) -> StreamResponse {
+            StreamResponse::StatusUpdate(TaskStatusUpdateEvent {
+                task_id: task_id.clone(),
+                context_id: "context-1".to_string(),
+                status: TaskStatus { state, message: None, timestamp: None },
+                metadata: None,
+            })
+        }
+
+        fn artifact_delta(
+            task_id: &TaskId,
+            artifact_id: &str,
+            part: Part,
+            append: bool,
+        ) -> StreamResponse {
+            StreamResponse::ArtifactUpdate(TaskArtifactUpdateEvent {
+                task_id: task_id.clone(),
+                context_id: "context-1".to_string(),
+                artifact: Artifact {
+                    artifact_id: ArtifactId::new(artifact_id),
+                    name: None,
+                    description: None,
+                    parts: vec![part],
+                    metadata: None,
+                    extensions: None,
+                },
+                append: Some(append),
+                last_chunk: None,
+                metadata: None,
+            })
         }
     }
 
@@ -462,5 +598,80 @@ mod tests {
             history: None,
             metadata: None,
         })));
+    }
+
+    #[test]
+    fn from_events_merges_appended_artifacts_and_uses_terminal_state() {
+        let task_id = TaskId::new("task-1");
+
+        let result = A2aStreamTaskToolResult::from_events(vec![
+            ToolTypesFixture::submitted(&task_id),
+            ToolTypesFixture::status(&task_id, TaskState::Working),
+            ToolTypesFixture::artifact_delta(&task_id, "response", Part::text("Hello, "), true),
+            ToolTypesFixture::artifact_delta(&task_id, "response", Part::text("world!"), true),
+            ToolTypesFixture::artifact_delta(
+                &task_id,
+                "state",
+                Part::data(json!({ "answer": 42 })),
+                false,
+            ),
+            ToolTypesFixture::status(&task_id, TaskState::Completed),
+        ]);
+
+        assert_eq!(result.task_id.as_ref(), Some(&task_id));
+        assert_eq!(result.context_id.as_deref(), Some("context-1"));
+        assert_eq!(result.state, Some(TaskState::Completed));
+        assert_eq!(result.artifacts.len(), 2);
+
+        let response = result
+            .artifacts
+            .iter()
+            .find(|artifact| artifact.artifact_id == ArtifactId::new("response"))
+            .expect("response artifact should exist");
+
+        assert_eq!(response.parts.len(), 1);
+        assert_eq!(response.parts[0].as_text(), Some("Hello, world!"));
+
+        let state = result
+            .artifacts
+            .iter()
+            .find(|artifact| artifact.artifact_id == ArtifactId::new("state"))
+            .expect("state artifact should exist");
+
+        assert!(matches!(state.parts[0].content, PartContent::Data(_)));
+    }
+
+    #[test]
+    fn from_events_replaces_artifact_when_update_is_not_append() {
+        let task_id = TaskId::new("task-2");
+
+        let result = A2aStreamTaskToolResult::from_events(vec![
+            ToolTypesFixture::artifact_delta(&task_id, "doc", Part::text("draft"), true),
+            ToolTypesFixture::artifact_delta(&task_id, "doc", Part::text("final"), false),
+        ]);
+
+        assert_eq!(result.artifacts.len(), 1);
+        assert_eq!(result.artifacts[0].parts.len(), 1);
+        assert_eq!(result.artifacts[0].parts[0].as_text(), Some("final"));
+    }
+
+    #[test]
+    fn from_events_captures_message_identity_and_content() {
+        let result = A2aStreamTaskToolResult::from_events(vec![StreamResponse::Message(Message {
+            context_id: Some("context-9".to_string()),
+            task_id: Some(TaskId::new("task-9")),
+            ..Message::new(Role::Agent, vec![Part::text("done")])
+        })]);
+
+        assert_eq!(result.task_id, Some(TaskId::new("task-9")));
+        assert_eq!(result.context_id.as_deref(), Some("context-9"));
+        assert_eq!(result.state, None);
+        assert_eq!(
+            result
+                .message
+                .as_ref()
+                .and_then(Message::text),
+            Some("done")
+        );
     }
 }
