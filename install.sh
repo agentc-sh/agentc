@@ -259,14 +259,18 @@ json_extract_string() {
       for (i = pos; i <= length(json); i += 1) {
         ch = substr(json, i, 1)
 
+        # Decode escapes so a JSON "\\." (the regex \.) is not passed to
+        # cosign as a literal double backslash, which never matches the SAN.
         if (esc) {
-          out = out ch
+          if (ch == "n")      { out = out "\n" }
+          else if (ch == "t") { out = out "\t" }
+          else if (ch == "r") { out = out "\r" }
+          else                { out = out ch }
           esc = 0
           continue
         }
 
         if (ch == "\\") {
-          out = out ch
           esc = 1
           continue
         }
