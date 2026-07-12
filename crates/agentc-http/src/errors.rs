@@ -5,13 +5,7 @@
 use anyhow::Error;
 use axum::extract::{
     path::ErrorKind,
-    rejection::{
-        JsonRejection,
-        PathRejection,
-        QueryRejection,
-        BytesRejection,
-        FailedToBufferBody,
-    },
+    rejection::{BytesRejection, FailedToBufferBody, JsonRejection, PathRejection, QueryRejection},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::to_value;
