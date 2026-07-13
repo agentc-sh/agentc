@@ -2,7 +2,11 @@
 //
 // SPDX-License-Identifier: MIT
 
-use futures::{stream::Stream, task::AtomicWaker};
+use futures::{
+    StreamExt,
+    stream::{Stream, empty, once},
+    task::AtomicWaker,
+};
 use std::{
     pin::Pin,
     sync::{
@@ -83,6 +87,24 @@ impl ChatCompletionStream {
         Self {
             inner: Box::pin(stream),
             pause_state: PauseState::new(),
+        }
+    }
+
+    /// Drive `stream` to its first item so the provider handshake completes
+    /// here rather than on the consumer's first poll. A first item that is an
+    /// error (a non-2xx status or connection failure surfaced by the provider)
+    /// is returned as the handshake result; otherwise it is re-emitted at the
+    /// head of the returned stream so no events are lost.
+    pub async fn establish<S>(stream: S) -> Result<Self, ModelError>
+    where
+        S: Stream<Item = Result<CompletionStreamEvent, ModelError>> + Send + 'static,
+    {
+        let mut stream = Box::pin(stream);
+
+        match stream.next().await {
+            Some(Err(error)) => Err(error),
+            Some(Ok(first)) => Ok(Self::new(once(async move { Ok(first) }).chain(stream))),
+            None => Ok(Self::new(empty())),
         }
     }
 

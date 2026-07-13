@@ -9,6 +9,7 @@ use std::sync::Arc;
 
 use crate::{
     errors::ModelError,
+    middleware::{CompletionMiddleware, Intercepted},
     stream::ChatCompletionStream,
     types::{
         identity::{ModelId, ProviderId},
@@ -307,6 +308,17 @@ pub trait CompletionModelExt {
     where
         I: IntoIterator<Item = M>,
         M: Into<ChatMessage>;
+
+    /// Layer a [`CompletionMiddleware`] over this model, returning an
+    /// [`Intercepted`] that is itself a [`CompletionModel`] and so composes
+    /// with further layers.
+    fn layer<L>(self, middleware: L) -> Intercepted<Self, L>
+    where
+        Self: Sized,
+        L: CompletionMiddleware,
+    {
+        Intercepted::new(self, middleware)
+    }
 }
 
 impl<T> CompletionModelExt for T
