@@ -6,6 +6,7 @@ use anyhow::{Result, anyhow};
 use axum::{
     Router,
     body::Body,
+    extract::DefaultBodyLimit,
     response::{IntoResponse, Json},
     routing::get,
 };
@@ -146,6 +147,7 @@ pub struct HttpServerBuilder {
     openapi: Option<OpenApi>,
     host: String,
     port: u16,
+    max_request_size: Option<usize>,
 }
 
 impl Default for HttpServerBuilder {
@@ -161,6 +163,7 @@ impl HttpServerBuilder {
             openapi: None,
             host: "127.0.0.1".to_string(),
             port: 8080,
+            max_request_size: None,
         }
     }
 
@@ -181,6 +184,11 @@ impl HttpServerBuilder {
 
     pub fn with_router(mut self, router: OpenApiRouter) -> Self {
         self.routers.push(router);
+        self
+    }
+
+    pub fn with_max_request_size(mut self, max_request_size: usize) -> Self {
+        self.max_request_size = Some(max_request_size);
         self
     }
 
@@ -233,11 +241,75 @@ impl HttpServerBuilder {
             .merge(Scalar::with_url("/.well-known/docs", api_doc.clone()))
             .route("/.well-known/openapi.json", get(move || async move { Json(api_doc) }));
 
+        if let Some(max_request_size) = self.max_request_size {
+            router = router.layer(DefaultBodyLimit::max(max_request_size));
+        }
+
         Ok(HttpServer {
             router: Some(router),
             addr,
             handle,
             task: None,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use axum::{body::Bytes, routing::post};
+    use http::StatusCode;
+    use tower::ServiceExt;
+    use utoipa::openapi::OpenApiBuilder;
+
+    async fn echo_endpoint(_body: Bytes) -> impl IntoResponse {
+        StatusCode::OK
+    }
+
+    fn bounded_router() -> Router {
+        let mut server = HttpServer::builder()
+            .with_openapi(OpenApiBuilder::new().build())
+            .with_router(OpenApiRouter::new().route("/test", post(echo_endpoint)))
+            .with_max_request_size(8)
+            .build()
+            .expect("server builds");
+
+        server
+            .router
+            .take()
+            .expect("router present")
+    }
+
+    #[tokio::test]
+    async fn under_limit_request_succeeds() {
+        let response = bounded_router()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/test")
+                    .body(Body::from("abc"))
+                    .expect("request builds"),
+            )
+            .await
+            .expect("service responds");
+
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn over_limit_request_is_rejected() {
+        let response = bounded_router()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/test")
+                    .body(Body::from("x".repeat(64)))
+                    .expect("request builds"),
+            )
+            .await
+            .expect("service responds");
+
+        assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
     }
 }

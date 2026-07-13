@@ -54,6 +54,18 @@ impl IntoTypeTokens for u8 {
     }
 }
 
+impl IntoTypeTokens for usize {
+    fn type_tokens() -> TokenStream {
+        quote! { usize }
+    }
+}
+
+impl IntoTypeTokens for isize {
+    fn type_tokens() -> TokenStream {
+        quote! { isize }
+    }
+}
+
 impl IntoTypeTokens for i64 {
     fn type_tokens() -> TokenStream {
         quote! { i64 }

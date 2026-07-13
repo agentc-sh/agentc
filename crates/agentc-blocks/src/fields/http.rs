@@ -11,6 +11,7 @@ impl IntoFieldSpecs for ResolvedContextHttpServer {
     fn extend_fields(&self, fields: &mut FieldsSpec) {
         fields.push(&["server", "host"], &self.host);
         fields.push(&["server", "port"], &self.port);
+        fields.push(&["server", "max_request_size"], &self.max_request_size);
     }
 }
 
@@ -24,6 +25,7 @@ mod tests {
         let server = ResolvedContextHttpServer {
             host: RuntimeValue::constant("0.0.0.0".to_string()),
             port: RuntimeValue::constant(8080u16),
+            max_request_size: RuntimeValue::constant(2097152usize),
             protocols: vec![],
         };
 
@@ -37,6 +39,11 @@ mod tests {
         assert!(
             fields
                 .get(&["server", "port"])
+                .is_some()
+        );
+        assert!(
+            fields
+                .get(&["server", "max_request_size"])
                 .is_some()
         );
     }

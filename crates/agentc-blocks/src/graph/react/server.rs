@@ -53,6 +53,10 @@ impl CodeGen<ResolvedContext> for ServerCodeGen {
             .fields
             .config_accessor(&["server", "port"])
             .expect("server.port field is required");
+        let max_request_size_field = self
+            .fields
+            .config_accessor(&["server", "max_request_size"])
+            .expect("server.max_request_size field is required");
         let default_tenant_id_field = self
             .fields
             .config_accessor(&["default_tenant_id"])
@@ -126,6 +130,7 @@ impl CodeGen<ResolvedContext> for ServerCodeGen {
                 builder
                     .with_host(#host_field.clone())
                     .with_port(#port_field)
+                    .with_max_request_size(#max_request_size_field)
                     .build()
             }
         };

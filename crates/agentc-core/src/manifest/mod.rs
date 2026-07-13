@@ -787,6 +787,7 @@ impl Manifest {
             .map(|http| ResolvedContextHttpServer {
                 host: http.host.clone(),
                 port: http.port.clone(),
+                max_request_size: http.max_request_size.clone(),
                 protocols: http
                     .protocol
                     .as_ref()

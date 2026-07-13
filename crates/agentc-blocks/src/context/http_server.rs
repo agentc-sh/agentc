@@ -13,6 +13,8 @@ pub struct ResolvedContextHttpServer {
     pub host: RuntimeValue<String>,
     /// The port to bind the HTTP server to.
     pub port: RuntimeValue<u16>,
+    /// The maximum size, in bytes, of an accepted request body.
+    pub max_request_size: RuntimeValue<usize>,
     /// Resolved protocols to include in the HTTP server.
     pub protocols: Vec<ResolvedContextHttpServerProtocol>,
 }
