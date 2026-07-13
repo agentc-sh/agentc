@@ -141,10 +141,7 @@ impl ModelError {
 
     /// Creates a [`ModelError::Timeout`].
     pub fn timeout(provider: impl Into<ProviderId>, elapsed: Duration) -> Self {
-        Self::Timeout {
-            provider: provider.into(),
-            elapsed,
-        }
+        Self::Timeout { provider: provider.into(), elapsed }
     }
 
     /// Whether this error may succeed if the handshake is retried. True for

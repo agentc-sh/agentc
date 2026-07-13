@@ -7,11 +7,8 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::time::sleep;
 
 use crate::{
-    errors::ModelError,
-    middleware::CompletionMiddleware,
-    stream::ChatCompletionStream,
-    traits::CompletionModel,
-    types::request::CompletionRequest,
+    errors::ModelError, middleware::CompletionMiddleware, stream::ChatCompletionStream,
+    traits::CompletionModel, types::request::CompletionRequest,
 };
 
 /// Policy governing how a [`Retry`] middleware re-attempts a failed handshake.
@@ -148,7 +145,10 @@ mod tests {
             &self,
             _request: CompletionRequest,
         ) -> Result<ChatCompletionStream, ModelError> {
-            let attempt = self.calls.fetch_add(1, Ordering::SeqCst) + 1;
+            let attempt = self
+                .calls
+                .fetch_add(1, Ordering::SeqCst)
+                + 1;
 
             if attempt > self.fail_until {
                 return Ok(ChatCompletionStream::new(stream::empty::<

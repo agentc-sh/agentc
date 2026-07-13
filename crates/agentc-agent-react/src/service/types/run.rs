@@ -25,7 +25,7 @@ use agentc_domain::{
 use crate::{
     graph::state::{ReActState, ReActStateInput, ReActStateUpdate},
     service::types::message::{CreateMessageParams, MessageResponse},
-    types::model::ModelOverride,
+    types::model::ModelConfig,
     types::{
         context_var::ContextVar,
         event::{Event, ReasoningSignatureSubtype},
@@ -36,7 +36,7 @@ use crate::{
 pub struct StateResponse {
     pub run_id: Uuid,
     pub session_id: Uuid,
-    pub model_override: Option<ModelOverride>,
+    pub model: Option<ModelConfig>,
     pub capability_override: Option<CapabilityOverride>,
     pub messages: Vec<MessageResponse>,
     pub context_vars: Vec<ContextVar>,
@@ -49,7 +49,7 @@ impl StateResponse {
         Self {
             run_id: entity.run_id,
             session_id: entity.session_id,
-            model_override: entity.model_override.clone(),
+            model: entity.model.clone(),
             capability_override: entity.capability_override.clone(),
             messages: entity
                 .messages
@@ -405,7 +405,7 @@ pub struct RunParams {
     pub run_id: Uuid,
     pub checkpoint_id: Option<Uuid>,
     pub resume_payload: Option<Value>,
-    pub model_override: Option<ModelOverride>,
+    pub model: Option<ModelConfig>,
     pub capability_override: Option<CapabilityOverride>,
     pub messages: Vec<CreateMessageParams>,
     pub context_vars: Vec<ContextVar>,
@@ -421,7 +421,7 @@ impl RunParams {
             run_id: Uuid::new_v4(),
             checkpoint_id: None,
             resume_payload: None,
-            model_override: None,
+            model: None,
             capability_override: None,
             messages: Vec::new(),
             context_vars: Vec::new(),
@@ -462,13 +462,13 @@ impl RunParams {
         self
     }
 
-    pub fn with_model_override(mut self, model_override: ModelOverride) -> Self {
-        self.model_override = Some(model_override);
+    pub fn with_model(mut self, model: ModelConfig) -> Self {
+        self.model = Some(model);
         self
     }
 
-    pub fn maybe_with_model_override(mut self, model_override: Option<ModelOverride>) -> Self {
-        self.model_override = model_override;
+    pub fn maybe_with_model(mut self, model: Option<ModelConfig>) -> Self {
+        self.model = model;
         self
     }
 
@@ -549,7 +549,7 @@ impl RunParams {
         ReActStateInput {
             run_id: self.run_id,
             session_id: self.session_id,
-            model_override: self.model_override.clone(),
+            model: self.model.clone(),
             capability_override: self.capability_override.clone(),
             messages: self
                 .messages
@@ -728,7 +728,10 @@ mod tests {
 
     use crate::{
         service::types::message::CreateUserMessageParams,
-        types::message::{MediaSource, UserContent},
+        types::{
+            message::{MediaSource, UserContent},
+            model::{ModelConfigOverride, ModelConfigRetry},
+        },
     };
 
     #[test]
@@ -749,6 +752,44 @@ mod tests {
                 .expect("expected user message")
                 .content,
             content,
+        );
+    }
+
+    #[test]
+    fn run_input_preserves_model_config() {
+        let input = RunParams::new("tenant", Uuid::new_v4())
+            .with_model(
+                ModelConfig::new()
+                    .with_override(ModelConfigOverride {
+                        provider: Some("openai".to_string()),
+                        model: Some("gpt-4o".to_string()),
+                        inference_params: None,
+                    })
+                    .with_timeout(5000)
+                    .with_retry(ModelConfigRetry {
+                        max_attempts: 3,
+                        initial_backoff: 100,
+                        max_backoff: 1000,
+                    }),
+            )
+            .to_input();
+
+        assert_eq!(
+            input.model,
+            Some(
+                ModelConfig::new()
+                    .with_override(ModelConfigOverride {
+                        provider: Some("openai".to_string()),
+                        model: Some("gpt-4o".to_string()),
+                        inference_params: None,
+                    })
+                    .with_timeout(5000)
+                    .with_retry(ModelConfigRetry {
+                        max_attempts: 3,
+                        initial_backoff: 100,
+                        max_backoff: 1000,
+                    }),
+            ),
         );
     }
 }

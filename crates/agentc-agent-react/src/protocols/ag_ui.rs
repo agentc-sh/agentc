@@ -655,11 +655,11 @@ impl AgUiService for ApplicationService {
             .run(
                 RunParams::new(&tenant_id, input.thread_id)
                     .with_run_id(run_id)
-                    .maybe_with_model_override(
+                    .maybe_with_model(
                         input
                             .forwarded_props
                             .as_object()
-                            .and_then(|props| props.get("model_override"))
+                            .and_then(|props| props.get("model"))
                             .and_then(|v| from_value(v.clone()).ok()),
                     )
                     .maybe_with_capability_override(

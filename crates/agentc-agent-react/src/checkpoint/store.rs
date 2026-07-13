@@ -345,7 +345,7 @@ impl<'a> StateStore<ReActState> for SqlReActStateStore<'a> {
                 session_id,
                 run_id,
                 checkpoint_id: Some(checkpoint_id),
-                model_override: state.model_override.clone(),
+                model: state.model.clone(),
                 capability_override: state.capability_override.clone(),
                 tools: if state.tools.is_empty() {
                     None
@@ -413,7 +413,7 @@ impl<'a> StateStore<ReActState> for SqlReActStateStore<'a> {
         Ok(Some(ReActState {
             run_id,
             session_id,
-            model_override: snapshot.model_override,
+            model: snapshot.model,
             capability_override: snapshot.capability_override,
             tools: snapshot.tools.unwrap_or_default(),
             context_vars: snapshot

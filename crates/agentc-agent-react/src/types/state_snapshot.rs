@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use agentc_agent::types::{capability::CapabilityOverride, tools::ToolDefinition};
 
-use crate::types::{context_var::ContextVar, model::ModelOverride};
+use crate::types::{context_var::ContextVar, model::ModelConfig};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StateSnapshot {
@@ -18,7 +18,7 @@ pub struct StateSnapshot {
     pub session_id: Uuid,
     pub run_id: Uuid,
     pub checkpoint_id: Option<Uuid>,
-    pub model_override: Option<ModelOverride>,
+    pub model: Option<ModelConfig>,
     pub capability_override: Option<CapabilityOverride>,
     pub tools: Option<Vec<ToolDefinition>>,
     pub context_vars: Option<Vec<ContextVar>>,

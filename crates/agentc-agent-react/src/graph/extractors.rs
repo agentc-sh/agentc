@@ -2,11 +2,15 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::{collections::HashSet, sync::Arc};
+use std::{collections::HashSet, sync::Arc, time::Duration};
 
 use agentc_model::{
     instrument::{AsInstrumentedModel, InstrumentedCompletionModel},
-    traits::CompletionModel,
+    middleware::{
+        retry::{Retry, RetryPolicy},
+        timeout::Timeout,
+    },
+    traits::{CompletionModel, CompletionModelExt},
 };
 
 use agentc_agent::{
@@ -22,30 +26,8 @@ use agentc_agent::{
 
 use crate::{
     graph::state::ReActState,
-    types::{context_var::ContextVar, message::Message, model::ModelOverride as ModelOverrideData},
+    types::{context_var::ContextVar, message::Message, model::ModelConfig as ReActModelConfig},
 };
-
-/// An extractor for the model override from the agent state.
-pub struct ModelOverride(pub Option<ModelOverrideData>);
-
-impl ModelOverride {
-    pub fn as_inner(&self) -> Option<&ModelOverrideData> {
-        self.0.as_ref()
-    }
-
-    pub fn into_inner(self) -> Option<ModelOverrideData> {
-        self.0
-    }
-}
-
-impl<N> FromRuntimeContext<N> for ModelOverride
-where
-    N: GraphNode<State = ReActState>,
-{
-    fn from_rtx(rtx: &RuntimeContext<N>) -> Result<Self, GraphError> {
-        Ok(ModelOverride(rtx.state.model_override.clone()))
-    }
-}
 
 /// An extractor for the messages from the agent state.
 pub struct Messages(pub Vec<Message>);
@@ -91,6 +73,28 @@ where
     }
 }
 
+/// An extractor for the model configuration from the agent state.
+pub struct ModelConfig(pub Option<ReActModelConfig>);
+
+impl ModelConfig {
+    pub fn as_inner(&self) -> Option<&ReActModelConfig> {
+        self.0.as_ref()
+    }
+
+    pub fn into_inner(self) -> Option<ReActModelConfig> {
+        self.0
+    }
+}
+
+impl<N> FromRuntimeContext<N> for ModelConfig
+where
+    N: GraphNode<State = ReActState>,
+{
+    fn from_rtx(rtx: &RuntimeContext<N>) -> Result<Self, GraphError> {
+        Ok(ModelConfig(rtx.state.model.clone()))
+    }
+}
+
 /// An extractor for the model client from the agent context based on
 /// the default model or the override in the state.
 pub struct Model(pub InstrumentedCompletionModel<Arc<dyn CompletionModel>>);
@@ -112,16 +116,18 @@ where
     M: Send + Clone + 'static,
 {
     fn from_rtx(rtx: &RuntimeContext<N>) -> Result<Self, GraphError> {
-        let model_override = ModelOverride::from_rtx(rtx)?.into_inner();
+        let config = rtx.state.model.clone();
 
-        let provider = model_override
+        let provider = config
             .as_ref()
-            .and_then(|o| o.provider.clone())
+            .and_then(|config| config.r#override.as_ref())
+            .and_then(|config| config.provider.clone())
             .unwrap_or_else(|| rtx.ctx.identity.provider.clone());
 
-        let model_name = model_override
+        let model_name = config
             .as_ref()
-            .and_then(|o| o.model.clone())
+            .and_then(|config| config.r#override.as_ref())
+            .and_then(|config| config.model.clone())
             .unwrap_or_else(|| rtx.ctx.identity.model.clone());
 
         match rtx
@@ -130,7 +136,27 @@ where
             .provider(provider)
             .model(model_name)
         {
-            Ok(m) => Ok(Model(m.as_instrumented())),
+            Ok(mut model) => {
+                if let Some(timeout) = config
+                    .as_ref()
+                    .and_then(|config| config.timeout)
+                {
+                    model = Arc::new(model.layer(Timeout::new(Duration::from_millis(timeout))));
+                }
+
+                if let Some(retry) = config
+                    .as_ref()
+                    .and_then(|config| config.retry.as_ref())
+                {
+                    model = Arc::new(model.layer(Retry::new(RetryPolicy {
+                        max_attempts: retry.max_attempts,
+                        initial_backoff: Duration::from_millis(retry.initial_backoff),
+                        max_backoff: Duration::from_millis(retry.max_backoff),
+                    })));
+                }
+
+                Ok(Model(model.as_instrumented()))
+            }
             Err(e) => Err(GraphError::execution_error(e)),
         }
     }

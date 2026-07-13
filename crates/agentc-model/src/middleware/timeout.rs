@@ -7,11 +7,8 @@ use std::time::Duration;
 use tokio::time::timeout;
 
 use crate::{
-    errors::ModelError,
-    middleware::CompletionMiddleware,
-    stream::ChatCompletionStream,
-    traits::CompletionModel,
-    types::request::CompletionRequest,
+    errors::ModelError, middleware::CompletionMiddleware, stream::ChatCompletionStream,
+    traits::CompletionModel, types::request::CompletionRequest,
 };
 
 /// A [`CompletionMiddleware`] that bounds the request handshake with a timeout.

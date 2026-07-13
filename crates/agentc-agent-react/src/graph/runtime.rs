@@ -45,7 +45,7 @@ use agentc_telemetry::{Level, debug, error, info, instrument, warn};
 
 use crate::{
     graph::{
-        extractors::{ContextVars, Messages, Model, ModelOverride, ToolDefinitions, Tools},
+        extractors::{ContextVars, Messages, Model, ModelConfig, ToolDefinitions, Tools},
         state::{ReActState, ReActStateUpdate},
     },
     types::{
@@ -195,7 +195,7 @@ impl ReActNode {
 
     #[instrument(
         level = Level::INFO,
-        skip(ctx, model, messages, tool_definitions, identity),
+        skip(ctx, model, model_config, messages, tool_definitions, identity),
         fields(
             tenant_id = &ctx.tenant_id,
             session_id = ?ctx.session_id,
@@ -208,7 +208,7 @@ impl ReActNode {
         Ctx(ctx): Ctx<AgentContext<Event, Message>>,
         State(state): State<ReActState>,
         Model(model): Model,
-        ModelOverride(model_override): ModelOverride,
+        ModelConfig(model_config): ModelConfig,
         Messages(messages): Messages,
         ContextVars(context_vars): ContextVars,
         ToolDefinitions(tool_definitions): ToolDefinitions,
@@ -266,7 +266,9 @@ impl ReActNode {
             .render(&ctx.prompt_env, &prompt_ctx, ctx.token_counter.as_ref())
             .map_err(GraphError::execution_error)?;
 
-        let override_params = model_override.and_then(|o| o.inference_params);
+        let override_params = model_config
+            .and_then(|config| config.r#override)
+            .and_then(|config| config.inference_params);
 
         // Build a single buffer for the entire context window. Rendered prompt
         // messages are pushed as pinned so compaction never removes them.

@@ -19,7 +19,7 @@ use agentc_agent::{
     types::{capability::CapabilityOverride, tools::ToolDefinition},
 };
 
-use crate::types::{context_var::ContextVar, message::Message, model::ModelOverride};
+use crate::types::{context_var::ContextVar, message::Message, model::ModelConfig};
 
 /// The main state corresponding to a specific session of an agent.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -28,8 +28,8 @@ pub struct ReActState {
     pub run_id: Uuid,
     /// A unique identifier for the session within the agent.
     pub session_id: Uuid,
-    /// Override the model to be used for this agent session.
-    pub model_override: Option<ModelOverride>,
+    /// Model configuration for this agent session.
+    pub model: Option<ModelConfig>,
     /// Override the capabilities for this agent session.
     pub capability_override: Option<CapabilityOverride>,
     /// The messages exchanged in the agent's conversation.
@@ -159,8 +159,8 @@ pub struct ReActStateInput {
     pub run_id: Uuid,
     /// A unique identifier for the session within the agent.
     pub session_id: Uuid,
-    /// Override the model to be used for this agent session.
-    pub model_override: Option<ModelOverride>,
+    /// Model configuration for this agent session.
+    pub model: Option<ModelConfig>,
     /// Override the capabilities for this agent session.
     pub capability_override: Option<CapabilityOverride>,
     /// New messages for the agent's conversation.
@@ -176,7 +176,7 @@ pub struct ReActStateInput {
 impl Default for ReActStateInput {
     fn default() -> Self {
         Self {
-            model_override: None,
+            model: None,
             capability_override: None,
             run_id: Uuid::new_v4(),
             session_id: Uuid::new_v4(),
@@ -286,7 +286,7 @@ impl GraphStateInput for ReActStateInput {
 
     fn initialize(self) -> Self::State {
         ReActState {
-            model_override: self.model_override,
+            model: self.model,
             capability_override: self.capability_override,
             run_id: self.run_id,
             session_id: self.session_id,
