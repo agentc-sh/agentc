@@ -53,7 +53,8 @@ use tracing_subscriber::{
 };
 
 pub use tracing::{
-    Level, Span, debug, error, event, info, instrument, level_filters::LevelFilter, trace, warn,
+    Instrument, Level, Span, debug, error, event, field, info, info_span, instrument,
+    level_filters::LevelFilter, trace, warn,
 };
 
 /// A [`tracing_subscriber::Layer`] that can be dynamically disabled at runtime.

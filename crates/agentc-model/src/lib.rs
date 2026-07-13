@@ -6,6 +6,7 @@
 extern crate self as agentc_model;
 
 pub mod errors;
+pub mod instrument;
 pub mod providers;
 pub mod registry;
 pub mod stream;

@@ -33,7 +33,7 @@ use agentc_agent::{
     },
 };
 use agentc_model::{
-    traits::CompletionModelExt,
+    traits::{CompletionModel, CompletionModelExt},
     types::{reasoning::ReasoningContent, stream::CompletionStreamEvent},
 };
 use agentc_prompt::{

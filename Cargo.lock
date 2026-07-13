@@ -464,6 +464,7 @@ dependencies = [
 name = "agentc-model"
 version = "0.2.1"
 dependencies = [
+ "agentc-telemetry",
  "anyhow",
  "async-trait",
  "futures",

@@ -32,7 +32,7 @@ pub trait CompletionModel: Send + Sync {
     /// Request-level params take precedence over these when building a completion request.
     fn inference_params(&self) -> &InferenceParams;
 
-    /// Send a fully constructed request and return a streaming response.
+    /// Send a fully constructed request to the provider and return its raw streaming response.
     async fn send(&self, request: CompletionRequest) -> Result<ChatCompletionStream, ModelError>;
 }
 
@@ -54,7 +54,10 @@ impl CompletionModel for Arc<dyn CompletionModel> {
         (**self).inference_params()
     }
 
-    async fn send(&self, request: CompletionRequest) -> Result<ChatCompletionStream, ModelError> {
+    async fn send(
+        &self,
+        request: CompletionRequest,
+    ) -> Result<ChatCompletionStream, ModelError> {
         (**self).send(request).await
     }
 }

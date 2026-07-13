@@ -58,6 +58,20 @@ pub enum ModelError {
 }
 
 impl ModelError {
+    /// The short, bounded `error.type` value for this error.
+    pub fn error_type(&self) -> &'static str {
+        match self {
+            Self::Provider { .. } => "provider",
+            Self::Stream { .. } => "stream",
+            Self::Configuration { .. } => "configuration",
+            Self::Serialization(_) => "serialization",
+            Self::InvalidRequest { .. } => "invalid_request",
+            Self::ModelNotAllowed { .. } => "model_not_allowed",
+            Self::UnsupportedFeature { .. } => "unsupported_feature",
+            Self::UnknownProvider { .. } => "unknown_provider",
+        }
+    }
+
     /// Creates a [`ModelError::Provider`] with an optional source error.
     pub fn provider<E>(
         provider: impl Into<ProviderId>,
