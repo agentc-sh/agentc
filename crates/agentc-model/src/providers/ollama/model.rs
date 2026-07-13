@@ -11,7 +11,7 @@ use rig_core::{
 use serde_json::json;
 
 use crate::{
-    errors::ModelError,
+    errors::{IntoModelError, ModelError},
     providers::ollama::constants::{OTEL_PROVIDER_NAME, PROVIDER},
     stream::ChatCompletionStream,
     traits::CompletionModel,
@@ -115,7 +115,7 @@ impl CompletionModel for OllamaModel {
             builder = builder.additional_params(additional);
         }
 
-        Ok(ChatCompletionStream::new(
+        ChatCompletionStream::establish(
             builder
                 .messages(
                     rest.into_iter()
@@ -124,13 +124,14 @@ impl CompletionModel for OllamaModel {
                 )
                 .stream()
                 .await
-                .map_err(|e| ModelError::provider(PROVIDER, e.to_string(), Some(e)))?
+                .map_err(|e| e.into_model_error(PROVIDER))?
                 .filter_map(|event| async move {
                     match event {
                         Ok(e) => Some(Ok(e.try_into().ok()?)),
-                        Err(e) => Some(Err(ModelError::stream(e.to_string(), Some(e)))),
+                        Err(e) => Some(Err(e.into_model_error(PROVIDER))),
                     }
                 }),
-        ))
+        )
+        .await
     }
 }

@@ -195,3 +195,9 @@ impl ModelError {
         Self::UnknownProvider { provider: provider.into() }
     }
 }
+
+/// Conversion from a provider library's error into a [`ModelError`] for a given
+/// provider, classifying retryable conditions as [`ModelError::Transient`].
+pub trait IntoModelError {
+    fn into_model_error(self, provider: impl Into<ProviderId>) -> ModelError;
+}
