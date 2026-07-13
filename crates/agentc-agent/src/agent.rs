@@ -2,8 +2,13 @@
 //
 // SPDX-License-Identifier: MIT
 
+#![allow(deprecated)]
+
 use anyhow::Result;
-use std::sync::Arc;
+use std::{
+    sync::{Arc, LazyLock},
+    time::Instant,
+};
 use uuid::Uuid;
 
 use agentc_model::registry::ModelRegistry;
@@ -12,6 +17,11 @@ use agentc_prompt::{
     counter::{CharApproxCounter, TokenCounter},
     env::PromptEnv,
     vars::TemplateVars,
+};
+use agentc_telemetry::{
+    Instrument, field, info_span,
+    metrics::{Histogram, KeyValue, meter},
+    semconv::{self, attribute},
 };
 
 use crate::{
@@ -29,6 +39,14 @@ use crate::{
     },
     types::{event::AgentEvent, identity::AgentIdentity, params::RunParams},
 };
+
+static INVOKE_AGENT_DURATION: LazyLock<Histogram<f64>> = LazyLock::new(|| {
+    meter("agentc-agent")
+        .f64_histogram(semconv::GEN_AI_INVOKE_AGENT_DURATION)
+        .with_unit("s")
+        .with_description("Duration of agent invocations.")
+        .build()
+});
 
 /// The agent runtime harness, which manages the execution of the agent graph and the flow of data.
 ///
@@ -90,6 +108,7 @@ where
         let model_registry = self.model_registry.clone();
         let tool_registry = self.tool_registry.clone();
         let identity = self.identity.clone();
+        let agent_name = self.identity.name.clone();
         let prompt_env = self.prompt_env.clone();
         let token_counter = self.token_counter.clone();
         let compaction_strategy = self.compaction_strategy.clone();
@@ -102,7 +121,18 @@ where
                     .emit(AgentEvent::run_started(session_id, run_id).into())
                     .ok();
 
-                match graph
+                let span = info_span!(
+                    "invoke_agent",
+                    otel.name = %format!("invoke_agent {agent_name}"),
+                    otel.kind = "internal",
+                    gen_ai.operation.name = "invoke_agent",
+                    gen_ai.agent.name = %agent_name,
+                    gen_ai.conversation.id = %session_id,
+                    error.type = field::Empty,
+                );
+                let start = Instant::now();
+
+                let result = graph
                     .run(
                         AgentContext {
                             emitter: emitter.clone(),
@@ -126,8 +156,18 @@ where
                             resume_payload,
                         },
                     )
-                    .await
-                {
+                    .instrument(span.clone())
+                    .await;
+
+                let mut attributes = vec![KeyValue::new(attribute::GEN_AI_AGENT_NAME, agent_name)];
+                if let Err(error) = &result {
+                    span.record("error.type", error.error_type());
+                    attributes.push(KeyValue::new(attribute::ERROR_TYPE, error.error_type()));
+                }
+
+                INVOKE_AGENT_DURATION.record(start.elapsed().as_secs_f64(), &attributes);
+
+                match result {
                     Ok(result) => {
                         emitter
                             .emit(

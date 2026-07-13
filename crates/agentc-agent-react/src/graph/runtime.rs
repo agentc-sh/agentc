@@ -95,6 +95,7 @@ impl GraphNode for ReActNode {
 impl ReActNode {
     pub fn graph() -> GraphBuilder<Self> {
         Graph::builder(Self::Entrypoint)
+            .with_name("react")
             .with_node_fn(Self::Entrypoint, Self::entrypoint)
             .with_node_fn(Self::RouteNext, Self::route_next)
             .with_node_fn(Self::CallModel, Self::call_model)

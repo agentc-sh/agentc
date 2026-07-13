@@ -39,6 +39,17 @@ pub enum GraphError {
 }
 
 impl GraphError {
+    pub fn error_type(&self) -> &'static str {
+        match self {
+            Self::NodeNotFound(_) => "node_not_found",
+            Self::CheckpointError(_) => "checkpoint",
+            Self::Interrupt(_) => "interrupt",
+            Self::ExecutionError { .. } => "execution",
+            Self::ConversionError { .. } => "conversion",
+            Self::Cancellation(_) => "cancellation",
+        }
+    }
+
     pub fn node_not_found(node: impl ToString) -> Self {
         Self::NodeNotFound(node.to_string())
     }

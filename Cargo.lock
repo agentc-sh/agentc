@@ -206,6 +206,7 @@ dependencies = [
  "agentc-agent-macros",
  "agentc-model",
  "agentc-prompt",
+ "agentc-telemetry",
  "anyhow",
  "async-trait",
  "chrono",

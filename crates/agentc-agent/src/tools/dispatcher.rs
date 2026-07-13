@@ -2,9 +2,20 @@
 //
 // SPDX-License-Identifier: MIT
 
+#![allow(deprecated)]
+
 use futures::future::join_all;
 use serde_json::Value;
-use std::sync::Arc;
+use std::{
+    sync::{Arc, LazyLock},
+    time::Instant,
+};
+
+use agentc_telemetry::{
+    Instrument, field, info_span,
+    metrics::{Histogram, KeyValue, meter},
+    semconv::{self, attribute},
+};
 
 use crate::{
     graph::state::{AnyState, GraphState},
@@ -15,6 +26,14 @@ use crate::{
     },
     types::tools::ToolCall,
 };
+
+static EXECUTE_TOOL_DURATION: LazyLock<Histogram<f64>> = LazyLock::new(|| {
+    meter("agentc-agent")
+        .f64_histogram(semconv::GEN_AI_EXECUTE_TOOL_DURATION)
+        .with_unit("s")
+        .with_description("Duration of tool executions.")
+        .build()
+});
 
 #[derive(Debug)]
 pub enum DispatchOutcome<U> {
@@ -70,16 +89,36 @@ impl ToolDispatcher {
     {
         let any_state: Arc<dyn AnyState> = Arc::new(state.clone());
 
+        let start = Instant::now();
+        let attributes = vec![
+            KeyValue::new(attribute::GEN_AI_TOOL_NAME, call.name.clone()),
+            KeyValue::new(attribute::GEN_AI_TOOL_TYPE, "function"),
+        ];
+
         if let Some(tool) = self.registry.get(&call.name) {
+            let span = info_span!(
+                "execute_tool",
+                otel.name = %format!("execute_tool {}", call.name),
+                otel.kind = "internal",
+                gen_ai.operation.name = "execute_tool",
+                gen_ai.tool.name = %call.name,
+                gen_ai.tool.call.id = %call.id,
+                gen_ai.tool.type = "function",
+                error.type = field::Empty,
+            );
+
             match tool
                 .execute(
                     ToolInput::new(call.arguments, context)
                         .with_state(any_state)
                         .maybe_with_activity_emitter(emitter),
                 )
+                .instrument(span.clone())
                 .await
             {
                 ToolResponse::Success { content, state_update } => {
+                    EXECUTE_TOOL_DURATION.record(start.elapsed().as_secs_f64(), &attributes);
+
                     return DispatchOutcome::Success {
                         call_id: call.id,
                         content,
@@ -88,6 +127,12 @@ impl ToolDispatcher {
                     };
                 }
                 ToolResponse::Error { message } => {
+                    span.record("error.type", "tool_error");
+
+                    let mut attributes = attributes;
+                    attributes.push(KeyValue::new(attribute::ERROR_TYPE, "tool_error"));
+                    EXECUTE_TOOL_DURATION.record(start.elapsed().as_secs_f64(), &attributes);
+
                     return DispatchOutcome::Error { call_id: call.id, error: message };
                 }
             }
@@ -96,6 +141,10 @@ impl ToolDispatcher {
         if self.client_tools.contains(&call.name) {
             return DispatchOutcome::AwaitingClient(call);
         }
+
+        let mut attributes = attributes;
+        attributes.push(KeyValue::new(attribute::ERROR_TYPE, "not_found"));
+        EXECUTE_TOOL_DURATION.record(start.elapsed().as_secs_f64(), &attributes);
 
         DispatchOutcome::NotFound { call_id: call.id, name: call.name }
     }
