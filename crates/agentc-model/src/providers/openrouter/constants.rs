@@ -5,3 +5,5 @@
 use crate::types::identity::StaticProviderId;
 
 pub const PROVIDER: StaticProviderId = StaticProviderId::new("openrouter");
+
+pub const OTEL_PROVIDER_NAME: &str = PROVIDER.as_str();

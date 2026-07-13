@@ -206,6 +206,7 @@ dependencies = [
  "agentc-agent-macros",
  "agentc-model",
  "agentc-prompt",
+ "agentc-telemetry",
  "anyhow",
  "async-trait",
  "chrono",
@@ -422,6 +423,7 @@ dependencies = [
  "futures",
  "http 1.4.2",
  "json-patch",
+ "opentelemetry-instrumentation-tower",
  "rustls",
  "sanitizer",
  "sentry",
@@ -463,6 +465,7 @@ dependencies = [
 name = "agentc-model"
 version = "0.2.1"
 dependencies = [
+ "agentc-telemetry",
  "anyhow",
  "async-trait",
  "futures",
@@ -5297,6 +5300,22 @@ dependencies = [
  "http 1.4.2",
  "opentelemetry 0.32.0",
  "reqwest",
+]
+
+[[package]]
+name = "opentelemetry-instrumentation-tower"
+version = "0.17.0"
+source = "git+https://github.com/open-telemetry/opentelemetry-rust-contrib?rev=c0a28d7#c0a28d7541afd51dc763b7dea3458ebb3aee4d52"
+dependencies = [
+ "axum",
+ "http 1.4.2",
+ "http-body",
+ "opentelemetry 0.32.0",
+ "opentelemetry-http",
+ "opentelemetry-semantic-conventions",
+ "pin-project-lite",
+ "tower-layer",
+ "tower-service",
 ]
 
 [[package]]

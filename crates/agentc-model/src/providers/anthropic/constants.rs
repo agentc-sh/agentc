@@ -8,6 +8,8 @@ use crate::types::identity::{ModelId, StaticProviderId};
 
 pub const PROVIDER: StaticProviderId = StaticProviderId::new("anthropic");
 
+pub const OTEL_PROVIDER_NAME: &str = PROVIDER.as_str();
+
 pub enum Model {
     ClaudeOpus46,
     ClaudeSonnet46,

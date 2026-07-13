@@ -2,9 +2,21 @@
 //
 // SPDX-License-Identifier: MIT
 
+#![allow(deprecated)]
+
 use serde_json::Value;
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::{Arc, LazyLock},
+    time::Instant,
+};
 use uuid::Uuid;
+
+use agentc_telemetry::{
+    Instrument, field, info_span,
+    metrics::{Histogram, KeyValue, meter},
+    semconv::{self, attribute},
+};
 
 use crate::graph::{
     cancel::Canceller,
@@ -18,6 +30,14 @@ use crate::graph::{
     handler::{GraphNodeFunction, GraphNodeHandler, GraphNodeHandlerFn},
     state::{CtxOf, GraphNode, GraphStateInput, GraphStateUpdate, InputOf, StateOf},
 };
+
+static WORKFLOW_DURATION: LazyLock<Histogram<f64>> = LazyLock::new(|| {
+    meter("agentc-agent")
+        .f64_histogram(semconv::GEN_AI_WORKFLOW_DURATION)
+        .with_unit("s")
+        .with_description("Duration of workflow (graph) executions.")
+        .build()
+});
 
 pub struct SessionConfig {
     /// The session ID to associate this run with. All runs part of the same session should share a session ID.
@@ -76,7 +96,6 @@ impl<S> RunOutcome<S> {
         }
     }
 }
-
 /// A graph of nodes representing a workflow, where each node has an associated handler that produces a command
 /// indicating the next node to transition to and any state updates to apply. Optionally integrates with a checkpointer
 /// to persist state and support resuming interrupted runs.
@@ -88,6 +107,7 @@ where
     nodes: HashMap<N, Arc<dyn GraphNodeHandler<N>>>,
     checkpointer: Option<Arc<dyn Checkpointer<N>>>,
     cancellation: Option<Arc<dyn Canceller>>,
+    name: Option<String>,
 }
 
 impl<N> Graph<N>
@@ -100,6 +120,7 @@ where
             nodes: HashMap::new(),
             checkpointer: None,
             cancellation: None,
+            name: None,
         }
     }
 
@@ -140,6 +161,39 @@ where
     }
 
     pub async fn run(
+        &self,
+        ctx: CtxOf<N>,
+        input: InputOf<N>,
+        config: SessionConfig,
+    ) -> Result<RunOutcome<StateOf<N>>, GraphError> {
+        let name = self.name.clone().unwrap_or_default();
+        let span = info_span!(
+            "invoke_workflow",
+            otel.name = %format!("invoke_workflow {name}"),
+            otel.kind = "internal",
+            gen_ai.operation.name = "invoke_workflow",
+            gen_ai.workflow.name = %name,
+            error.type = field::Empty,
+        );
+        let start = Instant::now();
+
+        let result = self
+            .execute(ctx, input, config)
+            .instrument(span.clone())
+            .await;
+
+        let mut attributes = vec![KeyValue::new(attribute::GEN_AI_WORKFLOW_NAME, name)];
+        if let Err(error) = &result {
+            span.record("error.type", error.error_type());
+            attributes.push(KeyValue::new(attribute::ERROR_TYPE, error.error_type()));
+        }
+
+        WORKFLOW_DURATION.record(start.elapsed().as_secs_f64(), &attributes);
+
+        result
+    }
+
+    async fn execute(
         &self,
         ctx: CtxOf<N>,
         input: InputOf<N>,
@@ -302,6 +356,11 @@ where
 {
     pub fn new(entrypoint: N) -> Self {
         Self { graph: Graph::new(entrypoint) }
+    }
+
+    pub fn with_name(mut self, name: impl Into<String>) -> Self {
+        self.graph.name = Some(name.into());
+        self
     }
 
     pub fn with_node<H>(mut self, node: N, handler: H) -> Self

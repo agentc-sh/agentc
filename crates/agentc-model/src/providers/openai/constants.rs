@@ -8,6 +8,8 @@ use crate::types::identity::{ModelId, StaticProviderId};
 
 pub const PROVIDER: StaticProviderId = StaticProviderId::new("openai");
 
+pub const OTEL_PROVIDER_NAME: &str = PROVIDER.as_str();
+
 pub enum Model {
     Gpt4o,
     Gpt4oMini,

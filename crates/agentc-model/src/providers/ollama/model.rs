@@ -12,7 +12,7 @@ use serde_json::json;
 
 use crate::{
     errors::ModelError,
-    providers::ollama::constants::PROVIDER,
+    providers::ollama::constants::{OTEL_PROVIDER_NAME, PROVIDER},
     stream::ChatCompletionStream,
     traits::CompletionModel,
     types::{
@@ -48,6 +48,10 @@ impl OllamaModel {
 impl CompletionModel for OllamaModel {
     fn provider(&self) -> ProviderId {
         PROVIDER.into()
+    }
+
+    fn otel_provider_name(&self) -> &'static str {
+        OTEL_PROVIDER_NAME
     }
 
     fn model(&self) -> &ModelId {

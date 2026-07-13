@@ -8,6 +8,8 @@ use crate::types::identity::{ModelId, StaticProviderId};
 
 pub const PROVIDER: StaticProviderId = StaticProviderId::new("ollama");
 
+pub const OTEL_PROVIDER_NAME: &str = PROVIDER.as_str();
+
 /// Well-known models available through Ollama. Variants map to the canonical
 /// model name string used in Ollama's API. Any model served by Ollama can also
 /// be referenced by passing its name directly as a [`ModelId`] string.

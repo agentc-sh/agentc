@@ -8,6 +8,8 @@ use crate::types::identity::{ModelId, StaticProviderId};
 
 pub const PROVIDER: StaticProviderId = StaticProviderId::new("xai");
 
+pub const OTEL_PROVIDER_NAME: &str = "x_ai";
+
 pub enum Model {
     Grok3,
     Grok3Fast,

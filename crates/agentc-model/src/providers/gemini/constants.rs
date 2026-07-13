@@ -8,6 +8,8 @@ use crate::types::identity::{ModelId, StaticProviderId};
 
 pub const PROVIDER: StaticProviderId = StaticProviderId::new("gemini");
 
+pub const OTEL_PROVIDER_NAME: &str = "gcp.gemini";
+
 pub enum Model {
     Gemini25Flash,
     Gemini25Pro,

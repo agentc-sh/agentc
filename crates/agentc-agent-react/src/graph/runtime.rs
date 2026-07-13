@@ -33,7 +33,7 @@ use agentc_agent::{
     },
 };
 use agentc_model::{
-    traits::CompletionModelExt,
+    traits::{CompletionModel, CompletionModelExt},
     types::{reasoning::ReasoningContent, stream::CompletionStreamEvent},
 };
 use agentc_prompt::{
@@ -95,6 +95,7 @@ impl GraphNode for ReActNode {
 impl ReActNode {
     pub fn graph() -> GraphBuilder<Self> {
         Graph::builder(Self::Entrypoint)
+            .with_name("react")
             .with_node_fn(Self::Entrypoint, Self::entrypoint)
             .with_node_fn(Self::RouteNext, Self::route_next)
             .with_node_fn(Self::CallModel, Self::call_model)
@@ -102,7 +103,7 @@ impl ReActNode {
     }
 
     #[instrument(
-        level = Level::TRACE,
+        level = Level::INFO,
         skip(ctx, state),
         fields(
             tenant_id = &ctx.tenant_id,
@@ -128,7 +129,7 @@ impl ReActNode {
     }
 
     #[instrument(
-        level = Level::TRACE,
+        level = Level::INFO,
         skip(ctx, messages),
         fields(
             tenant_id = &ctx.tenant_id,
@@ -193,7 +194,7 @@ impl ReActNode {
     }
 
     #[instrument(
-        level = Level::TRACE,
+        level = Level::INFO,
         skip(ctx, model, messages, tool_definitions, identity),
         fields(
             tenant_id = &ctx.tenant_id,
@@ -469,7 +470,7 @@ impl ReActNode {
     }
 
     #[instrument(
-        level = Level::TRACE,
+        level = Level::INFO,
         skip(ctx, messages, tools),
         fields(
             tenant_id = &ctx.tenant_id,

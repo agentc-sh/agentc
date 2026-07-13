@@ -4,6 +4,7 @@
 
 use async_trait::async_trait;
 use futures::stream::{BoxStream, StreamExt};
+use std::sync::LazyLock;
 use uuid::Uuid;
 
 use agentc_agent::types::params::RunParams as AgentRunParams;
@@ -17,13 +18,49 @@ use agentc_domain::{
     },
     types::Page,
 };
-use agentc_telemetry::{Level, error, info, instrument};
+use agentc_telemetry::{
+    Level, error, info, instrument,
+    metrics::{UpDownCounter, meter},
+};
 
 use crate::service::{
     application::ApplicationService,
     errors::ServiceError,
     types::run::{FindRunParams, RunEvent, RunParams, RunResponse, RunStream},
 };
+
+static RUN_IN_FLIGHT: LazyLock<UpDownCounter<i64>> = LazyLock::new(|| {
+    meter("agentc-agent-react")
+        .i64_up_down_counter("agent.react.run.in_flight")
+        .with_unit("{run}")
+        .with_description("Number of in-flight react agent runs.")
+        .build()
+});
+
+/// Tracks a single in-flight run for the `agent.react.run.in_flight` gauge.
+struct RunInFlightGuard {
+    active: bool,
+}
+
+impl RunInFlightGuard {
+    fn new() -> Self {
+        RUN_IN_FLIGHT.add(1, &[]);
+        Self { active: true }
+    }
+
+    fn complete(&mut self) {
+        if self.active {
+            self.active = false;
+            RUN_IN_FLIGHT.add(-1, &[]);
+        }
+    }
+}
+
+impl Drop for RunInFlightGuard {
+    fn drop(&mut self) {
+        self.complete();
+    }
+}
 
 #[async_trait]
 pub trait RunOperations: Send + Sync {
@@ -37,7 +74,7 @@ pub trait RunOperations: Send + Sync {
 #[async_trait]
 impl RunOperations for ApplicationService {
     #[instrument(
-        level = Level::TRACE,
+        level = Level::INFO,
         skip(self, tenant_id, id),
         fields(
             tenant_id = tenant_id,
@@ -62,7 +99,7 @@ impl RunOperations for ApplicationService {
     }
 
     #[instrument(
-        level = Level::TRACE,
+        level = Level::INFO,
         skip(self, params),
         fields(
             per_page = &params.per_page,
@@ -86,7 +123,7 @@ impl RunOperations for ApplicationService {
     }
 
     #[instrument(
-        level = Level::TRACE,
+        level = Level::INFO,
         skip(self, tenant_id, ids),
         fields(
             tenant_id = tenant_id,
@@ -122,7 +159,7 @@ impl RunOperations for ApplicationService {
     }
 
     #[instrument(
-        level = Level::TRACE,
+        level = Level::INFO,
         skip(self, params),
         fields(
             tenant_id = &params.tenant_id,
@@ -140,6 +177,8 @@ impl RunOperations for ApplicationService {
             .await
             .map_err(ServiceError::from)
             .map(move |stream| {
+                let mut in_flight = RunInFlightGuard::new();
+
                 RunStream::new(stream)
                     .inspect(move |event| match event {
                         RunEvent::RunStarted { session_id, run_id, .. } => info!(
@@ -148,20 +187,28 @@ impl RunOperations for ApplicationService {
                             session_id = ?session_id,
                             run_id = ?run_id,
                         ),
-                        RunEvent::RunFinished { session_id, run_id, .. } => info!(
-                            event = "RunFinished",
-                            tenant_id = &params.tenant_id,
-                            session_id = ?session_id,
-                            run_id = ?run_id,
-                        ),
-                        RunEvent::RunError { session_id, run_id, error, code, .. } => error!(
-                            event = "RunError",
-                            tenant_id = &params.tenant_id,
-                            session_id = ?session_id,
-                            run_id = ?run_id,
-                            error = ?error,
-                            code = code.as_deref().unwrap_or("none"),
-                        ),
+                        RunEvent::RunFinished { session_id, run_id, .. } => {
+                            in_flight.complete();
+
+                            info!(
+                                event = "RunFinished",
+                                tenant_id = &params.tenant_id,
+                                session_id = ?session_id,
+                                run_id = ?run_id,
+                            );
+                        }
+                        RunEvent::RunError { session_id, run_id, error, code, .. } => {
+                            in_flight.complete();
+
+                            error!(
+                                event = "RunError",
+                                tenant_id = &params.tenant_id,
+                                session_id = ?session_id,
+                                run_id = ?run_id,
+                                error = ?error,
+                                code = code.as_deref().unwrap_or("none"),
+                            );
+                        }
                         _ => {}
                     })
                     .boxed()
@@ -169,7 +216,7 @@ impl RunOperations for ApplicationService {
     }
 
     #[instrument(
-        level = Level::TRACE,
+        level = Level::INFO,
         skip(self, tenant_id, run_id),
         fields(
             tenant_id = tenant_id,

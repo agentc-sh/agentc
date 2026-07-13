@@ -4,7 +4,10 @@
 
 use std::{collections::HashSet, sync::Arc};
 
-use agentc_model::traits::CompletionModel;
+use agentc_model::{
+    instrument::{AsInstrumentedModel, InstrumentedCompletionModel},
+    traits::CompletionModel,
+};
 
 use agentc_agent::{
     context::AgentContext,
@@ -90,14 +93,14 @@ where
 
 /// An extractor for the model client from the agent context based on
 /// the default model or the override in the state.
-pub struct Model(pub Arc<dyn CompletionModel>);
+pub struct Model(pub InstrumentedCompletionModel<Arc<dyn CompletionModel>>);
 
 impl Model {
-    pub fn as_inner(&self) -> &Arc<dyn CompletionModel> {
+    pub fn as_inner(&self) -> &InstrumentedCompletionModel<Arc<dyn CompletionModel>> {
         &self.0
     }
 
-    pub fn into_inner(self) -> Arc<dyn CompletionModel> {
+    pub fn into_inner(self) -> InstrumentedCompletionModel<Arc<dyn CompletionModel>> {
         self.0
     }
 }
@@ -127,7 +130,7 @@ where
             .provider(provider)
             .model(model_name)
         {
-            Ok(m) => Ok(Model(m)),
+            Ok(m) => Ok(Model(m.as_instrumented())),
             Err(e) => Err(GraphError::execution_error(e)),
         }
     }
