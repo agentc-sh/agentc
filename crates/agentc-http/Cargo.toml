@@ -44,6 +44,7 @@ http = { workspace = true }
 
 tracing = { workspace = true }
 sentry = { workspace = true }
+opentelemetry-instrumentation-tower = { git = "https://github.com/open-telemetry/opentelemetry-rust-contrib", rev = "c0a28d7", package = "opentelemetry-instrumentation-tower" }
 
 [dev-dependencies]
 tower = { workspace = true, features = ["util"] }

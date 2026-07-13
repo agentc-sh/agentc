@@ -24,6 +24,8 @@ use crate::{
 pub trait CompletionModel: Send + Sync {
     /// The provider this model belongs to.
     fn provider(&self) -> ProviderId;
+    /// The OTel `gen_ai.provider.name` value for this provider.
+    fn otel_provider_name(&self) -> &'static str;
     /// The model name this instance was created with.
     fn model(&self) -> &ModelId;
     /// The inference parameter defaults baked into this model instance at construction time.
@@ -38,6 +40,10 @@ pub trait CompletionModel: Send + Sync {
 impl CompletionModel for Arc<dyn CompletionModel> {
     fn provider(&self) -> ProviderId {
         (**self).provider()
+    }
+
+    fn otel_provider_name(&self) -> &'static str {
+        (**self).otel_provider_name()
     }
 
     fn model(&self) -> &ModelId {

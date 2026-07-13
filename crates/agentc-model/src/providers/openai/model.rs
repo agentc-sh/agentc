@@ -12,7 +12,7 @@ use serde_json::json;
 
 use crate::{
     errors::ModelError,
-    providers::openai::constants::PROVIDER,
+    providers::openai::constants::{OTEL_PROVIDER_NAME, PROVIDER},
     stream::ChatCompletionStream,
     traits::CompletionModel,
     types::{
@@ -48,6 +48,10 @@ impl OpenAiModel {
 impl CompletionModel for OpenAiModel {
     fn provider(&self) -> ProviderId {
         PROVIDER.into()
+    }
+
+    fn otel_provider_name(&self) -> &'static str {
+        OTEL_PROVIDER_NAME
     }
 
     fn model(&self) -> &ModelId {
