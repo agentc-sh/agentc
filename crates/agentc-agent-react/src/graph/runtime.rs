@@ -103,7 +103,7 @@ impl ReActNode {
     }
 
     #[instrument(
-        level = Level::TRACE,
+        level = Level::INFO,
         skip(ctx, state),
         fields(
             tenant_id = &ctx.tenant_id,
@@ -129,7 +129,7 @@ impl ReActNode {
     }
 
     #[instrument(
-        level = Level::TRACE,
+        level = Level::INFO,
         skip(ctx, messages),
         fields(
             tenant_id = &ctx.tenant_id,
@@ -194,7 +194,7 @@ impl ReActNode {
     }
 
     #[instrument(
-        level = Level::TRACE,
+        level = Level::INFO,
         skip(ctx, model, messages, tool_definitions, identity),
         fields(
             tenant_id = &ctx.tenant_id,
@@ -470,7 +470,7 @@ impl ReActNode {
     }
 
     #[instrument(
-        level = Level::TRACE,
+        level = Level::INFO,
         skip(ctx, messages, tools),
         fields(
             tenant_id = &ctx.tenant_id,
