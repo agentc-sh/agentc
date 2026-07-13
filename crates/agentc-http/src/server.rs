@@ -12,6 +12,7 @@ use axum::{
 };
 use axum_server::Handle;
 use http::{Request, Response};
+use opentelemetry_instrumentation_tower::{AxumMatchedPathExtractor, HTTPLayerBuilder};
 use sentry::integrations::tower::{NewSentryLayer, SentryHttpLayer};
 use serde::Serialize;
 use std::{net::SocketAddr, time::Duration};
@@ -245,6 +246,13 @@ impl HttpServerBuilder {
             router = router.layer(DefaultBodyLimit::max(max_request_size));
         }
 
+        router = router.layer(
+            HTTPLayerBuilder::builder()
+                .with_route_extractor(AxumMatchedPathExtractor)
+                .build()
+                .expect("HTTP telemetry layer builds"),
+        );
+
         Ok(HttpServer {
             router: Some(router),
             addr,
@@ -284,6 +292,31 @@ mod tests {
     #[tokio::test]
     async fn under_limit_request_succeeds() {
         let response = bounded_router()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/test")
+                    .body(Body::from("abc"))
+                    .expect("request builds"),
+            )
+            .await
+            .expect("service responds");
+
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn request_succeeds_with_telemetry_layer() {
+        let mut server = HttpServer::builder()
+            .with_openapi(OpenApiBuilder::new().build())
+            .with_router(OpenApiRouter::new().route("/test", post(echo_endpoint)))
+            .build()
+            .expect("server builds");
+
+        let response = server
+            .router
+            .take()
+            .expect("router present")
             .oneshot(
                 Request::builder()
                     .method("POST")

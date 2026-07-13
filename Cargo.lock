@@ -5305,6 +5305,7 @@ name = "opentelemetry-instrumentation-tower"
 version = "0.17.0"
 source = "git+https://github.com/open-telemetry/opentelemetry-rust-contrib?rev=c0a28d7#c0a28d7541afd51dc763b7dea3458ebb3aee4d52"
 dependencies = [
+ "axum",
  "http 1.4.2",
  "http-body",
  "opentelemetry 0.32.0",
