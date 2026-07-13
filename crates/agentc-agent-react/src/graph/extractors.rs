@@ -4,7 +4,10 @@
 
 use std::{collections::HashSet, sync::Arc};
 
-use agentc_model::{traits::CompletionModel, instrument::{AsInstrumentedModel, InstrumentedCompletionModel}};
+use agentc_model::{
+    instrument::{AsInstrumentedModel, InstrumentedCompletionModel},
+    traits::CompletionModel,
+};
 
 use agentc_agent::{
     context::AgentContext,
@@ -19,11 +22,7 @@ use agentc_agent::{
 
 use crate::{
     graph::state::ReActState,
-    types::{
-        context_var::ContextVar,
-        message::Message,
-        model::ModelOverride as ModelOverrideData
-    },
+    types::{context_var::ContextVar, message::Message, model::ModelOverride as ModelOverrideData},
 };
 
 /// An extractor for the model override from the agent state.

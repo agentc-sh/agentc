@@ -14,7 +14,7 @@ use std::{
 };
 
 use agentc_telemetry::{
-    Span, Instrument, field, info_span,
+    Instrument, Span, field, info_span,
     metrics::{Histogram, KeyValue, meter},
     semconv::{attribute, metric},
 };
@@ -22,14 +22,14 @@ use agentc_telemetry::{
 use crate::{
     errors::ModelError,
     stream::ChatCompletionStream,
+    traits::CompletionModel,
     types::{
-        stream::CompletionStreamEvent,
-        usage::TokenUsage,
         identity::{ModelId, ProviderId},
         inference::InferenceParams,
         request::CompletionRequest,
+        stream::CompletionStreamEvent,
+        usage::TokenUsage,
     },
-    traits::CompletionModel,
 };
 
 static OPERATION_DURATION: LazyLock<Histogram<f64>> = LazyLock::new(|| {
@@ -146,13 +146,17 @@ impl InstrumentedStream {
 
         let mut attrs = self.attrs.clone();
         if let Some(error_type) = self.error_type {
-            self.span.record("error.type", error_type);
+            self.span
+                .record("error.type", error_type);
             attrs.push(KeyValue::new(attribute::ERROR_TYPE, error_type));
         }
         OPERATION_DURATION.record(duration, &attrs);
 
         if let Some(first_chunk) = self.first_chunk {
-            let intervals = self.output_chunks.saturating_sub(1).max(1) as f64;
+            let intervals = self
+                .output_chunks
+                .saturating_sub(1)
+                .max(1) as f64;
             TIME_PER_OUTPUT_CHUNK.record((duration - first_chunk) / intervals, &self.attrs);
         }
     }
@@ -241,10 +245,7 @@ impl<M: CompletionModel + Send + Sync> CompletionModel for InstrumentedCompletio
         self.inner.inference_params()
     }
 
-    async fn send(
-        &self,
-        request: CompletionRequest,
-    ) -> Result<ChatCompletionStream, ModelError> {
+    async fn send(&self, request: CompletionRequest) -> Result<ChatCompletionStream, ModelError> {
         let start = Instant::now();
         let model = self.model().to_string();
         let span = info_span!(
@@ -265,22 +266,20 @@ impl<M: CompletionModel + Send + Sync> CompletionModel for InstrumentedCompletio
             KeyValue::new(attribute::GEN_AI_REQUEST_MODEL, model),
         ];
 
-        match self.inner
+        match self
+            .inner
             .send(request)
             .instrument(span.clone())
             .await
         {
             Ok(stream) => Ok(ChatCompletionStream::new(InstrumentedStream::new(
-                stream,
-                span,
-                attributes,
-                start,
+                stream, span, attributes, start,
             ))),
             Err(error) => {
                 span.record(attribute::ERROR_TYPE, error.error_type());
                 InstrumentedStream::record_failed(&attributes, start, error.error_type());
                 Err(error)
-            },
+            }
         }
     }
 }
@@ -317,9 +316,12 @@ mod tests {
             .collect::<Vec<_>>()
             .await;
 
-        assert!(matches!(collected.as_slice(), [
-            CompletionStreamEvent::TextDelta { .. },
-            CompletionStreamEvent::Done(_),
-        ]));
+        assert!(matches!(
+            collected.as_slice(),
+            [
+                CompletionStreamEvent::TextDelta { .. },
+                CompletionStreamEvent::Done(_),
+            ]
+        ));
     }
 }

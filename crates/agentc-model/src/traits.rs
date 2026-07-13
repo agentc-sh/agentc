@@ -54,10 +54,7 @@ impl CompletionModel for Arc<dyn CompletionModel> {
         (**self).inference_params()
     }
 
-    async fn send(
-        &self,
-        request: CompletionRequest,
-    ) -> Result<ChatCompletionStream, ModelError> {
+    async fn send(&self, request: CompletionRequest) -> Result<ChatCompletionStream, ModelError> {
         (**self).send(request).await
     }
 }
