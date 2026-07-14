@@ -7,12 +7,12 @@ use std::{
     fmt::{Display, Formatter, Result as FmtResult},
     ops::Deref,
 };
-use utoipa::ToSchema;
 use uuid::{Error as UuidError, Uuid};
 
 macro_rules! define_id_type {
     ($name:ident) => {
-        #[derive(Debug, Default, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, ToSchema)]
+        #[derive(Debug, Default, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+        #[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
         #[serde(default, transparent)]
         pub struct $name(String);
 

@@ -8,7 +8,6 @@ use serde::{
 };
 use serde_json::{Value, from_value};
 use std::collections::HashMap;
-use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::protocol::{
@@ -17,7 +16,8 @@ use crate::protocol::{
 };
 
 /// Identifies the sender of a message.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Default, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
+#[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
 pub enum Role {
     #[default]
     Unspecified,
@@ -50,7 +50,8 @@ impl<'de> Deserialize<'de> for Role {
 }
 
 /// The content of a message or artifact part.
-#[derive(Debug, Clone, PartialEq, ToSchema)]
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
 pub enum PartContent {
     Text(String),
     Raw(Vec<u8>),
@@ -59,7 +60,8 @@ pub enum PartContent {
 }
 
 /// A content part of a message or artifact.
-#[derive(Debug, Clone, PartialEq, ToSchema)]
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
 pub struct Part {
     pub content: PartContent,
     pub filename: Option<String>,
@@ -190,7 +192,8 @@ impl<'de> Deserialize<'de> for Part {
 }
 
 /// A single message in a conversation between user and agent.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct Message {
     pub message_id: String,
@@ -230,7 +233,8 @@ impl Message {
 }
 
 /// Configuration for `SendMessage` and `SendStreamingMessage`.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct SendMessageConfiguration {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -244,7 +248,8 @@ pub struct SendMessageConfiguration {
     pub return_immediately: Option<bool>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct SendMessageRequest {
     pub message: Message,
@@ -256,7 +261,8 @@ pub struct SendMessageRequest {
     pub tenant: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, ToSchema)]
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
 pub enum SendMessageResponse {
     Task(Task),
     Message(Message),
