@@ -8,7 +8,7 @@ pub mod resolver;
 pub mod traits;
 pub mod types;
 
-pub use react::ReActGraphConfig;
+pub use react::{ReActGraphConfig, ReActGraphModelConfig, ReActGraphModelRetryConfig};
 pub use resolver::{GraphResolver, GraphResolverBuilder};
 pub use traits::{AgentGraph, ErasedAgentGraph};
 pub use types::ResolvedGraph;
