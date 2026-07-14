@@ -144,7 +144,8 @@ mod tests {
             &self,
             _request: CompletionRequest,
         ) -> Result<ChatCompletionStream, ModelError> {
-            self.calls.fetch_add(1, Ordering::SeqCst);
+            self.calls
+                .fetch_add(1, Ordering::SeqCst);
 
             Ok(ChatCompletionStream::new(stream::empty::<
                 Result<CompletionStreamEvent, ModelError>,
@@ -163,7 +164,8 @@ mod tests {
             next: &dyn CompletionModel,
             request: CompletionRequest,
         ) -> Result<ChatCompletionStream, ModelError> {
-            self.calls.fetch_add(1, Ordering::SeqCst);
+            self.calls
+                .fetch_add(1, Ordering::SeqCst);
 
             next.send(request).await
         }
@@ -172,16 +174,20 @@ mod tests {
     #[tokio::test]
     async fn optional_middleware_invokes_some() {
         let model = CountingModel::new();
-        let middleware = Some(CountingMiddleware {
-            calls: AtomicU32::new(0),
-        });
+        let middleware = Some(CountingMiddleware { calls: AtomicU32::new(0) });
 
         let result = middleware
             .send(&model, CompletionRequest::new(vec![]))
             .await;
 
         assert!(result.is_ok());
-        assert_eq!(middleware.unwrap().calls.load(Ordering::SeqCst), 1);
+        assert_eq!(
+            middleware
+                .unwrap()
+                .calls
+                .load(Ordering::SeqCst),
+            1
+        );
         assert_eq!(model.calls.load(Ordering::SeqCst), 1);
     }
 

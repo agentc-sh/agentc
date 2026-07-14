@@ -111,16 +111,14 @@ impl ReActNode {
             .with_node_fn(Self::RouteNext, Self::route_next)
             .with_node_fn(
                 Self::CallModel,
-                move |
-                    Ctx(ctx): Ctx<AgentContext<Event, Message>>,
-                    State(state): State<ReActState>,
-                    Model(model): Model,
-                    ModelConfig(model_config): ModelConfig,
-                    Messages(messages): Messages,
-                    ContextVars(context_vars): ContextVars,
-                    ToolDefinitions(tool_definitions): ToolDefinitions,
-                    Identity(identity): Identity,
-                | {
+                move |Ctx(ctx): Ctx<AgentContext<Event, Message>>,
+                      State(state): State<ReActState>,
+                      Model(model): Model,
+                      ModelConfig(model_config): ModelConfig,
+                      Messages(messages): Messages,
+                      ContextVars(context_vars): ContextVars,
+                      ToolDefinitions(tool_definitions): ToolDefinitions,
+                      Identity(identity): Identity| {
                     let config = config.clone();
 
                     async move {
@@ -809,16 +807,11 @@ mod tests {
         },
     };
     use agentc_prompt::{
-        compaction::NoCompaction,
-        counter::CharApproxCounter,
-        env::PromptEnv,
+        compaction::NoCompaction, counter::CharApproxCounter, env::PromptEnv,
         template::PromptTemplate,
     };
 
-    use crate::{
-        graph::state::ReActStateInput,
-        types::model::ModelConfigRetry,
-    };
+    use crate::{graph::state::ReActStateInput, types::model::ModelConfigRetry};
 
     struct StubModel {
         model_id: ModelId,
@@ -862,7 +855,8 @@ mod tests {
             &self,
             _request: CompletionRequest,
         ) -> Result<ChatCompletionStream, ModelError> {
-            self.calls.fetch_add(1, Ordering::SeqCst);
+            self.calls
+                .fetch_add(1, Ordering::SeqCst);
             sleep(self.delay).await;
 
             if self.fail {

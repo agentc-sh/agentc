@@ -32,11 +32,11 @@ impl ManifestAgentGraph {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{manifest::Manifest, parser::format::SpecFormat};
     use agentc_blocks::{
         graph::{ReActGraphModelConfig, ReActGraphModelRetryConfig},
         types::RuntimeValue,
     };
-    use crate::{manifest::Manifest, parser::format::SpecFormat};
 
     fn manifest_with_graph(graph: &str) -> String {
         format!(

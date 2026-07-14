@@ -101,10 +101,7 @@ impl AgentGraph for ReActGraph {
                     .contribute(Contribution::<String>::lenient("config::loader"))
                     .contribute(Contribution::<String>::lenient("config::mapper"))
                     .contribute(Contribution::<String>::lenient("tools::features"))
-                    .build(AgentCodeGen {
-                        fields: fields.clone(),
-                        config,
-                    }),
+                    .build(AgentCodeGen { fields: fields.clone(), config }),
             )
             .add(
                 CodeGenBlock::builder()

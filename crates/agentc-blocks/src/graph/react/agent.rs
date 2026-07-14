@@ -450,10 +450,7 @@ mod tests {
                     model: Some(ReActGraphModelConfig {
                         timeout: Some(RuntimeValue::constant(30000)),
                         retry: Some(ReActGraphModelRetryConfig {
-                            max_attempts: RuntimeValue::default_runtime(
-                                "MODEL_MAX_ATTEMPTS",
-                                3,
-                            ),
+                            max_attempts: RuntimeValue::default_runtime("MODEL_MAX_ATTEMPTS", 3),
                             initial_backoff: RuntimeValue::default_runtime(
                                 "MODEL_INITIAL_BACKOFF_MS",
                                 100,
