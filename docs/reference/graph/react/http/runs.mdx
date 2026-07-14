@@ -153,8 +153,8 @@ Create a new attached run and stream its events back as Server-Sent Events (SSE)
   <Field name="resume_payload" type="object | null">
     Opaque resume data supplied by the graph.
   </Field>
-  <Field name="model_override" type={<>{<Link href="#modeloverride">ModelOverride</Link>} | null</>}>
-    Optional model override for this run.
+  <Field name="model" type={<>{<Link href="#modelconfig">ModelConfig</Link>} | null</>}>
+    Optional model selection, inference, timeout, and retry configuration for this run.
   </Field>
   <Field name="capability_override" type={<>{<Link href="#capabilityoverride">CapabilityOverride</Link>} | null</>}>
     Optional capability override for this run.
@@ -491,6 +491,21 @@ curl -X POST http://localhost:8080/v1/runs \
   -H "X-Tenant-ID: acme" \
   -d '{
     "session_id": "8f3e19d8-3bc0-4fd5-bb02-7ac89af9d7bc",
+    "model": {
+      "override": {
+        "provider": "anthropic",
+        "model": "claude-sonnet-4-6",
+        "inference_params": {
+          "max_tokens": 4096
+        }
+      },
+      "timeout": 30000,
+      "retry": {
+        "max_attempts": 3,
+        "initial_backoff": 250,
+        "max_backoff": 5000
+      }
+    },
     "messages": [
       {
         "role": "user",
@@ -552,8 +567,8 @@ not cancel the run.
   <Field name="resume_payload" type="object | null">
     Opaque resume data supplied by the graph.
   </Field>
-  <Field name="model_override" type={<>{<Link href="#modeloverride">ModelOverride</Link>} | null</>}>
-    Optional model override for this run.
+  <Field name="model" type={<>{<Link href="#modelconfig">ModelConfig</Link>} | null</>}>
+    Optional model selection, inference, timeout, and retry configuration for this run.
   </Field>
   <Field name="capability_override" type={<>{<Link href="#capabilityoverride">CapabilityOverride</Link>} | null</>}>
     Optional capability override for this run.
@@ -800,12 +815,35 @@ model defaults.
   </Field>
 </Fields>
 
-### ModelOverride
+### ModelConfig
+
+Per-run model call configuration. Timeout and retry values supplied here take precedence over
+manifest and startup defaults independently. Omitted values continue to use the corresponding
+startup defaults. The `override` object controls model selection and inference parameters only for
+this run.
+
+<Fields label="ModelConfig">
+  <Field name="override" type={<>{<Link href="#modelconfigoverride">ModelConfigOverride</Link>} | null</>}>
+    Optional provider, model, and inference parameter overrides.
+  </Field>
+  <Field name="timeout" type="integer | null">
+    Maximum time in milliseconds to establish the model response stream. This does not limit the
+    duration of an established stream.
+  </Field>
+  <Field name="retry" type={<>{<Link href="#modelconfigretry">ModelConfigRetry</Link>} | null</>}>
+    Retry policy for transient failures while establishing the model response stream.
+  </Field>
+</Fields>
+
+AG-UI clients can supply the same object through `forwarded_props.model`. It is interpreted by the
+ReAct adapter and does not add fields to the AG-UI protocol itself.
+
+### ModelConfigOverride
 
 Per-run overrides for the agent's configured model. Any omitted field falls back to the manifest
 configuration.
 
-<Fields label="ModelOverride">
+<Fields label="ModelConfigOverride">
   <Field name="provider" type="string | null">
     Provider name to use instead of the configured one.
   </Field>
@@ -814,6 +852,24 @@ configuration.
   </Field>
   <Field name="inference_params" type={<>{<Link href="#inferenceparams">InferenceParams</Link>} | null</>}>
     Inference parameter overrides.
+  </Field>
+</Fields>
+
+### ModelConfigRetry
+
+Retry policy for transient failures before the model response stream is established. A response
+stream that has already started is not retried.
+
+<Fields label="ModelConfigRetry">
+  <Field name="max_attempts" type="integer">
+    Maximum number of attempts, including the first request.
+  </Field>
+  <Field name="initial_backoff" type="integer">
+    Delay in milliseconds before the first retry.
+  </Field>
+  <Field name="max_backoff" type="integer">
+    Maximum base backoff between attempts, in milliseconds. Jitter may add a small delay after the
+    base backoff is capped.
   </Field>
 </Fields>
 
