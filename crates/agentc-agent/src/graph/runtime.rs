@@ -1147,9 +1147,9 @@ mod tests {
 
         let graph = Graph::builder(TestNode::A)
             .with_node_fn(TestNode::A, |_: State<TestState>| async {
-                Err::<GraphNodeCommand<TestNode>, GraphError>(
-                    GraphError::execution_error_message("boom"),
-                )
+                Err::<GraphNodeCommand<TestNode>, GraphError>(GraphError::execution_error_message(
+                    "boom",
+                ))
             })
             .with_checkpointer(GraphCheckpointer::new(handle.clone()))
             .build();
