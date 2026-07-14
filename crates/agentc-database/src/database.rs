@@ -14,6 +14,9 @@ use sea_orm_migration::MigratorTrait;
 
 use crate::{
     connection::ConnectionContext,
+    coordinator::{
+        MigrationCoordinator, NoopCoordinator, PostgresAdvisoryLockCoordinator,
+    },
     errors::DatabaseError,
     orm::{
         ConnectOptions, ConnectionTrait, Database as SeaORMDatabase, DatabaseBackend,
@@ -85,9 +88,14 @@ impl Database {
     }
 
     pub async fn run_migrations<M: MigratorTrait>(&self) -> Result<(), DatabaseError> {
-        M::up(&self.primary, None)
-            .await
-            .map_err(DatabaseError::from)
+        match self.backend() {
+            DatabaseBackend::Postgres => {
+                PostgresAdvisoryLockCoordinator
+                    .run::<M>(&self.primary)
+                    .await
+            }
+            _ => NoopCoordinator.run::<M>(&self.primary).await,
+        }
     }
 
     pub async fn rw_transaction<F, T>(&self, f: F) -> Result<T, DatabaseError>
@@ -299,5 +307,89 @@ impl DatabaseBuilder {
         );
 
         Ok(database)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use async_trait::async_trait;
+    use sea_orm_migration::prelude::*;
+
+    use crate::{
+        database::Database,
+        orm::{ConnectOptions, Database as SeaORMDatabase},
+    };
+
+    #[derive(DeriveMigrationName)]
+    struct CreateWidget;
+
+    #[async_trait]
+    impl MigrationTrait for CreateWidget {
+        async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+            manager
+                .create_table(
+                    Table::create()
+                        .table(Widget::Table)
+                        .if_not_exists()
+                        .col(
+                            ColumnDef::new(Widget::Id)
+                                .integer()
+                                .not_null()
+                                .primary_key(),
+                        )
+                        .to_owned(),
+                )
+                .await
+        }
+
+        async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+            manager
+                .drop_table(
+                    Table::drop()
+                        .table(Widget::Table)
+                        .to_owned(),
+                )
+                .await
+        }
+    }
+
+    #[derive(DeriveIden)]
+    enum Widget {
+        Table,
+        Id,
+    }
+
+    struct TestMigrator;
+
+    impl MigratorTrait for TestMigrator {
+        fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+            vec![Box::new(CreateWidget)]
+        }
+    }
+
+    /// A single-connection in-memory pool keeps one shared database alive across
+    /// both runs, so the second run exercises the already-applied path rather
+    /// than a fresh empty database.
+    #[tokio::test]
+    async fn run_migrations_is_idempotent_on_sqlite() {
+        let mut options = ConnectOptions::new("sqlite::memory:");
+        options.max_connections(1);
+
+        let database = Database::new(
+            SeaORMDatabase::connect(options)
+                .await
+                .unwrap(),
+            vec![],
+        );
+
+        database
+            .run_migrations::<TestMigrator>()
+            .await
+            .unwrap();
+
+        database
+            .run_migrations::<TestMigrator>()
+            .await
+            .unwrap();
     }
 }
