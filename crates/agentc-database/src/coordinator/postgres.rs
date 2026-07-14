@@ -6,11 +6,7 @@ use async_trait::async_trait;
 use sea_orm_migration::MigratorTrait;
 use sqlx::postgres::PgAdvisoryLock;
 
-use crate::{
-    coordinator::MigrationCoordinator,
-    errors::DatabaseError,
-    orm::DatabaseConnection,
-};
+use crate::{coordinator::MigrationCoordinator, errors::DatabaseError, orm::DatabaseConnection};
 
 const MIGRATION_LOCK_KEY: &str = "agentc::database::migrations";
 
@@ -24,10 +20,7 @@ pub struct PostgresAdvisoryLockCoordinator;
 
 #[async_trait]
 impl MigrationCoordinator for PostgresAdvisoryLockCoordinator {
-    async fn run<M: MigratorTrait>(
-        &self,
-        conn: &DatabaseConnection,
-    ) -> Result<(), DatabaseError> {
+    async fn run<M: MigratorTrait>(&self, conn: &DatabaseConnection) -> Result<(), DatabaseError> {
         let lock = PgAdvisoryLock::new(MIGRATION_LOCK_KEY);
 
         let guard = lock

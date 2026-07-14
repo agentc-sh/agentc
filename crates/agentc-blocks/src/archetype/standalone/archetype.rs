@@ -28,7 +28,10 @@ use crate::{
                 A2aClientCargoFragment, CargoDependenciesExtensionPoint,
                 CargoDependencyContribution, CargoPatchContribution, CargoPatchesExtensionPoint,
             },
-            cli::{CliModCodeGen, config::CliConfigCodeGen, shutdown::CliShutdownCodeGen},
+            cli::{
+                CliModCodeGen, config::CliConfigCodeGen, migrate::CliMigrateCodeGen,
+                shutdown::CliShutdownCodeGen,
+            },
             config::ConfigCodeGen,
             entrypoint::EntrypointCodeGen,
             migrator::MigratorCodeGen,
@@ -248,6 +251,11 @@ impl Archetype for StandaloneArchetype {
                             CodeGenBlock::builder()
                                 .id("cli_config")
                                 .build(CliConfigCodeGen),
+                        )
+                        .add(
+                            CodeGenBlock::builder()
+                                .id("cli_migrate")
+                                .build(CliMigrateCodeGen),
                         )
                         .add(
                             CodeGenBlock::builder()

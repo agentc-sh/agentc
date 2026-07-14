@@ -20,8 +20,5 @@ pub use postgres::PostgresAdvisoryLockCoordinator;
 /// it is selected and dispatched statically, never through a `dyn` object.
 #[async_trait]
 pub trait MigrationCoordinator {
-    async fn run<M: MigratorTrait>(
-        &self,
-        conn: &DatabaseConnection,
-    ) -> Result<(), DatabaseError>;
+    async fn run<M: MigratorTrait>(&self, conn: &DatabaseConnection) -> Result<(), DatabaseError>;
 }

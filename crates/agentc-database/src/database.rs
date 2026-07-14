@@ -14,9 +14,7 @@ use sea_orm_migration::MigratorTrait;
 
 use crate::{
     connection::ConnectionContext,
-    coordinator::{
-        MigrationCoordinator, NoopCoordinator, PostgresAdvisoryLockCoordinator,
-    },
+    coordinator::{MigrationCoordinator, NoopCoordinator, PostgresAdvisoryLockCoordinator},
     errors::DatabaseError,
     orm::{
         ConnectOptions, ConnectionTrait, Database as SeaORMDatabase, DatabaseBackend,
@@ -94,7 +92,11 @@ impl Database {
                     .run::<M>(&self.primary)
                     .await
             }
-            _ => NoopCoordinator.run::<M>(&self.primary).await,
+            _ => {
+                NoopCoordinator
+                    .run::<M>(&self.primary)
+                    .await
+            }
         }
     }
 
