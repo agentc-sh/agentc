@@ -293,7 +293,25 @@ where
 
                     return Ok(RunOutcome::interrupted(state, Some(payload)));
                 }
-                Err(e) => return Err(e),
+                Err(e) => {
+                    if let Some(checkpointer) = &self.checkpointer {
+                        checkpointer
+                            .finish(FinishCheckpointParams {
+                                tenant_id: config.tenant_id.clone(),
+                                session_id: config.session_id,
+                                run_id: config.run_id,
+                                node: last_node,
+                                status: RunStatus::Failed,
+                                state: state.clone(),
+                                parent_checkpoint_id,
+                                metadata: None,
+                            })
+                            .await
+                            .map_err(GraphError::checkpoint_error)?;
+                    }
+
+                    return Err(e);
+                }
             };
 
             if let Some(update) = command.update {
@@ -1119,6 +1137,47 @@ mod tests {
             .unwrap();
 
         assert_eq!(snapshot.status, RunStatus::Interrupted);
+    }
+
+    #[tokio::test]
+    async fn node_error_sets_run_status_to_failed() {
+        let handle = TestHandle::default();
+        let session_id = Uuid::new_v4();
+        let run_id = Uuid::new_v4();
+
+        let graph = Graph::builder(TestNode::A)
+            .with_node_fn(TestNode::A, |_: State<TestState>| async {
+                Err::<GraphNodeCommand<TestNode>, GraphError>(GraphError::execution_error_message(
+                    "boom",
+                ))
+            })
+            .with_checkpointer(GraphCheckpointer::new(handle.clone()))
+            .build();
+
+        let result = graph
+            .run(
+                TestContext,
+                TestStateInput::default(),
+                SessionConfig {
+                    tenant_id: "tenant".to_string(),
+                    session_id,
+                    run_id,
+                    checkpoint_id: None,
+                    resume_payload: None,
+                },
+            )
+            .await;
+
+        assert!(result.is_err());
+
+        let snapshot = handle
+            .snapshot_store
+            .load_latest_for_session("tenant", session_id)
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(snapshot.status, RunStatus::Failed);
     }
 
     #[tokio::test]
