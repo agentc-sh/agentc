@@ -319,6 +319,20 @@ pub trait CompletionModelExt {
     {
         Intercepted::new(self, middleware)
     }
+
+    /// Optionally construct and layer a [`CompletionMiddleware`] over this
+    /// model while preserving a single concrete return type.
+    fn layer_with<T, L>(
+        self,
+        value: Option<T>,
+        build: impl FnOnce(T) -> L,
+    ) -> Intercepted<Self, Option<L>>
+    where
+        Self: Sized,
+        L: CompletionMiddleware,
+    {
+        self.layer(value.map(build))
+    }
 }
 
 impl<T> CompletionModelExt for T
@@ -339,5 +353,69 @@ where
                     .collect(),
             ),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use futures::stream;
+    use std::time::Duration;
+
+    use crate::{
+        middleware::timeout::Timeout,
+        types::{
+            identity::{ModelId, ProviderId},
+            inference::InferenceParams,
+            stream::CompletionStreamEvent,
+        },
+    };
+
+    struct StubModel {
+        model_id: ModelId,
+        params: InferenceParams,
+    }
+
+    #[async_trait]
+    impl CompletionModel for StubModel {
+        fn provider(&self) -> ProviderId {
+            "stub".into()
+        }
+
+        fn otel_provider_name(&self) -> &'static str {
+            "stub"
+        }
+
+        fn model(&self) -> &ModelId {
+            &self.model_id
+        }
+
+        fn inference_params(&self) -> &InferenceParams {
+            &self.params
+        }
+
+        async fn send(
+            &self,
+            _request: CompletionRequest,
+        ) -> Result<ChatCompletionStream, ModelError> {
+            Ok(ChatCompletionStream::new(stream::empty::<
+                Result<CompletionStreamEvent, ModelError>,
+            >()))
+        }
+    }
+
+    #[test]
+    fn repeated_optional_layers_remain_a_completion_model() {
+        assert_eq!(
+            StubModel {
+                model_id: "test-model".into(),
+                params: InferenceParams::default(),
+            }
+            .layer_with(Some(Duration::from_secs(1)), Timeout::new)
+            .layer_with(None::<Duration>, Timeout::new)
+            .otel_provider_name(),
+            "stub",
+        );
     }
 }

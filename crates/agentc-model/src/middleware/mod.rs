@@ -33,6 +33,23 @@ pub trait CompletionMiddleware: Send + Sync {
     ) -> Result<ChatCompletionStream, ModelError>;
 }
 
+#[async_trait]
+impl<L> CompletionMiddleware for Option<L>
+where
+    L: CompletionMiddleware,
+{
+    async fn send(
+        &self,
+        next: &dyn CompletionModel,
+        request: CompletionRequest,
+    ) -> Result<ChatCompletionStream, ModelError> {
+        match self {
+            Some(middleware) => middleware.send(next, request).await,
+            None => next.send(request).await,
+        }
+    }
+}
+
 /// Turns any [`CompletionMiddleware`] into a full [`CompletionModel`] by holding
 /// an inner model and delegating every method except `send` to it. Constructed
 /// via [`CompletionModelExt::layer`](crate::traits::CompletionModelExt::layer).
@@ -73,5 +90,110 @@ where
         self.middleware
             .send(&self.inner, request)
             .await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use futures::stream;
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    use crate::types::{
+        identity::{ModelId, ProviderId},
+        inference::InferenceParams,
+        stream::CompletionStreamEvent,
+    };
+
+    struct CountingModel {
+        model_id: ModelId,
+        params: InferenceParams,
+        calls: AtomicU32,
+    }
+
+    impl CountingModel {
+        fn new() -> Self {
+            Self {
+                model_id: "test-model".into(),
+                params: InferenceParams::default(),
+                calls: AtomicU32::new(0),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl CompletionModel for CountingModel {
+        fn provider(&self) -> ProviderId {
+            "stub".into()
+        }
+
+        fn otel_provider_name(&self) -> &'static str {
+            "stub"
+        }
+
+        fn model(&self) -> &ModelId {
+            &self.model_id
+        }
+
+        fn inference_params(&self) -> &InferenceParams {
+            &self.params
+        }
+
+        async fn send(
+            &self,
+            _request: CompletionRequest,
+        ) -> Result<ChatCompletionStream, ModelError> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+
+            Ok(ChatCompletionStream::new(stream::empty::<
+                Result<CompletionStreamEvent, ModelError>,
+            >()))
+        }
+    }
+
+    struct CountingMiddleware {
+        calls: AtomicU32,
+    }
+
+    #[async_trait]
+    impl CompletionMiddleware for CountingMiddleware {
+        async fn send(
+            &self,
+            next: &dyn CompletionModel,
+            request: CompletionRequest,
+        ) -> Result<ChatCompletionStream, ModelError> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+
+            next.send(request).await
+        }
+    }
+
+    #[tokio::test]
+    async fn optional_middleware_invokes_some() {
+        let model = CountingModel::new();
+        let middleware = Some(CountingMiddleware {
+            calls: AtomicU32::new(0),
+        });
+
+        let result = middleware
+            .send(&model, CompletionRequest::new(vec![]))
+            .await;
+
+        assert!(result.is_ok());
+        assert_eq!(middleware.unwrap().calls.load(Ordering::SeqCst), 1);
+        assert_eq!(model.calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn optional_middleware_delegates_none() {
+        let model = CountingModel::new();
+
+        let result = Option::<CountingMiddleware>::None
+            .send(&model, CompletionRequest::new(vec![]))
+            .await;
+
+        assert!(result.is_ok());
+        assert_eq!(model.calls.load(Ordering::SeqCst), 1);
     }
 }

@@ -9,6 +9,8 @@ use std::{
     fmt::{Debug, Display, Formatter, Result as FmtResult},
     hash::Hash,
     str::FromStr,
+    sync::Arc,
+    time::Duration,
 };
 use tokio::sync::mpsc;
 use uuid::Uuid;
@@ -29,10 +31,16 @@ use agentc_agent::{
     },
     types::{
         conversion::{FromModelType, ToModelType},
-        tools::ToolCall,
+        identity::AgentIdentity,
+        tools::{ToolCall, ToolDefinition},
     },
 };
 use agentc_model::{
+    instrument::AsInstrumentedModel,
+    middleware::{
+        retry::{Retry, RetryPolicy},
+        timeout::Timeout,
+    },
     traits::{CompletionModel, CompletionModelExt},
     types::{reasoning::ReasoningContent, stream::CompletionStreamEvent},
 };
@@ -45,12 +53,15 @@ use agentc_telemetry::{Level, debug, error, info, instrument, warn};
 
 use crate::{
     graph::{
+        config::ReActGraphConfig,
         extractors::{ContextVars, Messages, Model, ModelConfig, ToolDefinitions, Tools},
         state::{ReActState, ReActStateUpdate},
     },
     types::{
+        context_var::ContextVar,
         event::{Event, ReasoningSignatureSubtype},
         message::{AssistantMessage, Message, MessageList, ReasoningMessage, ToolMessage},
+        model::ModelConfig as ReActModelConfig,
     },
 };
 
@@ -93,12 +104,41 @@ impl GraphNode for ReActNode {
 }
 
 impl ReActNode {
-    pub fn graph() -> GraphBuilder<Self> {
+    pub fn graph(config: ReActGraphConfig) -> GraphBuilder<Self> {
         Graph::builder(Self::Entrypoint)
             .with_name("react")
             .with_node_fn(Self::Entrypoint, Self::entrypoint)
             .with_node_fn(Self::RouteNext, Self::route_next)
-            .with_node_fn(Self::CallModel, Self::call_model)
+            .with_node_fn(
+                Self::CallModel,
+                move |
+                    Ctx(ctx): Ctx<AgentContext<Event, Message>>,
+                    State(state): State<ReActState>,
+                    Model(model): Model,
+                    ModelConfig(model_config): ModelConfig,
+                    Messages(messages): Messages,
+                    ContextVars(context_vars): ContextVars,
+                    ToolDefinitions(tool_definitions): ToolDefinitions,
+                    Identity(identity): Identity,
+                | {
+                    let config = config.clone();
+
+                    async move {
+                        Self::call_model(
+                            ctx,
+                            state,
+                            model,
+                            model_config,
+                            config,
+                            messages,
+                            context_vars,
+                            tool_definitions,
+                            identity,
+                        )
+                        .await
+                    }
+                },
+            )
             .with_node_fn(Self::CallTools, Self::call_tools)
     }
 
@@ -195,7 +235,16 @@ impl ReActNode {
 
     #[instrument(
         level = Level::INFO,
-        skip(ctx, model, model_config, messages, tool_definitions, identity),
+        skip(
+            ctx,
+            state,
+            model,
+            model_config,
+            config,
+            messages,
+            tool_definitions,
+            identity,
+        ),
         fields(
             tenant_id = &ctx.tenant_id,
             session_id = ?ctx.session_id,
@@ -205,14 +254,15 @@ impl ReActNode {
     )]
     #[allow(clippy::too_many_arguments)]
     pub async fn call_model(
-        Ctx(ctx): Ctx<AgentContext<Event, Message>>,
-        State(state): State<ReActState>,
-        Model(model): Model,
-        ModelConfig(model_config): ModelConfig,
-        Messages(messages): Messages,
-        ContextVars(context_vars): ContextVars,
-        ToolDefinitions(tool_definitions): ToolDefinitions,
-        Identity(identity): Identity,
+        ctx: AgentContext<Event, Message>,
+        state: ReActState,
+        model: Arc<dyn CompletionModel>,
+        model_config: Option<ReActModelConfig>,
+        config: ReActGraphConfig,
+        messages: Vec<Message>,
+        context_vars: Vec<ContextVar>,
+        tool_definitions: Vec<ToolDefinition>,
+        identity: AgentIdentity,
     ) -> Result<GraphNodeCommand<ReActNode>, GraphError> {
         info!(
             event = "CallingModel",
@@ -233,6 +283,29 @@ impl ReActNode {
 
             return Ok(GraphNodeCommand::goto(ReActNode::RouteNext));
         }
+
+        let model = model
+            .layer_with(
+                model_config
+                    .as_ref()
+                    .and_then(|config| config.timeout)
+                    .or(config.default_model_config.timeout),
+                |timeout| Timeout::new(Duration::from_millis(timeout)),
+            )
+            .layer_with(
+                model_config
+                    .as_ref()
+                    .and_then(|config| config.retry.clone())
+                    .or(config.default_model_config.retry),
+                |retry| {
+                    Retry::new(RetryPolicy {
+                        max_attempts: retry.max_attempts,
+                        initial_backoff: Duration::from_millis(retry.initial_backoff),
+                        max_backoff: Duration::from_millis(retry.max_backoff),
+                    })
+                },
+            )
+            .as_instrumented();
 
         let mut prompt_ctx = context!(
             tenant_id = &ctx.tenant_id,
@@ -706,5 +779,210 @@ impl ReActNode {
                 )
                 .try_merge_with(update),
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use async_trait::async_trait;
+    use futures::stream;
+    use std::sync::atomic::{AtomicU32, Ordering};
+    use tokio::time::sleep;
+
+    use agentc_agent::{
+        graph::state::GraphStateInput,
+        stream::EventEmitter,
+        tools::registry::ToolRegistry,
+        types::capability::{CapabilityPolicy, CapabilitySet},
+    };
+    use agentc_model::{
+        errors::ModelError,
+        registry::ModelRegistry,
+        stream::ChatCompletionStream,
+        types::{
+            identity::{ModelId, ProviderId},
+            inference::InferenceParams,
+            request::CompletionRequest,
+            stream::CompletionStreamEvent,
+        },
+    };
+    use agentc_prompt::{
+        compaction::NoCompaction,
+        counter::CharApproxCounter,
+        env::PromptEnv,
+        template::PromptTemplate,
+    };
+
+    use crate::{
+        graph::state::ReActStateInput,
+        types::model::ModelConfigRetry,
+    };
+
+    struct StubModel {
+        model_id: ModelId,
+        params: InferenceParams,
+        calls: AtomicU32,
+        delay: Duration,
+        fail: bool,
+    }
+
+    impl StubModel {
+        fn new(delay: Duration, fail: bool) -> Self {
+            Self {
+                model_id: "test-model".into(),
+                params: InferenceParams::default(),
+                calls: AtomicU32::new(0),
+                delay,
+                fail,
+            }
+        }
+    }
+
+    #[async_trait]
+    impl CompletionModel for StubModel {
+        fn provider(&self) -> ProviderId {
+            "stub".into()
+        }
+
+        fn otel_provider_name(&self) -> &'static str {
+            "stub"
+        }
+
+        fn model(&self) -> &ModelId {
+            &self.model_id
+        }
+
+        fn inference_params(&self) -> &InferenceParams {
+            &self.params
+        }
+
+        async fn send(
+            &self,
+            _request: CompletionRequest,
+        ) -> Result<ChatCompletionStream, ModelError> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            sleep(self.delay).await;
+
+            if self.fail {
+                return Err(ModelError::transient(
+                    "stub",
+                    "temporary",
+                    None,
+                    None::<std::io::Error>,
+                ));
+            }
+
+            Ok(ChatCompletionStream::new(stream::empty::<
+                Result<CompletionStreamEvent, ModelError>,
+            >()))
+        }
+    }
+
+    struct CallModelHarness;
+
+    impl CallModelHarness {
+        fn identity() -> AgentIdentity {
+            AgentIdentity {
+                name: "test-agent".to_string(),
+                provider: "stub".to_string(),
+                model: "test-model".to_string(),
+                prompt: PromptTemplate::system("test"),
+                capabilities: CapabilitySet::default(),
+                capability_policy: CapabilityPolicy::default(),
+            }
+        }
+
+        fn context(identity: AgentIdentity) -> AgentContext<Event, Message> {
+            AgentContext {
+                emitter: EventEmitter::new_pair().0,
+                model_registry: ModelRegistry::new(),
+                tool_registry: ToolRegistry::empty(),
+                identity,
+                prompt_env: PromptEnv::default(),
+                token_counter: Arc::new(CharApproxCounter),
+                compaction_strategy: Arc::new(NoCompaction),
+                session_id: Uuid::new_v4(),
+                run_id: Uuid::new_v4(),
+                tenant_id: "test-tenant".to_string(),
+                template_vars: Vec::new(),
+            }
+        }
+
+        async fn call(
+            model: Arc<StubModel>,
+            model_config: Option<ReActModelConfig>,
+            config: ReActGraphConfig,
+        ) -> Result<GraphNodeCommand<ReActNode>, GraphError> {
+            let identity = Self::identity();
+
+            ReActNode::call_model(
+                Self::context(identity.clone()),
+                ReActStateInput::default().initialize(),
+                model,
+                model_config,
+                config,
+                vec![Message::user("hello")],
+                Vec::new(),
+                Vec::new(),
+                identity,
+            )
+            .await
+        }
+    }
+
+    #[tokio::test]
+    async fn client_model_policy_precedes_graph_defaults() {
+        let model = Arc::new(StubModel::new(Duration::from_millis(20), true));
+
+        let result = CallModelHarness::call(
+            model.clone(),
+            Some(
+                ReActModelConfig::new()
+                    .with_timeout(100)
+                    .with_retry(ModelConfigRetry {
+                        max_attempts: 2,
+                        initial_backoff: 0,
+                        max_backoff: 0,
+                    }),
+            ),
+            ReActGraphConfig {
+                default_model_config: ReActModelConfig::new()
+                    .with_timeout(1)
+                    .with_retry(ModelConfigRetry {
+                        max_attempts: 3,
+                        initial_backoff: 0,
+                        max_backoff: 0,
+                    }),
+            },
+        )
+        .await;
+
+        assert!(result.is_err());
+        assert_eq!(model.calls.load(Ordering::SeqCst), 2);
+    }
+
+    #[tokio::test]
+    async fn graph_model_policy_fills_missing_client_values() {
+        let model = Arc::new(StubModel::new(Duration::from_millis(20), false));
+
+        let result = CallModelHarness::call(
+            model.clone(),
+            Some(ReActModelConfig::new()),
+            ReActGraphConfig {
+                default_model_config: ReActModelConfig::new()
+                    .with_timeout(1)
+                    .with_retry(ModelConfigRetry {
+                        max_attempts: 2,
+                        initial_backoff: 0,
+                        max_backoff: 0,
+                    }),
+            },
+        )
+        .await;
+
+        assert!(result.is_err());
+        assert_eq!(model.calls.load(Ordering::SeqCst), 2);
     }
 }

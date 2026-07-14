@@ -2,16 +2,9 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::{collections::HashSet, sync::Arc, time::Duration};
+use std::{collections::HashSet, sync::Arc};
 
-use agentc_model::{
-    instrument::{AsInstrumentedModel, InstrumentedCompletionModel},
-    middleware::{
-        retry::{Retry, RetryPolicy},
-        timeout::Timeout,
-    },
-    traits::{CompletionModel, CompletionModelExt},
-};
+use agentc_model::traits::CompletionModel;
 
 use agentc_agent::{
     context::AgentContext,
@@ -97,14 +90,14 @@ where
 
 /// An extractor for the model client from the agent context based on
 /// the default model or the override in the state.
-pub struct Model(pub InstrumentedCompletionModel<Arc<dyn CompletionModel>>);
+pub struct Model(pub Arc<dyn CompletionModel>);
 
 impl Model {
-    pub fn as_inner(&self) -> &InstrumentedCompletionModel<Arc<dyn CompletionModel>> {
+    pub fn as_inner(&self) -> &Arc<dyn CompletionModel> {
         &self.0
     }
 
-    pub fn into_inner(self) -> InstrumentedCompletionModel<Arc<dyn CompletionModel>> {
+    pub fn into_inner(self) -> Arc<dyn CompletionModel> {
         self.0
     }
 }
@@ -116,15 +109,17 @@ where
     M: Send + Clone + 'static,
 {
     fn from_rtx(rtx: &RuntimeContext<N>) -> Result<Self, GraphError> {
-        let config = rtx.state.model.clone();
-
-        let provider = config
+        let provider = rtx
+            .state
+            .model
             .as_ref()
             .and_then(|config| config.r#override.as_ref())
             .and_then(|config| config.provider.clone())
             .unwrap_or_else(|| rtx.ctx.identity.provider.clone());
 
-        let model_name = config
+        let model_name = rtx
+            .state
+            .model
             .as_ref()
             .and_then(|config| config.r#override.as_ref())
             .and_then(|config| config.model.clone())
@@ -136,27 +131,7 @@ where
             .provider(provider)
             .model(model_name)
         {
-            Ok(mut model) => {
-                if let Some(timeout) = config
-                    .as_ref()
-                    .and_then(|config| config.timeout)
-                {
-                    model = Arc::new(model.layer(Timeout::new(Duration::from_millis(timeout))));
-                }
-
-                if let Some(retry) = config
-                    .as_ref()
-                    .and_then(|config| config.retry.as_ref())
-                {
-                    model = Arc::new(model.layer(Retry::new(RetryPolicy {
-                        max_attempts: retry.max_attempts,
-                        initial_backoff: Duration::from_millis(retry.initial_backoff),
-                        max_backoff: Duration::from_millis(retry.max_backoff),
-                    })));
-                }
-
-                Ok(Model(model.as_instrumented()))
-            }
+            Ok(model) => Ok(Model(model)),
             Err(e) => Err(GraphError::execution_error(e)),
         }
     }

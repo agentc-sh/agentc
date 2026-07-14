@@ -348,4 +348,23 @@ mod tests {
         assert_eq!(state.context["a"], json!(1));
         assert_eq!(state.context["b"], json!(2));
     }
+
+    #[test]
+    fn state_updates_preserve_client_model_config() {
+        let model = ModelConfig::new().with_timeout(250);
+        let mut state = ReActStateInput {
+            model: Some(model.clone()),
+            ..Default::default()
+        }
+        .initialize();
+
+        ReActStateUpdate::new()
+            .with_context_patches([PatchOperation::Add(AddOperation {
+                path: "/updated".try_into().unwrap(),
+                value: json!(true),
+            })])
+            .apply(&mut state);
+
+        assert_eq!(state.model, Some(model));
+    }
 }
