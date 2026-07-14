@@ -62,9 +62,13 @@ impl CodeGen<ResolvedContext> for CliServeCodeGen {
             use crate::server;
 
             #[derive(Args, Debug)]
-            pub struct ServeArgs {}
+            pub struct ServeArgs {
+                /// Skip running database migrations on startup.
+                #[arg(long)]
+                pub no_migrations: bool,
+            }
 
-            pub async fn run(_args: ServeArgs) -> Result<()> {
+            pub async fn run(args: ServeArgs) -> Result<()> {
                 let shutdown = CancellationToken::new();
 
                 info!(
@@ -74,7 +78,12 @@ impl CodeGen<ResolvedContext> for CliServeCodeGen {
 
                 let config = Config::load().await?;
 
-                let database = Arc::new(config.database.build(true).await?);
+                let database = Arc::new(
+                    config
+                        .database
+                        .build(config.database.auto_migrate && !args.no_migrations)
+                        .await?,
+                );
 
                 info!(
                     event = "DatabaseInitialized",
@@ -84,7 +93,7 @@ impl CodeGen<ResolvedContext> for CliServeCodeGen {
 
                 info!(
                     event = "PubSubInitialized",
-                    kind = ?config.pubsub.kind(),
+                    kind = config.pubsub.kind(),
                 );
 
                 let agent = build_agent(database.clone(), &config, shutdown.clone()).await?;
@@ -161,5 +170,49 @@ impl CodeGen<ResolvedContext> for CliServeCodeGen {
         };
 
         Ok(vec![("src/cli/serve.rs".into(), source)])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn context() -> GenerationContext<ResolvedContext> {
+        GenerationContext::new(
+            serde_json::from_value(json!({
+                "slug": "assistant",
+                "agent_name": "assistant",
+                "runtime": { "default_tenant_id": "default" },
+                "providers": [],
+                "agent": {
+                    "version": "0.1.0",
+                    "description": null,
+                    "prompt": null,
+                    "capabilities": null,
+                    "capability_policy": null,
+                    "model": { "provider": "anthropic", "name": "claude" }
+                },
+                "blocks": {},
+                "tools": {},
+                "skills": {},
+                "http_server": null
+            }))
+            .unwrap(),
+        )
+    }
+
+    #[test]
+    fn serve_supports_no_migrations_flag_overriding_config() {
+        let source = CliServeCodeGen
+            .generate_files(&context(), &ExtensionRegistry::empty())
+            .unwrap()[0]
+            .1
+            .to_string();
+
+        assert!(source.contains("pub no_migrations : bool"));
+        assert!(
+            source.contains("build (config . database . auto_migrate && ! args . no_migrations)")
+        );
     }
 }
