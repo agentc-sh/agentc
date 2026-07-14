@@ -7,7 +7,6 @@ use serde::{
 };
 use serde_json::{Value, from_value};
 use std::collections::HashMap;
-use utoipa::ToSchema;
 
 use crate::protocol::{
     artifact::Artifact,
@@ -16,7 +15,8 @@ use crate::protocol::{
     task::{Task, TaskStatus},
 };
 
-#[derive(Debug, Clone, PartialEq, ToSchema)]
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
 pub enum StreamResponse {
     Task(Task),
     Message(Message),
@@ -65,7 +65,8 @@ impl<'de> Deserialize<'de> for StreamResponse {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct TaskStatusUpdateEvent {
     pub task_id: TaskId,
@@ -75,7 +76,8 @@ pub struct TaskStatusUpdateEvent {
     pub metadata: Option<HashMap<String, Value>>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct TaskArtifactUpdateEvent {
     pub task_id: TaskId,

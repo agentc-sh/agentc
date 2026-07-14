@@ -11,6 +11,16 @@ choice. In this distribution, the only shipped graph is `react`.
 agent "assistant" {
   graph {
     type = "react"
+
+    model {
+      timeout = runtime("MODEL_TIMEOUT_MS", 30000)
+
+      retry {
+        max_attempts    = runtime("MODEL_MAX_ATTEMPTS", 3)
+        initial_backoff = runtime("MODEL_INITIAL_BACKOFF_MS", 250)
+        max_backoff     = runtime("MODEL_MAX_BACKOFF_MS", 5000)
+      }
+    }
   }
 }
 ```
@@ -20,6 +30,29 @@ agent "assistant" {
 | Field | Type | Required | runtime() | Description |
 |-------|------|----------|-----------|-------------|
 | `type` | string | yes | no | Graph implementation name. Currently this must be `react`. |
+| `model` | block | no | no | Default model call policy for the ReAct graph. |
+| `model.timeout` | integer | no | yes | Maximum time in milliseconds to establish a model response stream. |
+| `model.retry` | block | no | no | Retry policy for transient failures while establishing a model response stream. |
+| `model.retry.max_attempts` | integer | yes when `retry` is present | yes | Maximum number of attempts, including the first request. |
+| `model.retry.initial_backoff` | integer | yes when `retry` is present | yes | Delay in milliseconds before the first retry. |
+| `model.retry.max_backoff` | integer | yes when `retry` is present | yes | Maximum base backoff between attempts, in milliseconds. |
+
+## ReAct model call defaults
+
+The optional `model` block sets startup defaults for calls made by the ReAct graph. Constant values
+are compiled into the generated configuration. A `runtime()` value creates an environment mapping
+that is resolved when the generated agent starts, so operators can tune the policy without compiling
+the agent again.
+
+The timeout covers response stream establishment. It does not limit the total duration of a healthy
+streaming response. Retry applies only to transient failures that occur before the response stream is
+returned, including handshake timeouts and retryable provider failures. A stream that has already
+started is never restarted.
+
+Clients may supply a `model` object when starting a ReAct run. Client timeout and retry values take
+precedence over these manifest defaults independently. For example, a request can replace the timeout
+while continuing to use the compiled retry policy. Provider, model, and inference parameter overrides
+remain request-only values and are not configured by this manifest block.
 
 ## Usage
 

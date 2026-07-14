@@ -445,7 +445,7 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
             }
 
             #[derive(Debug, Clone, Serialize, Deserialize)]
-            #[serde(default, tag = "kind", rename_all = "snake_case")]
+            #[serde(tag = "kind", rename_all = "snake_case")]
             pub enum PubSubConfig {
                 Memory {
                     capacity: usize,

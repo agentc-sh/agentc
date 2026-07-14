@@ -15,7 +15,16 @@ For ReAct, the state holds:
 |-------|------|-------------|
 | `run_id` | string | Unique identifier for this run. |
 | `session_id` | string | Identifier for the session this run belongs to. |
-| `model_override` | string | If set, the model to use for this session instead of the default. |
+| `model` | object | Client-supplied model selection, inference, timeout, and retry configuration for this session. |
+| `model.override` | object | Optional provider, model, and inference parameter overrides. |
+| `model.override.provider` | string | Optional provider to use instead of the agent default. |
+| `model.override.model` | string | Optional model to use instead of the agent default. |
+| `model.override.inference_params` | object | Optional inference parameter overrides. |
+| `model.timeout` | integer | Optional model response stream establishment timeout in milliseconds. |
+| `model.retry` | object | Optional retry policy for transient model response stream establishment failures. |
+| `model.retry.max_attempts` | integer | Maximum number of attempts, including the first request. |
+| `model.retry.initial_backoff` | integer | Delay in milliseconds before the first retry. |
+| `model.retry.max_backoff` | integer | Maximum base backoff between attempts, in milliseconds. |
 | `capability_override` | string | If set, the capabilities to use for the agent this session instead of the default. |
 | `messages` | array | The full conversation history for this run. |
 | `context_vars` | array | Context variables provided at the start of the session. |

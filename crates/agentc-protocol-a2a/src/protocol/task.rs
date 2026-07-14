@@ -6,11 +6,11 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error as DeError};
 use serde_json::Value;
 use std::collections::HashMap;
-use utoipa::ToSchema;
 
 use crate::protocol::{artifact::Artifact, ids::TaskId, message::Message};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Default, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
+#[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
 pub enum TaskState {
     #[default]
     Unspecified,
@@ -76,7 +76,8 @@ impl<'de> Deserialize<'de> for TaskState {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct TaskStatus {
     pub state: TaskState,
@@ -86,7 +87,8 @@ pub struct TaskStatus {
     pub timestamp: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct Task {
     pub id: TaskId,
@@ -100,7 +102,8 @@ pub struct Task {
     pub metadata: Option<HashMap<String, Value>>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct GetTaskRequest {
     pub id: TaskId,
@@ -110,7 +113,8 @@ pub struct GetTaskRequest {
     pub tenant: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct CancelTaskRequest {
     pub id: TaskId,
@@ -120,7 +124,8 @@ pub struct CancelTaskRequest {
     pub tenant: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct AuthenticationInfo {
     pub scheme: String,
@@ -128,7 +133,8 @@ pub struct AuthenticationInfo {
     pub credentials: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct TaskPushNotificationConfig {
     pub url: String,

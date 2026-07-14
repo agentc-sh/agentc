@@ -9,7 +9,6 @@ use serde::{
 };
 use serde_json::{Value, from_value};
 use std::collections::HashMap;
-use utoipa::ToSchema;
 
 pub type ProtocolVersion = String;
 pub type TransportProtocol = String;
@@ -27,7 +26,8 @@ fn normalize_agent_interface_url(url: String, protocol_binding: &str) -> String 
     url
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct AgentCard {
     pub name: String,
@@ -188,14 +188,12 @@ impl<'de> Deserialize<'de> for AgentCard {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, ToSchema)]
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
 pub struct AgentInterface {
     pub url: String,
-    #[serde(rename = "protocolBinding")]
     pub protocol_binding: TransportProtocol,
-    #[serde(rename = "protocolVersion")]
     pub protocol_version: ProtocolVersion,
-    #[serde(default)]
     pub tenant: Option<String>,
 }
 
@@ -255,7 +253,8 @@ impl<'de> Deserialize<'de> for AgentInterface {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct AgentCapabilities {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -268,7 +267,8 @@ pub struct AgentCapabilities {
     pub extended_agent_card: Option<bool>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct AgentExtension {
     pub uri: String,
@@ -280,14 +280,16 @@ pub struct AgentExtension {
     pub params: Option<HashMap<String, Value>>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct AgentProvider {
     pub organization: String,
     pub url: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct AgentSkill {
     pub id: String,
@@ -308,7 +310,8 @@ pub struct AgentSkill {
     pub security_requirements: Option<Vec<SecurityRequirement>>,
 }
 
-#[derive(Debug, Clone, PartialEq, ToSchema)]
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
 pub enum SecurityScheme {
     ApiKey(ApiKeySecurityScheme),
     HttpAuth(HttpAuthSecurityScheme),
@@ -363,7 +366,8 @@ impl<'de> Deserialize<'de> for SecurityScheme {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct ApiKeySecurityScheme {
     pub location: String,
@@ -372,7 +376,8 @@ pub struct ApiKeySecurityScheme {
     pub description: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct HttpAuthSecurityScheme {
     pub scheme: String,
@@ -382,7 +387,8 @@ pub struct HttpAuthSecurityScheme {
     pub bearer_format: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct OAuth2SecurityScheme {
     pub flows: OAuthFlows,
@@ -392,7 +398,8 @@ pub struct OAuth2SecurityScheme {
     pub oauth2_metadata_url: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct OpenIdConnectSecurityScheme {
     pub open_id_connect_url: String,
@@ -400,14 +407,16 @@ pub struct OpenIdConnectSecurityScheme {
     pub description: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct MutualTlsSecurityScheme {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, ToSchema)]
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
 pub enum OAuthFlows {
     AuthorizationCode(AuthorizationCodeOAuthFlow),
     ClientCredentials(ClientCredentialsOAuthFlow),
@@ -464,7 +473,8 @@ impl<'de> Deserialize<'de> for OAuthFlows {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct AuthorizationCodeOAuthFlow {
     pub authorization_url: String,
@@ -476,7 +486,8 @@ pub struct AuthorizationCodeOAuthFlow {
     pub pkce_required: Option<bool>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct ClientCredentialsOAuthFlow {
     pub token_url: String,
@@ -485,7 +496,8 @@ pub struct ClientCredentialsOAuthFlow {
     pub refresh_url: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct DeviceCodeOAuthFlow {
     pub device_authorization_url: String,
@@ -495,7 +507,8 @@ pub struct DeviceCodeOAuthFlow {
     pub refresh_url: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct ImplicitOAuthFlow {
     pub authorization_url: String,
@@ -504,7 +517,8 @@ pub struct ImplicitOAuthFlow {
     pub refresh_url: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct PasswordOAuthFlow {
     pub token_url: String,
@@ -513,7 +527,8 @@ pub struct PasswordOAuthFlow {
     pub refresh_url: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct AgentCardSignature {
     pub protected: String,

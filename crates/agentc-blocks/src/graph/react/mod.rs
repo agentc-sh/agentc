@@ -31,10 +31,29 @@ use crate::{
         traits::AgentGraph,
         types::ResolvedGraph,
     },
+    types::RuntimeValue,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
-pub struct ReActGraphConfig {}
+pub struct ReActGraphConfig {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<ReActGraphModelConfig>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+pub struct ReActGraphModelConfig {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timeout: Option<RuntimeValue<u64>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub retry: Option<ReActGraphModelRetryConfig>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ReActGraphModelRetryConfig {
+    pub max_attempts: RuntimeValue<u32>,
+    pub initial_backoff: RuntimeValue<u64>,
+    pub max_backoff: RuntimeValue<u64>,
+}
 
 pub struct ReActGraph;
 
@@ -48,7 +67,7 @@ impl AgentGraph for ReActGraph {
     fn resolve(
         &self,
         context: ResolvedContext,
-        _config: Self::Config,
+        config: Self::Config,
     ) -> Result<ResolvedGraph, BlocksError> {
         let fields = FieldsSpec::collect_from(&context);
 
@@ -77,10 +96,12 @@ impl AgentGraph for ReActGraph {
                     .id("agent_rs")
                     .extension_point("agent::use", reducers::concat)
                     .extension_point("agent::tools", reducers::concat)
-                    .contribute(Contribution::<String>::strict("config::loader"))
-                    .contribute(Contribution::<String>::strict("config::mapper"))
+                    .contribute(Contribution::<String>::lenient("config::fields"))
+                    .contribute(Contribution::<String>::lenient("config::impls"))
+                    .contribute(Contribution::<String>::lenient("config::loader"))
+                    .contribute(Contribution::<String>::lenient("config::mapper"))
                     .contribute(Contribution::<String>::lenient("tools::features"))
-                    .build(AgentCodeGen { fields: fields.clone() }),
+                    .build(AgentCodeGen { fields: fields.clone(), config }),
             )
             .add(
                 CodeGenBlock::builder()

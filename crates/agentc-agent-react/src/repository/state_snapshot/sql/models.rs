@@ -17,7 +17,7 @@ pub mod state_snapshot {
     };
 
     use crate::types::{
-        context_var::ContextVar, model::ModelOverride, state_snapshot::StateSnapshot,
+        context_var::ContextVar, model::ModelConfig, state_snapshot::StateSnapshot,
     };
 
     #[derive(Debug, Clone, PartialEq, DeriveEntityModel)]
@@ -29,7 +29,7 @@ pub mod state_snapshot {
         pub session_id: Uuid,
         pub run_id: Uuid,
         pub checkpoint_id: Option<Uuid>,
-        pub model_override: Option<Json<ModelOverride>>,
+        pub model: Option<Json<ModelConfig>>,
         pub capability_override: Option<Json<CapabilityOverride>>,
         pub tools: Option<Json<Vec<ToolDefinition>>>,
         pub context_vars: Option<Json<Vec<ContextVar>>>,
@@ -69,8 +69,8 @@ pub mod state_snapshot {
                 session_id: model.session_id,
                 run_id: model.run_id,
                 checkpoint_id: model.checkpoint_id,
-                model_override: model
-                    .model_override
+                model: model
+                    .model
                     .map(|json| json.into_inner()),
                 capability_override: model
                     .capability_override
@@ -101,7 +101,7 @@ pub mod state_snapshot {
                 session_id: ActiveValue::set(snapshot.session_id),
                 run_id: ActiveValue::set(snapshot.run_id),
                 checkpoint_id: ActiveValue::set(snapshot.checkpoint_id),
-                model_override: ActiveValue::set(snapshot.model_override.map(Json)),
+                model: ActiveValue::set(snapshot.model.map(Json)),
                 capability_override: ActiveValue::set(snapshot.capability_override.map(Json)),
                 tools: ActiveValue::set(snapshot.tools.map(Json)),
                 context_vars: ActiveValue::set(snapshot.context_vars.map(Json)),
