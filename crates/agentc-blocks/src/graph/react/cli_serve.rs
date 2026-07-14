@@ -93,7 +93,7 @@ impl CodeGen<ResolvedContext> for CliServeCodeGen {
 
                 info!(
                     event = "PubSubInitialized",
-                    kind = ?config.pubsub.kind(),
+                    kind = config.pubsub.kind(),
                 );
 
                 let agent = build_agent(database.clone(), &config, shutdown.clone()).await?;
