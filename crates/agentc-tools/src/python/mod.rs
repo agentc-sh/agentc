@@ -9,3 +9,6 @@ pub use tool::PythonTool;
 
 #[cfg(feature = "python-embedded")]
 pub use runtime::embedded::{EmbeddedRuntime, macros::py_freeze};
+
+#[cfg(feature = "python-static")]
+pub use runtime::r#static::StaticRuntime;
