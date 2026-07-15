@@ -116,7 +116,7 @@ impl StaticRuntimeBuilder {
         }
     }
 
-    /// Embed a directory tree (from [`embed_dir`](crate::python::runtime::static::macros::embed_dir)) to be unpacked at build and placed on
+    /// Embed a directory tree (from [`embed_dir`](crate::python::runtime::r#static::embed_dir)) to be unpacked at build and placed on
     /// the interpreter's import path.
     pub fn embed(mut self, tree: impl Into<EmbeddedTree>) -> Self {
         self.trees.push(tree.into());

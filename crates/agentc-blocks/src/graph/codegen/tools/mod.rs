@@ -15,7 +15,9 @@ use crate::{
     context::ResolvedContext,
     fields::FieldsSpec,
     graph::codegen::tools::{
-        bash::BashTools, javascript::JavascriptTools, python::EmbeddedPythonTools,
+        bash::BashTools,
+        javascript::JavascriptTools,
+        python::{EmbeddedPythonTools, StaticPythonTools},
     },
 };
 
@@ -40,11 +42,12 @@ pub trait ToolCodeGen {
 pub struct ToolsCodeGen;
 
 impl ToolsCodeGen {
-    fn generators(ctx: &ResolvedContext) -> [Box<dyn ToolCodeGen + '_>; 3] {
+    fn generators(ctx: &ResolvedContext) -> [Box<dyn ToolCodeGen + '_>; 4] {
         [
             Box::new(JavascriptTools(ctx)),
             Box::new(BashTools(ctx)),
             Box::new(EmbeddedPythonTools(ctx)),
+            Box::new(StaticPythonTools(ctx)),
         ]
     }
 

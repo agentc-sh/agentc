@@ -11,4 +11,4 @@ pub use tool::PythonTool;
 pub use runtime::embedded::{EmbeddedRuntime, macros::py_freeze};
 
 #[cfg(feature = "python-static")]
-pub use runtime::r#static::{EmbeddedTree, StaticRuntime, macros::embed_dir};
+pub use runtime::r#static::{EmbeddedTree, StaticRuntime, embed_dir};

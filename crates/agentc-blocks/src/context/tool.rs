@@ -177,8 +177,6 @@ pub struct ResolvedContextToolPython {
     pub module_name: String,
 
     /// Which Python runtime backend to use. Defaults to `embedded` (RustPython).
-    /// `static` (PyO3/CPython) is accepted and round-trips through the resolved context
-    /// but generates no code until the PyO3 backend is added in a future MR.
     pub interpreter: ResolvedContextToolPythonInterpreter,
 }
 
@@ -189,8 +187,8 @@ pub enum ResolvedContextToolPythonInterpreter {
     /// Embed RustPython directly into the binary. Supports pure-Python packages only.
     #[default]
     Embedded,
-    /// Link against a system CPython installation via PyO3. Supports C-extension packages.
-    /// Not yet implemented; accepted in the manifest but no code is generated.
+    /// Link against a system CPython installation via PyO3. Supports C-extension packages,
+    /// and requires a compatible CPython in the runtime environment.
     Static,
 }
 

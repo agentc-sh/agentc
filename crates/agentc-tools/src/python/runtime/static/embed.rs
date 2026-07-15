@@ -12,9 +12,9 @@ use std::{
 use crate::python::runtime::errors::RuntimeError;
 
 /// A directory tree embedded into the binary at compile time (via
-/// [`embed_dir`](crate::python::runtime::static::macros::embed_dir)), destined to be
+/// [`embed_dir`](crate::python::runtime::r#static::embed_dir)), destined to be
 /// unpacked onto disk when a
-/// [`StaticRuntime`](crate::python::runtime::static::StaticRuntime) is built.
+/// [`StaticRuntime`](crate::python::runtime::r#static::StaticRuntime) is built.
 ///
 /// The `static` backend treats tools and their dependencies as fully embedded, exactly
 /// like the `embedded` backend; the only difference is that the bytes are unpacked to a
