@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: LicenseRef-Proprietary
 
-use pyo3::Python;
+use pyo3::prelude::*;
 use serde_json::Value;
 use std::{
     sync::mpsc::{self, RecvTimeoutError},
@@ -22,13 +22,26 @@ struct InterpreterMessage {
 }
 
 struct StaticInterpreter {
+    sys_paths: Vec<String>,
     channel_size: usize,
     shutdown: CancellationToken,
 }
 
 impl StaticInterpreter {
-    fn new(channel_size: usize, shutdown: CancellationToken) -> Self {
-        Self { channel_size, shutdown }
+    fn new(sys_paths: Vec<String>, channel_size: usize, shutdown: CancellationToken) -> Self {
+        Self { sys_paths, channel_size, shutdown }
+    }
+
+    /// Prepend the unpacked staging paths to `sys.path` so embedded tools and their
+    /// dependencies import from disk, ahead of the environment's own packages.
+    fn prepend_sys_path(py: Python<'_>, paths: &[String]) -> Result<(), RuntimeError> {
+        let sys_path = py.import("sys")?.getattr("path")?;
+
+        for (index, path) in paths.iter().enumerate() {
+            sys_path.call_method1("insert", (index, path.as_str()))?;
+        }
+
+        Ok(())
     }
 
     fn spawn(self) -> Result<(mpsc::SyncSender<InterpreterMessage>, JoinHandle<()>), RuntimeError> {
@@ -53,11 +66,16 @@ impl StaticInterpreter {
 
         let (msg_tx, msg_rx) = mpsc::sync_channel(self.channel_size);
 
-        if ready_tx.send(Ok(msg_tx)).is_err() {
+        if let Err(e) = Python::attach(|py| Self::prepend_sys_path(py, &self.sys_paths)) {
+            let _ = ready_tx.send(Err(e));
             return;
         }
 
         let ctx = Python::attach(|py| InterpreterContext::new(py));
+
+        if ready_tx.send(Ok(msg_tx)).is_err() {
+            return;
+        }
 
         loop {
             match msg_rx.recv_timeout(Duration::from_millis(50)) {
@@ -82,10 +100,11 @@ pub(super) struct StaticRuntimeWorker {
 
 impl StaticRuntimeWorker {
     pub(super) fn new(
+        sys_paths: Vec<String>,
         channel_size: usize,
         shutdown: CancellationToken,
     ) -> Result<Self, RuntimeError> {
-        let (tx, handle) = StaticInterpreter::new(channel_size, shutdown).spawn()?;
+        let (tx, handle) = StaticInterpreter::new(sys_paths, channel_size, shutdown).spawn()?;
         Ok(Self { msg_tx: tx, handle })
     }
 

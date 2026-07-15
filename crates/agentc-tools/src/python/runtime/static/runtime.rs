@@ -9,26 +9,42 @@ use tokio_util::sync::CancellationToken;
 
 use crate::python::runtime::{errors::RuntimeError, protocol::Command, traits::Runtime};
 
-use super::interpreter::StaticRuntimeWorker;
+use super::{
+    embed::{EmbeddedTree, StagingDir},
+    interpreter::StaticRuntimeWorker,
+};
 
 pub struct StaticRuntime {
     workers: Vec<StaticRuntimeWorker>,
     next: AtomicUsize,
+    _staging: Option<StagingDir>,
 }
 
 impl StaticRuntime {
     pub fn new(
+        trees: Vec<EmbeddedTree>,
         num_interpreters: usize,
         channel_size: usize,
         shutdown: CancellationToken,
     ) -> Result<Self, RuntimeError> {
+        let (staging, sys_paths) = if trees.is_empty() {
+            (None, Vec::new())
+        } else {
+            let (staging, sys_paths) = StagingDir::unpack(&trees)?;
+            (Some(staging), sys_paths)
+        };
+
         let mut workers = Vec::with_capacity(num_interpreters);
 
         for _ in 0..num_interpreters {
-            workers.push(StaticRuntimeWorker::new(channel_size, shutdown.clone())?);
+            workers.push(StaticRuntimeWorker::new(
+                sys_paths.clone(),
+                channel_size,
+                shutdown.clone(),
+            )?);
         }
 
-        Ok(Self { workers, next: AtomicUsize::new(0) })
+        Ok(Self { workers, next: AtomicUsize::new(0), _staging: staging })
     }
 
     pub fn builder() -> StaticRuntimeBuilder {
@@ -84,6 +100,7 @@ impl Runtime for StaticRuntime {
 }
 
 pub struct StaticRuntimeBuilder {
+    trees: Vec<EmbeddedTree>,
     num_interpreters: usize,
     channel_size: usize,
     shutdown: CancellationToken,
@@ -92,10 +109,18 @@ pub struct StaticRuntimeBuilder {
 impl StaticRuntimeBuilder {
     pub fn new() -> Self {
         Self {
+            trees: Vec::new(),
             num_interpreters: 4,
             channel_size: 32,
             shutdown: CancellationToken::new(),
         }
+    }
+
+    /// Embed a directory tree (from [`embed_dir`](crate::python::runtime::static::macros::embed_dir)) to be unpacked at build and placed on
+    /// the interpreter's import path.
+    pub fn embed(mut self, tree: impl Into<EmbeddedTree>) -> Self {
+        self.trees.push(tree.into());
+        self
     }
 
     /// Set the number of worker threads (interpreters) to spawn. Default is 4.
@@ -121,7 +146,12 @@ impl StaticRuntimeBuilder {
 
     /// Build the [`StaticRuntime`], spawning worker threads and initializing interpreters.
     pub fn build(self) -> Result<StaticRuntime, RuntimeError> {
-        StaticRuntime::new(self.num_interpreters, self.channel_size, self.shutdown)
+        StaticRuntime::new(
+            self.trees,
+            self.num_interpreters,
+            self.channel_size,
+            self.shutdown,
+        )
     }
 }
 
@@ -135,6 +165,7 @@ impl Default for StaticRuntimeBuilder {
 mod tests {
     use super::*;
     use crate::python::runtime::{protocol::FunctionArgs, traits::RuntimeExt};
+    use include_dir::{Dir, DirEntry, File};
     use serde_json::json;
 
     fn runtime() -> StaticRuntime {
@@ -291,6 +322,41 @@ sys.modules['counter_mod'] = _m
             .expect("call_method failed");
 
         assert_eq!(result, 5);
+        runtime.close().expect("close failed");
+    }
+
+    #[tokio::test]
+    async fn embeds_and_imports_module() {
+        static ENTRIES: &[DirEntry<'static>] = &[DirEntry::File(File::new(
+            "embedded_mod.py",
+            b"def greet(name):\n    return f'hello {name}'\n",
+        ))];
+
+        let runtime = StaticRuntime::builder()
+            .num_interpreters(1)
+            .embed(Dir::new("", ENTRIES))
+            .build()
+            .expect("build failed");
+
+        assert!(
+            !runtime
+                .import("embedded_mod")
+                .await
+                .expect("import failed")
+                .is_empty()
+        );
+
+        let greeting: String = runtime
+            .call_function(
+                "embedded_mod",
+                "greet",
+                FunctionArgs::new().positional(json!("world")),
+            )
+            .await
+            .expect("greet failed");
+
+        assert_eq!(greeting, "hello world");
+
         runtime.close().expect("close failed");
     }
 }
