@@ -23,7 +23,7 @@ pub struct StaticRuntime {
 impl StaticRuntime {
     pub fn new(
         trees: Vec<EmbeddedTree>,
-        num_interpreters: usize,
+        num_workers: usize,
         channel_size: usize,
         shutdown: CancellationToken,
     ) -> Result<Self, RuntimeError> {
@@ -34,9 +34,9 @@ impl StaticRuntime {
             (Some(staging), sys_paths)
         };
 
-        let mut workers = Vec::with_capacity(num_interpreters);
+        let mut workers = Vec::with_capacity(num_workers);
 
-        for _ in 0..num_interpreters {
+        for _ in 0..num_workers {
             workers.push(StaticRuntimeWorker::new(
                 sys_paths.clone(),
                 channel_size,
@@ -101,7 +101,7 @@ impl Runtime for StaticRuntime {
 
 pub struct StaticRuntimeBuilder {
     trees: Vec<EmbeddedTree>,
-    num_interpreters: usize,
+    num_workers: usize,
     channel_size: usize,
     shutdown: CancellationToken,
 }
@@ -110,7 +110,7 @@ impl StaticRuntimeBuilder {
     pub fn new() -> Self {
         Self {
             trees: Vec::new(),
-            num_interpreters: 4,
+            num_workers: 4,
             channel_size: 32,
             shutdown: CancellationToken::new(),
         }
@@ -123,9 +123,9 @@ impl StaticRuntimeBuilder {
         self
     }
 
-    /// Set the number of worker threads (interpreters) to spawn. Default is 4.
-    pub fn num_interpreters(mut self, num_interpreters: usize) -> Self {
-        self.num_interpreters = num_interpreters;
+    /// Set the number of worker threads to spawn. Default is 4.
+    pub fn num_workers(mut self, num_workers: usize) -> Self {
+        self.num_workers = num_workers;
         self
     }
 
@@ -148,7 +148,7 @@ impl StaticRuntimeBuilder {
     pub fn build(self) -> Result<StaticRuntime, RuntimeError> {
         StaticRuntime::new(
             self.trees,
-            self.num_interpreters,
+            self.num_workers,
             self.channel_size,
             self.shutdown,
         )
@@ -170,7 +170,7 @@ mod tests {
 
     fn runtime() -> StaticRuntime {
         StaticRuntime::builder()
-            .num_interpreters(1)
+            .num_workers(1)
             .channel_size(32)
             .build()
             .expect("failed to create StaticRuntime")
@@ -333,7 +333,7 @@ sys.modules['counter_mod'] = _m
         ))];
 
         let runtime = StaticRuntime::builder()
-            .num_interpreters(1)
+            .num_workers(1)
             .embed(Dir::new("", ENTRIES))
             .build()
             .expect("build failed");

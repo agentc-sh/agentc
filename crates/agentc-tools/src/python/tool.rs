@@ -249,6 +249,10 @@ mod tests {
     #[cfg(feature = "python-static")]
     use crate::python::StaticRuntime;
 
+    #[cfg(feature = "python-static")]
+    static STATIC_TEST_LOCK: tokio::sync::Mutex<()> =
+        tokio::sync::Mutex::const_new(());
+
     // Minimal concrete state types to satisfy Tool<U> trait bounds.
     // None of these methods are exercised by PythonTool itself.
 
@@ -630,27 +634,35 @@ class StateTool(Tool):
     // instantiated once per enabled backend. Both matrices run in the same invocation when
     // both features are on, and each is gated on its own feature.
     macro_rules! backend_tests {
-        ($backend:ident, $runtime:expr) => {
+        ($backend:ident, $runtime:expr, $guard:expr) => {
             mod $backend {
                 use super::*;
 
                 #[tokio::test]
                 async fn multi_tool_shared_runtime() {
+                    let _guard = $guard;
+
                     super::multi_tool_shared_runtime($runtime).await;
                 }
 
                 #[tokio::test]
                 async fn emit_delivers_activity_delta() {
+                    let _guard = $guard;
+
                     super::emit_delivers_activity_delta($runtime).await;
                 }
 
                 #[tokio::test]
                 async fn state_update_propagates() {
+                    let _guard = $guard;
+
                     super::state_update_propagates($runtime).await;
                 }
 
                 #[tokio::test]
                 async fn builder_rejects_unknown_tool_name() {
+                    let _guard = $guard;
+
                     super::builder_rejects_unknown_tool_name($runtime).await;
                 }
             }
@@ -666,7 +678,8 @@ class StateTool(Tool):
                 .channel_size(32)
                 .build()
                 .expect("failed to build EmbeddedRuntime"),
-        )
+        ),
+        ()
     );
 
     #[cfg(feature = "python-static")]
@@ -674,10 +687,11 @@ class StateTool(Tool):
         r#static,
         Arc::new(
             StaticRuntime::builder()
-                .num_interpreters(1)
+                .num_workers(1)
                 .channel_size(32)
                 .build()
                 .expect("failed to build StaticRuntime"),
-        )
+        ),
+        super::STATIC_TEST_LOCK.lock().await
     );
 }

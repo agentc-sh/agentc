@@ -231,7 +231,7 @@ impl StaticPythonTools<'_> {
                 StaticRuntime::builder()
                     .embed(agentc_tools::python::embed_dir!(#site_packages_path))
                     #(#project_embeds)*
-                    .num_interpreters(4)
+                    .num_workers(4)
                     .channel_size(32)
                     .shutdown(shutdown.clone())
                     .build()?
