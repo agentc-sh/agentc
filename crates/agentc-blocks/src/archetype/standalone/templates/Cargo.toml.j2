@@ -24,7 +24,7 @@ agentc-model = { version = "{{ runtime_version }}" }
 agentc-agent = { version = "{{ runtime_version }}" }
 agentc-mcp = { version = "{{ runtime_version }}" }
 agentc-skills = { version = "{{ runtime_version }}" }
-agentc-tools = { version = "{{ runtime_version }}", features = [{{ extension("tools::features") }}] }
+agentc-tools = { version = "{{ runtime_version }}", default-features = false, features = [{{ extension("tools::features") }}] }
 
 {%- if ctx.http_server %}
 agentc-http = { version = "{{ runtime_version }}" }
