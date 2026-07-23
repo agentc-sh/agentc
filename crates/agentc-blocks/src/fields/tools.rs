@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: MIT
 
+use convert_case::{Case, Casing};
+
 use crate::{
     context::{ResolvedContextTool, ResolvedContextToolKind},
     fields::spec::{FieldsSpec, IntoFieldSpecs},
@@ -19,10 +21,16 @@ impl IntoFieldSpecs for NamedTool<'_> {
 
         match &tool.kind {
             ResolvedContextToolKind::Javascript(_) | ResolvedContextToolKind::Python(_) => {
-                fields.push(&["tool", name, "enabled"], &tool.enabled);
+                let name = if name.contains(|c: char| !c.is_alphanumeric() && c != '_') {
+                    name.to_case(Case::Snake)
+                } else {
+                    name.to_string()
+                };
+
+                fields.push(&["tool", name.as_str(), "enabled"], &tool.enabled);
 
                 for (config_key, config_value) in &tool.config {
-                    fields.push(&["tool", name, config_key.as_str()], config_value);
+                    fields.push(&["tool", name.as_str(), config_key.as_str()], config_value);
                 }
             }
 

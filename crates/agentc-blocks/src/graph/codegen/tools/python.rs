@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
+use convert_case::{Case, Casing};
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 use std::collections::HashMap;
@@ -65,7 +66,15 @@ impl PythonTools {
                     .await?
             };
 
-            let enabled_path = fields.config_accessor(&["tool", tool_name, "enabled"]);
+            let enabled_path = fields.config_accessor(&[
+                "tool",
+                &if tool_name.contains(|c: char| !c.is_alphanumeric() && c != '_') {
+                    tool_name.to_case(Case::Snake)
+                } else {
+                    tool_name.to_string()
+                },
+                "enabled",
+            ]);
 
             if let Some(enabled) = enabled_path {
                 registrations.push(quote! {
@@ -111,7 +120,7 @@ impl EmbeddedPythonTools<'_> {
     ) -> TokenStream {
         let project_frozen = project_paths.iter().map(|path| {
             quote! {
-                .frozen(agentc_tools::python::py_freeze!(dir = #path))
+                .frozen(agentc_tools::python::runtime::embedded::py_freeze!(dir = #path))
             }
         });
 
@@ -119,7 +128,7 @@ impl EmbeddedPythonTools<'_> {
             #[allow(non_snake_case, nonstandard_style)]
             let #runtime_ident = std::sync::Arc::new(
                 EmbeddedRuntime::builder()
-                    .frozen(agentc_tools::python::py_freeze!(dir = #site_packages_path))
+                    .frozen(agentc_tools::python::runtime::embedded::py_freeze!(dir = #site_packages_path))
                     #(#project_frozen)*
                     .num_interpreters(4)
                     .channel_size(32)
@@ -221,7 +230,7 @@ impl StaticPythonTools<'_> {
     ) -> TokenStream {
         let project_embeds = project_paths.iter().map(|path| {
             quote! {
-                .embed(agentc_tools::python::embed_dir!(#path))
+                .embed(agentc_tools::python::runtime::r#static::embed_dir!(#path))
             }
         });
 
@@ -229,7 +238,7 @@ impl StaticPythonTools<'_> {
             #[allow(non_snake_case, nonstandard_style)]
             let #runtime_ident = std::sync::Arc::new(
                 StaticRuntime::builder()
-                    .embed(agentc_tools::python::embed_dir!(#site_packages_path))
+                    .embed(agentc_tools::python::runtime::r#static::embed_dir!(#site_packages_path))
                     #(#project_embeds)*
                     .num_workers(4)
                     .channel_size(32)
