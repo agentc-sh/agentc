@@ -139,12 +139,7 @@ impl PythonTransformer {
         sink: &dyn TransformSink,
     ) -> Result<(), TransformError> {
         let mut child = Command::new("uv")
-            .args([
-                "sync",
-                "--reinstall-package",
-                module_name,
-                "--no-dev",
-            ])
+            .args(["sync", "--reinstall-package", module_name, "--no-dev"])
             .current_dir(project_dir)
             .env("UV_PROJECT_ENVIRONMENT", venv_dir)
             .stdout(Stdio::piped())

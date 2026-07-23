@@ -250,8 +250,7 @@ mod tests {
     use crate::python::StaticRuntime;
 
     #[cfg(feature = "python-static")]
-    static STATIC_TEST_LOCK: tokio::sync::Mutex<()> =
-        tokio::sync::Mutex::const_new(());
+    static STATIC_TEST_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
     // Minimal concrete state types to satisfy Tool<U> trait bounds.
     // None of these methods are exercised by PythonTool itself.

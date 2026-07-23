@@ -530,7 +530,9 @@ mod tests {
             cargo_toml_block.extension_points(),
             HashMap::from([(
                 "tools::features".to_string(),
-                vec![ErasedContributionValue::new("\"python-static\"".to_string())],
+                vec![ErasedContributionValue::new(
+                    "\"python-static\"".to_string(),
+                )],
             )]),
         )
         .unwrap();

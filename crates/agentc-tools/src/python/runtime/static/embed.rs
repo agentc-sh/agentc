@@ -25,7 +25,9 @@ pub struct EmbeddedTree {
 
 impl EmbeddedTree {
     pub(super) fn extract(&self, base: &Path) -> Result<(), RuntimeError> {
-        self.dir.extract(base).map_err(RuntimeError::io)
+        self.dir
+            .extract(base)
+            .map_err(RuntimeError::io)
     }
 }
 
@@ -45,7 +47,9 @@ impl StagingDir {
     /// Unpack each embedded tree into its own numbered subdirectory and return the staging
     /// directory alongside those subdirectory paths, which the workers place on `sys.path`.
     pub(super) fn unpack(trees: &[EmbeddedTree]) -> Result<(Self, Vec<String>), RuntimeError> {
-        let staging = Self { root: std::env::temp_dir().join(Self::unique_name()) };
+        let staging = Self {
+            root: std::env::temp_dir().join(Self::unique_name()),
+        };
 
         std::fs::create_dir_all(&staging.root).map_err(RuntimeError::io)?;
 

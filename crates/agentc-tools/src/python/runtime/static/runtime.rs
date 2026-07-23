@@ -44,7 +44,11 @@ impl StaticRuntime {
             )?);
         }
 
-        Ok(Self { workers, next: AtomicUsize::new(0), _staging: staging })
+        Ok(Self {
+            workers,
+            next: AtomicUsize::new(0),
+            _staging: staging,
+        })
     }
 
     pub fn builder() -> StaticRuntimeBuilder {
@@ -146,12 +150,7 @@ impl StaticRuntimeBuilder {
 
     /// Build the [`StaticRuntime`], spawning worker threads and initializing interpreters.
     pub fn build(self) -> Result<StaticRuntime, RuntimeError> {
-        StaticRuntime::new(
-            self.trees,
-            self.num_workers,
-            self.channel_size,
-            self.shutdown,
-        )
+        StaticRuntime::new(self.trees, self.num_workers, self.channel_size, self.shutdown)
     }
 }
 
@@ -347,11 +346,7 @@ sys.modules['counter_mod'] = _m
         );
 
         let greeting: String = runtime
-            .call_function(
-                "embedded_mod",
-                "greet",
-                FunctionArgs::new().positional(json!("world")),
-            )
+            .call_function("embedded_mod", "greet", FunctionArgs::new().positional(json!("world")))
             .await
             .expect("greet failed");
 

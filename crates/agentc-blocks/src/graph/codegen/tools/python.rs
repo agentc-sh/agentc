@@ -333,9 +333,7 @@ mod tests {
                     config: HashMap::new(),
                     kind: ResolvedContextToolKind::Python(ResolvedContextToolPython {
                         project_path: format!("/artifacts/{name}"),
-                        site_packages_path: format!(
-                            "/artifacts/{name}/.venv/site-packages"
-                        ),
+                        site_packages_path: format!("/artifacts/{name}/.venv/site-packages"),
                         module_name: name.to_string(),
                         interpreter,
                     }),
@@ -438,10 +436,7 @@ mod tests {
                 "embedded_adder",
                 ResolvedContextToolPythonInterpreter::Embedded,
             ),
-            PythonToolsFixture::tool(
-                "static_adder",
-                ResolvedContextToolPythonInterpreter::Static,
-            ),
+            PythonToolsFixture::tool("static_adder", ResolvedContextToolPythonInterpreter::Static),
         ]);
         let (imports, registrations) = PythonToolsFixture::generated(&ctx);
         let features = ToolsCodeGen::features(&ctx).to_string();
@@ -451,7 +446,12 @@ mod tests {
         assert_eq!(imports.matches("PythonTool").count(), 0);
         assert!(registrations.contains("EmbeddedRuntime :: builder"));
         assert!(registrations.contains("StaticRuntime :: builder"));
-        assert_eq!(registrations.matches("PythonTool :: builder").count(), 2);
+        assert_eq!(
+            registrations
+                .matches("PythonTool :: builder")
+                .count(),
+            2
+        );
         assert!(registrations.contains("embedded_adder"));
         assert!(registrations.contains("static_adder"));
         assert!(features.contains("python-embedded"));

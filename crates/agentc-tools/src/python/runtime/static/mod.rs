@@ -19,9 +19,7 @@ macro_rules! embed_dir {
     ($path:expr) => {{
         use $crate::python::runtime::r#static::__include_dir as include_dir;
 
-        $crate::python::runtime::r#static::EmbeddedTree::from(
-            include_dir::include_dir!($path)
-        )
+        $crate::python::runtime::r#static::EmbeddedTree::from(include_dir::include_dir!($path))
     }};
 }
 
