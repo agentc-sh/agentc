@@ -144,7 +144,6 @@ impl PythonTransformer {
                 "--reinstall-package",
                 module_name,
                 "--no-dev",
-                "--frozen",
             ])
             .current_dir(project_dir)
             .env("UV_PROJECT_ENVIRONMENT", venv_dir)
