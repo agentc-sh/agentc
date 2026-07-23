@@ -2,8 +2,8 @@
 //
 // SPDX-License-Identifier: MIT
 
-use proc_macro2::{Ident, Span, TokenStream};
 use convert_case::{Case, Casing};
+use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 use std::collections::HashMap;
 
