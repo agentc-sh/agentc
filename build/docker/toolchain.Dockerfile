@@ -1,8 +1,9 @@
 # syntax=docker/dockerfile:1
 ARG RUST_VERSION=1.95
 ARG PYTHON_VERSION=3.14.0
-ARG NODE_VERSION=25.5.0
-ARG PNPM_VERSION=11.1.2
+ARG NODE_VERSION=26.5.0
+ARG PNPM_VERSION=11.17.0
+ARG NPM_VERSION=12.0.1
 ARG ESBUILD_VERSION=0.28.0
 ARG UV_VERSION=0.8.0
 
@@ -32,6 +33,7 @@ FROM docker.io/library/python:${PYTHON_VERSION}-slim-trixie AS runtime
 ARG RUST_VERSION
 ARG NODE_VERSION
 ARG PNPM_VERSION
+ARG NPM_VERSION
 ARG ESBUILD_VERSION
 ARG TARGETARCH
 
@@ -59,7 +61,6 @@ ENV RUSTUP_HOME=/usr/local/rustup \
     RUST_VERSION=${RUST_VERSION}
 
 RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain ${RUST_VERSION} --no-modify-path
-# RUN chmod -R a+w ${RUSTUP_HOME} ${CARGO_HOME}
 
 RUN case "${TARGETARCH}" in \
     amd64) NODE_ARCH="x64" ;; \
@@ -70,6 +71,7 @@ RUN case "${TARGETARCH}" in \
     | tar -xJ --strip-components=1 -C /usr/local
 
 RUN npm install --global \
+    npm@${NPM_VERSION} \
     pnpm@${PNPM_VERSION} \
     esbuild@${ESBUILD_VERSION} \
     && npm cache clean --force
