@@ -55,7 +55,8 @@ See [Write a tool](/guides/write-a-tool) for how to write the tool source.
 ## python
 
 A Python tool is a `uv`-managed Python package. Dependencies are installed at compile time and
-the package source and `site-packages` are embedded in the binary.
+the package source and `site-packages` are embedded in the binary. The selected interpreter
+determines whether the embedded package runs through RustPython or CPython.
 
 ```hcl
 tool "weather" {
@@ -69,7 +70,7 @@ tool "weather" {
 | Field | Type | Required | runtime() | Description |
 |-------|------|----------|-----------|-------------|
 | `source` | string | yes | no | Path to the tool's directory, relative to the manifest. Must contain a `pyproject.toml`. |
-| `interpreter` | string | no | no | Python runtime backend. `"embedded"` (default) uses RustPython and supports pure-Python packages only. `"static"` (CPython via PyO3) is accepted but not yet implemented. |
+| `interpreter` | string | no | no | Python runtime backend. `"embedded"` (default) uses RustPython, supports pure-Python packages, and produces a self-contained binary. `"static"` uses CPython 3.14 and supports packages with C extensions, but requires a compatible shared CPython installation and `libpython` available at runtime. |
 
 See [Write a tool](/guides/write-a-tool) for how to write the tool source.
 

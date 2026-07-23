@@ -17,7 +17,7 @@ tools into a registry before the first run.
 Every tool has a `kind` that decides how it is built and executed. The kinds available today fall
 into three groups:
 
-- Tools you write in code. `javascript` runs a TypeScript or JavaScript package, bundled with esbuild and executed in an embedded JS runtime. `python` runs a Python package, installed with `uv` and executed in an embedded Python interpreter. See [Write a tool](/guides/write-a-tool).
+- Tools you write in code. `javascript` runs a TypeScript or JavaScript package, bundled with esbuild and executed in an embedded JS runtime. `python` runs a Python package installed with `uv`, using an embedded interpreter by default or CPython through the `static` option for packages with C extensions. See [Write a tool](/guides/write-a-tool).
 - Built-in tools you configure rather than author. `bash` provides a sandboxed shell environment with configurable access to host programs, the filesystem, and the network. See [Use the bash tool](/guides/use-the-bash-tool).
 - Tools that live elsewhere. `mcp` connects tools served by a Model Context Protocol server over stdio or HTTP, rather than embedding tool code. `a2a` delegates a task to another agent over the Agent2Agent protocol. See [Connect external tools via MCP](/guides/connect-external-tools-via-mcp) and [Connect agents via A2A](/guides/connect-agents-via-a2a).
 

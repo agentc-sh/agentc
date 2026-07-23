@@ -9,6 +9,9 @@ mod traits;
 #[cfg(feature = "python-embedded")]
 pub mod embedded;
 
+#[cfg(feature = "python-static")]
+pub mod r#static;
+
 pub use errors::RuntimeError;
 pub use protocol::{ArgValue, FunctionArgs, NativeCallable, PyFuture};
 pub use traits::{Runtime, RuntimeExt};

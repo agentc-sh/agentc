@@ -282,7 +282,14 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::contributions::dependency::RuntimeDependencyContribution;
+    use crate::{
+        context::{
+            ResolvedContextTool, ResolvedContextToolKind, ResolvedContextToolPython,
+            ResolvedContextToolPythonInterpreter,
+        },
+        contributions::dependency::RuntimeDependencyContribution,
+        types::RuntimeValue,
+    };
     use agentc_compiler::generator::{
         context::GenerationContext,
         extension::{ErasedContributionValue, ExtensionRegistry},
@@ -310,6 +317,29 @@ mod tests {
             "http_server": http_server
         }))
         .unwrap()
+    }
+
+    fn static_python_context() -> ResolvedContext {
+        let mut ctx = context(None);
+
+        ctx.tools.insert(
+            "adder".to_string(),
+            ResolvedContextTool {
+                name: "adder".to_string(),
+                description: None,
+                enabled: RuntimeValue::constant(true),
+                capabilities: vec![],
+                config: HashMap::new(),
+                kind: ResolvedContextToolKind::Python(ResolvedContextToolPython {
+                    project_path: "/artifacts/adder".to_string(),
+                    site_packages_path: "/artifacts/adder/.venv/site-packages".to_string(),
+                    module_name: "adder".to_string(),
+                    interpreter: ResolvedContextToolPythonInterpreter::Static,
+                }),
+            },
+        );
+
+        ctx
     }
 
     #[test]
@@ -480,6 +510,45 @@ mod tests {
 
         assert!(content.contains(&format!(
             "agentc-protocol-a2a = {{ version = \"{}\", default-features = false, features = [\"client\"] }}",
+            env!("CARGO_PKG_VERSION"),
+        )));
+    }
+
+    #[tokio::test]
+    async fn generated_cargo_toml_includes_static_python_feature() {
+        let ctx = static_python_context();
+        let resolved = StandaloneArchetype
+            .resolve(ctx.clone(), StandaloneArchetypeConfig::default())
+            .unwrap();
+        let cargo_toml_block = resolved
+            .contribution
+            .blocks
+            .iter()
+            .find(|block| block.id() == "cargo_toml")
+            .expect("cargo_toml block is registered");
+        let registry = ExtensionRegistry::resolve(
+            cargo_toml_block.extension_points(),
+            HashMap::from([(
+                "tools::features".to_string(),
+                vec![ErasedContributionValue::new(
+                    "\"python-static\"".to_string(),
+                )],
+            )]),
+        )
+        .unwrap();
+        let mut vfs = VirtualFileSystem::new();
+
+        cargo_toml_block
+            .render(&GenerationContext::new(ctx), &registry, &mut vfs)
+            .await
+            .unwrap();
+
+        let content = vfs
+            .get("Cargo.toml")
+            .expect("Cargo.toml is generated");
+
+        assert!(content.contains(&format!(
+            "agentc-tools = {{ version = \"{}\", default-features = false, features = [\"python-static\"] }}",
             env!("CARGO_PKG_VERSION"),
         )));
     }
