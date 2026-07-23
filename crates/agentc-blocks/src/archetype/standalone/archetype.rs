@@ -548,7 +548,7 @@ mod tests {
             .expect("Cargo.toml is generated");
 
         assert!(content.contains(&format!(
-            "agentc-tools = {{ version = \"{}\", features = [\"python-static\"] }}",
+            "agentc-tools = {{ version = \"{}\", default-features = false, features = [\"python-static\"] }}",
             env!("CARGO_PKG_VERSION"),
         )));
     }
