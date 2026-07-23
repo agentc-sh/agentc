@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 use proc_macro2::{Ident, Span, TokenStream};
+use convert_case::{Case, Casing};
 use quote::quote;
 use std::collections::HashMap;
 
@@ -65,7 +66,15 @@ impl PythonTools {
                     .await?
             };
 
-            let enabled_path = fields.config_accessor(&["tool", tool_name, "enabled"]);
+            let enabled_path = fields.config_accessor(&[
+                "tool",
+                &if tool_name.contains(|c: char| !c.is_alphanumeric() && c != '_') {
+                    tool_name.to_case(Case::Snake)
+                } else {
+                    tool_name.to_string()
+                },
+                "enabled",
+            ]);
 
             if let Some(enabled) = enabled_path {
                 registrations.push(quote! {
