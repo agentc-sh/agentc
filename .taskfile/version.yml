@@ -75,7 +75,7 @@ tasks:
     deps: [devtools:install]
     cmds:
       - |
-        export CURRENT_VERSION=$(svu current --v0 --tag.prefix='' --tag.pattern='{{.STABLE_SEMVER_GLOB}}')
+        export CURRENT_VERSION=$(svu current --tag.prefix='' --tag.pattern='{{.STABLE_SEMVER_GLOB}}')
         export NEXT_VERSION=$(svu next --v0 --tag.prefix='' --tag.pattern='{{.STABLE_SEMVER_GLOB}}')
         
         if [ "$CURRENT_VERSION" = "$NEXT_VERSION" ]; then
