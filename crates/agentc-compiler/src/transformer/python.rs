@@ -245,12 +245,9 @@ impl PythonTransformer {
             .await
             .map_err(|e| TransformError::io(staging_dir.to_string_lossy(), e))?;
 
-        symlink(
-            &project_dir.join("pyproject.toml"),
-            &staging_dir.join("pyproject.toml"),
-        )
-        .await
-        .map_err(|e| TransformError::io(staging_dir.to_string_lossy(), e))?;
+        symlink(&project_dir.join("pyproject.toml"), &staging_dir.join("pyproject.toml"))
+            .await
+            .map_err(|e| TransformError::io(staging_dir.to_string_lossy(), e))?;
 
         symlink(source_dir, &staging_dir.join(module_name))
             .await

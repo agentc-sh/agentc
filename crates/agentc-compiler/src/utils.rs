@@ -40,10 +40,7 @@ pub async fn symlink(src: &Path, dst: &Path) -> std::io::Result<()> {
     {
         // Windows has distinct file and directory symlink types and no unified
         // constructor, so the target kind must be resolved before linking.
-        if tokio::fs::metadata(src)
-            .await?
-            .is_dir()
-        {
+        if tokio::fs::metadata(src).await?.is_dir() {
             tokio::fs::symlink_dir(src, dst).await
         } else {
             tokio::fs::symlink_file(src, dst).await
