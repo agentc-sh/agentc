@@ -9,6 +9,7 @@ use std::sync::Arc;
 
 use crate::{
     errors::ModelError,
+    middleware::{CompletionMiddleware, Intercepted},
     stream::ChatCompletionStream,
     types::{
         identity::{ModelId, ProviderId},
@@ -24,13 +25,15 @@ use crate::{
 pub trait CompletionModel: Send + Sync {
     /// The provider this model belongs to.
     fn provider(&self) -> ProviderId;
+    /// The OTel `gen_ai.provider.name` value for this provider.
+    fn otel_provider_name(&self) -> &'static str;
     /// The model name this instance was created with.
     fn model(&self) -> &ModelId;
     /// The inference parameter defaults baked into this model instance at construction time.
     /// Request-level params take precedence over these when building a completion request.
     fn inference_params(&self) -> &InferenceParams;
 
-    /// Send a fully constructed request and return a streaming response.
+    /// Send a fully constructed request to the provider and return its raw streaming response.
     async fn send(&self, request: CompletionRequest) -> Result<ChatCompletionStream, ModelError>;
 }
 
@@ -38,6 +41,10 @@ pub trait CompletionModel: Send + Sync {
 impl CompletionModel for Arc<dyn CompletionModel> {
     fn provider(&self) -> ProviderId {
         (**self).provider()
+    }
+
+    fn otel_provider_name(&self) -> &'static str {
+        (**self).otel_provider_name()
     }
 
     fn model(&self) -> &ModelId {
@@ -301,6 +308,31 @@ pub trait CompletionModelExt {
     where
         I: IntoIterator<Item = M>,
         M: Into<ChatMessage>;
+
+    /// Layer a [`CompletionMiddleware`] over this model, returning an
+    /// [`Intercepted`] that is itself a [`CompletionModel`] and so composes
+    /// with further layers.
+    fn layer<L>(self, middleware: L) -> Intercepted<Self, L>
+    where
+        Self: Sized,
+        L: CompletionMiddleware,
+    {
+        Intercepted::new(self, middleware)
+    }
+
+    /// Optionally construct and layer a [`CompletionMiddleware`] over this
+    /// model while preserving a single concrete return type.
+    fn layer_with<T, L>(
+        self,
+        value: Option<T>,
+        build: impl FnOnce(T) -> L,
+    ) -> Intercepted<Self, Option<L>>
+    where
+        Self: Sized,
+        L: CompletionMiddleware,
+    {
+        self.layer(value.map(build))
+    }
 }
 
 impl<T> CompletionModelExt for T
@@ -321,5 +353,69 @@ where
                     .collect(),
             ),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use futures::stream;
+    use std::time::Duration;
+
+    use crate::{
+        middleware::timeout::Timeout,
+        types::{
+            identity::{ModelId, ProviderId},
+            inference::InferenceParams,
+            stream::CompletionStreamEvent,
+        },
+    };
+
+    struct StubModel {
+        model_id: ModelId,
+        params: InferenceParams,
+    }
+
+    #[async_trait]
+    impl CompletionModel for StubModel {
+        fn provider(&self) -> ProviderId {
+            "stub".into()
+        }
+
+        fn otel_provider_name(&self) -> &'static str {
+            "stub"
+        }
+
+        fn model(&self) -> &ModelId {
+            &self.model_id
+        }
+
+        fn inference_params(&self) -> &InferenceParams {
+            &self.params
+        }
+
+        async fn send(
+            &self,
+            _request: CompletionRequest,
+        ) -> Result<ChatCompletionStream, ModelError> {
+            Ok(ChatCompletionStream::new(stream::empty::<
+                Result<CompletionStreamEvent, ModelError>,
+            >()))
+        }
+    }
+
+    #[test]
+    fn repeated_optional_layers_remain_a_completion_model() {
+        assert_eq!(
+            StubModel {
+                model_id: "test-model".into(),
+                params: InferenceParams::default(),
+            }
+            .layer_with(Some(Duration::from_secs(1)), Timeout::new)
+            .layer_with(None::<Duration>, Timeout::new)
+            .otel_provider_name(),
+            "stub",
+        );
     }
 }

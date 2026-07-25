@@ -11,14 +11,13 @@ use agentc_database::{
     connection::ConnectionContext,
     orm::{ActiveValue, ColumnTrait, EntityTrait, Iden, QueryFilter, QueryTrait},
     paginate::CursorPaginatorExt,
-    query::{OnConflict, Expr},
+    query::{Expr, OnConflict},
 };
 use agentc_domain::{
     repository::run::{
         errors::RunRepoError,
         params::{
-            Comparison, DeleteRunParams, FindRunParams,
-            UpdateRunParams, UpdateRunParamsCondition,
+            Comparison, DeleteRunParams, FindRunParams, UpdateRunParams, UpdateRunParamsCondition,
             UpdateRunParamsSet,
         },
         traits::RunRepository,

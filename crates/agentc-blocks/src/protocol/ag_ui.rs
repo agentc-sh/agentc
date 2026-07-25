@@ -14,14 +14,15 @@ use agentc_compiler::generator::{
     },
     context::GenerationContext,
     errors::GeneratorError,
-    extension::{Contribution, ExtensionRegistry},
+    extension::{Contribution, ErasedContributionValue, ExtensionRegistry},
 };
 
 use crate::{
+    archetype::standalone::codegen::cargo::{CargoDependencyContribution, CargoPatchContribution},
     composition::GenerationContribution,
     context::{ResolvedContext, ResolvedContextHttpServerProtocolAgUi},
     errors::BlocksError,
-    feature::{GenerationFeatureSet, GraphReAct, HttpServer, ProtocolAgUi, Streaming},
+    feature::{GenerationFeatureSet, HttpServer, ProtocolAgUi, Streaming},
     protocol::{traits::Protocol, types::ResolvedProtocol},
 };
 
@@ -73,26 +74,24 @@ impl TemplateFragment<ResolvedContext> for AgUiCargoFragment {
         &self,
         _ctx: &GenerationContext<ResolvedContext>,
         point: &str,
-    ) -> Result<String, GeneratorError> {
+    ) -> Result<ErasedContributionValue, GeneratorError> {
         match point {
             "cargo::dependencies" => {
-                Ok(format!(
+                Ok(ErasedContributionValue::new(CargoDependencyContribution::raw(format!(
                     "agentc-protocol-ag-ui = {{ version = \"{}\" }}",
                     env!("CARGO_PKG_VERSION"),
-                ))
+                ))))
             }
-            "cargo::patches" => Ok(
-                "agentc-protocol-ag-ui = { path = \"../runtime/agentc-protocol-ag-ui\" }"
-                    .to_string(),
-            ),
+            "cargo::patches" => Ok(ErasedContributionValue::new(CargoPatchContribution::raw(
+                "agentc-protocol-ag-ui = { path = \"../runtime/agentc-protocol-ag-ui\" }",
+            ))),
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
     }
 }
 
-/// The AG-UI protocol contribution. Requires an archetype-provided `HttpServer` and a
-/// `Streaming`- and `GraphReAct`-providing graph, since AG-UI is currently only
-/// compatible with the ReAct graph's service and event types.
+/// The AG-UI protocol contribution. Requires an archetype-provided `HttpServer`
+/// and streaming support.
 pub struct AgUiProtocol;
 
 impl Protocol for AgUiProtocol {
@@ -115,14 +114,18 @@ impl Protocol for AgUiProtocol {
                         .add(
                             CodeGenBlock::builder()
                                 .id("protocol_ag_ui")
-                                .contribute(Contribution::strict("server::routers"))
+                                .contribute(Contribution::<String>::strict("server::routers"))
                                 .build(AgUiCodeGen { config }),
                         )
                         .add(
                             TemplateFragmentBlock::builder()
                                 .id("protocol_ag_ui_cargo")
-                                .contribute(Contribution::strict("cargo::dependencies"))
-                                .contribute(Contribution::strict("cargo::patches"))
+                                .contribute(Contribution::<CargoDependencyContribution>::strict(
+                                    "cargo::dependencies",
+                                ))
+                                .contribute(Contribution::<CargoPatchContribution>::strict(
+                                    "cargo::patches",
+                                ))
                                 .build(AgUiCargoFragment),
                         )
                         .into_inner(),
@@ -131,8 +134,7 @@ impl Protocol for AgUiProtocol {
                 .with_requires(
                     GenerationFeatureSet::new()
                         .with::<HttpServer>()
-                        .with::<Streaming>()
-                        .with::<GraphReAct>(),
+                        .with::<Streaming>(),
                 ),
         })
     }
@@ -169,14 +171,31 @@ mod tests {
     #[test]
     fn resolves_with_expected_provides_and_requires() {
         let resolved = AgUiProtocol
-            .resolve(context(), ResolvedContextHttpServerProtocolAgUi { path: "/ag-ui".to_string() })
+            .resolve(
+                context(),
+                ResolvedContextHttpServerProtocolAgUi { path: "/ag-ui".to_string() },
+            )
             .unwrap();
 
         assert_eq!(resolved.name, "ag_ui");
-        assert!(resolved.contribution.provides.contains::<ProtocolAgUi>());
-        assert!(resolved.contribution.requires.contains::<HttpServer>());
-        assert!(resolved.contribution.requires.contains::<Streaming>());
-        assert!(resolved.contribution.requires.contains::<GraphReAct>());
+        assert!(
+            resolved
+                .contribution
+                .provides
+                .contains::<ProtocolAgUi>()
+        );
+        assert!(
+            resolved
+                .contribution
+                .requires
+                .contains::<HttpServer>()
+        );
+        assert!(
+            resolved
+                .contribution
+                .requires
+                .contains::<Streaming>()
+        );
     }
 
     #[test]

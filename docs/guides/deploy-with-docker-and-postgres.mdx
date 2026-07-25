@@ -6,7 +6,8 @@ description: Package a standalone agent in a container and run it against Postgr
 Once you can run the binary directly (see [Deploy a standalone binary](/guides/deploy-standalone)), the
 next step for most deployments is a container backed by PostgreSQL. The binary is statically linked and
 has no system dependencies beyond standard C libraries and TLS certificates, so the image can be
-minimal.
+minimal. An agent with a `static` Python tool additionally requires a shared CPython 3.14 installation
+whose `libpython` is available to the runtime loader.
 
 ## Write a Dockerfile
 

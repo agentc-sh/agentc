@@ -33,6 +33,10 @@ impl ManifestAgentGraph {
 mod tests {
     use super::*;
     use crate::{manifest::Manifest, parser::format::SpecFormat};
+    use agentc_blocks::{
+        graph::{ReActGraphModelConfig, ReActGraphModelRetryConfig},
+        types::RuntimeValue,
+    };
 
     fn manifest_with_graph(graph: &str) -> String {
         format!(
@@ -93,14 +97,57 @@ agent "assistant" {{
     }
 
     #[test]
+    fn manifest_parses_react_model_defaults() {
+        let manifest = SpecFormat::hcl()
+            .deserialize_string::<Manifest>(&manifest_with_graph(
+                r#"    type = "react"
+
+    model {
+      timeout = {
+        env     = "MODEL_TIMEOUT_MS"
+        default = 30000
+      }
+
+      retry {
+        max_attempts   = 3
+        initial_backoff = {
+          env     = "MODEL_INITIAL_BACKOFF_MS"
+          default = 100
+        }
+        max_backoff = 5000
+      }
+    }"#,
+            ))
+            .unwrap();
+
+        assert_eq!(
+            manifest
+                .agent
+                .get("assistant")
+                .unwrap()
+                .graph,
+            ManifestAgentGraph::React(ReActGraphConfig {
+                model: Some(ReActGraphModelConfig {
+                    timeout: Some(RuntimeValue::default_runtime("MODEL_TIMEOUT_MS", 30000)),
+                    retry: Some(ReActGraphModelRetryConfig {
+                        max_attempts: RuntimeValue::constant(3),
+                        initial_backoff: RuntimeValue::default_runtime(
+                            "MODEL_INITIAL_BACKOFF_MS",
+                            100,
+                        ),
+                        max_backoff: RuntimeValue::constant(5000),
+                    }),
+                }),
+            }),
+        );
+    }
+
+    #[test]
     fn manifest_rejects_unknown_graph() {
         let error = SpecFormat::hcl()
             .deserialize_string::<Manifest>(&manifest_with_graph(r#"    type = "unknown""#))
             .unwrap_err();
 
-        assert!(
-            error.to_string().contains("unknown"),
-            "unexpected parser error: {error}"
-        );
+        assert!(error.to_string().contains("unknown"), "unexpected parser error: {error}");
     }
 }

@@ -20,7 +20,10 @@ use crate::generator::{
     },
     context::GenerationContext,
     errors::GeneratorError,
-    extension::{Contribution, ExtensionPoint, ExtensionRegistry},
+    extension::{
+        Contribution, ErasedContribution, ErasedContributionValue, ErasedExtensionPoint,
+        ExtensionPoint, ExtensionRegistry, StringExtensionPoint,
+    },
     vfs::VirtualFileSystem,
 };
 
@@ -29,6 +32,7 @@ pub struct TemplateBlock {
     manifest: TemplateBlockManifest,
     templates: HashMap<String, String>,
     extra_vars: BTreeMap<String, JsonValue>,
+    extra_extension_points: Vec<Box<dyn ErasedExtensionPoint>>,
 }
 
 impl TemplateBlock {
@@ -36,8 +40,14 @@ impl TemplateBlock {
         manifest: TemplateBlockManifest,
         templates: HashMap<String, String>,
         extra_vars: BTreeMap<String, JsonValue>,
+        extra_extension_points: Vec<Box<dyn ErasedExtensionPoint>>,
     ) -> Self {
-        Self { manifest, templates, extra_vars }
+        Self {
+            manifest,
+            templates,
+            extra_vars,
+            extra_extension_points,
+        }
     }
 
     fn renderer<T: Serialize>(&self, data: &T) -> TemplateRenderer {
@@ -68,23 +78,27 @@ where
         &self.manifest.id
     }
 
-    fn extension_points(&self) -> Vec<ExtensionPoint> {
+    fn extension_points(&self) -> Vec<Box<dyn ErasedExtensionPoint>> {
         self.manifest
             .extension_points
             .iter()
-            .map(|point| ExtensionPoint::new(&point.name, point.reducer.as_fn()))
+            .map(|point| {
+                Box::new(StringExtensionPoint::new(&point.name, point.reducer.as_fn()))
+                    as Box<dyn ErasedExtensionPoint>
+            })
+            .chain(self.extra_extension_points.clone())
             .collect()
     }
 
-    fn contributions(&self) -> Vec<Contribution> {
+    fn contributions(&self) -> Vec<ErasedContribution> {
         self.manifest
             .slot_fills
             .iter()
             .map(|fill| {
                 if fill.strict {
-                    Contribution::strict(&fill.point)
+                    Contribution::<String>::strict(&fill.point).erase()
                 } else {
-                    Contribution::lenient(&fill.point)
+                    Contribution::<String>::lenient(&fill.point).erase()
                 }
             })
             .collect()
@@ -94,7 +108,7 @@ where
         &self,
         ctx: &GenerationContext<T>,
         point: &str,
-    ) -> Result<String, GeneratorError> {
+    ) -> Result<ErasedContributionValue, GeneratorError> {
         let evaluator = ConditionEvaluator::new(ctx.as_inner())?;
         let renderer = self.renderer(ctx.as_inner());
 
@@ -111,7 +125,7 @@ where
         if let Some(cond) = &fill.condition
             && !evaluator.evaluate(&self.manifest.id, cond)?
         {
-            return Ok(String::new());
+            return Ok(ErasedContributionValue::new(String::new()));
         }
 
         let template_src = self
@@ -121,12 +135,9 @@ where
                 template: fill.template.clone(),
             })?;
 
-        renderer.render(
-            &self.manifest.id,
-            &fill.template,
-            template_src,
-            &ExtensionRegistry::empty(),
-        )
+        renderer
+            .render(&self.manifest.id, &fill.template, template_src, &ExtensionRegistry::empty())
+            .map(ErasedContributionValue::new)
     }
 
     async fn render(
@@ -171,6 +182,7 @@ impl TemplateBlockBuilder {
             manifest: None,
             templates: HashMap::new(),
             extra_vars: BTreeMap::new(),
+            extra_extension_points: Vec::new(),
         }
     }
 
@@ -194,12 +206,22 @@ impl TemplateBlockBuilder {
         self
     }
 
+    pub fn typed_extension_point<P>(mut self, point: P) -> Self
+    where
+        P: ExtensionPoint + Clone + 'static,
+    {
+        self.extra_extension_points
+            .push(Box::new(point));
+        self
+    }
+
     pub fn build(self) -> TemplateBlock {
         TemplateBlock::new(
             self.manifest
                 .expect("TemplateBlock requires a manifest"),
             self.templates,
             self.extra_vars,
+            self.extra_extension_points,
         )
     }
 }
@@ -208,6 +230,7 @@ pub struct TemplateBlockBuilder {
     manifest: Option<TemplateBlockManifest>,
     templates: HashMap<String, String>,
     extra_vars: BTreeMap<String, JsonValue>,
+    extra_extension_points: Vec<Box<dyn ErasedExtensionPoint>>,
 }
 
 impl Default for TemplateBlockBuilder {
@@ -221,8 +244,8 @@ where
     T: Serialize + Send + Sync,
 {
     id: String,
-    extension_points: Vec<ExtensionPoint>,
-    contributions: Vec<Contribution>,
+    extension_points: Vec<Box<dyn ErasedExtensionPoint>>,
+    contributions: Vec<ErasedContribution>,
     fragment: Box<dyn TemplateFragment<T>>,
 }
 
@@ -244,11 +267,11 @@ where
         &self.id
     }
 
-    fn extension_points(&self) -> Vec<ExtensionPoint> {
+    fn extension_points(&self) -> Vec<Box<dyn ErasedExtensionPoint>> {
         self.extension_points.clone()
     }
 
-    fn contributions(&self) -> Vec<Contribution> {
+    fn contributions(&self) -> Vec<ErasedContribution> {
         self.contributions.clone()
     }
 
@@ -256,7 +279,7 @@ where
         &self,
         ctx: &GenerationContext<T>,
         point: &str,
-    ) -> Result<String, GeneratorError> {
+    ) -> Result<ErasedContributionValue, GeneratorError> {
         self.fragment
             .generate_contribution(ctx, point)
     }
@@ -283,8 +306,8 @@ where
     T: Serialize + Send + Sync,
 {
     id: Option<String>,
-    extension_points: Vec<ExtensionPoint>,
-    contributions: Vec<Contribution>,
+    extension_points: Vec<Box<dyn ErasedExtensionPoint>>,
+    contributions: Vec<ErasedContribution>,
     _marker: PhantomData<T>,
 }
 
@@ -321,12 +344,25 @@ where
         reducer: fn(Vec<String>) -> String,
     ) -> Self {
         self.extension_points
-            .push(ExtensionPoint::new(name, reducer));
+            .push(Box::new(StringExtensionPoint::new(name, reducer)));
         self
     }
 
-    pub fn contribute(mut self, contribution: Contribution) -> Self {
-        self.contributions.push(contribution);
+    pub fn typed_extension_point<P>(mut self, point: P) -> Self
+    where
+        P: ExtensionPoint + Clone + 'static,
+    {
+        self.extension_points
+            .push(Box::new(point));
+        self
+    }
+
+    pub fn contribute<C>(mut self, contribution: Contribution<C>) -> Self
+    where
+        C: Send + Sync + 'static,
+    {
+        self.contributions
+            .push(contribution.erase());
         self
     }
 
@@ -344,4 +380,3 @@ where
         }
     }
 }
-

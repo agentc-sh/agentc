@@ -6,6 +6,7 @@
 extern crate self as agentc_database;
 
 pub mod connection;
+pub mod coordinator;
 pub mod database;
 pub mod errors;
 pub mod json;

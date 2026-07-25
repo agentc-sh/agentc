@@ -4,19 +4,23 @@ includes:
   devtools:
     taskfile: devtools.yml
 
+vars:
+  SEMVER_COMPONENT: '{[0-9],[0-9][0-9],[0-9][0-9][0-9]}'
+  STABLE_SEMVER_GLOB: '{{.SEMVER_COMPONENT}}.{{.SEMVER_COMPONENT}}.{{.SEMVER_COMPONENT}}'
+
 tasks:
   current:
     desc: Print the version
     deps: [devtools:install]
     cmds:
-      - svu current --tag.prefix='' {{.CLI_ARGS}}
+      - svu current --tag.prefix='' --tag.pattern='{{.STABLE_SEMVER_GLOB}}' {{.CLI_ARGS}}
 
   next:
     desc: Get the next version given SemVer
     deps: [devtools:install]
     cmds:
       - |
-        NEXT=$(svu next --v0 --tag.prefix='' {{.CLI_ARGS}})
+        NEXT=$(svu next --v0 --tag.prefix='' --tag.pattern='{{.STABLE_SEMVER_GLOB}}' {{.CLI_ARGS}})
         if [ -n "{{.PRE_RELEASE}}" ]; then
           NEXT="$NEXT-{{.PRE_RELEASE}}"
         fi
@@ -71,8 +75,8 @@ tasks:
     deps: [devtools:install]
     cmds:
       - |
-        export CURRENT_VERSION=$(svu current --tag.prefix='')
-        export NEXT_VERSION=$(svu next --tag.prefix='')
+        export CURRENT_VERSION=$(svu current --tag.prefix='' --tag.pattern='{{.STABLE_SEMVER_GLOB}}')
+        export NEXT_VERSION=$(svu next --v0 --tag.prefix='' --tag.pattern='{{.STABLE_SEMVER_GLOB}}')
         
         if [ "$CURRENT_VERSION" = "$NEXT_VERSION" ]; then
           echo "CURRENT_VERSION=$CURRENT_VERSION"
@@ -97,6 +101,6 @@ tasks:
         done < .modified_files
 
         echo "Committing and tagging the release..."
-        git commit -m "chore(release): Release $NEXT_VERSION"
+        git commit -s -m "chore(release): Release $NEXT_VERSION"
         git tag "$NEXT_VERSION" -m "chore(release): Release $NEXT_VERSION"
         rm .modified_files

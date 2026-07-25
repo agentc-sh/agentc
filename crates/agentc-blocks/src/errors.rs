@@ -58,14 +58,8 @@ impl BlocksError {
         Self::InvalidManifest { reason: reason.into() }
     }
 
-    pub fn duplicate_registration(
-        component: &'static str,
-        name: impl Into<String>,
-    ) -> Self {
-        Self::DuplicateRegistration {
-            component,
-            name: name.into(),
-        }
+    pub fn duplicate_registration(component: &'static str, name: impl Into<String>) -> Self {
+        Self::DuplicateRegistration { component, name: name.into() }
     }
 
     pub fn unexpected(message: impl Into<String>) -> Self {

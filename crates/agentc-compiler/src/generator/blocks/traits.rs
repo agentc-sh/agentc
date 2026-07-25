@@ -8,7 +8,9 @@ use serde::Serialize;
 use crate::generator::{
     context::GenerationContext,
     errors::GeneratorError,
-    extension::{Contribution, ExtensionPoint, ExtensionRegistry},
+    extension::{
+        ErasedContribution, ErasedContributionValue, ErasedExtensionPoint, ExtensionRegistry,
+    },
     vfs::VirtualFileSystem,
 };
 
@@ -22,12 +24,12 @@ where
 
     /// Extension points declared by this block, where contributions from
     /// other blocks will be collected and resolved.
-    fn extension_points(&self) -> Vec<ExtensionPoint> {
+    fn extension_points(&self) -> Vec<Box<dyn ErasedExtensionPoint>> {
         vec![]
     }
 
     /// Contributions this block makes to extension points declared by other blocks.
-    fn contributions(&self) -> Vec<Contribution> {
+    fn contributions(&self) -> Vec<ErasedContribution> {
         vec![]
     }
 
@@ -36,8 +38,8 @@ where
         &self,
         _ctx: &GenerationContext<T>,
         _point: &str,
-    ) -> Result<String, GeneratorError> {
-        Ok(String::new())
+    ) -> Result<ErasedContributionValue, GeneratorError> {
+        Ok(ErasedContributionValue::new(String::new()))
     }
 
     /// Render this block's content into the virtual file system.

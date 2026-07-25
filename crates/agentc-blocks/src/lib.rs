@@ -9,6 +9,7 @@ pub mod archetype;
 pub mod catalog;
 pub mod composition;
 pub mod context;
+pub mod contributions;
 pub mod errors;
 pub mod feature;
 pub mod fields;

@@ -75,10 +75,7 @@ pub struct ArchetypeResolverBuilder {
 impl ArchetypeResolverBuilder {
     /// Create a new empty builder.
     pub fn new() -> Self {
-        Self {
-            archetypes: HashMap::new(),
-            error: None,
-        }
+        Self { archetypes: HashMap::new(), error: None }
     }
 
     /// Add a archetype implementation to the builder.
@@ -157,10 +154,7 @@ mod tests {
 
         assert!(matches!(
             result,
-            Err(BlocksError::DuplicateRegistration {
-                component: "archetype",
-                ..
-            })
+            Err(BlocksError::DuplicateRegistration { component: "archetype", .. })
         ));
     }
 
@@ -194,12 +188,8 @@ mod tests {
             "http_server": null
         }))
         .unwrap();
-        let result = resolver
-            .resolve("missing", context, json!({}));
+        let result = resolver.resolve("missing", context, json!({}));
 
-        assert!(matches!(
-            result,
-            Err(BlocksError::UnknownArchetype(_))
-        ));
+        assert!(matches!(result, Err(BlocksError::UnknownArchetype(_))));
     }
 }

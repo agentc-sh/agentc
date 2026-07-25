@@ -19,30 +19,8 @@ use agentc_agent::{
 
 use crate::{
     graph::state::ReActState,
-    types::{context_var::ContextVar, message::Message, model::ModelOverride as ModelOverrideData},
+    types::{context_var::ContextVar, message::Message, model::ModelConfig as ReActModelConfig},
 };
-
-/// An extractor for the model override from the agent state.
-pub struct ModelOverride(pub Option<ModelOverrideData>);
-
-impl ModelOverride {
-    pub fn as_inner(&self) -> Option<&ModelOverrideData> {
-        self.0.as_ref()
-    }
-
-    pub fn into_inner(self) -> Option<ModelOverrideData> {
-        self.0
-    }
-}
-
-impl<N> FromRuntimeContext<N> for ModelOverride
-where
-    N: GraphNode<State = ReActState>,
-{
-    fn from_rtx(rtx: &RuntimeContext<N>) -> Result<Self, GraphError> {
-        Ok(ModelOverride(rtx.state.model_override.clone()))
-    }
-}
 
 /// An extractor for the messages from the agent state.
 pub struct Messages(pub Vec<Message>);
@@ -88,6 +66,28 @@ where
     }
 }
 
+/// An extractor for the model configuration from the agent state.
+pub struct ModelConfig(pub Option<ReActModelConfig>);
+
+impl ModelConfig {
+    pub fn as_inner(&self) -> Option<&ReActModelConfig> {
+        self.0.as_ref()
+    }
+
+    pub fn into_inner(self) -> Option<ReActModelConfig> {
+        self.0
+    }
+}
+
+impl<N> FromRuntimeContext<N> for ModelConfig
+where
+    N: GraphNode<State = ReActState>,
+{
+    fn from_rtx(rtx: &RuntimeContext<N>) -> Result<Self, GraphError> {
+        Ok(ModelConfig(rtx.state.model.clone()))
+    }
+}
+
 /// An extractor for the model client from the agent context based on
 /// the default model or the override in the state.
 pub struct Model(pub Arc<dyn CompletionModel>);
@@ -109,16 +109,20 @@ where
     M: Send + Clone + 'static,
 {
     fn from_rtx(rtx: &RuntimeContext<N>) -> Result<Self, GraphError> {
-        let model_override = ModelOverride::from_rtx(rtx)?.into_inner();
-
-        let provider = model_override
+        let provider = rtx
+            .state
+            .model
             .as_ref()
-            .and_then(|o| o.provider.clone())
+            .and_then(|config| config.r#override.as_ref())
+            .and_then(|config| config.provider.clone())
             .unwrap_or_else(|| rtx.ctx.identity.provider.clone());
 
-        let model_name = model_override
+        let model_name = rtx
+            .state
+            .model
             .as_ref()
-            .and_then(|o| o.model.clone())
+            .and_then(|config| config.r#override.as_ref())
+            .and_then(|config| config.model.clone())
             .unwrap_or_else(|| rtx.ctx.identity.model.clone());
 
         match rtx
@@ -127,7 +131,7 @@ where
             .provider(provider)
             .model(model_name)
         {
-            Ok(m) => Ok(Model(m)),
+            Ok(model) => Ok(Model(model)),
             Err(e) => Err(GraphError::execution_error(e)),
         }
     }

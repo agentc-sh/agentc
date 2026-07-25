@@ -7,7 +7,9 @@ use std::path::PathBuf;
 use serde::Serialize;
 
 use crate::generator::{
-    context::GenerationContext, errors::GeneratorError, extension::ExtensionRegistry,
+    context::GenerationContext,
+    errors::GeneratorError,
+    extension::{ErasedContributionValue, ExtensionRegistry},
 };
 
 pub trait TemplateFragment<T>: Send + Sync
@@ -26,5 +28,5 @@ where
         &self,
         ctx: &GenerationContext<T>,
         point: &str,
-    ) -> Result<String, GeneratorError>;
+    ) -> Result<ErasedContributionValue, GeneratorError>;
 }

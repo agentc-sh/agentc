@@ -210,7 +210,12 @@ impl From<ComposeStepEvent> for BuildEvent {
                 graph_name,
                 protocol_names,
                 block_count,
-            } => BuildEvent::Composed { archetype_name, graph_name, protocol_names, block_count },
+            } => BuildEvent::Composed {
+                archetype_name,
+                graph_name,
+                protocol_names,
+                block_count,
+            },
         }
     }
 }

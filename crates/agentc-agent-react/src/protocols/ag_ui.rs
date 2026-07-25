@@ -35,13 +35,7 @@ use agentc_protocol_ag_ui::{
         },
         tool::{FunctionCall, ToolCall},
     },
-    traits::{
-        AgUiRunCancel,
-        AgUiRunStream,
-        AgUiService,
-        FromAgUiType,
-        ToAgUiType,
-    },
+    traits::{AgUiRunCancel, AgUiRunStream, AgUiService, FromAgUiType, ToAgUiType},
 };
 
 use crate::{
@@ -518,7 +512,8 @@ impl ToAgUiType<Event> for RunEvent {
                     timestamp: Some(timestamp),
                     raw_event: None,
                 },
-                delta: delta.context
+                delta: delta
+                    .context
                     .into_iter()
                     .filter_map(|operation| to_value(operation).ok())
                     .collect(),
@@ -660,11 +655,11 @@ impl AgUiService for ApplicationService {
             .run(
                 RunParams::new(&tenant_id, input.thread_id)
                     .with_run_id(run_id)
-                    .maybe_with_model_override(
+                    .maybe_with_model(
                         input
                             .forwarded_props
                             .as_object()
-                            .and_then(|props| props.get("model_override"))
+                            .and_then(|props| props.get("model"))
                             .and_then(|v| from_value(v.clone()).ok()),
                     )
                     .maybe_with_capability_override(
@@ -738,13 +733,15 @@ impl AgUiService for ApplicationService {
             )
             .await?;
 
-        Ok(
-            AgUiRunStream::new(Box::pin(stream.map(|event| event.to_ag_ui_type()).map_err(Into::into)))
-                .with_cancel(ApplicationServiceAgUiCancel {
-                    service: self.clone(),
-                    tenant_id,
-                    run_id: run_id.into(),
-                }),
-        )
+        Ok(AgUiRunStream::new(Box::pin(
+            stream
+                .map(|event| event.to_ag_ui_type())
+                .map_err(Into::into),
+        ))
+        .with_cancel(ApplicationServiceAgUiCancel {
+            service: self.clone(),
+            tenant_id,
+            run_id: run_id.into(),
+        }))
     }
 }

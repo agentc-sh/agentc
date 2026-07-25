@@ -17,7 +17,11 @@ use agentc_model::types::inference::InferenceParams;
 use crate::{
     api::dto::v1::message::{CreateMessageRequestDTO, MessageResponseDTO},
     service::types::run::{FindRunParams, RunEvent, RunParams, RunResponse},
-    types::{context_var::ContextVar, event::ReasoningSignatureSubtype, model::ModelOverride},
+    types::{
+        context_var::ContextVar,
+        event::ReasoningSignatureSubtype,
+        model::{ModelConfig, ModelConfigOverride, ModelConfigRetry},
+    },
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -96,14 +100,50 @@ impl InferenceParamsDTO {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Validate, ToSchema)]
-pub struct ModelOverrideDTO {
+pub struct ModelConfigDTO {
+    #[serde(rename = "override")]
+    pub r#override: Option<ModelConfigOverrideDTO>,
+    pub timeout: Option<u64>,
+    pub retry: Option<ModelConfigRetryDTO>,
+}
+
+impl ModelConfigDTO {
+    pub fn from_response(response: ModelConfig) -> Self {
+        Self {
+            r#override: response
+                .r#override
+                .map(ModelConfigOverrideDTO::from_response),
+            timeout: response.timeout,
+            retry: response
+                .retry
+                .map(ModelConfigRetryDTO::from_response),
+        }
+    }
+
+    pub fn to_params(&self) -> ModelConfig {
+        ModelConfig {
+            r#override: self
+                .r#override
+                .as_ref()
+                .map(ModelConfigOverrideDTO::to_params),
+            timeout: self.timeout,
+            retry: self
+                .retry
+                .as_ref()
+                .map(ModelConfigRetryDTO::to_params),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Validate, ToSchema)]
+pub struct ModelConfigOverrideDTO {
     pub provider: Option<String>,
     pub model: Option<String>,
     pub inference_params: Option<InferenceParamsDTO>,
 }
 
-impl ModelOverrideDTO {
-    pub fn from_response(response: ModelOverride) -> Self {
+impl ModelConfigOverrideDTO {
+    pub fn from_response(response: ModelConfigOverride) -> Self {
         Self {
             provider: response.provider,
             model: response.model,
@@ -113,14 +153,39 @@ impl ModelOverrideDTO {
         }
     }
 
-    pub fn to_params(&self) -> ModelOverride {
-        ModelOverride {
+    pub fn to_params(&self) -> ModelConfigOverride {
+        ModelConfigOverride {
             provider: self.provider.clone(),
             model: self.model.clone(),
             inference_params: self
                 .inference_params
                 .as_ref()
                 .map(InferenceParamsDTO::to_params),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Validate, ToSchema)]
+pub struct ModelConfigRetryDTO {
+    pub max_attempts: u32,
+    pub initial_backoff: u64,
+    pub max_backoff: u64,
+}
+
+impl ModelConfigRetryDTO {
+    pub fn from_response(response: ModelConfigRetry) -> Self {
+        Self {
+            max_attempts: response.max_attempts,
+            initial_backoff: response.initial_backoff,
+            max_backoff: response.max_backoff,
+        }
+    }
+
+    pub fn to_params(&self) -> ModelConfigRetry {
+        ModelConfigRetry {
+            max_attempts: self.max_attempts,
+            initial_backoff: self.initial_backoff,
+            max_backoff: self.max_backoff,
         }
     }
 }
@@ -226,7 +291,7 @@ pub struct CreateRunRequestDTO {
     pub resume_payload: Option<Value>,
     #[validate(nested)]
     #[serde(default)]
-    pub model_override: Option<ModelOverrideDTO>,
+    pub model: Option<ModelConfigDTO>,
     #[serde(default)]
     pub capability_override: Option<CapabilityOverrideDTO>,
     #[validate(length(min = 1))]
@@ -250,8 +315,8 @@ impl CreateRunRequestDTO {
             run_id: self.run_id,
             checkpoint_id: self.checkpoint_id,
             resume_payload: self.resume_payload.clone(),
-            model_override: self
-                .model_override
+            model: self
+                .model
                 .as_ref()
                 .map(|m| m.to_params()),
             capability_override: self
@@ -276,6 +341,76 @@ impl CreateRunRequestDTO {
             context: self.context.clone(),
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Validate, ToSchema)]
+pub struct StartRunRequestDTO {
+    #[serde(default = "Uuid::new_v4")]
+    pub session_id: Uuid,
+    #[serde(default = "Uuid::new_v4")]
+    pub run_id: Uuid,
+    #[serde(default)]
+    pub checkpoint_id: Option<Uuid>,
+    #[serde(default)]
+    pub resume_payload: Option<Value>,
+    #[validate(nested)]
+    #[serde(default)]
+    pub model: Option<ModelConfigDTO>,
+    #[serde(default)]
+    pub capability_override: Option<CapabilityOverrideDTO>,
+    #[validate(length(min = 1))]
+    #[serde(default)]
+    pub messages: Vec<CreateMessageRequestDTO>,
+    #[validate(nested)]
+    #[serde(default)]
+    pub context_vars: Vec<ContextVarDTO>,
+    #[serde(default)]
+    pub context: Option<Value>,
+    #[validate(nested)]
+    #[serde(default)]
+    pub tools: Vec<ToolDefinitionDTO>,
+}
+
+impl StartRunRequestDTO {
+    pub fn to_params(&self, tenant_id: impl Into<String>) -> RunParams {
+        RunParams {
+            tenant_id: tenant_id.into(),
+            session_id: self.session_id,
+            run_id: self.run_id,
+            checkpoint_id: self.checkpoint_id,
+            resume_payload: self.resume_payload.clone(),
+            model: self
+                .model
+                .as_ref()
+                .map(|m| m.to_params()),
+            capability_override: self
+                .capability_override
+                .as_ref()
+                .map(|c| c.to_params()),
+            messages: self
+                .messages
+                .iter()
+                .map(|m| m.to_params())
+                .collect(),
+            context_vars: self
+                .context_vars
+                .iter()
+                .map(|c| c.to_params())
+                .collect(),
+            tools: self
+                .tools
+                .iter()
+                .map(|t| t.to_params())
+                .collect(),
+            context: self.context.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct StartRunResponseDTO {
+    pub run_id: Uuid,
+    pub session_id: Uuid,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -339,7 +474,7 @@ impl FindRunEndpointParams {
 // pub struct StateResponseDTO {
 //     pub run_id: Uuid,
 //     pub session_id: Uuid,
-//     pub model_override: Option<ModelOverrideDTO>,
+//     pub model: Option<ModelConfigDTO>,
 //     pub capability_override: Option<CapabilityOverrideDTO>,
 //     pub messages: Vec<MessageResponseDTO>,
 //     pub context_vars: Vec<ContextVarDTO>,
@@ -352,7 +487,7 @@ impl FindRunEndpointParams {
 //         Self {
 //             run_id: response.run_id,
 //             session_id: response.session_id,
-//             model_override: response.model_override.map(ModelOverrideDTO::from_response),
+//             model: response.model.map(ModelConfigDTO::from_response),
 //             capability_override: response.capability_override.map(CapabilityOverrideDTO::from_response),
 //             messages: response.messages
 //                 .into_iter()

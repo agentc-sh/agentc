@@ -16,7 +16,7 @@ by resource on their own pages.
 
 - [Sessions](/reference/graph/react/http/sessions): create, find, read, and delete sessions.
 - [Messages](/reference/graph/react/http/messages): create, find, read, and delete messages.
-- [Runs](/reference/graph/react/http/runs): create runs and stream their events, and read run history.
+- [Runs](/reference/graph/react/http/runs): start, stream, cancel, reattach to, list, and read runs.
 - [Types](/reference/graph/react/http/types): the named object types shared across the endpoints.
 
 ## Conventions
@@ -94,6 +94,15 @@ distinct causes, validation errors start at `422000`, and internal server errors
 
 ### Server-Sent Events
 
-Run creation streams its result as Server-Sent Events. Each event is a text frame with an `event`
-line naming the event kind and a `data` line carrying the JSON payload. An empty line separates
-consecutive events. The event kinds are documented under [Runs](/reference/graph/react/http/runs).
+The attached run endpoint, `POST /v1/runs`, streams run events as Server-Sent Events while it starts
+and executes the run. The reattach endpoint, `GET /v1/runs/{run_id}/events`, opens a new Server-Sent
+Events stream to a run that is already executing.
+
+Each event is a text frame with an `event` line naming the event kind and a `data` line carrying the
+JSON payload. An empty line separates consecutive events. The event kinds are documented under
+[Runs](/reference/graph/react/http/runs).
+
+Disconnect behavior depends on the endpoint. Dropping the original `POST /v1/runs` stream cancels the
+attached run. Dropping a `GET /v1/runs/{run_id}/events` stream only closes that observer; it does not
+cancel the run. Reattach streams are live-only and do not replay events produced before the stream was
+opened.

@@ -110,7 +110,7 @@ where
         match self
             .tool
             .execute(
-                TypedToolInput::new(typed_args)
+                TypedToolInput::new(typed_args, input.context)
                     .maybe_with_activity_emitter(input.emitter)
                     .maybe_with_state(input.state),
             )
@@ -181,6 +181,7 @@ where
             .tool
             .execute(ToolInput {
                 args: input.args,
+                context: input.context,
                 emitter: input.emitter,
                 state: typed_state,
             })
@@ -264,6 +265,10 @@ where
         &self,
         input: TypedToolInput<Self::Input, Self::State>,
     ) -> Result<TypedToolOutput<O, SU>, ToolError> {
-        (self.f)(TypedToolInput::new(input.args).maybe_with_activity_emitter(input.emitter)).await
+        (self.f)(
+            TypedToolInput::new(input.args, input.context)
+                .maybe_with_activity_emitter(input.emitter),
+        )
+        .await
     }
 }

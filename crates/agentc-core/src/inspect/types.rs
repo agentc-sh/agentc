@@ -144,7 +144,12 @@ impl From<ComposeStepEvent> for InspectEvent {
                 graph_name,
                 protocol_names,
                 block_count,
-            } => InspectEvent::Composed { archetype_name, graph_name, protocol_names, block_count },
+            } => InspectEvent::Composed {
+                archetype_name,
+                graph_name,
+                protocol_names,
+                block_count,
+            },
         }
     }
 }

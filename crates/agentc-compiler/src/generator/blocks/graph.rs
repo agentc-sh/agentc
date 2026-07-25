@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 use serde::Serialize;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use crate::generator::{blocks::traits::Block, errors::GeneratorError};
 
@@ -26,12 +26,23 @@ where
     /// Validate the block graph.
     pub fn validate(&self) -> Result<(), GeneratorError> {
         let mut seen_blocks = HashSet::new();
-        let declared_extension_points = self
-            .blocks
-            .iter()
-            .flat_map(|block| block.extension_points())
-            .map(|point| point.name().to_string())
-            .collect::<HashSet<_>>();
+        let mut declared_extension_points = HashMap::new();
+
+        for block in &self.blocks {
+            for point in block.extension_points() {
+                let name = point.name().to_string();
+
+                if declared_extension_points
+                    .insert(
+                        name.clone(),
+                        (point.contribution_type(), point.contribution_type_name()),
+                    )
+                    .is_some()
+                {
+                    return Err(GeneratorError::DuplicateExtensionPoint { point: name });
+                }
+            }
+        }
 
         for block in &self.blocks {
             if !seen_blocks.insert(block.id()) {
@@ -39,7 +50,18 @@ where
             }
 
             for contribution in block.contributions() {
-                if contribution.strict && !declared_extension_points.contains(&contribution.point) {
+                if let Some((expected_type, expected_name)) =
+                    declared_extension_points.get(&contribution.point)
+                {
+                    if *expected_type != contribution.contribution_type {
+                        return Err(GeneratorError::ExtensionPointTypeMismatch {
+                            block_id: block.id().to_string(),
+                            point: contribution.point.clone(),
+                            expected: expected_name,
+                            actual: contribution.contribution_type_name,
+                        });
+                    }
+                } else if contribution.strict {
                     return Err(GeneratorError::UndeclaredExtensionPoint {
                         block_id: block.id().to_string(),
                         point: contribution.point.clone(),

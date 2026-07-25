@@ -56,7 +56,7 @@ impl<'a> StateSnapshotRepository for SqlStateSnapshotRepository<'a> {
                 models::state_snapshot::Column::TenantId,
             ])
             .update_columns([
-                models::state_snapshot::Column::ModelOverride,
+                models::state_snapshot::Column::Model,
                 models::state_snapshot::Column::CapabilityOverride,
                 models::state_snapshot::Column::Tools,
                 models::state_snapshot::Column::ContextVars,

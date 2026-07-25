@@ -58,6 +58,11 @@ tool "adder" {
   capabilities = ["math"]
 }
 
+tool "planner" {
+  kind = "a2a"
+  url  = runtime("PLANNER_A2A_URL", "https://planner.example.com")
+}
+
 skill "arithmetic" {
   source = "./skills/arithmetic"
 }
@@ -86,6 +91,6 @@ values, see [The manifest](/concepts/the-manifest).
 | [providers](/reference/manifest/providers) | Model providers and their connection and inference configuration. |
 | [agent](/reference/manifest/agent) | The agent's identity, graph, model, prompt, and capabilities. |
 | [graph](/reference/manifest/graph) | The graph selection inside the agent. |
-| [tool](/reference/manifest/tool) | A tool the agent can call. |
+| [tool](/reference/manifest/tool) | A tool the agent can call, including local tools, MCP servers, and A2A delegation targets. |
 | [skill](/reference/manifest/skill) | A skill that shapes the agent's judgement. |
 | [http_server](/reference/manifest/http-server) | The network interface and mounted protocols. |

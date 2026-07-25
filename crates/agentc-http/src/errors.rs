@@ -2,14 +2,14 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::fmt::{Display, Formatter, Result as FmtResult};
 use anyhow::Error;
 use axum::extract::{
     path::ErrorKind,
-    rejection::{JsonRejection, PathRejection, QueryRejection},
+    rejection::{BytesRejection, FailedToBufferBody, JsonRejection, PathRejection, QueryRejection},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::to_value;
+use std::fmt::{Display, Formatter, Result as FmtResult};
 use validator::{ValidationError, ValidationErrors, ValidationErrorsKind};
 
 use crate::dto::errors::{
@@ -123,6 +123,14 @@ impl ApiError {
         Self::new(404000, message)
     }
 
+    pub fn conflict(message: impl Into<String>) -> Self {
+        Self::new(409000, message)
+    }
+
+    pub fn request_body_too_large(message: impl Into<String>) -> Self {
+        Self::new(413000, message)
+    }
+
     pub fn not_implemented() -> Self {
         Self::new(500001, "Not implemented")
     }
@@ -162,6 +170,9 @@ impl From<JsonRejection> for ApiError {
             JsonRejection::MissingJsonContentType(_) => {
                 ApiError::invalid_content_type("Missing JSON content type")
             }
+            JsonRejection::BytesRejection(BytesRejection::FailedToBufferBody(
+                FailedToBufferBody::LengthLimitError(_),
+            )) => ApiError::request_body_too_large("Request body too large"),
             _ => ApiError::bad_request("Unexpected JSON rejection"),
         }
     }
@@ -219,12 +230,12 @@ impl From<QueryRejection> for ApiError {
 impl Display for ApiError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
-            ApiError::Generic { code, message } => write!(f, "ApiError (code {}): {}", code, message),
-            ApiError::Validation { code, errors } => write!(
-                f,
-                "ApiError (code {}): Validation errors: {:?}",
-                code, errors
-            ),
+            ApiError::Generic { code, message } => {
+                write!(f, "ApiError (code {}): {}", code, message)
+            }
+            ApiError::Validation { code, errors } => {
+                write!(f, "ApiError (code {}): Validation errors: {:?}", code, errors)
+            }
         }
     }
 }

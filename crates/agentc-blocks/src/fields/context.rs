@@ -22,6 +22,7 @@ impl IntoFieldSpecs for ResolvedContext {
                 ResolvedContextProvider::OpenRouter(p) => fields.extend_from(p),
                 ResolvedContextProvider::Xai(p) => fields.extend_from(p),
                 ResolvedContextProvider::Gemini(p) => fields.extend_from(p),
+                ResolvedContextProvider::HuggingFace(p) => fields.extend_from(p),
             }
         }
 

@@ -13,6 +13,20 @@ pub mod metrics {
     };
 }
 
+/// Semantic-convention attribute keys and metric names.
+pub mod semconv {
+    pub use opentelemetry_semantic_conventions::*;
+
+    /// `gen_ai.execute_tool` operation duration metric name.
+    pub const GEN_AI_EXECUTE_TOOL_DURATION: &str = "gen_ai.execute_tool.duration";
+
+    /// `gen_ai.invoke_agent` operation duration metric name.
+    pub const GEN_AI_INVOKE_AGENT_DURATION: &str = "gen_ai.invoke_agent.duration";
+
+    /// `gen_ai.invoke_workflow` operation duration metric name.
+    pub const GEN_AI_WORKFLOW_DURATION: &str = "gen_ai.workflow.duration";
+}
+
 use anyhow::Result;
 use opentelemetry::{KeyValue, global, trace::TracerProvider};
 use opentelemetry_otlp::WithExportConfig;
@@ -22,7 +36,6 @@ use opentelemetry_sdk::{
     metrics::{PeriodicReader, SdkMeterProvider},
     trace::SdkTracerProvider,
 };
-use opentelemetry_semantic_conventions as semconv;
 use std::{
     fmt::{Debug, Display, Formatter, Result as FmtResult},
     sync::{
@@ -40,7 +53,8 @@ use tracing_subscriber::{
 };
 
 pub use tracing::{
-    Level, Span, debug, error, event, info, instrument, level_filters::LevelFilter, trace, warn,
+    Instrument, Level, Span, debug, error, event, field, info, info_span, instrument,
+    level_filters::LevelFilter, trace, warn,
 };
 
 /// A [`tracing_subscriber::Layer`] that can be dynamically disabled at runtime.

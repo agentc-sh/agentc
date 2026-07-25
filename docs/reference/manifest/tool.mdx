@@ -21,7 +21,7 @@ These fields apply to all tool kinds.
 
 | Field | Type | Required | runtime() | Description |
 |-------|------|----------|-----------|-------------|
-| `kind` | string | yes | no | Tool type. One of `"javascript"`, `"python"`, `"bash"`, `"mcp"`. |
+| `kind` | string | yes | no | Tool type. One of `"javascript"`, `"python"`, `"bash"`, `"mcp"`, `"a2a"`. |
 | `description` | string | no | no | Human-readable description of what the tool does. |
 | `capabilities` | list of strings | no | no | Capability tags required to invoke this tool. See [Tools and capabilities](/concepts/tools-and-capabilities). |
 | `enabled` | bool | no | yes | Whether the tool is registered at startup. Defaults to `true`. |
@@ -55,7 +55,8 @@ See [Write a tool](/guides/write-a-tool) for how to write the tool source.
 ## python
 
 A Python tool is a `uv`-managed Python package. Dependencies are installed at compile time and
-the package source and `site-packages` are embedded in the binary.
+the package source and `site-packages` are embedded in the binary. The selected interpreter
+determines whether the embedded package runs through RustPython or CPython.
 
 ```hcl
 tool "weather" {
@@ -69,7 +70,7 @@ tool "weather" {
 | Field | Type | Required | runtime() | Description |
 |-------|------|----------|-----------|-------------|
 | `source` | string | yes | no | Path to the tool's directory, relative to the manifest. Must contain a `pyproject.toml`. |
-| `interpreter` | string | no | no | Python runtime backend. `"embedded"` (default) uses RustPython and supports pure-Python packages only. `"static"` (CPython via PyO3) is accepted but not yet implemented. |
+| `interpreter` | string | no | no | Python runtime backend. `"embedded"` (default) uses RustPython, supports pure-Python packages, and produces a self-contained binary. `"static"` uses CPython 3.14 and supports packages with C extensions, but requires a compatible shared CPython installation and `libpython` available at runtime. |
 
 See [Write a tool](/guides/write-a-tool) for how to write the tool source.
 
@@ -186,3 +187,94 @@ tool "remote_tools" {
 
 See [Connect external tools via MCP](/guides/connect-external-tools-via-mcp) for more on Model
 Context Protocol integration.
+
+## a2a
+
+An A2A tool delegates work to another agent through the Agent2Agent protocol. Each configured target
+is a fixed downstream server, not a model-visible arbitrary URL. Every A2A target registers the same
+four operation tools:
+
+- `a2a_{target_id}_send`
+- `a2a_{target_id}_stream`
+- `a2a_{target_id}_get_task`
+- `a2a_{target_id}_cancel_task`
+
+```hcl
+tool "planner" {
+  kind        = "a2a"
+  description = "Delegate planning subtasks to the planning agent."
+  url         = runtime("PLANNER_A2A_URL", "https://planner.example.com")
+  auth_token  = secret(runtime("PLANNER_A2A_TOKEN"))
+
+  headers = {
+    "X-Client-ID" = runtime("PLANNER_CLIENT_ID", "assistant")
+  }
+
+  tenant = {
+    policy = "inherit"
+  }
+
+  timeout_secs                  = runtime("PLANNER_A2A_TIMEOUT", 90)
+  default_accepted_output_modes = ["text/plain"]
+  capabilities                  = ["a2a::planner"]
+  enabled                       = runtime("PLANNER_A2A_ENABLED", true)
+}
+```
+
+| Field | Type | Required | runtime() | Description |
+|-------|------|----------|-----------|-------------|
+| `url` | string | yes | yes | Base URL of the downstream A2A server. |
+| `auth_token` | string | no | yes | Bearer token sent in the `Authorization` header. Use `secret(runtime(...))`. |
+| `headers` | map | no | yes | Additional HTTP headers sent with every request. Each value may be a `runtime()` expression. |
+| `tenant` | block | no | yes, for fixed IDs | Tenant policy for the downstream request. Defaults to `inherit`. |
+| `timeout_secs` | integer | no | yes | Request timeout in seconds. |
+| `default_accepted_output_modes` | list of strings | no | no | Output modes used when a tool call does not provide its own accepted modes. |
+
+There is no operation-selection field. Every target always gets send, stream, get-task, and
+cancel-task tools.
+
+### tenant block
+
+The `tenant` block controls the `X-Tenant-Id` value sent to the downstream A2A server.
+
+```hcl
+tenant = {
+  policy = "inherit"
+}
+```
+
+| Field | Type | Required | runtime() | Description |
+|-------|------|----------|-----------|-------------|
+| `policy` | string | yes | no | One of `"inherit"`, `"fixed"`, or `"none"`. |
+| `id` | string | required for `fixed` | yes | Tenant ID sent when `policy = "fixed"`. |
+
+`inherit` forwards the effective tenant from the parent run. `fixed` sends the configured `id`.
+`none` omits the A2A tenant header.
+
+### Stream activity
+
+The stream operation emits stateless activity deltas while the downstream task runs. These deltas are
+A2A-specific and are delivered through the normal tool activity event channel.
+
+Activity types are:
+
+- `a2a_task`
+- `a2a_task_status`
+- `a2a_artifact`
+- `a2a_message`
+
+The accumulated activity state has this shape:
+
+```json
+{
+  "target_id": "planner",
+  "task_id": "task-123",
+  "context_id": "ctx-123",
+  "state": "TASK_STATE_WORKING",
+  "latest_message": "Drafting plan.",
+  "artifacts": []
+}
+```
+
+See [Connect agents via A2A](/guides/connect-agents-via-a2a) for a complete guide to outbound A2A
+delegation.

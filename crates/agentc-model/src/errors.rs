@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
+use std::time::Duration;
 use thiserror::Error;
 
 use crate::types::identity::{ModelId, ProviderId};
@@ -24,6 +25,24 @@ pub enum ModelError {
         message: String,
         #[source]
         source: Option<Box<dyn std::error::Error + Send + Sync>>,
+    },
+
+    /// A transient provider condition (rate limiting, overload, or a server
+    /// error) that may succeed if the request is retried.
+    #[error("provider '{provider}' transient error: {message}")]
+    Transient {
+        provider: ProviderId,
+        message: String,
+        retry_after: Option<Duration>,
+        #[source]
+        source: Option<Box<dyn std::error::Error + Send + Sync>>,
+    },
+
+    /// The request handshake did not complete within the allotted time.
+    #[error("provider '{provider}' timed out after {elapsed:?}")]
+    Timeout {
+        provider: ProviderId,
+        elapsed: Duration,
     },
 
     /// An error in the client or factory configuration.
@@ -58,6 +77,22 @@ pub enum ModelError {
 }
 
 impl ModelError {
+    /// The short, bounded `error.type` value for this error.
+    pub fn error_type(&self) -> &'static str {
+        match self {
+            Self::Provider { .. } => "provider",
+            Self::Stream { .. } => "stream",
+            Self::Transient { .. } => "transient",
+            Self::Timeout { .. } => "timeout",
+            Self::Configuration { .. } => "configuration",
+            Self::Serialization(_) => "serialization",
+            Self::InvalidRequest { .. } => "invalid_request",
+            Self::ModelNotAllowed { .. } => "model_not_allowed",
+            Self::UnsupportedFeature { .. } => "unsupported_feature",
+            Self::UnknownProvider { .. } => "unknown_provider",
+        }
+    }
+
     /// Creates a [`ModelError::Provider`] with an optional source error.
     pub fn provider<E>(
         provider: impl Into<ProviderId>,
@@ -82,6 +117,44 @@ impl ModelError {
         Self::Stream {
             message: message.into(),
             source: source.map(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>),
+        }
+    }
+
+    /// Creates a [`ModelError::Transient`] with an optional retry-after hint and
+    /// source error.
+    pub fn transient<E>(
+        provider: impl Into<ProviderId>,
+        message: impl Into<String>,
+        retry_after: Option<Duration>,
+        source: Option<E>,
+    ) -> Self
+    where
+        E: std::error::Error + Send + Sync + 'static,
+    {
+        Self::Transient {
+            provider: provider.into(),
+            message: message.into(),
+            retry_after,
+            source: source.map(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>),
+        }
+    }
+
+    /// Creates a [`ModelError::Timeout`].
+    pub fn timeout(provider: impl Into<ProviderId>, elapsed: Duration) -> Self {
+        Self::Timeout { provider: provider.into(), elapsed }
+    }
+
+    /// Whether this error may succeed if the handshake is retried. True for
+    /// transient provider conditions and handshake timeouts.
+    pub fn is_transient(&self) -> bool {
+        matches!(self, Self::Transient { .. } | Self::Timeout { .. })
+    }
+
+    /// A provider-supplied hint for how long to wait before retrying, when present.
+    pub fn retry_after(&self) -> Option<Duration> {
+        match self {
+            Self::Transient { retry_after, .. } => *retry_after,
+            _ => None,
         }
     }
 
@@ -118,4 +191,10 @@ impl ModelError {
     pub fn unknown_provider(provider: impl Into<ProviderId>) -> Self {
         Self::UnknownProvider { provider: provider.into() }
     }
+}
+
+/// Conversion from a provider library's error into a [`ModelError`] for a given
+/// provider, classifying retryable conditions as [`ModelError::Transient`].
+pub trait IntoModelError {
+    fn into_model_error(self, provider: impl Into<ProviderId>) -> ModelError;
 }

@@ -23,9 +23,14 @@ session. The runtime persists both, so a client can return later and inspect his
 to replay the original request immediately. Messages are persisted separately from run state, so a
 client can read conversation history outside of an active run.
 
+Runs can be started in attached mode, where the starting request streams events until the run finishes,
+or detached mode, where the server returns the run and session IDs and keeps executing the run in the
+background. Active runs can also be observed through a live reattach stream. Reattachment does not
+replay earlier events; persisted run and message history remain available through the read endpoints.
+
 ## Reference in this section
 
-- [HTTP reference](/reference/graph/react/http): the native `/v1` endpoints for sessions, messages, and runs, plus the run event stream.
+- [HTTP reference](/reference/graph/react/http): the native `/v1` endpoints for sessions, messages, runs, and live run event streams.
 - [Prompt templates](/reference/graph/react/prompt-templates): the variables the ReAct graph injects into the system prompt.
 - [State](/reference/graph/react/state): the run state structure, how tools update it, and what clients can see.
 

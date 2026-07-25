@@ -63,10 +63,7 @@ pub struct GraphResolverBuilder {
 
 impl GraphResolverBuilder {
     pub fn new() -> Self {
-        Self {
-            error: None,
-            graphs: HashMap::new(),
-        }
+        Self { error: None, graphs: HashMap::new() }
     }
 
     pub fn with_graph<T>(mut self, graph: T) -> Self
@@ -176,10 +173,7 @@ mod tests {
 
         assert!(matches!(
             result,
-            Err(BlocksError::DuplicateRegistration {
-                component: "graph",
-                ..
-            })
+            Err(BlocksError::DuplicateRegistration { component: "graph", .. })
         ));
     }
 
@@ -190,8 +184,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let result = resolver
-            .resolve("missing", context(), json!({}));
+        let result = resolver.resolve("missing", context(), json!({}));
 
         assert!(matches!(result, Err(BlocksError::UnknownGraph(_))));
     }

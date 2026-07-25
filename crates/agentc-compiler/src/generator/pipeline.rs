@@ -3,12 +3,13 @@
 // SPDX-License-Identifier: MIT
 
 use serde::Serialize;
+use std::collections::HashMap;
 
 use crate::generator::{
     blocks::{Block, BlockGraph},
     context::GenerationContext,
     errors::GeneratorError,
-    extension::ExtensionRegistry,
+    extension::{ErasedContributionValue, ExtensionRegistry},
     vfs::VirtualFileSystem,
 };
 
@@ -32,8 +33,9 @@ where
 
     /// Generate the output files based on the provided blocks and context.
     pub async fn generate(self) -> Result<VirtualFileSystem, GeneratorError> {
+        let mut contributions = HashMap::<String, Vec<ErasedContributionValue>>::new();
         let graph = BlockGraph::try_from(self.blocks)?;
-        let mut points = graph
+        let points = graph
             .blocks()
             .iter()
             .flat_map(|block| block.extension_points())
@@ -41,20 +43,23 @@ where
 
         for block in graph.blocks() {
             for contribution in block.contributions() {
-                if let Some(point) = points
-                    .iter_mut()
-                    .find(|point| point.name() == contribution.point)
+                if points
+                    .iter()
+                    .any(|point| point.name() == contribution.point)
                 {
-                    point.contribute(
-                        block
-                            .render_contribution(&self.ctx, &contribution.point)
-                            .await?,
-                    );
+                    contributions
+                        .entry(contribution.point.clone())
+                        .or_default()
+                        .push(
+                            block
+                                .render_contribution(&self.ctx, &contribution.point)
+                                .await?,
+                        );
                 }
             }
         }
 
-        let registry = ExtensionRegistry::resolve(points);
+        let registry = ExtensionRegistry::resolve(points, contributions)?;
         let mut vfs = VirtualFileSystem::new();
 
         for block in graph.blocks() {
@@ -142,7 +147,10 @@ mod tests {
         blocks::Block,
         context::GenerationContext,
         errors::GeneratorError,
-        extension::{Contribution, ExtensionPoint, ExtensionRegistry, reducers},
+        extension::{
+            Contribution, ErasedContribution, ErasedContributionValue, ErasedExtensionPoint,
+            ExtensionRegistry, StringExtensionPoint, reducers,
+        },
         pipeline::Generator,
         vfs::VirtualFileSystem,
     };
@@ -178,8 +186,11 @@ mod tests {
             "declarer"
         }
 
-        fn extension_points(&self) -> Vec<ExtensionPoint> {
-            vec![ExtensionPoint::new("hook", reducers::concat)]
+        fn extension_points(&self) -> Vec<Box<dyn ErasedExtensionPoint>> {
+            vec![Box::new(StringExtensionPoint::new(
+                "hook",
+                reducers::concat,
+            ))]
         }
 
         async fn render(
@@ -205,18 +216,18 @@ mod tests {
             "contributor"
         }
 
-        fn contributions(&self) -> Vec<Contribution> {
-            vec![Contribution::strict("hook")]
+        fn contributions(&self) -> Vec<ErasedContribution> {
+            vec![Contribution::<String>::strict("hook").erase()]
         }
 
         async fn render_contribution(
             &self,
             ctx: &GenerationContext<Cfg>,
             _point: &str,
-        ) -> Result<String, GeneratorError> {
+        ) -> Result<ErasedContributionValue, GeneratorError> {
             self.tracker
                 .record("contributor:render_contribution");
-            Ok(format!("hello-from-{}", ctx.name))
+            Ok(ErasedContributionValue::new(format!("hello-from-{}", ctx.name,)))
         }
 
         async fn render(
@@ -272,8 +283,8 @@ mod tests {
             fn id(&self) -> &str {
                 "lenient"
             }
-            fn contributions(&self) -> Vec<Contribution> {
-                vec![Contribution::lenient("nonexistent")]
+            fn contributions(&self) -> Vec<ErasedContribution> {
+                vec![Contribution::<String>::lenient("nonexistent").erase()]
             }
             async fn render(
                 &self,
@@ -306,8 +317,8 @@ mod tests {
             fn id(&self) -> &str {
                 "strict"
             }
-            fn contributions(&self) -> Vec<Contribution> {
-                vec![Contribution::strict("nonexistent")]
+            fn contributions(&self) -> Vec<ErasedContribution> {
+                vec![Contribution::<String>::strict("nonexistent").erase()]
             }
             async fn render(
                 &self,
@@ -344,8 +355,11 @@ mod tests {
             fn id(&self) -> &str {
                 "declarer"
             }
-            fn extension_points(&self) -> Vec<ExtensionPoint> {
-                vec![ExtensionPoint::new("deps", reducers::concat)]
+            fn extension_points(&self) -> Vec<Box<dyn ErasedExtensionPoint>> {
+                vec![Box::new(StringExtensionPoint::new(
+                    "deps",
+                    reducers::concat,
+                ))]
             }
             async fn render(
                 &self,
@@ -369,15 +383,15 @@ mod tests {
             fn id(&self) -> &str {
                 "a"
             }
-            fn contributions(&self) -> Vec<Contribution> {
-                vec![Contribution::strict("deps")]
+            fn contributions(&self) -> Vec<ErasedContribution> {
+                vec![Contribution::<String>::strict("deps").erase()]
             }
             async fn render_contribution(
                 &self,
                 _ctx: &GenerationContext<Cfg>,
                 _point: &str,
-            ) -> Result<String, GeneratorError> {
-                Ok("tokio".into())
+            ) -> Result<ErasedContributionValue, GeneratorError> {
+                Ok(ErasedContributionValue::new("tokio".to_string()))
             }
             async fn render(
                 &self,
@@ -394,15 +408,15 @@ mod tests {
             fn id(&self) -> &str {
                 "b"
             }
-            fn contributions(&self) -> Vec<Contribution> {
-                vec![Contribution::strict("deps")]
+            fn contributions(&self) -> Vec<ErasedContribution> {
+                vec![Contribution::<String>::strict("deps").erase()]
             }
             async fn render_contribution(
                 &self,
                 _ctx: &GenerationContext<Cfg>,
                 _point: &str,
-            ) -> Result<String, GeneratorError> {
-                Ok("serde".into())
+            ) -> Result<ErasedContributionValue, GeneratorError> {
+                Ok(ErasedContributionValue::new("serde".to_string()))
             }
             async fn render(
                 &self,

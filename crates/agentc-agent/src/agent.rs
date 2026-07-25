@@ -2,8 +2,13 @@
 //
 // SPDX-License-Identifier: MIT
 
+#![allow(deprecated)]
+
 use anyhow::Result;
-use std::sync::Arc;
+use std::{
+    sync::{Arc, LazyLock},
+    time::Instant,
+};
 use uuid::Uuid;
 
 use agentc_model::registry::ModelRegistry;
@@ -12,6 +17,11 @@ use agentc_prompt::{
     counter::{CharApproxCounter, TokenCounter},
     env::PromptEnv,
     vars::TemplateVars,
+};
+use agentc_telemetry::{
+    Instrument, field, info_span,
+    metrics::{Histogram, KeyValue, meter},
+    semconv::{self, attribute},
 };
 
 use crate::{
@@ -29,6 +39,14 @@ use crate::{
     },
     types::{event::AgentEvent, identity::AgentIdentity, params::RunParams},
 };
+
+static INVOKE_AGENT_DURATION: LazyLock<Histogram<f64>> = LazyLock::new(|| {
+    meter("agentc-agent")
+        .f64_histogram(semconv::GEN_AI_INVOKE_AGENT_DURATION)
+        .with_unit("s")
+        .with_description("Duration of agent invocations.")
+        .build()
+});
 
 /// The agent runtime harness, which manages the execution of the agent graph and the flow of data.
 ///
@@ -79,10 +97,7 @@ where
     /// Run the agent with the given input, returning a self-driving stream of events that
     /// represent the execution. Polling the stream advances the run; dropping the stream
     /// before it ends drops the run and cancels it.
-    pub async fn run(
-        &self,
-        params: RunParams<InputOf<N>>,
-    ) -> Result<RunStream<E>, AgentError> {
+    pub async fn run(&self, params: RunParams<InputOf<N>>) -> Result<RunStream<E>, AgentError> {
         let (emitter, event_stream) = EventEmitter::<E>::new_pair();
         let graph = self.graph.clone();
         let session_id = params.session_id;
@@ -93,79 +108,99 @@ where
         let model_registry = self.model_registry.clone();
         let tool_registry = self.tool_registry.clone();
         let identity = self.identity.clone();
+        let agent_name = self.identity.name.clone();
         let prompt_env = self.prompt_env.clone();
         let token_counter = self.token_counter.clone();
         let compaction_strategy = self.compaction_strategy.clone();
         let template_vars = self.template_vars.clone();
 
-        Ok(
-            RunStream::builder()
-                .with_inner(event_stream)
-                .with_future(async move {
-                    emitter
-                        .emit(AgentEvent::run_started(session_id, run_id).into())
-                        .ok();
+        Ok(RunStream::builder()
+            .with_inner(event_stream)
+            .with_future(async move {
+                emitter
+                    .emit(AgentEvent::run_started(session_id, run_id).into())
+                    .ok();
 
-                    match graph
-                        .run(
-                            AgentContext {
-                                emitter: emitter.clone(),
-                                model_registry,
-                                tool_registry,
-                                identity,
-                                prompt_env,
-                                token_counter,
-                                compaction_strategy,
-                                session_id,
-                                run_id,
-                                tenant_id: tenant_id.clone(),
-                                template_vars,
-                            },
-                            params.input,
-                            SessionConfig {
-                                session_id,
-                                run_id,
-                                tenant_id,
-                                checkpoint_id,
-                                resume_payload,
-                            },
-                        )
-                        .await
-                    {
-                        Ok(result) => {
-                            emitter
-                                .emit(
-                                    AgentEvent::run_finished(
-                                        session_id,
-                                        run_id,
-                                        match &result {
-                                            RunOutcome::Completed(_) => RunStatus::Completed,
-                                            RunOutcome::Interrupted { .. } => RunStatus::Interrupted,
-                                            RunOutcome::Cancelled { .. } => RunStatus::Cancelled,
-                                        },
-                                        match &result {
-                                            RunOutcome::Completed(_) => None,
-                                            RunOutcome::Interrupted { payload, .. } => payload.clone(),
-                                            RunOutcome::Cancelled { .. } => None,
-                                        },
-                                        Some(result.into_state()),
-                                    )
-                                    .into(),
+                let span = info_span!(
+                    "invoke_agent",
+                    otel.name = %format!("invoke_agent {agent_name}"),
+                    otel.kind = "internal",
+                    gen_ai.operation.name = "invoke_agent",
+                    gen_ai.agent.name = %agent_name,
+                    gen_ai.conversation.id = %session_id,
+                    error.type = field::Empty,
+                );
+                let start = Instant::now();
+
+                let result = graph
+                    .run(
+                        AgentContext {
+                            emitter: emitter.clone(),
+                            model_registry,
+                            tool_registry,
+                            identity,
+                            prompt_env,
+                            token_counter,
+                            compaction_strategy,
+                            session_id,
+                            run_id,
+                            tenant_id: tenant_id.clone(),
+                            template_vars,
+                        },
+                        params.input,
+                        SessionConfig {
+                            session_id,
+                            run_id,
+                            tenant_id,
+                            checkpoint_id,
+                            resume_payload,
+                        },
+                    )
+                    .instrument(span.clone())
+                    .await;
+
+                let mut attributes = vec![KeyValue::new(attribute::GEN_AI_AGENT_NAME, agent_name)];
+                if let Err(error) = &result {
+                    span.record("error.type", error.error_type());
+                    attributes.push(KeyValue::new(attribute::ERROR_TYPE, error.error_type()));
+                }
+
+                INVOKE_AGENT_DURATION.record(start.elapsed().as_secs_f64(), &attributes);
+
+                match result {
+                    Ok(result) => {
+                        emitter
+                            .emit(
+                                AgentEvent::run_finished(
+                                    session_id,
+                                    run_id,
+                                    match &result {
+                                        RunOutcome::Completed(_) => RunStatus::Completed,
+                                        RunOutcome::Interrupted { .. } => RunStatus::Interrupted,
+                                        RunOutcome::Cancelled { .. } => RunStatus::Cancelled,
+                                    },
+                                    match &result {
+                                        RunOutcome::Completed(_) => None,
+                                        RunOutcome::Interrupted { payload, .. } => payload.clone(),
+                                        RunOutcome::Cancelled { .. } => None,
+                                    },
+                                    Some(result.into_state()),
                                 )
-                                .ok();
-                        }
-                        Err(e) => {
-                            emitter
-                                .emit(
-                                    AgentEvent::run_error(session_id, run_id, format!("{}", e), None)
-                                        .into(),
-                                )
-                                .ok();
-                        }
+                                .into(),
+                            )
+                            .ok();
                     }
-                })
-                .build()
-        )
+                    Err(e) => {
+                        emitter
+                            .emit(
+                                AgentEvent::run_error(session_id, run_id, format!("{}", e), None)
+                                    .into(),
+                            )
+                            .ok();
+                    }
+                }
+            })
+            .build())
     }
 }
 

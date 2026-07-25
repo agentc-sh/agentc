@@ -349,6 +349,48 @@ impl Manifest {
             }));
         }
 
+        if let Some(huggingface) = &self.providers.huggingface {
+            providers.push(ResolvedContextProvider::HuggingFace(
+                ResolvedContextProviderHuggingFace {
+                    models: huggingface
+                        .models
+                        .as_ref()
+                        .map(|models| {
+                            models
+                                .iter()
+                                .map(|m| match m {
+                                    ManifestProviderHuggingFaceModel::Name(name) => {
+                                        ResolvedContextProviderHuggingFaceModel {
+                                            name: name.clone(),
+                                            params: None,
+                                        }
+                                    }
+                                    ManifestProviderHuggingFaceModel::Config(c) => {
+                                        ResolvedContextProviderHuggingFaceModel {
+                                            name: c.name.clone(),
+                                            params: c
+                                                .params
+                                                .clone()
+                                                .map(Self::resolve_provider_params),
+                                        }
+                                    }
+                                })
+                                .collect()
+                        }),
+                    config: huggingface.config.as_ref().map(|c| {
+                        ResolvedContextProviderHuggingFaceConfig {
+                            api_key: c.api_key.clone(),
+                            base_url: c.base_url.clone(),
+                        }
+                    }),
+                    params: huggingface
+                        .params
+                        .clone()
+                        .map(Self::resolve_provider_params),
+                },
+            ));
+        }
+
         providers
     }
 
@@ -524,6 +566,25 @@ impl Manifest {
                                 }
                             }
                         },
+                    }
+                ),
+
+                ManifestToolKind::A2a(a2a) => ResolvedContextToolKind::A2a(
+                    ResolvedContextToolA2a {
+                        url: a2a.url.clone(),
+                        auth_token: a2a.auth_token.clone(),
+                        headers: a2a.headers.clone(),
+                        tenant: match &a2a.tenant {
+                            ManifestA2aTenant::Inherit => ResolvedContextToolA2aTenant::Inherit,
+                            ManifestA2aTenant::None => ResolvedContextToolA2aTenant::None,
+                            ManifestA2aTenant::Fixed { id } => {
+                                ResolvedContextToolA2aTenant::Fixed { id: id.clone() }
+                            }
+                        },
+                        timeout_secs: a2a.timeout_secs.clone(),
+                        default_accepted_output_modes: a2a
+                            .default_accepted_output_modes
+                            .clone(),
                     }
                 ),
 
@@ -726,15 +787,25 @@ impl Manifest {
             .map(|http| ResolvedContextHttpServer {
                 host: http.host.clone(),
                 port: http.port.clone(),
+                max_request_size: http.max_request_size.clone(),
                 protocols: http
                     .protocol
                     .as_ref()
                     .map_or_else(Vec::new, |p| {
-                        vec![p.ag_ui.as_ref().map(|ag_ui| {
-                            ResolvedContextHttpServerProtocol::AgUi(
-                                ResolvedContextHttpServerProtocolAgUi { path: ag_ui.path.clone() },
-                            )
-                        })]
+                        vec![
+                            p.ag_ui.as_ref().map(|ag_ui| {
+                                ResolvedContextHttpServerProtocol::AgUi(
+                                    ResolvedContextHttpServerProtocolAgUi {
+                                        path: ag_ui.path.clone(),
+                                    },
+                                )
+                            }),
+                            p.a2a.as_ref().map(|a2a| {
+                                ResolvedContextHttpServerProtocol::A2a(
+                                    ResolvedContextHttpServerProtocolA2a { path: a2a.path.clone() },
+                                )
+                            }),
+                        ]
                         .into_iter()
                         .flatten()
                         .collect()
@@ -783,5 +854,167 @@ impl Manifest {
         }
 
         assets
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use async_trait::async_trait;
+
+    use super::*;
+    use crate::parser::SpecFormat;
+    use agentc_compiler::generator::errors::GeneratorError;
+
+    struct EmptyLoader;
+
+    #[async_trait]
+    impl ResourceLoader for EmptyLoader {
+        async fn load(&self, path: &str) -> Result<String, GeneratorError> {
+            Err(GeneratorError::resource_not_found(path))
+        }
+    }
+
+    struct A2aManifestFixture;
+
+    impl A2aManifestFixture {
+        fn json() -> &'static str {
+            r#"
+{
+  "build": {
+    "archetype": "standalone"
+  },
+  "providers": {},
+  "agent": {
+    "assistant": {
+      "version": "0.1.0",
+      "graph": {
+        "type": "react"
+      },
+      "model": {
+        "provider": "anthropic",
+        "name": "claude-haiku-4-5"
+      }
+    }
+  },
+  "tool": {
+    "planner": {
+      "kind": "a2a",
+      "description": "Delegate planning subtasks.",
+      "enabled": {
+        "env": "PLANNER_A2A_ENABLED",
+        "default": true
+      },
+      "capabilities": ["a2a:planner"],
+      "url": {
+        "env": "PLANNER_A2A_URL",
+        "default": "https://planner.example.com"
+      },
+      "auth_token": {
+        "env": "PLANNER_A2A_TOKEN",
+        "secret": true
+      },
+      "headers": {
+        "X-Agent": "assistant"
+      },
+      "tenant": {
+        "policy": "fixed",
+        "id": {
+          "env": "PLANNER_A2A_TENANT",
+          "default": "tenant-1"
+        }
+      },
+      "timeout_secs": {
+        "env": "PLANNER_A2A_TIMEOUT",
+        "default": 90
+      },
+      "default_accepted_output_modes": ["text/plain"]
+    }
+  }
+}
+"#
+        }
+
+        fn manifest() -> Manifest {
+            SpecFormat::json()
+                .deserialize_string::<Manifest>(Self::json())
+                .expect("manifest should deserialize")
+        }
+    }
+
+    #[test]
+    fn manifest_deserializes_a2a_tool() {
+        let manifest = A2aManifestFixture::manifest();
+
+        assert!(matches!(
+            &manifest
+                .tool
+                .get("planner")
+                .expect("planner tool should exist")
+                .kind,
+            ManifestToolKind::A2a(_)
+        ));
+    }
+
+    #[tokio::test]
+    async fn manifest_resolves_a2a_tool() {
+        let (resolved, _) = A2aManifestFixture::manifest()
+            .resolve(&EmptyLoader, &[])
+            .await
+            .expect("manifest should resolve");
+
+        let tool = resolved
+            .tools
+            .get("planner")
+            .expect("planner tool should resolve");
+
+        assert_eq!(tool.description.as_deref(), Some("Delegate planning subtasks."));
+        assert!(matches!(
+            &tool.enabled,
+            RuntimeValue::Runtime { env, default, .. }
+                if env == "PLANNER_A2A_ENABLED" && default == &Some(true)
+        ));
+        assert_eq!(tool.capabilities, vec!["a2a:planner"]);
+
+        let ResolvedContextToolKind::A2a(a2a) = &tool.kind else {
+            panic!("planner should resolve as A2A");
+        };
+
+        assert!(matches!(
+            &a2a.url,
+            RuntimeValue::Runtime { env, default, .. }
+                if env == "PLANNER_A2A_URL"
+                    && default.as_deref() == Some("https://planner.example.com")
+        ));
+        assert!(matches!(
+            &a2a.auth_token,
+            Some(RuntimeValue::Runtime { env, secret, .. })
+                if env == "PLANNER_A2A_TOKEN" && *secret
+        ));
+        assert!(matches!(
+            a2a.headers.get("X-Agent"),
+            Some(RuntimeValue::Constant(value)) if value == "assistant"
+        ));
+        assert!(matches!(
+            &a2a.tenant,
+            ResolvedContextToolA2aTenant::Fixed {
+                id: RuntimeValue::Runtime { env, default, .. },
+            } if env == "PLANNER_A2A_TENANT"
+                && default.as_deref() == Some("tenant-1")
+        ));
+        assert!(matches!(
+            &a2a.timeout_secs,
+            Some(RuntimeValue::Runtime { env, default, .. })
+                if env == "PLANNER_A2A_TIMEOUT" && default == &Some(90)
+        ));
+        assert_eq!(a2a.default_accepted_output_modes, vec!["text/plain"]);
+    }
+
+    #[test]
+    fn a2a_tool_collects_no_assets() {
+        assert!(
+            A2aManifestFixture::manifest()
+                .collect_assets()
+                .is_empty()
+        );
     }
 }

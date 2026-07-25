@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
+pub mod a2a;
 pub mod identity;
 pub mod mcp;
 pub mod models;

@@ -13,7 +13,7 @@ Every agent exposes a native HTTP contract derived from its graph. This contract
 the agent speaks directly: it manages runs, keeps sessions continuous, persists messages, and
 synchronizes state. Because it comes from the graph, its exact request and response shapes depend on
 which graph the agent uses. For the ReAct graph, a request maps onto a durable session, each execution
-is a run, and the run streams its progress back as Server-Sent Events.
+is a run, and the run emits events that clients can stream.
 
 ```mermaid
 graph TD
@@ -22,12 +22,15 @@ graph TD
     subgraph server [HTTP server]
         NATIVE[Native /v1 contract]
         AGUI[AG-UI add-on]
+        A2A[A2A add-on]
     end
 
     CLIENT -->|request| NATIVE
     CLIENT -->|request| AGUI
+    CLIENT -->|request| A2A
     NATIVE --> GRAPH[Graph runtime]
     AGUI --> GRAPH
+    A2A --> GRAPH
     GRAPH --> RUN[Run within a session]
     RUN -->|Server-Sent Events| CLIENT
 ```
@@ -44,9 +47,19 @@ driven by the same underlying graph behavior; the add-on is a translation layer,
 Connecting a CopilotKit frontend is covered in
 [Connect a CopilotKit frontend](/guides/connect-a-copilotkit-frontend).
 
+The A2A add-on mounts a foundational Agent2Agent protocol surface for agent-to-agent delegation. An
+upstream agent can discover the generated agent through an Agent Card, send a message as a task,
+stream task updates, read a known task, and cancel a task. In the current implementation, an A2A task
+maps to an agent run, an A2A context maps to a session, and task artifacts carry the agent's text or
+structured output.
+
+This is inbound A2A serving. Outbound A2A delegation is configured as a tool with
+`tool { kind = "a2a" }`, which lets this agent call a specific downstream A2A server. See
+[Connect agents via A2A](/guides/connect-agents-via-a2a).
+
 ## Multi-tenancy
 
-The server is multi-tenant aware. A request can carry an `X-Tenant-ID` header to attribute the run to
+The server is multi-tenant aware. A request can carry an `X-Tenant-Id` header to attribute the run to
 a specific tenant, and requests without the header fall back to a configured default tenant. This lets
 one deployment serve many isolated callers.
 
@@ -65,4 +78,6 @@ The exact fields that enable and tune the server are on the
 - [The graph](/concepts/the-graph): the loop the native contract exposes.
 - [HTTP reference](/reference/graph/react/http): the native endpoints and their shared conventions.
 - [AG-UI](/reference/http-api/ag-ui): the AG-UI protocol add-on.
+- [A2A](/reference/http-api/a2a): the Agent2Agent protocol add-on.
+- [Connect agents via A2A](/guides/connect-agents-via-a2a): configure outbound A2A delegation.
 - [http_server reference](/reference/manifest/http-server): the fields that configure the server.

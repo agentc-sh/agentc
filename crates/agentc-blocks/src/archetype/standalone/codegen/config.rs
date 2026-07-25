@@ -302,6 +302,11 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
                 database::DatabaseOptions,
                 errors::DatabaseError,
             };
+            use subway::{
+                Bus,
+                memory::InMemoryTransport,
+                redis::RedisTransport,
+            };
 
             use crate::migrator::Migrator;
 
@@ -313,6 +318,7 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
                 pub primary: String,
                 pub replicas: Vec<String>,
                 pub options: DatabaseOptions,
+                pub auto_migrate: bool,
             }
 
             impl DatabaseConfig {
@@ -338,6 +344,7 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
                         primary: "sqlite://database.db?mode=rwc".to_string(),
                         replicas: vec![],
                         options: DatabaseOptions::default(),
+                        auto_migrate: true,
                     }
                 }
             }
@@ -367,6 +374,58 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
                 pub servers: HashMap<String, McpTransportConfig>,
             }
 
+            #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+            #[serde(default)]
+            pub struct A2aConfig {
+                pub agents: HashMap<String, A2aAgentConfig>,
+            }
+
+            #[derive(Debug, Clone, Serialize, Deserialize)]
+            #[serde(default)]
+            pub struct A2aAgentConfig {
+                pub url: String,
+                pub auth_token: Option<String>,
+                pub headers: HashMap<String, String>,
+                pub tenant: A2aTenantConfig,
+                pub timeout_secs: u64,
+                pub default_accepted_output_modes: Vec<String>,
+                pub description: Option<String>,
+                pub capabilities: Vec<String>,
+                pub enabled: bool,
+            }
+
+            impl Default for A2aAgentConfig {
+                fn default() -> Self {
+                    A2aAgentConfig {
+                        url: String::new(),
+                        auth_token: None,
+                        headers: HashMap::new(),
+                        tenant: A2aTenantConfig::default(),
+                        timeout_secs: 60,
+                        default_accepted_output_modes: Vec::new(),
+                        description: None,
+                        capabilities: Vec::new(),
+                        enabled: true,
+                    }
+                }
+            }
+
+            #[derive(Debug, Clone, Serialize, Deserialize)]
+            #[serde(tag = "policy", rename_all = "snake_case")]
+            pub enum A2aTenantConfig {
+                Inherit,
+                None,
+                Fixed {
+                    id: String,
+                },
+            }
+
+            impl Default for A2aTenantConfig {
+                fn default() -> Self {
+                    A2aTenantConfig::Inherit
+                }
+            }
+
             #[derive(Debug, Clone, Serialize, Deserialize)]
             #[serde(default)]
             pub struct TaskQueueConfig {
@@ -387,6 +446,48 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
                 }
             }
 
+            #[derive(Debug, Clone, Serialize, Deserialize)]
+            #[serde(tag = "kind", rename_all = "snake_case")]
+            pub enum PubSubConfig {
+                Memory {
+                    capacity: usize,
+                },
+                Redis {
+                    url: String,
+                },
+            }
+
+            impl PubSubConfig {
+                pub fn kind(&self) -> &str {
+                    match self {
+                        PubSubConfig::Memory { .. } => "memory",
+                        PubSubConfig::Redis { .. } => "redis",
+                    }
+                }
+
+                pub async fn build(&self) -> Result<Bus, subway::Error> {
+                    match self {
+                        PubSubConfig::Memory { capacity } => Ok(Bus::new(
+                            InMemoryTransport::with_capacity(*capacity),
+                        )),
+                        PubSubConfig::Redis { url } => Ok(Bus::new(
+                            RedisTransport::builder()
+                                .url(url.clone())
+                                .build()
+                                .await?,
+                        )),
+                    }
+                }
+            }
+
+            impl Default for PubSubConfig {
+                fn default() -> Self {
+                    PubSubConfig::Memory {
+                        capacity: 4096,
+                    }
+                }
+            }
+
             #(#generated_structs)*
 
             #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -394,7 +495,9 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
             pub struct Config {
                 pub database: DatabaseConfig,
                 pub mcp: McpConfig,
+                pub a2a: A2aConfig,
                 pub task_queue: TaskQueueConfig,
+                pub pubsub: PubSubConfig,
                 #(#config_generated_fields)*
                 #extra_fields
             }
@@ -426,6 +529,7 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
 mod tests {
     use super::*;
     use crate::types::RuntimeValue;
+    use serde_json::json;
 
     #[test]
     fn nested_field_references_a_pascal_cased_struct_name() {
@@ -446,5 +550,81 @@ mod tests {
             .replace(' ', "");
 
         assert!(rendered.contains("gpt_4o:ConfigGpt4O"));
+    }
+
+    #[test]
+    fn generated_config_contains_a2a_config_types() {
+        let context = GenerationContext::new(
+            serde_json::from_value(json!({
+                "slug": "assistant",
+                "agent_name": "assistant",
+                "runtime": { "default_tenant_id": "default" },
+                "providers": [],
+                "agent": {
+                    "version": "0.1.0",
+                    "description": null,
+                    "prompt": null,
+                    "capabilities": null,
+                    "capability_policy": null,
+                    "model": { "provider": "anthropic", "name": "claude" }
+                },
+                "blocks": {},
+                "tools": {},
+                "skills": {},
+                "http_server": null
+            }))
+            .unwrap(),
+        );
+
+        let rendered = ConfigCodeGen { fields: FieldsSpec::new(vec![]) }
+            .generate_files(&context, &ExtensionRegistry::empty())
+            .unwrap()
+            .into_iter()
+            .find(|(path, _)| path == &PathBuf::from("src/config.rs"))
+            .expect("config file should be generated")
+            .1
+            .to_string();
+
+        assert!(rendered.contains("struct A2aConfig"));
+        assert!(rendered.contains("struct A2aAgentConfig"));
+        assert!(rendered.contains("enum A2aTenantConfig"));
+        assert!(rendered.contains("pub a2a : A2aConfig"));
+    }
+
+    #[test]
+    fn database_config_defaults_auto_migrate_to_true() {
+        let context = GenerationContext::new(
+            serde_json::from_value(json!({
+                "slug": "assistant",
+                "agent_name": "assistant",
+                "runtime": { "default_tenant_id": "default" },
+                "providers": [],
+                "agent": {
+                    "version": "0.1.0",
+                    "description": null,
+                    "prompt": null,
+                    "capabilities": null,
+                    "capability_policy": null,
+                    "model": { "provider": "anthropic", "name": "claude" }
+                },
+                "blocks": {},
+                "tools": {},
+                "skills": {},
+                "http_server": null
+            }))
+            .unwrap(),
+        );
+
+        let rendered = ConfigCodeGen { fields: FieldsSpec::new(vec![]) }
+            .generate_files(&context, &ExtensionRegistry::empty())
+            .unwrap()
+            .into_iter()
+            .find(|(path, _)| path == &PathBuf::from("src/config.rs"))
+            .expect("config file should be generated")
+            .1
+            .to_string();
+
+        assert!(rendered.contains("pub auto_migrate : bool"));
+        assert!(rendered.contains("auto_migrate : true"));
     }
 }

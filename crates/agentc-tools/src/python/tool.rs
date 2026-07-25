@@ -70,9 +70,8 @@ where
         input: ToolInput<Self::State>,
     ) -> Result<ToolOutput<Self::StateUpdate>, ToolError> {
         // We use a weak reference for the emitter in the callback because the keyword_callable method converts
-        // to an arc captured that gets passed into the Python runtime and causes the runtime to have a strong
-        // reference on the emitter, preventing the drain from being dropped and causing a deadlock in the react
-        // graph call_tools method.
+        // to an arc captured that gets passed into the Python runtime. This causes the runtime to have a strong
+        // reference on the emitter, preventing the drain from being dropped and causing a deadlock.
         let emit_tx = Arc::new(input.emitter.and_then(|e| e.sender()));
         let weak_tx = Arc::downgrade(&emit_tx);
 
@@ -226,22 +225,32 @@ impl Default for PythonToolBuilder {
     }
 }
 
-#[cfg(all(test, feature = "python-embedded"))]
+#[cfg(all(test, any(feature = "python-embedded", feature = "python-static")))]
 mod tests {
     use super::PythonTool;
-    use crate::python::{EmbeddedRuntime, runtime::RuntimeExt};
+    use crate::python::runtime::{Runtime, RuntimeExt};
     use agentc_agent::{
         graph::state::{GraphState, GraphStateInput, GraphStateUpdate},
         tools::{
             activity::{ActivityDelta, ActivityEmitter},
             dispatcher::{DispatchOutcome, ToolRegistryExt},
             registry::ToolRegistry,
+            types::ToolExecutionContext,
         },
         types::tools::ToolCall,
     };
     use serde::{Deserialize, Serialize};
     use serde_json::json;
     use std::sync::Arc;
+
+    #[cfg(feature = "python-embedded")]
+    use crate::python::EmbeddedRuntime;
+
+    #[cfg(feature = "python-static")]
+    use crate::python::StaticRuntime;
+
+    #[cfg(feature = "python-static")]
+    static STATIC_TEST_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
     // Minimal concrete state types to satisfy Tool<U> trait bounds.
     // None of these methods are exercised by PythonTool itself.
@@ -279,7 +288,7 @@ mod tests {
 
     /// Minimal pure-Python stub that mirrors the `agentc_tdk` public API.
     /// Injected as `agentc_tdk` in sys.modules so tests don't depend on the
-    /// external package being installed in the embedded interpreter.
+    /// external package being installed in the interpreter.
     const AGENTC_TDK_STUB: &str = r#"
 from dataclasses import asdict, dataclass
 from typing import Any, ClassVar, Optional
@@ -334,19 +343,9 @@ def invoke_tool(name, args, state=None, emit=None):
     return __tool_registry__[name]().invoke(args, state=state, emit=emit)
 "#;
 
-    fn tool_runtime() -> Arc<EmbeddedRuntime> {
-        Arc::new(
-            EmbeddedRuntime::builder()
-                .num_interpreters(1)
-                .channel_size(32)
-                .build()
-                .expect("failed to build EmbeddedRuntime"),
-        )
-    }
-
     // Registers a Python module by name in sys.modules using exec.
     // The source is transferred via a scope global to avoid string escaping issues.
-    async fn inject_module(runtime: &EmbeddedRuntime, name: &str, src: &str) {
+    async fn inject_module(runtime: &dyn Runtime, name: &str, src: &str) {
         runtime
             .set_global("_inject_src", src)
             .await
@@ -363,16 +362,14 @@ def invoke_tool(name, args, state=None, emit=None):
             .expect("module injection failed");
     }
 
-    async fn inject_agentc_tdk(runtime: &EmbeddedRuntime) {
+    async fn inject_agentc_tdk(runtime: &dyn Runtime) {
         inject_module(runtime, "agentc_tdk", AGENTC_TDK_STUB).await;
     }
 
     // Two Python tools that live in the same module and share one runtime.
     // Each routes to its own tool name and returns the correct computed result
     // when dispatched through a ToolRegistry.
-    #[tokio::test]
-    async fn multi_tool_shared_runtime() {
-        let runtime = tool_runtime();
+    async fn multi_tool_shared_runtime(runtime: Arc<dyn Runtime>) {
         inject_agentc_tdk(&runtime).await;
 
         inject_module(
@@ -444,6 +441,11 @@ class DoubleTool(Tool):
                     arguments: json!({"a": 3, "b": 4}),
                 },
                 &state,
+                ToolExecutionContext {
+                    tenant_id: "test".to_string(),
+                    session_id: Default::default(),
+                    run_id: Default::default(),
+                },
                 None,
             )
             .await;
@@ -456,6 +458,11 @@ class DoubleTool(Tool):
                     arguments: json!({"x": 5}),
                 },
                 &state,
+                ToolExecutionContext {
+                    tenant_id: "test".to_string(),
+                    session_id: Default::default(),
+                    run_id: Default::default(),
+                },
                 None,
             )
             .await;
@@ -470,9 +477,7 @@ class DoubleTool(Tool):
 
     // A Python tool that calls emit produces an ActivityDelta on the receiver
     // provided via the ActivityEmitter passed to the dispatcher.
-    #[tokio::test]
-    async fn emit_delivers_activity_delta() {
-        let runtime = tool_runtime();
+    async fn emit_delivers_activity_delta(runtime: Arc<dyn Runtime>) {
         inject_agentc_tdk(&runtime).await;
 
         inject_module(
@@ -523,6 +528,11 @@ class EmitterTool(Tool):
                     arguments: json!({}),
                 },
                 &state,
+                ToolExecutionContext {
+                    tenant_id: "test".to_string(),
+                    session_id: Default::default(),
+                    run_id: Default::default(),
+                },
                 Some(ActivityEmitter::new(tx)),
             )
             .await;
@@ -540,9 +550,7 @@ class EmitterTool(Tool):
     }
 
     // A Python tool that returns a state_update patch propagates it through ToolOutput.
-    #[tokio::test]
-    async fn state_update_propagates() {
-        let runtime = tool_runtime();
+    async fn state_update_propagates(runtime: Arc<dyn Runtime>) {
         inject_agentc_tdk(&runtime).await;
 
         inject_module(
@@ -593,6 +601,11 @@ class StateTool(Tool):
                     arguments: json!({}),
                 },
                 &state,
+                ToolExecutionContext {
+                    tenant_id: "test".to_string(),
+                    session_id: Default::default(),
+                    run_id: Default::default(),
+                },
                 None,
             )
             .await;
@@ -603,9 +616,7 @@ class StateTool(Tool):
     }
 
     // Builder returns an error when the tool name is not in the registry.
-    #[tokio::test]
-    async fn builder_rejects_unknown_tool_name() {
-        let runtime = tool_runtime();
+    async fn builder_rejects_unknown_tool_name(runtime: Arc<dyn Runtime>) {
         inject_agentc_tdk(&runtime).await;
 
         let result = PythonTool::builder()
@@ -617,4 +628,69 @@ class StateTool(Tool):
 
         assert!(result.is_err());
     }
+
+    // The tests above drive PythonTool through the backend-agnostic Runtime seam, so each is
+    // instantiated once per enabled backend. Both matrices run in the same invocation when
+    // both features are on, and each is gated on its own feature.
+    macro_rules! backend_tests {
+        ($backend:ident, $runtime:expr, $guard:expr) => {
+            mod $backend {
+                use super::*;
+
+                #[tokio::test]
+                async fn multi_tool_shared_runtime() {
+                    let _guard = $guard;
+
+                    super::multi_tool_shared_runtime($runtime).await;
+                }
+
+                #[tokio::test]
+                async fn emit_delivers_activity_delta() {
+                    let _guard = $guard;
+
+                    super::emit_delivers_activity_delta($runtime).await;
+                }
+
+                #[tokio::test]
+                async fn state_update_propagates() {
+                    let _guard = $guard;
+
+                    super::state_update_propagates($runtime).await;
+                }
+
+                #[tokio::test]
+                async fn builder_rejects_unknown_tool_name() {
+                    let _guard = $guard;
+
+                    super::builder_rejects_unknown_tool_name($runtime).await;
+                }
+            }
+        };
+    }
+
+    #[cfg(feature = "python-embedded")]
+    backend_tests!(
+        embedded,
+        Arc::new(
+            EmbeddedRuntime::builder()
+                .num_interpreters(1)
+                .channel_size(32)
+                .build()
+                .expect("failed to build EmbeddedRuntime"),
+        ),
+        ()
+    );
+
+    #[cfg(feature = "python-static")]
+    backend_tests!(
+        r#static,
+        Arc::new(
+            StaticRuntime::builder()
+                .num_workers(1)
+                .channel_size(32)
+                .build()
+                .expect("failed to build StaticRuntime"),
+        ),
+        super::STATIC_TEST_LOCK.lock().await
+    );
 }

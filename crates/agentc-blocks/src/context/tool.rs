@@ -37,6 +37,7 @@ pub enum ResolvedContextToolKind {
     Mcp(ResolvedContextToolMcp),
     Bash(ResolvedContextToolBash),
     Python(ResolvedContextToolPython),
+    A2a(ResolvedContextToolA2a),
 }
 
 impl ResolvedContextToolKind {
@@ -54,6 +55,10 @@ impl ResolvedContextToolKind {
 
     pub fn is_python(&self) -> bool {
         matches!(self, Self::Python(_))
+    }
+
+    pub fn is_a2a(&self) -> bool {
+        matches!(self, Self::A2a(_))
     }
 }
 
@@ -172,8 +177,6 @@ pub struct ResolvedContextToolPython {
     pub module_name: String,
 
     /// Which Python runtime backend to use. Defaults to `embedded` (RustPython).
-    /// `static` (PyO3/CPython) is accepted and round-trips through the resolved context
-    /// but generates no code until the PyO3 backend is added in a future MR.
     pub interpreter: ResolvedContextToolPythonInterpreter,
 }
 
@@ -184,8 +187,8 @@ pub enum ResolvedContextToolPythonInterpreter {
     /// Embed RustPython directly into the binary. Supports pure-Python packages only.
     #[default]
     Embedded,
-    /// Link against a system CPython installation via PyO3. Supports C-extension packages.
-    /// Not yet implemented; accepted in the manifest but no code is generated.
+    /// Link against a system CPython installation via PyO3. Supports C-extension packages,
+    /// and requires a compatible CPython in the runtime environment.
     Static,
 }
 
@@ -203,4 +206,22 @@ pub enum ResolvedContextToolMcpTransport {
         auth_token: Option<RuntimeValue<String>>,
         headers: HashMap<String, RuntimeValue<String>>,
     },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResolvedContextToolA2a {
+    pub url: RuntimeValue<String>,
+    pub auth_token: Option<RuntimeValue<String>>,
+    pub headers: HashMap<String, RuntimeValue<String>>,
+    pub tenant: ResolvedContextToolA2aTenant,
+    pub timeout_secs: Option<RuntimeValue<u64>>,
+    pub default_accepted_output_modes: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "policy", rename_all = "snake_case")]
+pub enum ResolvedContextToolA2aTenant {
+    Inherit,
+    None,
+    Fixed { id: RuntimeValue<String> },
 }

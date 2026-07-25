@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
+use async_stream::stream;
 use axum::{
     extract::State,
     response::{
@@ -9,24 +10,11 @@ use axum::{
         sse::{Event, KeepAlive, Sse},
     },
 };
-use async_stream::stream;
-use futures::{
-    StreamExt,
-    stream::BoxStream,
-};
+use futures::{StreamExt, stream::BoxStream};
 use jobq::{
-    Error as JobQueueError,
-    AnyExecutable,
-    FifoQueue,
-    JobQueue,
-    StreamTask,
-    JobStreamOptions,
+    AnyExecutable, Error as JobQueueError, FifoQueue, JobQueue, JobStreamOptions, StreamTask,
 };
-use std::{
-    convert::Infallible,
-    sync::Arc,
-    time::Duration,
-};
+use std::{convert::Infallible, sync::Arc, time::Duration};
 use tokio_util::sync::CancellationToken;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
@@ -39,10 +27,7 @@ use agentc_http::{
 };
 
 use crate::{
-    protocol::{
-        event::Event as AgUiEvent,
-        input::RunAgentInput,
-    },
+    protocol::{event::Event as AgUiEvent, input::RunAgentInput},
     traits::AgUiService,
 };
 
@@ -122,38 +107,21 @@ impl StreamTask for AgUiStreamTask {
 #[cfg(test)]
 mod tests {
     use async_trait::async_trait;
-    use futures::{
-        StreamExt,
-        stream,
-    };
+    use futures::{StreamExt, stream};
     use jobq::BatchJobQueueSystemBuilder;
     use serde_json::Value;
     use std::sync::{
         Arc,
-        atomic::{
-            AtomicBool,
-            AtomicUsize,
-            Ordering,
-        },
+        atomic::{AtomicBool, AtomicUsize, Ordering},
     };
 
     use crate::{
         protocol::{
-            event::{
-                BaseEvent,
-                Event as AgUiEvent,
-                RunStartedEvent,
-            },
-            ids::{
-                RunId,
-                ThreadId,
-            },
+            event::{BaseEvent, Event as AgUiEvent, RunStartedEvent},
+            ids::{RunId, ThreadId},
             input::RunAgentInput,
         },
-        traits::{
-            AgUiRunCancel,
-            AgUiRunStream,
-        },
+        traits::{AgUiRunCancel, AgUiRunStream},
     };
 
     use super::*;
@@ -169,14 +137,8 @@ mod tests {
             _input: RunAgentInput,
             _tenant_id: &str,
         ) -> Result<AgUiRunStream, ApiError> {
-            Ok(
-                AgUiRunStream::new(
-                    stream::pending::<Result<AgUiEvent, ApiError>>().boxed(),
-                )
-                .with_cancel(TestCancel {
-                    cancelled: self.cancelled.clone(),
-                }),
-            )
+            Ok(AgUiRunStream::new(stream::pending::<Result<AgUiEvent, ApiError>>().boxed())
+                .with_cancel(TestCancel { cancelled: self.cancelled.clone() }))
         }
     }
 
@@ -187,7 +149,8 @@ mod tests {
     #[async_trait]
     impl AgUiRunCancel for TestCancel {
         async fn cancel(&self) -> Result<(), ApiError> {
-            self.cancelled.store(true, Ordering::SeqCst);
+            self.cancelled
+                .store(true, Ordering::SeqCst);
 
             Ok(())
         }
@@ -209,28 +172,22 @@ mod tests {
             let emitted = self.emitted.clone();
             let total_events = self.total_events;
 
-            Ok(
-                AgUiRunStream::new(
-                    Box::pin(async_stream::stream! {
-                        for _ in 0..total_events {
-                            tokio::time::sleep(Duration::from_millis(10)).await;
-                            emitted.fetch_add(1, Ordering::SeqCst);
+            Ok(AgUiRunStream::new(Box::pin(async_stream::stream! {
+                for _ in 0..total_events {
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                    emitted.fetch_add(1, Ordering::SeqCst);
 
-                            yield Ok(AgUiEvent::RunStarted(RunStartedEvent {
-                                base: BaseEvent {
-                                    timestamp: None,
-                                    raw_event: None,
-                                },
-                                thread_id: ThreadId::random(),
-                                run_id: RunId::random(),
-                            }));
-                        }
-                    }),
-                )
-                .with_cancel(TestCancel {
-                    cancelled: self.cancelled.clone(),
-                }),
-            )
+                    yield Ok(AgUiEvent::RunStarted(RunStartedEvent {
+                        base: BaseEvent {
+                            timestamp: None,
+                            raw_event: None,
+                        },
+                        thread_id: ThreadId::random(),
+                        run_id: RunId::random(),
+                    }));
+                }
+            }))
+            .with_cancel(TestCancel { cancelled: self.cancelled.clone() }))
         }
     }
 
@@ -239,9 +196,7 @@ mod tests {
         let cancelled = Arc::new(AtomicBool::new(false));
         let disconnect = CancellationToken::new();
         let task = AgUiStreamTask::new(
-            Arc::new(TestService {
-                cancelled: cancelled.clone(),
-            }),
+            Arc::new(TestService { cancelled: cancelled.clone() }),
             RunAgentInput::new(
                 ThreadId::random(),
                 RunId::random(),
@@ -280,9 +235,7 @@ mod tests {
         drop(
             ag_ui_run_endpoint(
                 State(AgUiRouterState {
-                    service: Arc::new(TestService {
-                        cancelled: cancelled.clone(),
-                    }),
+                    service: Arc::new(TestService { cancelled: cancelled.clone() }),
                     default_tenant_id: DefaultTenantId::new("tenant"),
                     task_queue,
                 }),
@@ -387,11 +340,7 @@ pub fn router(
 ) -> OpenApiRouter {
     OpenApiRouter::new()
         .routes(routes!(ag_ui_run_endpoint))
-        .with_state(AgUiRouterState {
-            service,
-            default_tenant_id,
-            task_queue,
-        })
+        .with_state(AgUiRouterState { service, default_tenant_id, task_queue })
 }
 
 /// AG-UI Run endpoint
@@ -416,10 +365,12 @@ async fn ag_ui_run_endpoint(
     tenant_id: Option<TenantIdHeader>,
     Json(input): Json<RunAgentInput>,
 ) -> Response {
-    let tenant_id = tenant_id.map_or(state.default_tenant_id.into_inner(), TenantIdHeader::into_inner);
+    let tenant_id =
+        tenant_id.map_or(state.default_tenant_id.into_inner(), TenantIdHeader::into_inner);
     let disconnect = CancellationToken::new();
 
-    match state.task_queue
+    match state
+        .task_queue
         .enqueue_stream(JobStreamOptions::new(AgUiStreamTask::new(
             state.service.clone(),
             input,
@@ -436,20 +387,18 @@ async fn ag_ui_run_endpoint(
                         .json_data(event)
                         .expect("failed to serialize event data"),
                 ),
-                Err(err) => Ok(
-                    Event::default()
-                        .event("error")
-                        .json_data(ErrorResponseDTO::from(match err {
-                            JobQueueError::TaskExecution { source, .. } => {
-                                match source.downcast::<ApiError>() {
-                                    Ok(err) => *err,
-                                    Err(source) => ApiError::unexpected_error(source.to_string()),
-                                }
+                Err(err) => Ok(Event::default()
+                    .event("error")
+                    .json_data(ErrorResponseDTO::from(match err {
+                        JobQueueError::TaskExecution { source, .. } => {
+                            match source.downcast::<ApiError>() {
+                                Ok(err) => *err,
+                                Err(source) => ApiError::unexpected_error(source.to_string()),
                             }
-                            err => ApiError::unexpected_error(err.to_string()),
-                        }))
-                        .expect("failed to serialize error response")
-                ),
+                        }
+                        err => ApiError::unexpected_error(err.to_string()),
+                    }))
+                    .expect("failed to serialize error response")),
             }
         }))
         .keep_alive(
@@ -459,8 +408,7 @@ async fn ag_ui_run_endpoint(
         )
         .into_response(),
         Err(err) => {
-            ErrorResponseDTO::from(ApiError::unexpected_error(err.to_string()))
-                .into_response()
+            ErrorResponseDTO::from(ApiError::unexpected_error(err.to_string())).into_response()
         }
     }
 }

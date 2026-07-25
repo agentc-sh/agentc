@@ -1,12 +1,3 @@
-{%- set has_embedded_python =
-    ctx.tools
-    | dictsort
-    | selectattr("1.kind.kind", "equalto", "python")
-    | selectattr("1.kind.interpreter", "equalto", "embedded")
-    | first
-    is defined
-%}
-
 [package]
 name = "{{ ctx.slug }}"
 version = "{{ ctx.agent.version }}"
@@ -25,12 +16,13 @@ agentc-model = { version = "{{ runtime_version }}" }
 agentc-agent = { version = "{{ runtime_version }}" }
 agentc-mcp = { version = "{{ runtime_version }}" }
 agentc-skills = { version = "{{ runtime_version }}" }
-agentc-tools = { version = "{{ runtime_version }}", features = [{{ extension("tools::features") }}] }
+agentc-tools = { version = "{{ runtime_version }}", default-features = false, features = [{{ extension("tools::features") }}] }
 
 {%- if ctx.http_server %}
 agentc-http = { version = "{{ runtime_version }}" }
 
 jobq = { git = "https://github.com/wizrds/jobq-rs.git", version = "0.3.1" }
+subway = { git = "https://github.com/wizrds/subway-rs.git", version = "0.1.0", features = ["redis"] }
 utoipa = { version = "5.4" }
 utoipa-axum = { version = "0.2" }
 {%- endif %}
@@ -45,10 +37,6 @@ serde_json = { version = "1" }
 uuid = { version = "1", features = ["v4", "serde"] }
 anyhow = { version = "1.0" }
 sea-orm-migration = { version = "1" }
-
-{%- if has_embedded_python %}
-rustpython-vm = { git = "https://github.com/RustPython/RustPython", rev = "0.5.0" }
-{%- endif %}
 
 {{ extension("cargo::dependencies") }}
 

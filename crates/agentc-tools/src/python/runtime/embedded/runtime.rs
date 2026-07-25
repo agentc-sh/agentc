@@ -473,7 +473,8 @@ impl EmbeddedRuntime {
         self.workers
             .iter()
             .map(|worker| worker.send_command(command.clone()))
-            .next_back()
+            .collect::<Vec<_>>()
+            .pop()
             .expect("no workers available for broadcast")
     }
 

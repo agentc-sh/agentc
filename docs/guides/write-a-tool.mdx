@@ -7,8 +7,9 @@ Tools you write in code come in two languages, TypeScript and Python. This guide
 tab for your language in each step. Both kinds are bundled into the binary at compile time, so there is
 no runtime installation. For the full field reference, see the [tool reference](/reference/manifest/tool).
 
-TypeScript tools run in an embedded JavaScript runtime. Python tools run in an embedded Python
-interpreter (RustPython), which supports pure-Python packages only. Both use the agentc tool
+TypeScript tools run in an embedded JavaScript runtime. Python tools use RustPython by default,
+which supports pure-Python packages and needs no Python installation at runtime. Select the
+`static` interpreter to use CPython 3.14 for packages with C extensions. Both use the agentc tool
 development kit (TDK), which gives you typed tool definitions.
 
 ## Scaffold the package
@@ -145,12 +146,15 @@ The block name matches the export name by default. If they differ, set `export` 
   <TabsContent value="python">
 ```hcl title="agent.acl"
 tool "get_weather" {
-  kind   = "python"
-  source = "./weather"
+  kind        = "python"
+  source      = "./weather"
+  interpreter = "embedded"
 }
 ```
 
-Declare one `tool` block per tool class, all pointing at the same `source` directory.
+Declare one `tool` block per tool class, all pointing at the same `source` directory. Change
+`interpreter` to `"static"` when the package requires CPython or a C extension. The runtime host
+must provide a compatible shared CPython 3.14 installation.
   </TabsContent>
 </Tabs>
 

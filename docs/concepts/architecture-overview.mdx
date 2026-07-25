@@ -32,10 +32,11 @@ When the artifact runs, it hosts everything the agent needs under one process:
 - The **graph**, which is the reasoning loop that decides when to call the model and when to call
   tools. Every graph is checkpointed, so a run survives crashes and resumes where it left off.
 - The **tools** the agent can invoke, each dispatched to the right execution environment (a JavaScript
-  runtime, a Python interpreter, a sandboxed shell, or an external Model Context Protocol server).
+  runtime, a Python interpreter, a sandboxed shell, an external Model Context Protocol server, a
+  downstream A2A agent, etc.).
 - The **skills** the agent can draw on, which are Markdown documents that guide how it behaves.
 - An optional **HTTP server** that exposes the agent over a native API and, if enabled, standardized
-  protocol add-ons such as AG-UI.
+  protocol add-ons such as AG-UI and A2A.
 
 ```mermaid
 graph LR

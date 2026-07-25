@@ -15,6 +15,7 @@ members = [
     "crates/agentc-database",
     "crates/agentc-http",
     "crates/agentc-protocol-ag-ui",
+    "crates/agentc-protocol-a2a",
     "crates/agentc-telemetry",
     "crates/agentc-model",
     "crates/agentc-agent-macros",
@@ -58,6 +59,7 @@ validator = { version = "0.20", features = ["derive"] }
 sanitizer = { version = "1", features = ["derive"] }
 
 bs58 = { version = "0.5" }
+base64 = { version = "0.22" }
 regex = { version = "1.12" }
 convert_case = { version = "0.11" }
 chrono = { version = "0.4", features = ["serde"] }
@@ -98,5 +100,6 @@ indexmap = { version = "2" }
 walkdir = { version = "2" }
 
 jobq = { git = "https://github.com/wizrds/jobq-rs.git", version = "0.3.1" }
+subway = { git = "https://github.com/wizrds/subway-rs.git", version = "0.1.0" }
 
 criterion = { version = "0.8", features = ["html_reports"] }

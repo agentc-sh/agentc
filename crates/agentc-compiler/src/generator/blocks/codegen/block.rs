@@ -11,7 +11,10 @@ use crate::generator::{
     blocks::{codegen::traits::CodeGen, traits::Block},
     context::GenerationContext,
     errors::GeneratorError,
-    extension::{Contribution, ExtensionPoint, ExtensionRegistry},
+    extension::{
+        Contribution, ErasedContribution, ErasedContributionValue, ErasedExtensionPoint,
+        ExtensionPoint, ExtensionRegistry, StringExtensionPoint,
+    },
     vfs::VirtualFileSystem,
 };
 
@@ -20,8 +23,8 @@ where
     T: Serialize + Send + Sync,
 {
     id: String,
-    extension_points: Vec<ExtensionPoint>,
-    contributions: Vec<Contribution>,
+    extension_points: Vec<Box<dyn ErasedExtensionPoint>>,
+    contributions: Vec<ErasedContribution>,
     codegen: Box<dyn CodeGen<T>>,
 }
 
@@ -52,11 +55,11 @@ where
         &self.id
     }
 
-    fn extension_points(&self) -> Vec<ExtensionPoint> {
+    fn extension_points(&self) -> Vec<Box<dyn ErasedExtensionPoint>> {
         self.extension_points.clone()
     }
 
-    fn contributions(&self) -> Vec<Contribution> {
+    fn contributions(&self) -> Vec<ErasedContribution> {
         self.contributions.clone()
     }
 
@@ -64,10 +67,10 @@ where
         &self,
         ctx: &GenerationContext<T>,
         point: &str,
-    ) -> Result<String, GeneratorError> {
+    ) -> Result<ErasedContributionValue, GeneratorError> {
         self.codegen
             .generate_contribution(ctx, point)
-            .map(|stream| stream.to_string())
+            .map(|stream| ErasedContributionValue::new(stream.to_string()))
     }
 
     async fn render(
@@ -91,8 +94,8 @@ where
     T: Serialize + Send + Sync,
 {
     id: Option<String>,
-    extension_points: Vec<ExtensionPoint>,
-    contributions: Vec<Contribution>,
+    extension_points: Vec<Box<dyn ErasedExtensionPoint>>,
+    contributions: Vec<ErasedContribution>,
     _marker: PhantomData<T>,
 }
 
@@ -129,12 +132,25 @@ where
         reducer: fn(Vec<String>) -> String,
     ) -> Self {
         self.extension_points
-            .push(ExtensionPoint::new(name, reducer));
+            .push(Box::new(StringExtensionPoint::new(name, reducer)));
         self
     }
 
-    pub fn contribute(mut self, contribution: Contribution) -> Self {
-        self.contributions.push(contribution);
+    pub fn typed_extension_point<P>(mut self, point: P) -> Self
+    where
+        P: ExtensionPoint + Clone + 'static,
+    {
+        self.extension_points
+            .push(Box::new(point));
+        self
+    }
+
+    pub fn contribute<C>(mut self, contribution: Contribution<C>) -> Self
+    where
+        C: Send + Sync + 'static,
+    {
+        self.contributions
+            .push(contribution.erase());
         self
     }
 

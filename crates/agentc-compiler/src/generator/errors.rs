@@ -18,6 +18,19 @@ pub enum GeneratorError {
     #[error("block '{0}' is registered more than once")]
     DuplicateBlock(String),
 
+    #[error("extension point '{point}' is declared more than once")]
+    DuplicateExtensionPoint { point: String },
+
+    #[error(
+        "block '{block_id}' contributes to extension point '{point}' with type '{actual}', but the extension point expects '{expected}'"
+    )]
+    ExtensionPointTypeMismatch {
+        block_id: String,
+        point: String,
+        expected: &'static str,
+        actual: &'static str,
+    },
+
     #[error("template '{template}' not found in block '{block_id}'")]
     TemplateNotFound { block_id: String, template: String },
 

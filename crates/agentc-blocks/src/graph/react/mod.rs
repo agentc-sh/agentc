@@ -12,15 +12,12 @@ pub mod server;
 use serde::{Deserialize, Serialize};
 
 use agentc_compiler::generator::{
-    blocks::{
-        BlockSet,
-        codegen::CodeGenBlock,
-        template::TemplateFragmentBlock,
-    },
+    blocks::{BlockSet, codegen::CodeGenBlock, template::TemplateFragmentBlock},
     extension::{Contribution, reducers},
 };
 
 use crate::{
+    archetype::standalone::codegen::cargo::{CargoDependencyContribution, CargoPatchContribution},
     composition::{GenerationContribution, OptionalGenerationContribution},
     context::ResolvedContext,
     errors::BlocksError,
@@ -34,10 +31,29 @@ use crate::{
         traits::AgentGraph,
         types::ResolvedGraph,
     },
+    types::RuntimeValue,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
-pub struct ReActGraphConfig {}
+pub struct ReActGraphConfig {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<ReActGraphModelConfig>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+pub struct ReActGraphModelConfig {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timeout: Option<RuntimeValue<u64>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub retry: Option<ReActGraphModelRetryConfig>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ReActGraphModelRetryConfig {
+    pub max_attempts: RuntimeValue<u32>,
+    pub initial_backoff: RuntimeValue<u64>,
+    pub max_backoff: RuntimeValue<u64>,
+}
 
 pub struct ReActGraph;
 
@@ -51,14 +67,28 @@ impl AgentGraph for ReActGraph {
     fn resolve(
         &self,
         context: ResolvedContext,
-        _config: Self::Config,
+        config: Self::Config,
     ) -> Result<ResolvedGraph, BlocksError> {
         let fields = FieldsSpec::collect_from(&context);
 
         let has_ag_ui = context
             .http_server
             .as_ref()
-            .is_some_and(|server| server.protocols.iter().any(|p| p.as_ag_ui().is_some()));
+            .is_some_and(|server| {
+                server
+                    .protocols
+                    .iter()
+                    .any(|p| p.as_ag_ui().is_some())
+            });
+        let has_a2a = context
+            .http_server
+            .as_ref()
+            .is_some_and(|server| {
+                server
+                    .protocols
+                    .iter()
+                    .any(|p| p.as_a2a().is_some())
+            });
 
         let core_blocks = BlockSet::new()
             .add(
@@ -66,10 +96,12 @@ impl AgentGraph for ReActGraph {
                     .id("agent_rs")
                     .extension_point("agent::use", reducers::concat)
                     .extension_point("agent::tools", reducers::concat)
-                    .contribute(Contribution::strict("config::loader"))
-                    .contribute(Contribution::strict("config::mapper"))
-                    .contribute(Contribution::lenient("tools::features"))
-                    .build(AgentCodeGen { fields: fields.clone() }),
+                    .contribute(Contribution::<String>::lenient("config::fields"))
+                    .contribute(Contribution::<String>::lenient("config::impls"))
+                    .contribute(Contribution::<String>::lenient("config::loader"))
+                    .contribute(Contribution::<String>::lenient("config::mapper"))
+                    .contribute(Contribution::<String>::lenient("tools::features"))
+                    .build(AgentCodeGen { fields: fields.clone(), config }),
             )
             .add(
                 CodeGenBlock::builder()
@@ -79,16 +111,18 @@ impl AgentGraph for ReActGraph {
             .add(
                 CodeGenBlock::builder()
                     .id("react_migrations")
-                    .contribute(Contribution::strict("migrator::use"))
-                    .contribute(Contribution::strict("migrator::migrations"))
+                    .contribute(Contribution::<String>::strict("migrator::use"))
+                    .contribute(Contribution::<String>::strict("migrator::migrations"))
                     .build(ReActMigrationsCodeGen),
             )
             .add(
                 TemplateFragmentBlock::builder()
                     .id("react_cargo")
-                    .contribute(Contribution::strict("cargo::dependencies"))
-                    .contribute(Contribution::strict("cargo::patches"))
-                    .build(ReActCargoFragment { has_ag_ui }),
+                    .contribute(Contribution::<CargoDependencyContribution>::strict(
+                        "cargo::dependencies",
+                    ))
+                    .contribute(Contribution::<CargoPatchContribution>::strict("cargo::patches"))
+                    .build(ReActCargoFragment { has_ag_ui, has_a2a }),
             )
             .into_inner();
 
@@ -101,15 +135,15 @@ impl AgentGraph for ReActGraph {
                                 .id("server_rs")
                                 .extension_point("server::use", reducers::concat)
                                 .extension_point("server::routers", reducers::concat)
-                                .contribute(Contribution::strict("main::modules"))
+                                .contribute(Contribution::<String>::strict("main::modules"))
                                 .build(ServerCodeGen { fields: fields.clone() }),
                         )
                         .add(
                             CodeGenBlock::builder()
                                 .id("cli_serve")
-                                .contribute(Contribution::strict("cli::mod::use"))
-                                .contribute(Contribution::strict("cli::mod::variants"))
-                                .contribute(Contribution::strict("cli::mod::arms"))
+                                .contribute(Contribution::<String>::strict("cli::mod::use"))
+                                .contribute(Contribution::<String>::strict("cli::mod::variants"))
+                                .contribute(Contribution::<String>::strict("cli::mod::arms"))
                                 .build(CliServeCodeGen),
                         )
                         .into_inner(),
@@ -162,15 +196,29 @@ mod tests {
 
     #[test]
     fn provides_graph_react_and_streaming() {
-        let resolved = ReActGraph.resolve(context(None), ReActGraphConfig::default()).unwrap();
+        let resolved = ReActGraph
+            .resolve(context(None), ReActGraphConfig::default())
+            .unwrap();
 
-        assert!(resolved.contribution.provides.contains::<GraphReAct>());
-        assert!(resolved.contribution.provides.contains::<Streaming>());
+        assert!(
+            resolved
+                .contribution
+                .provides
+                .contains::<GraphReAct>()
+        );
+        assert!(
+            resolved
+                .contribution
+                .provides
+                .contains::<Streaming>()
+        );
     }
 
     #[test]
     fn core_contribution_has_no_http_dependent_blocks() {
-        let resolved = ReActGraph.resolve(context(None), ReActGraphConfig::default()).unwrap();
+        let resolved = ReActGraph
+            .resolve(context(None), ReActGraphConfig::default())
+            .unwrap();
 
         let ids = resolved
             .contribution
@@ -191,13 +239,15 @@ mod tests {
 
     #[tokio::test]
     async fn react_cargo_enables_ag_ui_feature_only_when_protocol_present() {
-        let without_ag_ui =
-            ReActGraph.resolve(context(None), ReActGraphConfig::default()).unwrap();
+        let without_ag_ui = ReActGraph
+            .resolve(context(None), ReActGraphConfig::default())
+            .unwrap();
         let with_ag_ui = ReActGraph
             .resolve(
                 context(Some(json!({
                     "host": "0.0.0.0",
                     "port": 8080,
+                    "max_request_size": 2097152,
                     "protocols": [{ "type": "ag_ui", "config": { "path": "/ag-ui" } }]
                 }))),
                 ReActGraphConfig::default(),
@@ -214,6 +264,8 @@ mod tests {
             .unwrap()
             .render_contribution(&ctx, "cargo::dependencies")
             .await
+            .unwrap()
+            .downcast::<CargoDependencyContribution>()
             .unwrap();
         let with = with_ag_ui
             .contribution
@@ -223,9 +275,69 @@ mod tests {
             .unwrap()
             .render_contribution(&ctx, "cargo::dependencies")
             .await
+            .unwrap()
+            .downcast::<CargoDependencyContribution>()
             .unwrap();
 
-        assert!(!without.contains("ag-ui"));
-        assert!(with.contains("ag-ui"));
+        assert!(matches!(
+            without,
+            CargoDependencyContribution::Raw(value) if !value.contains("ag-ui")
+        ));
+        assert!(matches!(
+            with,
+            CargoDependencyContribution::Raw(value) if value.contains("ag-ui")
+        ));
+    }
+
+    #[tokio::test]
+    async fn react_cargo_enables_a2a_feature_only_when_protocol_present() {
+        let without_a2a = ReActGraph
+            .resolve(context(None), ReActGraphConfig::default())
+            .unwrap();
+        let with_a2a = ReActGraph
+            .resolve(
+                context(Some(json!({
+                    "host": "0.0.0.0",
+                    "port": 8080,
+                    "max_request_size": 2097152,
+                    "protocols": [{ "type": "a2a", "config": { "path": "/a2a" } }]
+                }))),
+                ReActGraphConfig::default(),
+            )
+            .unwrap();
+
+        let ctx = GenerationContext::new(context(None));
+
+        let without = without_a2a
+            .contribution
+            .blocks
+            .iter()
+            .find(|b| b.id() == "react_cargo")
+            .unwrap()
+            .render_contribution(&ctx, "cargo::dependencies")
+            .await
+            .unwrap()
+            .downcast::<CargoDependencyContribution>()
+            .unwrap();
+        let with = with_a2a
+            .contribution
+            .blocks
+            .iter()
+            .find(|b| b.id() == "react_cargo")
+            .unwrap()
+            .render_contribution(&ctx, "cargo::dependencies")
+            .await
+            .unwrap()
+            .downcast::<CargoDependencyContribution>()
+            .unwrap();
+
+        assert!(matches!(
+            without,
+            CargoDependencyContribution::Raw(value) if !value.contains("\"a2a\"")
+        ));
+        assert!(matches!(
+            with,
+            CargoDependencyContribution::Raw(value) if value.contains("\"a2a\"")
+        ));
     }
 }

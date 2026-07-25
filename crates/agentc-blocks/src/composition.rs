@@ -4,18 +4,11 @@
 
 use std::collections::HashMap;
 
-use agentc_compiler::{
-    compiler::traits::Compiler,
-    generator::blocks::Block,
-};
+use agentc_compiler::{compiler::traits::Compiler, generator::blocks::Block};
 
 use crate::{
-    archetype::types::ResolvedArchetype,
-    context::ResolvedContext,
-    errors::BlocksError,
-    feature::GenerationFeatureSet,
-    graph::types::ResolvedGraph,
-    protocol::types::ResolvedProtocol,
+    archetype::types::ResolvedArchetype, context::ResolvedContext, errors::BlocksError,
+    feature::GenerationFeatureSet, graph::types::ResolvedGraph, protocol::types::ResolvedProtocol,
     runtime::EmbeddedAsset,
 };
 
@@ -36,18 +29,12 @@ impl GenerationContribution {
         }
     }
 
-    pub fn with_blocks(
-        mut self,
-        blocks: Vec<Box<dyn Block<ResolvedContext>>>,
-    ) -> Self {
+    pub fn with_blocks(mut self, blocks: Vec<Box<dyn Block<ResolvedContext>>>) -> Self {
         self.blocks = blocks;
         self
     }
 
-    pub fn with_embedded_assets(
-        mut self,
-        embedded_assets: Vec<&'static EmbeddedAsset>,
-    ) -> Self {
+    pub fn with_embedded_assets(mut self, embedded_assets: Vec<&'static EmbeddedAsset>) -> Self {
         self.embedded_assets = embedded_assets;
         self
     }
@@ -103,10 +90,7 @@ impl Composer {
         Self
     }
 
-    pub fn compose(
-        self,
-        mut input: CompositionInput,
-    ) -> Result<ComposedGeneration, BlocksError> {
+    pub fn compose(self, mut input: CompositionInput) -> Result<ComposedGeneration, BlocksError> {
         let archetype_name = input.archetype.name.clone();
         let graph_name = input.graph.name.clone();
         let protocol_names = input
@@ -195,7 +179,9 @@ impl Composer {
         embedded_asset_names: &mut HashMap<&'static str, &'static EmbeddedAsset>,
         provided: &mut GenerationFeatureSet,
     ) -> Result<(), BlocksError> {
-        let missing = contribution.requires.missing_requirements(provided);
+        let missing = contribution
+            .requires
+            .missing_requirements(provided);
 
         if !missing.is_empty() {
             return Err(BlocksError::invalid(format!(
@@ -255,23 +241,20 @@ mod tests {
     use async_trait::async_trait;
 
     use super::*;
-    use agentc_compiler::{
-        compiler::{
-            errors::CompilerError,
-            types::{Artifact, CompileParams},
-            traits::{Compiler, OutputSink},
-        },
-        generator::{
-            blocks::traits::Block,
-            context::GenerationContext,
-            errors::GeneratorError,
-            extension::ExtensionRegistry,
-            vfs::VirtualFileSystem,
-        },
-    };
     use crate::{
         feature::{Cli, GraphReAct, HttpServer, Streaming},
         runtime::ExtractionMode,
+    };
+    use agentc_compiler::{
+        compiler::{
+            errors::CompilerError,
+            traits::{Compiler, OutputSink},
+            types::{Artifact, CompileParams},
+        },
+        generator::{
+            blocks::traits::Block, context::GenerationContext, errors::GeneratorError,
+            extension::ExtensionRegistry, vfs::VirtualFileSystem,
+        },
     };
 
     struct StubCompiler;
@@ -323,10 +306,7 @@ mod tests {
         Box::new(StubBlock { id })
     }
 
-    fn archetype(
-        contribution: GenerationContribution,
-        target: Option<&str>,
-    ) -> ResolvedArchetype {
+    fn archetype(contribution: GenerationContribution, target: Option<&str>) -> ResolvedArchetype {
         ResolvedArchetype {
             name: "standalone".to_string(),
             compiler: Box::new(StubCompiler),
@@ -347,10 +327,7 @@ mod tests {
     }
 
     fn protocol(contribution: GenerationContribution) -> ResolvedProtocol {
-        ResolvedProtocol {
-            name: "ag_ui".to_string(),
-            contribution,
-        }
+        ResolvedProtocol { name: "ag_ui".to_string(), contribution }
     }
 
     fn provides<T>() -> GenerationFeatureSet
@@ -369,21 +346,17 @@ mod tests {
         let composed = Composer::new()
             .compose(CompositionInput {
                 archetype: archetype(
-                    GenerationContribution::new()
-                        .with_blocks(vec![block("archetype")]),
+                    GenerationContribution::new().with_blocks(vec![block("archetype")]),
                     Some("x86_64-unknown-linux-gnu"),
                 ),
                 graph: graph(
-                    GenerationContribution::new()
-                        .with_blocks(vec![block("graph")]),
+                    GenerationContribution::new().with_blocks(vec![block("graph")]),
                     vec![OptionalGenerationContribution::new(
-                        GenerationContribution::new()
-                            .with_blocks(vec![block("integration")]),
+                        GenerationContribution::new().with_blocks(vec![block("integration")]),
                     )],
                 ),
                 protocols: vec![protocol(
-                    GenerationContribution::new()
-                        .with_blocks(vec![block("protocol")]),
+                    GenerationContribution::new().with_blocks(vec![block("protocol")]),
                 )],
                 blocks: vec![block("custom")],
             })
@@ -395,25 +368,20 @@ mod tests {
             .map(|block| block.id().to_string())
             .collect::<Vec<_>>();
 
-        assert_eq!(
-            ids,
-            vec!["archetype", "graph", "integration", "protocol", "custom"],
-        );
+        assert_eq!(ids, vec!["archetype", "graph", "integration", "protocol", "custom"],);
     }
 
     #[test]
     fn composer_rejects_missing_required_features() {
-        let result = Composer::new()
-            .compose(CompositionInput {
-                archetype: archetype(GenerationContribution::new(), None),
-                graph: graph(
-                    GenerationContribution::new()
-                        .with_requires(provides::<Cli>()),
-                    Vec::new(),
-                ),
-                protocols: Vec::new(),
-                blocks: Vec::new(),
-            });
+        let result = Composer::new().compose(CompositionInput {
+            archetype: archetype(GenerationContribution::new(), None),
+            graph: graph(
+                GenerationContribution::new().with_requires(provides::<Cli>()),
+                Vec::new(),
+            ),
+            protocols: Vec::new(),
+            blocks: Vec::new(),
+        });
 
         assert!(matches!(result, Err(BlocksError::InvalidManifest { .. })));
     }
@@ -424,8 +392,7 @@ mod tests {
             .compose(CompositionInput {
                 archetype: archetype(GenerationContribution::new(), None),
                 graph: graph(
-                    GenerationContribution::new()
-                        .with_blocks(vec![block("graph")]),
+                    GenerationContribution::new().with_blocks(vec![block("graph")]),
                     vec![OptionalGenerationContribution::new(
                         GenerationContribution::new()
                             .with_blocks(vec![block("integration")])
@@ -448,29 +415,23 @@ mod tests {
 
     #[test]
     fn composer_rejects_incompatible_protocols() {
-        let result = Composer::new()
-            .compose(CompositionInput {
-                archetype: archetype(
-                    GenerationContribution::new()
-                        .with_provides(provides::<HttpServer>()),
-                    None,
-                ),
-                graph: graph(
-                    GenerationContribution::new()
-                        .with_provides(provides::<Streaming>()),
-                    Vec::new(),
-                ),
-                protocols: vec![protocol(
-                    GenerationContribution::new()
-                        .with_requires({
-                            let mut features = provides::<HttpServer>();
+        let result = Composer::new().compose(CompositionInput {
+            archetype: archetype(
+                GenerationContribution::new().with_provides(provides::<HttpServer>()),
+                None,
+            ),
+            graph: graph(
+                GenerationContribution::new().with_provides(provides::<Streaming>()),
+                Vec::new(),
+            ),
+            protocols: vec![protocol(GenerationContribution::new().with_requires({
+                let mut features = provides::<HttpServer>();
 
-                            features.insert::<GraphReAct>();
-                            features
-                        }),
-                )],
-                blocks: Vec::new(),
-            });
+                features.insert::<GraphReAct>();
+                features
+            }))],
+            blocks: Vec::new(),
+        });
 
         assert!(matches!(result, Err(BlocksError::InvalidManifest { .. })));
     }
@@ -480,13 +441,11 @@ mod tests {
         let composed = Composer::new()
             .compose(CompositionInput {
                 archetype: archetype(
-                    GenerationContribution::new()
-                        .with_embedded_assets(vec![&SHARED_ASSET]),
+                    GenerationContribution::new().with_embedded_assets(vec![&SHARED_ASSET]),
                     None,
                 ),
                 graph: graph(
-                    GenerationContribution::new()
-                        .with_embedded_assets(vec![&SHARED_ASSET]),
+                    GenerationContribution::new().with_embedded_assets(vec![&SHARED_ASSET]),
                     Vec::new(),
                 ),
                 protocols: Vec::new(),
@@ -500,21 +459,18 @@ mod tests {
 
     #[test]
     fn composer_rejects_conflicting_asset_names() {
-        let result = Composer::new()
-            .compose(CompositionInput {
-                archetype: archetype(
-                    GenerationContribution::new()
-                        .with_embedded_assets(vec![&SHARED_ASSET]),
-                    None,
-                ),
-                graph: graph(
-                    GenerationContribution::new()
-                        .with_embedded_assets(vec![&CONFLICTING_SHARED_ASSET]),
-                    Vec::new(),
-                ),
-                protocols: Vec::new(),
-                blocks: Vec::new(),
-            });
+        let result = Composer::new().compose(CompositionInput {
+            archetype: archetype(
+                GenerationContribution::new().with_embedded_assets(vec![&SHARED_ASSET]),
+                None,
+            ),
+            graph: graph(
+                GenerationContribution::new().with_embedded_assets(vec![&CONFLICTING_SHARED_ASSET]),
+                Vec::new(),
+            ),
+            protocols: Vec::new(),
+            blocks: Vec::new(),
+        });
 
         assert!(matches!(result, Err(BlocksError::InvalidManifest { .. })));
     }

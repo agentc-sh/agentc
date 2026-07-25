@@ -128,7 +128,8 @@ pub trait CheckpointStoreHandle<N: GraphNode>: Send + Sync {
 pub trait Checkpointer<N: GraphNode>: Send + Sync {
     /// Loads a checkpoint for the given session and run.
     /// The input is used to determine if a session or run resume is possible, and to initialize state for a fresh run.
-    async fn load(&self, params: LoadCheckpointParams<N>) -> Result<Checkpoint<N>, CheckpointError>;
+    async fn load(&self, params: LoadCheckpointParams<N>)
+    -> Result<Checkpoint<N>, CheckpointError>;
 
     /// Saves a checkpoint snapshot and state after a node completes.
     async fn save(&self, params: SaveCheckpointParams<N>) -> Result<Uuid, CheckpointError>;
@@ -346,11 +347,7 @@ where
                     let checkpoint_id = Uuid::new_v4();
 
                     ctx.session_store()
-                        .update_run_status(
-                            &params.tenant_id,
-                            params.run_id,
-                            params.status,
-                        )
+                        .update_run_status(&params.tenant_id, params.run_id, params.status)
                         .await
                         .map_err(|e| CheckpointError::session_store_error(e.to_string()))?;
 
@@ -557,7 +554,8 @@ mod tests {
             run_id: Uuid,
             status: RunStatus,
         ) -> Result<(), Self::Error> {
-            if let Some(s) = self.runs
+            if let Some(s) = self
+                .runs
                 .lock()
                 .unwrap()
                 .get_mut(&run_id)

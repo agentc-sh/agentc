@@ -3,14 +3,20 @@
 // SPDX-License-Identifier: MIT
 
 use agentc_compiler::generator::{
-    blocks::template::TemplateFragment, context::GenerationContext, errors::GeneratorError,
-    extension::ExtensionRegistry,
+    blocks::template::TemplateFragment,
+    context::GenerationContext,
+    errors::GeneratorError,
+    extension::{ErasedContributionValue, ExtensionRegistry},
 };
 
-use crate::context::ResolvedContext;
+use crate::{
+    archetype::standalone::codegen::cargo::{CargoDependencyContribution, CargoPatchContribution},
+    context::ResolvedContext,
+};
 
 pub struct ReActCargoFragment {
     pub has_ag_ui: bool,
+    pub has_a2a: bool,
 }
 
 impl TemplateFragment<ResolvedContext> for ReActCargoFragment {
@@ -18,24 +24,33 @@ impl TemplateFragment<ResolvedContext> for ReActCargoFragment {
         &self,
         _ctx: &GenerationContext<ResolvedContext>,
         point: &str,
-    ) -> Result<String, GeneratorError> {
+    ) -> Result<ErasedContributionValue, GeneratorError> {
         let version = env!("CARGO_PKG_VERSION");
 
         match point {
             "cargo::dependencies" => {
-                if self.has_ag_ui {
-                    Ok(format!(
-                        "agentc-agent-react = {{ version = \"{version}\", features = [\"ag-ui\"] }}"
-                    ))
+                let features = [
+                    self.has_ag_ui.then_some("\"ag-ui\""),
+                    self.has_a2a.then_some("\"a2a\""),
+                ]
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>();
+
+                if !features.is_empty() {
+                    Ok(ErasedContributionValue::new(CargoDependencyContribution::raw(format!(
+                        "agentc-agent-react = {{ version = \"{version}\", features = [{}] }}",
+                        features.join(", "),
+                    ))))
                 } else {
-                    Ok(format!(
+                    Ok(ErasedContributionValue::new(CargoDependencyContribution::raw(format!(
                         "agentc-agent-react = {{ version = \"{version}\" }}"
-                    ))
+                    ))))
                 }
             }
-            "cargo::patches" => {
-                Ok("agentc-agent-react = { path = \"../runtime/agentc-agent-react\" }".to_string())
-            }
+            "cargo::patches" => Ok(ErasedContributionValue::new(CargoPatchContribution::raw(
+                "agentc-agent-react = { path = \"../runtime/agentc-agent-react\" }",
+            ))),
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
     }

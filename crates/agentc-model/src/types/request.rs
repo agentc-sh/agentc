@@ -15,7 +15,9 @@ use crate::types::{
 /// [`CompletionModel::send`](crate::traits::CompletionModel::send).
 #[derive(Debug, Clone)]
 pub struct CompletionRequest {
+    /// The chat history to use as context for the model.
     pub messages: ChatHistory,
+    /// Tools available to the model for use in generating a response.
     pub tools: Vec<ToolSpec>,
     /// Maximum number of tokens to generate.
     pub max_tokens: Option<u64>,
