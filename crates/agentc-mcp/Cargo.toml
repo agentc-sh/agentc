@@ -8,8 +8,8 @@ license.workspace = true
 readme.workspace = true
 
 [dependencies]
-agentc-telemetry = { path = "../agentc-telemetry", version = "0.3.0" }
-agentc-agent = { path = "../agentc-agent", version = "0.3.0" }
+agentc-telemetry = { path = "../agentc-telemetry", version = "0.3.1" }
+agentc-agent = { path = "../agentc-agent", version = "0.3.1" }
 
 rmcp = { version = "1.3", features = [
     "client",
