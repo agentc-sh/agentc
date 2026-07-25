@@ -22,7 +22,7 @@ use crate::{
         traits::{AssetTransformer, TransformSink},
         types::AssetArtifact,
     },
-    utils::command_exists,
+    utils::{command_exists, symlink},
 };
 
 #[derive(Deserialize)]
@@ -245,11 +245,11 @@ impl PythonTransformer {
             .await
             .map_err(|e| TransformError::io(staging_dir.to_string_lossy(), e))?;
 
-        tokio::fs::symlink(project_dir.join("pyproject.toml"), staging_dir.join("pyproject.toml"))
+        symlink(&project_dir.join("pyproject.toml"), &staging_dir.join("pyproject.toml"))
             .await
             .map_err(|e| TransformError::io(staging_dir.to_string_lossy(), e))?;
 
-        tokio::fs::symlink(source_dir, staging_dir.join(module_name))
+        symlink(source_dir, &staging_dir.join(module_name))
             .await
             .map_err(|e| TransformError::io(staging_dir.to_string_lossy(), e))?;
 

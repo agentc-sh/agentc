@@ -5,7 +5,7 @@
 use async_trait::async_trait;
 use std::path::{Path, PathBuf};
 
-use crate::asset::errors::AssetError;
+use crate::{asset::errors::AssetError, utils::symlink};
 
 /// A reference to a asset that needs to be fetched, along with metadata
 /// about what it is for.
@@ -102,7 +102,7 @@ impl AssetHandler for LocalFileHandler {
         }
 
         if dest.symlink_metadata().is_err() {
-            tokio::fs::symlink(path, dest)
+            symlink(&path, dest)
                 .await
                 .map_err(|e| AssetError::io(uri, e))?;
         }
