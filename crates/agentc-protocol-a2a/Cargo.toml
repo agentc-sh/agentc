@@ -28,9 +28,9 @@ client = [
 ]
 
 [dependencies]
-agentc-agent = { path = "../agentc-agent", version = "0.2.1", optional = true }
-agentc-http = { path = "../agentc-http", version = "0.2.1", optional = true }
-agentc-telemetry = { path = "../agentc-telemetry", version = "0.2.1", optional = true }
+agentc-agent = { path = "../agentc-agent", version = "0.3.0", optional = true }
+agentc-http = { path = "../agentc-http", version = "0.3.0", optional = true }
+agentc-telemetry = { path = "../agentc-telemetry", version = "0.3.0", optional = true }
 
 thiserror = { workspace = true }
 
