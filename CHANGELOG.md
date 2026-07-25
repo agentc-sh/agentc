@@ -1,6 +1,12 @@
 # Changelog
 
 ---
+## [0.3.1](https://github.com/agentc-sh/agentc/compare/0.3.0..0.3.1) - 2026-07-25
+
+### Bug Fixes
+
+- **(compiler)** Fix symlink handling for windows builds  - ([6b8f39e](https://github.com/agentc-sh/agentc/commit/6b8f39e227e672e23073ea0a679ed67bc6ca2f96)) - Timothy Pogue
+---
 ## [0.3.0](https://github.com/agentc-sh/agentc/compare/0.3.0-rc.17.a352e10..0.3.0) - 2026-07-25
 
 ### Miscellaneous

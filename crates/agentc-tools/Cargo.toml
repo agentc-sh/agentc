@@ -15,7 +15,7 @@ python-static = ["dep:pyo3", "dep:pythonize", "dep:include_dir"]
 bash = ["dep:rust-bash"]
 
 [dependencies]
-agentc-agent = { path = "../agentc-agent", version = "0.3.0" }
+agentc-agent = { path = "../agentc-agent", version = "0.3.1" }
 
 tokio = { workspace = true }
 tokio-util = { workspace = true }
