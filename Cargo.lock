@@ -173,7 +173,7 @@ checksum = "aae1277d39aeec15cb388266ecc24b11c80469deae6067e17a1a7aa9e5c1f234"
 
 [[package]]
 name = "agentc"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "agentc-core",
  "anyhow",
@@ -201,7 +201,7 @@ dependencies = [
 
 [[package]]
 name = "agentc-agent"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "agentc-agent-macros",
  "agentc-model",
@@ -224,7 +224,7 @@ dependencies = [
 
 [[package]]
 name = "agentc-agent-macros"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -233,7 +233,7 @@ dependencies = [
 
 [[package]]
 name = "agentc-agent-react"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "agentc-agent",
  "agentc-database",
@@ -273,7 +273,7 @@ dependencies = [
 
 [[package]]
 name = "agentc-blocks"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "agentc-compiler",
  "anyhow",
@@ -295,7 +295,7 @@ dependencies = [
 
 [[package]]
 name = "agentc-compiler"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "async-trait",
  "cel",
@@ -315,7 +315,7 @@ dependencies = [
 
 [[package]]
 name = "agentc-config"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -333,7 +333,7 @@ dependencies = [
 
 [[package]]
 name = "agentc-core"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "agentc-blocks",
  "agentc-compiler",
@@ -358,7 +358,7 @@ dependencies = [
 
 [[package]]
 name = "agentc-database"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -378,7 +378,7 @@ dependencies = [
 
 [[package]]
 name = "agentc-domain"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -395,7 +395,7 @@ dependencies = [
 
 [[package]]
 name = "agentc-domain-sql"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "agentc-database",
  "agentc-domain",
@@ -414,7 +414,7 @@ dependencies = [
 
 [[package]]
 name = "agentc-http"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "agentc-domain",
  "agentc-telemetry",
@@ -447,7 +447,7 @@ dependencies = [
 
 [[package]]
 name = "agentc-mcp"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "agentc-agent",
  "agentc-telemetry",
@@ -465,7 +465,7 @@ dependencies = [
 
 [[package]]
 name = "agentc-model"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "agentc-telemetry",
  "anyhow",
@@ -482,7 +482,7 @@ dependencies = [
 
 [[package]]
 name = "agentc-prompt"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "async-trait",
  "minijinja",
@@ -495,7 +495,7 @@ dependencies = [
 
 [[package]]
 name = "agentc-protocol-a2a"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "agentc-agent",
  "agentc-http",
@@ -527,7 +527,7 @@ dependencies = [
 
 [[package]]
 name = "agentc-protocol-ag-ui"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "agentc-http",
  "async-stream",
@@ -548,7 +548,7 @@ dependencies = [
 
 [[package]]
 name = "agentc-skills"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "agentc-agent",
  "agentc-prompt",
@@ -570,7 +570,7 @@ dependencies = [
 
 [[package]]
 name = "agentc-telemetry"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "anyhow",
  "hostname",
@@ -588,7 +588,7 @@ dependencies = [
 
 [[package]]
 name = "agentc-tools"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "agentc-agent",
  "anyhow",
