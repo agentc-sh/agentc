@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use std::path::PathBuf;
 use thiserror::Error;
 
-use agentc_blocks::runtime::{EmbeddedAsset, RuntimeError};
+use agentc_blocks::runtime::{EmbeddedAsset, ExtractAll, RuntimeError};
 use agentc_compiler::{
     asset::types::AssetOrigin,
     compiler::Compiler,
@@ -102,7 +102,9 @@ impl Step for ExtractStep {
             .await
             .map_err(|_| ExtractStepError::EventChannelClosed)?;
 
-        agentc_blocks::runtime::extract_all(&input.embedded_assets, self.runtime_dir.clone())
+        input
+            .embedded_assets
+            .extract_all(self.runtime_dir.clone())
             .await?;
 
         tx.send(ExtractStepEvent::Extracted { runtime_dir: self.runtime_dir.clone() })
