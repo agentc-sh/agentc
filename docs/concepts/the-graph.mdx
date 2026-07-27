@@ -60,6 +60,25 @@ The checkpoint store requires a database. SQLite works well for development and 
 deployments. PostgreSQL is recommended for production. See
 [Deploy a standalone binary](/guides/deploy-standalone) for configuration details.
 
+## Time travel and branching
+
+Each checkpoint records the run's position and links to the one before it, so a run's checkpoints form
+a chain and a session's checkpoints form a tree.
+
+Because the state at any checkpoint can be reconstructed, a run can be started from an earlier
+checkpoint instead of the latest state. This creates a new run whose first checkpoint descends from the
+chosen checkpoint, so the original run is left unchanged and a new line of execution starts from that
+point.
+
+Messages are the source of truth for conversation history. Each message is stored once and stamped with
+the checkpoint that introduced it. Reconstructing a run's history means reading the messages along the
+chosen checkpoint's ancestry, the chain of checkpoints from the run's root down to that checkpoint,
+rather than copying the whole conversation into every checkpoint. Messages that carry no stamp, such as
+those created outside a run, are treated as base history and are always included.
+
+The ReAct graph exposes a session's checkpoints over HTTP. See the
+[ReAct HTTP reference](/reference/graph/react/http/checkpoints).
+
 ## Graph state
 
 Each graph implementation has its own state structure. The state persists across the run and holds
