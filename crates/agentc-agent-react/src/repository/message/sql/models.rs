@@ -29,6 +29,7 @@ pub mod message {
         pub tenant_id: String,
         pub session_id: Uuid,
         pub run_id: Option<Uuid>,
+        pub checkpoint_id: Option<Uuid>,
         pub role: String,
         pub content: Option<String>,
         pub data: Option<Json<Value>>,
@@ -48,6 +49,7 @@ pub mod message {
                 "tenant_id" => Ok(CursorValue::String(Some(self.tenant_id.clone()))),
                 "session_id" => Ok(CursorValue::Uuid(Some(self.session_id))),
                 "run_id" => Ok(CursorValue::Uuid(self.run_id)),
+                "checkpoint_id" => Ok(CursorValue::Uuid(self.checkpoint_id)),
                 "role" => Ok(CursorValue::String(Some(self.role.clone()))),
                 "created_at" => Ok(CursorValue::DateTime(Some(self.created_at))),
                 _ => Err(DatabaseError::UnknownFieldName(field_name.to_string())),
@@ -67,6 +69,7 @@ pub mod message {
                     tenant_id: model.tenant_id,
                     session_id: model.session_id,
                     run_id: model.run_id,
+                    checkpoint_id: model.checkpoint_id,
                     content: model.content.unwrap_or_default(),
                     name: None,
                     created_at: model.created_at,
@@ -76,6 +79,7 @@ pub mod message {
                     tenant_id: model.tenant_id,
                     session_id: model.session_id,
                     run_id: model.run_id,
+                    checkpoint_id: model.checkpoint_id,
                     content: model
                         .data
                         .ok_or_else(|| "Missing data for user message".to_string())?
@@ -95,6 +99,7 @@ pub mod message {
                     run_id: model
                         .run_id
                         .ok_or_else(|| "Missing run_id for assistant message".to_string())?,
+                    checkpoint_id: model.checkpoint_id,
                     content: model.content,
                     name: None,
                     tool_calls: model
@@ -112,6 +117,7 @@ pub mod message {
                     tenant_id: model.tenant_id,
                     session_id: model.session_id,
                     run_id: model.run_id,
+                    checkpoint_id: model.checkpoint_id,
                     content: model.content,
                     name: None,
                     tool_call_id: model
@@ -139,6 +145,7 @@ pub mod message {
                     run_id: model
                         .run_id
                         .ok_or_else(|| "Missing run_id for reasoning message".to_string())?,
+                    checkpoint_id: model.checkpoint_id,
                     content: model.content.unwrap_or_default(),
                     signature: model
                         .data
@@ -160,6 +167,11 @@ pub mod message {
                 session_id: ActiveValue::set(*message.session_id()),
                 run_id: if let Some(run_id) = message.run_id() {
                     ActiveValue::set(Some(*run_id))
+                } else {
+                    ActiveValue::not_set()
+                },
+                checkpoint_id: if let Some(checkpoint_id) = message.checkpoint_id() {
+                    ActiveValue::set(Some(*checkpoint_id))
                 } else {
                     ActiveValue::not_set()
                 },
