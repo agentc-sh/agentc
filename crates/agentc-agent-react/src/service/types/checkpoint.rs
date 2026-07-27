@@ -8,7 +8,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use agentc_domain::{
-    repository::checkpoint_record::params::{FindCheckpointRecordParams as RepoFindCheckpointRecordParams},
+    repository::checkpoint_record::params::FindCheckpointRecordParams as RepoFindCheckpointRecordParams,
     types::{CheckpointReason, CheckpointRecord, RunStatus},
 };
 
