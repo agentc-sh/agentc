@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
+pub mod checkpoints;
 pub mod messages;
 pub mod runs;
 pub mod sessions;
@@ -26,6 +27,7 @@ pub fn router(
             .merge(sessions::router())
             .merge(messages::router())
             .merge(runs::router())
+            .merge(checkpoints::router())
             .with_state(ReActApiState::new(service, default_tenant_id, task_queue, bus))
     })
 }

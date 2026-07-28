@@ -367,6 +367,40 @@ impl Message {
         }
     }
 
+    /// Set the checkpoint ID for the message.
+    pub fn with_checkpoint_id(self, checkpoint_id: impl Into<Uuid>) -> Self {
+        match self {
+            Message::System(message) => Message::System(message.with_checkpoint_id(checkpoint_id)),
+            Message::User(message) => Message::User(message.with_checkpoint_id(checkpoint_id)),
+            Message::Assistant(message) => {
+                Message::Assistant(message.with_checkpoint_id(checkpoint_id))
+            }
+            Message::Tool(message) => Message::Tool(message.with_checkpoint_id(checkpoint_id)),
+            Message::Reasoning(message) => {
+                Message::Reasoning(message.with_checkpoint_id(checkpoint_id))
+            }
+        }
+    }
+
+    /// Optionally set the checkpoint ID for the message if the input is Some.
+    pub fn maybe_with_checkpoint_id(self, checkpoint_id: Option<impl Into<Uuid>>) -> Self {
+        match checkpoint_id {
+            Some(checkpoint_id) => self.with_checkpoint_id(checkpoint_id),
+            None => self,
+        }
+    }
+
+    /// Returns the checkpoint ID that introduced the message, if stamped.
+    pub fn checkpoint_id(&self) -> Option<&Uuid> {
+        match self {
+            Message::System(m) => m.checkpoint_id.as_ref(),
+            Message::User(m) => m.checkpoint_id.as_ref(),
+            Message::Assistant(m) => m.checkpoint_id.as_ref(),
+            Message::Tool(m) => m.checkpoint_id.as_ref(),
+            Message::Reasoning(m) => m.checkpoint_id.as_ref(),
+        }
+    }
+
     /// Set the information from the context.
     pub fn with_context<E, M>(self, ctx: &AgentContext<E, M>) -> Self
     where
