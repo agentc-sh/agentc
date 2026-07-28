@@ -4,6 +4,7 @@
 
 use async_trait::async_trait;
 use chrono::Utc;
+use std::collections::HashMap;
 use uuid::Uuid;
 
 use agentc_agent::graph::checkpoint::{
@@ -292,6 +293,7 @@ impl<'a> CheckpointSnapshotStore for SqlReActSnapshotStore<'a> {
 pub struct SqlReActStateStore<'a> {
     message_repo: SqlMessageRepository<'a>,
     state_snapshot_repo: SqlStateSnapshotRepository<'a>,
+    checkpoint_record_repo: SqlCheckpointRecordRepository<'a>,
 }
 
 impl<'a> SqlReActStateStore<'a> {
@@ -299,6 +301,7 @@ impl<'a> SqlReActStateStore<'a> {
         Self {
             message_repo: SqlMessageRepository::new(ctx),
             state_snapshot_repo: SqlStateSnapshotRepository::new(ctx),
+            checkpoint_record_repo: SqlCheckpointRecordRepository::new(ctx),
         }
     }
 }
@@ -316,7 +319,14 @@ impl<'a> StateStore<ReActState> for SqlReActStateStore<'a> {
         state: ReActState,
     ) -> Result<ReActState, Self::Error> {
         self.message_repo
-            .save(state.messages.clone())
+            .save(
+                state
+                    .messages
+                    .iter()
+                    .cloned()
+                    .map(|message| message.with_checkpoint_id(checkpoint_id))
+                    .collect(),
+            )
             .await
             .map_err(|e| CheckpointError::state_store_error(e.to_string()))?;
 
@@ -395,12 +405,25 @@ impl<'a> StateStore<ReActState> for SqlReActStateStore<'a> {
             None => return Ok(None),
         };
 
+        let ancestry = self
+            .checkpoint_record_repo
+            .ancestry(tenant_id, checkpoint_id)
+            .await
+            .map_err(|e| CheckpointError::state_store_error(e.to_string()))?;
+
+        let order = ancestry
+            .iter()
+            .enumerate()
+            .map(|(index, record)| (record.id, index))
+            .collect::<HashMap<_, _>>();
+
         let mut messages = self
             .message_repo
             .find(
                 FindMessageParams::new()
                     .tenant_ids([tenant_id])
                     .session_ids([session_id])
+                    .checkpoint_ids(ancestry.iter().map(|record| record.id))
                     .no_limit(),
             )
             .await
@@ -408,7 +431,17 @@ impl<'a> StateStore<ReActState> for SqlReActStateStore<'a> {
             .into_iter()
             .collect::<Vec<_>>();
 
-        messages.reverse();
+        // Ancestry order first (legacy NULL stamps sort ahead as base history), then
+        // creation order within a checkpoint.
+        messages.sort_by_key(|message| {
+            (
+                message
+                    .checkpoint_id()
+                    .and_then(|id| order.get(id).copied())
+                    .unwrap_or(0),
+                *message.created_at(),
+            )
+        });
 
         Ok(Some(ReActState {
             run_id,

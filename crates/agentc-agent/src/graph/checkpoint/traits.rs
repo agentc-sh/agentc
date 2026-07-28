@@ -197,6 +197,11 @@ where
                             .await
                             .map_err(|e| CheckpointError::state_store_error(e.to_string()))?
                     {
+                        ctx.session_store()
+                            .save_run(&params.tenant_id, params.session_id, params.run_id)
+                            .await
+                            .map_err(|e| CheckpointError::session_store_error(e.to_string()))?;
+
                         params
                             .input
                             .into_update()
@@ -794,6 +799,70 @@ mod tests {
             assert_eq!(state.visited, vec!["a", "b", "c"]);
             assert_eq!(state.counter, 3);
         }
+    }
+
+    #[tokio::test]
+    async fn time_travel_load_saves_run_for_replay_run_id() {
+        let handle = TestHandle::default();
+        let (tenant_id, session_id, run_id) = make_ids();
+        let cid = Uuid::new_v4();
+
+        handle
+            .snapshot_store
+            .save_snapshot(CheckpointSnapshot {
+                checkpoint_id: cid,
+                tenant_id: tenant_id.clone(),
+                session_id,
+                run_id,
+                node: "b".to_string(),
+                status: RunStatus::Interrupted,
+                reason: CheckpointReason::Interrupt,
+                created_at: Utc::now(),
+                parent_checkpoint_id: None,
+                metadata: None,
+            })
+            .await
+            .unwrap();
+
+        handle
+            .state_store
+            .save(
+                &tenant_id,
+                session_id,
+                run_id,
+                cid,
+                TestState {
+                    visited: vec!["a".to_string()],
+                    counter: 3,
+                },
+            )
+            .await
+            .unwrap();
+
+        // The replay runs under a fresh run id, distinct from the seeded snapshot's run.
+        let replay_run_id = Uuid::new_v4();
+
+        let checkpointer = GraphCheckpointer::new(handle.clone());
+        let result = checkpointer
+            .load(LoadCheckpointParams {
+                tenant_id,
+                session_id,
+                run_id: replay_run_id,
+                input: TestStateInput::default(),
+                checkpoint_id: Some(cid),
+            })
+            .await
+            .unwrap();
+
+        assert!(matches!(result, Checkpoint::Resume { .. }));
+        assert!(
+            handle
+                .session_store
+                .runs
+                .lock()
+                .unwrap()
+                .contains_key(&replay_run_id)
+        );
     }
 
     #[tokio::test]

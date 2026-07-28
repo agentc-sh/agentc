@@ -244,3 +244,26 @@ Prefer:
 ```rs
 let items = (0..10).collect::<Vec<_>>();
 ```
+
+### Rule 7 — Multiline expressions inbetween ( and ) should be on new lines
+
+Any multiline expression that is wrapped in parentheses for whatever reason, such as Ok(...), Some(...), a function call, etc., should have the opening and closing parentheses on their own lines, with the contents of the expression indented one level.
+
+Avoid:
+
+```rs
+Ok(some_field
+   .some_method()
+   .some_other_method())
+```
+
+Prefer:
+
+```rs
+Ok(
+   some_field
+      .some_method()
+      .some_other_method()
+)
+```
+

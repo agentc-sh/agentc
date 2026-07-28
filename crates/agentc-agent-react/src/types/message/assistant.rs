@@ -26,6 +26,7 @@ pub struct AssistantMessage {
     pub tenant_id: String,
     pub session_id: Uuid,
     pub run_id: Uuid,
+    pub checkpoint_id: Option<Uuid>,
     pub content: Option<String>,
     pub name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -40,6 +41,7 @@ impl AssistantMessage {
             tenant_id: String::new(),
             session_id: Uuid::nil(),
             run_id: Uuid::nil(),
+            checkpoint_id: None,
             content: None,
             name: None,
             tool_calls: None,
@@ -79,6 +81,11 @@ impl AssistantMessage {
 
     pub fn with_run_id(mut self, run_id: impl Into<Uuid>) -> Self {
         self.run_id = run_id.into();
+        self
+    }
+
+    pub fn with_checkpoint_id(mut self, checkpoint_id: impl Into<Uuid>) -> Self {
+        self.checkpoint_id = Some(checkpoint_id.into());
         self
     }
 

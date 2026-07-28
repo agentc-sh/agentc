@@ -33,6 +33,9 @@ Find messages for a session with optional filtering and pagination.
   <Field name="run_ids" type="string[] | null">
     Run IDs to filter on.
   </Field>
+  <Field name="checkpoint_ids" type="string[] | null">
+    Checkpoint IDs to filter on.
+  </Field>
   <Field name="roles" type="string[] | null">
     Message roles to filter on.
   </Field>
@@ -69,6 +72,9 @@ Find messages for a session with optional filtering and pagination.
         <Field name="run_id" type="string | null">
           The run ID, if any.
         </Field>
+        <Field name="checkpoint_id" type="string | null">
+          The checkpoint ID, if any.
+        </Field>
         <Field name="created_at" type="string">
           The creation timestamp.
         </Field>
@@ -98,6 +104,9 @@ Find messages for a session with optional filtering and pagination.
         <Field name="run_id" type="string | null">
           The run ID, if any.
         </Field>
+        <Field name="checkpoint_id" type="string | null">
+          The checkpoint ID, if any.
+        </Field>
         <Field name="created_at" type="string">
           The creation timestamp.
         </Field>
@@ -126,6 +135,9 @@ Find messages for a session with optional filtering and pagination.
         </Field>
         <Field name="run_id" type="string | null">
           The run ID, if any.
+        </Field>
+        <Field name="checkpoint_id" type="string | null">
+          The checkpoint ID, if any.
         </Field>
         <Field name="created_at" type="string">
           The creation timestamp.
@@ -158,6 +170,9 @@ Find messages for a session with optional filtering and pagination.
         </Field>
         <Field name="run_id" type="string | null">
           The run ID, if any.
+        </Field>
+        <Field name="checkpoint_id" type="string | null">
+          The checkpoint ID, if any.
         </Field>
         <Field name="created_at" type="string">
           The creation timestamp.
@@ -193,6 +208,9 @@ Find messages for a session with optional filtering and pagination.
         </Field>
         <Field name="run_id" type="string | null">
           The run ID, if any.
+        </Field>
+        <Field name="checkpoint_id" type="string | null">
+          The checkpoint ID, if any.
         </Field>
         <Field name="created_at" type="string">
           The creation timestamp.
@@ -283,6 +301,9 @@ Create a new message in a session outside of a run.
         <Field name="run_id" type="string | null">
           The run ID, if any.
         </Field>
+        <Field name="checkpoint_id" type="string | null">
+          The checkpoint ID, if any.
+        </Field>
         <Field name="content" type="string">
           The system message text.
         </Field>
@@ -303,6 +324,9 @@ Create a new message in a session outside of a run.
         <Field name="run_id" type="string | null">
           The run ID, if any.
         </Field>
+        <Field name="checkpoint_id" type="string | null">
+          The checkpoint ID, if any.
+        </Field>
         <Field name="content" type={<>{<Link href="#usercontent">UserContent</Link>}[]</>}>
           The multimodal content blocks.
         </Field>
@@ -322,6 +346,9 @@ Create a new message in a session outside of a run.
         </Field>
         <Field name="run_id" type="string | null">
           The run ID, if any.
+        </Field>
+        <Field name="checkpoint_id" type="string | null">
+          The checkpoint ID, if any.
         </Field>
         <Field name="tool_call_id" type="string">
           The tool call ID.
@@ -373,6 +400,9 @@ Get a message by its ID.
         <Field name="run_id" type="string | null">
           The run ID, if any.
         </Field>
+        <Field name="checkpoint_id" type="string | null">
+          The checkpoint ID, if any.
+        </Field>
         <Field name="content" type="string">
           The system message text.
         </Field>
@@ -393,6 +423,9 @@ Get a message by its ID.
         <Field name="run_id" type="string | null">
           The run ID, if any.
         </Field>
+        <Field name="checkpoint_id" type="string | null">
+          The checkpoint ID, if any.
+        </Field>
         <Field name="content" type={<>{<Link href="#usercontent">UserContent</Link>}[]</>}>
           The multimodal content blocks.
         </Field>
@@ -412,6 +445,9 @@ Get a message by its ID.
         </Field>
         <Field name="run_id" type="string">
           The run ID.
+        </Field>
+        <Field name="checkpoint_id" type="string | null">
+          The checkpoint ID, if any.
         </Field>
         <Field name="content" type="string | null">
           The assistant text, if any.
@@ -435,6 +471,9 @@ Get a message by its ID.
         </Field>
         <Field name="run_id" type="string | null">
           The run ID, if any.
+        </Field>
+        <Field name="checkpoint_id" type="string | null">
+          The checkpoint ID, if any.
         </Field>
         <Field name="tool_call_id" type="string">
           The tool call ID.
@@ -461,6 +500,9 @@ Get a message by its ID.
         </Field>
         <Field name="run_id" type="string">
           The run ID.
+        </Field>
+        <Field name="checkpoint_id" type="string | null">
+          The checkpoint ID, if any.
         </Field>
         <Field name="content" type="string">
           The reasoning text.

@@ -1,0 +1,109 @@
+---
+title: Checkpoints
+description: The native HTTP endpoint for finding a session's checkpoints.
+---
+
+A checkpoint is a saved point in a run's execution, linked to the checkpoint before it by
+`parent_checkpoint_id`. Checkpoints are persisted so a client can list them and pass a checkpoint ID
+as `checkpoint_id` when starting a run.
+
+## Find checkpoints for a session
+
+Find checkpoints for a session with optional filtering and pagination.
+
+<Endpoint method="GET" path="/v1/sessions/{session_id}/checkpoints">
+  Find checkpoints for a session with optional filtering and pagination.
+</Endpoint>
+
+<Parameters in="path">
+  <Field name="session_id" type="string">
+    The session ID.
+  </Field>
+</Parameters>
+
+<Parameters in="query">
+  <Field name="per_page" type="integer | null" default="100">
+    Maximum page size.
+  </Field>
+  <Field name="page" type="string | null">
+    Opaque cursor for the next page.
+  </Field>
+  <Field name="ids" type="string[] | null">
+    Checkpoint IDs to filter on.
+  </Field>
+  <Field name="run_ids" type="string[] | null">
+    Run IDs to filter on.
+  </Field>
+  <Field name="reasons" type="string[] | null">
+    Checkpoint reasons to filter on. One of `input`, `step`, `interrupt`, or `finish`.
+  </Field>
+  <Field name="statuses" type="string[] | null">
+    Run statuses to filter on.
+  </Field>
+  <Field name="created_before" type="string | null">
+    Filter by creation time.
+  </Field>
+  <Field name="created_after" type="string | null">
+    Filter by creation time.
+  </Field>
+</Parameters>
+
+<Responses>
+  <Response status="200" description="Checkpoints retrieved successfully.">
+    <Variants label="PaginatedCheckpointResponse">
+      <Variant label="Checkpoint">
+        <Field name="items" type={<>{<Link href="/reference/graph/react/http/checkpoints">Checkpoint</Link>}[]</>}>
+          The returned checkpoints.
+        </Field>
+        <Field name="count" type="integer">
+          The total number of matching checkpoints.
+        </Field>
+        <Field name="next_page" type="string | null">
+          Cursor for the next page, if any.
+        </Field>
+        <Field name="id" type="string">
+          The checkpoint ID.
+        </Field>
+        <Field name="session_id" type="string">
+          The session ID.
+        </Field>
+        <Field name="run_id" type="string">
+          The run ID.
+        </Field>
+        <Field name="node" type="string">
+          The current node.
+        </Field>
+        <Field name="status" type="string">
+          The run status.
+        </Field>
+        <Field name="reason" type="string" enum={["input", "step", "interrupt", "finish"]}>
+          The checkpoint reason.
+        </Field>
+        <Field name="parent_checkpoint_id" type="string | null">
+          The parent checkpoint ID, if any.
+        </Field>
+        <Field name="metadata" type="object | null">
+          Optional metadata.
+        </Field>
+        <Field name="created_at" type="string">
+          The creation timestamp.
+        </Field>
+      </Variant>
+    </Variants>
+  </Response>
+  <Response status="400" description="Bad request." />
+  <Response status="404" description="Session not found." />
+  <Response status="500" description="Internal server error." />
+</Responses>
+
+<Tabs defaultValue="curl">
+  <TabsList>
+    <TabsTrigger value="curl">cURL</TabsTrigger>
+  </TabsList>
+  <TabsContent value="curl">
+```bash
+curl "http://localhost:8080/v1/sessions/8f3e19d8-3bc0-4fd5-bb02-7ac89af9d7bc/checkpoints" \
+  -H "X-Tenant-ID: acme"
+```
+  </TabsContent>
+</Tabs>

@@ -146,6 +146,7 @@ pub struct UserMessage {
     pub tenant_id: String,
     pub session_id: Uuid,
     pub run_id: Option<Uuid>,
+    pub checkpoint_id: Option<Uuid>,
     pub content: Vec<UserContent>,
     pub name: Option<String>,
     pub created_at: DateTime<Utc>,
@@ -164,6 +165,7 @@ impl UserMessage {
             tenant_id: String::new(),
             session_id: Uuid::nil(),
             run_id: None,
+            checkpoint_id: None,
             content: content.into_iter().collect(),
             name: None,
             created_at: Utc::now(),
@@ -195,6 +197,11 @@ impl UserMessage {
 
     pub fn with_run_id(mut self, run_id: impl Into<Uuid>) -> Self {
         self.run_id = Some(run_id.into());
+        self
+    }
+
+    pub fn with_checkpoint_id(mut self, checkpoint_id: impl Into<Uuid>) -> Self {
+        self.checkpoint_id = Some(checkpoint_id.into());
         self
     }
 

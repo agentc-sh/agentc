@@ -7,7 +7,11 @@ use uuid::Uuid;
 
 use agentc_database::{
     connection::ConnectionContext,
-    orm::{ActiveValue, ColumnTrait, EntityTrait, Iden, QueryFilter, QueryTrait},
+    orm::{
+        ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, FromQueryResult, Iden, QueryFilter,
+        QueryTrait,
+        sea_query::{Alias, CommonTableExpression, Expr, Order, Query, UnionType, WithClause},
+    },
     paginate::CursorPaginatorExt,
     query::OnConflict,
 };
@@ -220,6 +224,86 @@ impl<'a> CheckpointRecordRepository for SqlCheckpointRecordRepository<'a> {
                 count: page.count,
                 next_page: page.next_page,
             })
+    }
+
+    async fn ancestry(
+        &self,
+        tenant_id: &str,
+        checkpoint_id: Uuid,
+    ) -> Result<Vec<CheckpointRecord>, CheckpointRecordRepoError> {
+        use models::checkpoint_record::Column;
+
+        let columns = [
+            Column::Id,
+            Column::TenantId,
+            Column::SessionId,
+            Column::RunId,
+            Column::Node,
+            Column::Status,
+            Column::Reason,
+            Column::ParentCheckpointId,
+            Column::Metadata,
+            Column::CreatedAt,
+        ];
+
+        let ancestry = Alias::new("ancestry");
+        let depth = Alias::new("depth");
+        let child = Alias::new("c");
+
+        // Only the anchor filters on tenant; the recursion joins on the global PK `id`,
+        // so it stays within the tenant without a redundant predicate.
+        let mut walk = Query::select()
+            .columns(columns)
+            .expr_as(Expr::val(0), depth.clone())
+            .from(models::checkpoint_record::Entity)
+            .and_where(Expr::col(Column::TenantId).eq(tenant_id))
+            .and_where(Expr::col(Column::Id).eq(checkpoint_id))
+            .to_owned();
+
+        walk.union(
+            UnionType::All,
+            Query::select()
+                .columns(columns.map(|column| (child.clone(), column)))
+                .expr_as(Expr::col((ancestry.clone(), depth.clone())).add(1), depth.clone())
+                .from_as(models::checkpoint_record::Entity, child.clone())
+                .inner_join(
+                    ancestry.clone(),
+                    Expr::col((child, Column::Id))
+                        .equals((ancestry.clone(), Column::ParentCheckpointId)),
+                )
+                .to_owned(),
+        );
+
+        self.ctx
+            .query_all(
+                self.ctx.get_database_backend().build(
+                    &Query::select()
+                        .columns(columns)
+                        .from(ancestry.clone())
+                        .order_by(depth, Order::Desc)
+                        .to_owned()
+                        .with(
+                            WithClause::new()
+                                .recursive(true)
+                                .cte(
+                                    CommonTableExpression::new()
+                                        .query(walk)
+                                        .table_name(ancestry)
+                                        .to_owned(),
+                                )
+                                .to_owned(),
+                        ),
+                ),
+            )
+            .await
+            .map_err(CheckpointRecordRepoError::sourced_storage)?
+            .into_iter()
+            .map(|row| {
+                models::checkpoint_record::Model::from_query_result(&row, "")
+                    .map(CheckpointRecord::from)
+                    .map_err(CheckpointRecordRepoError::sourced_storage)
+            })
+            .collect()
     }
 
     async fn delete(

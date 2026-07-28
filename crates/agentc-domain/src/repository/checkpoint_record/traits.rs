@@ -28,6 +28,11 @@ pub trait CheckpointRecordRepository: Send + Sync {
         &self,
         params: FindCheckpointRecordParams,
     ) -> Result<Page<CheckpointRecord>, CheckpointRecordRepoError>;
+    async fn ancestry(
+        &self,
+        tenant_id: &str,
+        checkpoint_id: Uuid,
+    ) -> Result<Vec<CheckpointRecord>, CheckpointRecordRepoError>;
     async fn delete(
         &self,
         params: DeleteCheckpointRecordParams,
