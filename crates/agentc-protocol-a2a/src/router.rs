@@ -131,7 +131,7 @@ pub fn router(
     path = "/.well-known/agent-card.json",
     operation_id = "a2a_agent_card",
     tag = "a2a",
-    description = "Returns the agent card describing the A2A service.",
+    description = "Returns the agent card describing the A2A service",
     responses(
         (status = 200, description = "The agent card", body = AgentCard),
         (status = 500, description = "Internal server error", body = ErrorResponseDTO)
@@ -152,7 +152,7 @@ async fn agent_card_endpoint(State(state): State<A2aRouterState>) -> Response {
     path = "/message:send",
     operation_id = "a2a_send_message",
     tag = "a2a",
-    description = "Sends a message to the agent and returns the resulting task or message.",
+    description = "Sends a message to the agent and returns the resulting task or message",
     params(
         ("X-Tenant_id" = Option<TenantIdHeader>, Header, description = "The ID of the tenant"),
     ),
@@ -196,7 +196,7 @@ async fn send_message_endpoint(
     path = "/message:stream",
     operation_id = "a2a_stream_message",
     tag = "a2a",
-    description = "Sends a message to the agent and streams task updates using SSE.",
+    description = "Sends a message to the agent and streams task updates using SSE",
     params(
         ("X-Tenant_id" = Option<TenantIdHeader>, Header, description = "The ID of the tenant"),
     ),
@@ -274,7 +274,7 @@ async fn stream_message_endpoint(
     path = "/tasks/{id}",
     operation_id = "a2a_get_task",
     tag = "a2a",
-    description = "Retrieves the current state of an A2A task.",
+    description = "Retrieves the current state of an A2A task",
     params(
         ("id" = String, Path, description = "The task ID"),
         ("X-Tenant_id" = Option<TenantIdHeader>, Header, description = "The ID of the tenant"),
@@ -339,7 +339,7 @@ async fn post_task_action_endpoint(
     path = "/tasks/{id}:cancel",
     operation_id = "a2a_cancel_task",
     tag = "a2a",
-    description = "Cancels an active A2A task.",
+    description = "Cancels an active A2A task",
     params(
         ("id" = String, Path, description = "The task ID"),
         ("X-Tenant_id" = Option<TenantIdHeader>, Header, description = "The ID of the tenant"),
