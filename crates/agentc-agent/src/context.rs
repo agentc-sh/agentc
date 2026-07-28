@@ -9,8 +9,8 @@ use uuid::Uuid;
 
 use agentc_model::registry::ModelRegistry;
 use agentc_prompt::{
-    compaction::CompactionStrategy, counter::TokenCounter, env::PromptEnv,
-    template::PromptTemplate, vars::TemplateVars,
+    compaction::CompactionStrategy, counter::TokenCounter, env::PromptEnv, source::PromptSource,
+    vars::TemplateVars,
 };
 
 use crate::{
@@ -41,6 +41,8 @@ pub struct AgentContext<E: Send + Clone + 'static, M: Send + Clone + 'static = (
     pub identity: AgentIdentity,
     /// The Jinja2 rendering environment shared across all prompt renders.
     pub prompt_env: PromptEnv,
+    /// The source that resolves the agent's prompt template before each model call.
+    pub prompt_source: Arc<dyn PromptSource>,
     /// The token counter used for budget tracking and compaction decisions.
     pub token_counter: Arc<dyn TokenCounter>,
     /// The compaction strategy applied to the message buffer before each model call.
@@ -144,30 +146,6 @@ where
 {
     fn from_rtx(rtx: &RuntimeContext<N>) -> Result<Self, GraphError> {
         Ok(Identity(rtx.ctx.identity.clone()))
-    }
-}
-
-/// An extractor for the agent's prompt template from the agent context.
-pub struct Prompt(pub PromptTemplate);
-
-impl Prompt {
-    pub fn as_inner(&self) -> &PromptTemplate {
-        &self.0
-    }
-
-    pub fn into_inner(self) -> PromptTemplate {
-        self.0
-    }
-}
-
-impl<N, E, M> FromRuntimeContext<N> for Prompt
-where
-    E: Send + Clone + 'static,
-    M: Send + Clone + 'static,
-    N: GraphNode<Context = AgentContext<E, M>>,
-{
-    fn from_rtx(rtx: &RuntimeContext<N>) -> Result<Self, GraphError> {
-        Ok(Prompt(rtx.ctx.identity.prompt.clone()))
     }
 }
 

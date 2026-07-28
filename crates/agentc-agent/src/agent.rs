@@ -16,6 +16,7 @@ use agentc_prompt::{
     compaction::{CompactionStrategy, NoCompaction},
     counter::{CharApproxCounter, TokenCounter},
     env::PromptEnv,
+    source::PromptSource,
     vars::TemplateVars,
 };
 use agentc_telemetry::{
@@ -64,6 +65,7 @@ where
     model_registry: ModelRegistry,
     tool_registry: ToolRegistry,
     prompt_env: PromptEnv,
+    prompt_source: Arc<dyn PromptSource>,
     token_counter: Arc<dyn TokenCounter>,
     compaction_strategy: Arc<dyn CompactionStrategy<M>>,
     template_vars: Vec<Arc<dyn TemplateVars>>,
@@ -110,6 +112,7 @@ where
         let identity = self.identity.clone();
         let agent_name = self.identity.name.clone();
         let prompt_env = self.prompt_env.clone();
+        let prompt_source = self.prompt_source.clone();
         let token_counter = self.token_counter.clone();
         let compaction_strategy = self.compaction_strategy.clone();
         let template_vars = self.template_vars.clone();
@@ -140,6 +143,7 @@ where
                             tool_registry,
                             identity,
                             prompt_env,
+                            prompt_source,
                             token_counter,
                             compaction_strategy,
                             session_id,
@@ -216,6 +220,7 @@ where
     tool_registry: ToolRegistry,
     tool_registries: Vec<ToolRegistry>,
     prompt_env: PromptEnv,
+    prompt_source: Option<Arc<dyn PromptSource>>,
     token_counter: Arc<dyn TokenCounter>,
     compaction_strategy: Arc<dyn CompactionStrategy<M>>,
     template_vars: Vec<Arc<dyn TemplateVars>>,
@@ -250,6 +255,7 @@ where
             tool_registry: ToolRegistry::empty(),
             tool_registries: Vec::new(),
             prompt_env: PromptEnv::default(),
+            prompt_source: None,
             token_counter: Arc::new(CharApproxCounter),
             compaction_strategy: Arc::new(NoCompaction),
             template_vars: Vec::new(),
@@ -278,6 +284,13 @@ where
     /// Defaults to a strict-mode environment with no custom functions or filters.
     pub fn with_prompt_env(mut self, env: PromptEnv) -> Self {
         self.prompt_env = env;
+        self
+    }
+
+    /// Set the source that resolves the agent's prompt template before each model
+    /// call. This is required.
+    pub fn with_prompt_source(mut self, prompt_source: Arc<dyn PromptSource>) -> Self {
+        self.prompt_source = Some(prompt_source);
         self
     }
 
@@ -373,6 +386,9 @@ where
                 .into_iter()
                 .fold(self.tool_registry, |acc, r| acc.merged_with(r)),
             prompt_env: self.prompt_env,
+            prompt_source: self
+                .prompt_source
+                .ok_or(AgentError::configuration("Prompt source is required"))?,
             token_counter: self.token_counter,
             compaction_strategy: self.compaction_strategy,
             template_vars: self.template_vars,
