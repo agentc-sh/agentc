@@ -889,7 +889,6 @@ mod tests {
                 name: "test-agent".to_string(),
                 provider: "stub".to_string(),
                 model: "test-model".to_string(),
-                prompt: PromptTemplate::system("test"),
                 capabilities: CapabilitySet::default(),
                 capability_policy: CapabilityPolicy::default(),
             }

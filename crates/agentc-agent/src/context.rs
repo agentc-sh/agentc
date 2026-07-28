@@ -37,7 +37,7 @@ pub struct AgentContext<E: Send + Clone + 'static, M: Send + Clone + 'static = (
     pub model_registry: ModelRegistry,
     /// The tool registry for backend tool calls during agent execution.
     pub tool_registry: ToolRegistry,
-    /// The agent's identity information, including default provider, model, and prompt template.
+    /// The agent's identity information, including default provider and model.
     pub identity: AgentIdentity,
     /// The Jinja2 rendering environment shared across all prompt renders.
     pub prompt_env: PromptEnv,
