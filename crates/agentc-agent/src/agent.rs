@@ -289,8 +289,8 @@ where
 
     /// Set the source that resolves the agent's prompt template before each model
     /// call. This is required.
-    pub fn with_prompt_source(mut self, prompt_source: Arc<dyn PromptSource>) -> Self {
-        self.prompt_source = Some(prompt_source);
+    pub fn with_prompt_source(mut self, prompt_source: impl PromptSource + 'static) -> Self {
+        self.prompt_source = Some(Arc::new(prompt_source));
         self
     }
 

@@ -416,28 +416,34 @@ impl Manifest {
                 .prompt
                 .map(|prompt| match prompt {
                     ManifestAgentPrompt::Prompt(content) => {
-                        vec![ResolvedContextAgentPromptMessage {
-                            role: ResolvedContextAgentPromptMessageRole::System,
-                            content: content.interpolate(&locals),
-                        }]
+                        ResolvedContextAgentPromptSource::Constant {
+                            messages: vec![ResolvedContextAgentPromptMessage {
+                                role: ResolvedContextAgentPromptMessageRole::System,
+                                content: content.interpolate(&locals),
+                            }],
+                        }
                     }
-                    ManifestAgentPrompt::Messages(messages) => messages
-                        .into_iter()
-                        .map(|message| ResolvedContextAgentPromptMessage {
-                            role: match message.role {
-                                ManifestAgentPromptMessageRole::System => {
-                                    ResolvedContextAgentPromptMessageRole::System
-                                }
-                                ManifestAgentPromptMessageRole::User => {
-                                    ResolvedContextAgentPromptMessageRole::User
-                                }
-                                ManifestAgentPromptMessageRole::Assistant => {
-                                    ResolvedContextAgentPromptMessageRole::Assistant
-                                }
-                            },
-                            content: message.content.interpolate(&locals),
-                        })
-                        .collect(),
+                    ManifestAgentPrompt::Messages(messages) => {
+                        ResolvedContextAgentPromptSource::Constant {
+                            messages: messages
+                                .into_iter()
+                                .map(|message| ResolvedContextAgentPromptMessage {
+                                    role: match message.role {
+                                        ManifestAgentPromptMessageRole::System => {
+                                            ResolvedContextAgentPromptMessageRole::System
+                                        }
+                                        ManifestAgentPromptMessageRole::User => {
+                                            ResolvedContextAgentPromptMessageRole::User
+                                        }
+                                        ManifestAgentPromptMessageRole::Assistant => {
+                                            ResolvedContextAgentPromptMessageRole::Assistant
+                                        }
+                                    },
+                                    content: message.content.interpolate(&locals),
+                                })
+                                .collect(),
+                        }
+                    }
                 }),
             capabilities: agent_block
                 .capabilities

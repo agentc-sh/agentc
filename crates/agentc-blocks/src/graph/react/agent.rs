@@ -17,7 +17,8 @@ use crate::{
     graph::{
         codegen::{
             a2a::A2aCodeGen, identity::IdentityCodeGen, mcp::McpCodeGen,
-            models::ModelRegistryCodeGen, skills::SkillsCodeGen, tools::ToolsCodeGen,
+            models::ModelRegistryCodeGen, prompt::PromptSourceCodeGen,
+            skills::SkillsCodeGen, tools::ToolsCodeGen,
         },
         react::ReActGraphConfig,
     },
@@ -173,6 +174,7 @@ impl CodeGen<ResolvedContext> for AgentCodeGen {
         let (tool_imports, tool_registrations) = ToolsCodeGen::generate(ctx, &self.fields)?;
         let (skill_imports, skill_registrations) = SkillsCodeGen::generate(ctx)?;
         let agent_identity = IdentityCodeGen::generate(ctx, &self.fields)?;
+        let prompt_source = PromptSourceCodeGen::generate(ctx)?;
 
         let source = quote! {
             use std::sync::Arc;
@@ -183,6 +185,7 @@ impl CodeGen<ResolvedContext> for AgentCodeGen {
             use agentc_prompt::{
                 compaction::TailWindow,
                 counter::TiktokenCounter,
+                source::ConstantPromptSource,
                 template::{PromptTemplate, Role},
             };
             use agentc_model::registry::ModelRegistry;
@@ -259,7 +262,8 @@ impl CodeGen<ResolvedContext> for AgentCodeGen {
                     )
                     .with_model_registry(model_registry)
                     .with_token_counter(TiktokenCounter::o200k_base())
-                    .with_compaction_strategy(TailWindow);
+                    .with_compaction_strategy(TailWindow)
+                    .with_prompt_source(#prompt_source);
 
                 #(#tool_registrations)*
                 #(#skill_registrations)*
@@ -486,6 +490,14 @@ mod tests {
         assert!(rendered.contains("default_model_config : ModelConfig :: new"));
         assert!(rendered.contains("config . react . model . timeout"));
         assert!(rendered.contains("ModelConfigRetry"));
+    }
+
+    #[test]
+    fn generated_agent_wires_constant_prompt_source() {
+        let rendered = AgentCodeGenFixture::generated_agent();
+
+        assert!(rendered.contains("with_prompt_source (ConstantPromptSource :: new"));
+        assert!(rendered.contains("PromptTemplate :: default"));
     }
 
     #[test]

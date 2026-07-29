@@ -13,14 +13,23 @@ pub struct ResolvedContextAgent {
     pub version: String,
     /// Optional description of the agent.
     pub description: Option<String>,
-    /// The prompt template to use for this agent.
-    pub prompt: Option<Vec<ResolvedContextAgentPromptMessage>>,
+    /// The resolved prompt source. `None` means an empty constant prompt.
+    pub prompt: Option<ResolvedContextAgentPromptSource>,
     /// The capabilities of the agent.
     pub capabilities: Option<RuntimeValue<Vec<String>>>,
     /// The capability policy to apply when using this agent.
     pub capability_policy: Option<RuntimeValue<String>>,
     /// The default model configuration.
     pub model: ResolvedContextAgentModel,
+}
+
+/// How an agent's prompt is sourced.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ResolvedContextAgentPromptSource {
+    Constant {
+        messages: Vec<ResolvedContextAgentPromptMessage>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
