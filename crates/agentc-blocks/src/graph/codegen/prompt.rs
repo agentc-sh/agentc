@@ -8,8 +8,8 @@ use quote::quote;
 use agentc_compiler::generator::errors::GeneratorError;
 
 use crate::context::{
-    ResolvedContext, ResolvedContextAgentPromptMessage,
-    ResolvedContextAgentPromptMessageRole, ResolvedContextAgentPromptSource,
+    ResolvedContext, ResolvedContextAgentPromptMessage, ResolvedContextAgentPromptMessageRole,
+    ResolvedContextAgentPromptSource,
 };
 
 /// Generates the `PromptSource` argument wired into `with_prompt_source`.
@@ -17,14 +17,12 @@ pub struct PromptSourceCodeGen;
 
 impl PromptSourceCodeGen {
     pub fn generate(ctx: &ResolvedContext) -> Result<TokenStream, GeneratorError> {
-        Ok(
-            match &ctx.agent.prompt {
-                None => Self::constant(&[]),
-                Some(ResolvedContextAgentPromptSource::Constant { messages }) => {
-                    Self::constant(messages)
-                }
+        Ok(match &ctx.agent.prompt {
+            None => Self::constant(&[]),
+            Some(ResolvedContextAgentPromptSource::Constant { messages }) => {
+                Self::constant(messages)
             }
-        )
+        })
     }
 
     fn constant(messages: &[ResolvedContextAgentPromptMessage]) -> TokenStream {
@@ -86,7 +84,7 @@ mod tests {
                 "skills": {},
                 "http_server": null
             }))
-            .unwrap()
+            .unwrap(),
         )
         .unwrap()
         .to_string();

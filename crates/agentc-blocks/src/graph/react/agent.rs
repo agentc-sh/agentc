@@ -17,8 +17,8 @@ use crate::{
     graph::{
         codegen::{
             a2a::A2aCodeGen, identity::IdentityCodeGen, mcp::McpCodeGen,
-            models::ModelRegistryCodeGen, prompt::PromptSourceCodeGen,
-            skills::SkillsCodeGen, tools::ToolsCodeGen,
+            models::ModelRegistryCodeGen, prompt::PromptSourceCodeGen, skills::SkillsCodeGen,
+            tools::ToolsCodeGen,
         },
         react::ReActGraphConfig,
     },

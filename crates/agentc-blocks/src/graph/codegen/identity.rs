@@ -7,10 +7,7 @@ use quote::quote;
 
 use agentc_compiler::generator::errors::GeneratorError;
 
-use crate::{
-    context::ResolvedContext,
-    fields::FieldsSpec,
-};
+use crate::{context::ResolvedContext, fields::FieldsSpec};
 
 /// Generates the `AgentIdentity { ... }` literal wired into the agent builder.
 pub struct IdentityCodeGen;
