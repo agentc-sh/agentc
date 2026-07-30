@@ -30,6 +30,20 @@ pub enum ResolvedContextAgentPromptSource {
     Constant {
         messages: Vec<ResolvedContextAgentPromptMessage>,
     },
+    Langfuse(ResolvedContextAgentPromptSourceLangfuse),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResolvedContextAgentPromptSourceLangfuse {
+    pub prompt_name: RuntimeValue<String>,
+    pub public_key: RuntimeValue<String>,
+    pub secret_key: RuntimeValue<String>,
+    pub base_url: Option<RuntimeValue<String>>,
+    pub label: Option<RuntimeValue<String>>,
+    pub version: Option<RuntimeValue<u32>>,
+    pub cache_ttl_seconds: Option<RuntimeValue<u64>>,
+    pub fetch_timeout_seconds: Option<RuntimeValue<u64>>,
+    pub max_retries: Option<RuntimeValue<u32>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
