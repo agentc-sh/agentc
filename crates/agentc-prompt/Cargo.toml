@@ -9,10 +9,12 @@ readme.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true }
+wiremock = { version = "0.6" }
 
 [features]
 default = ["tiktoken"]
 tiktoken = ["dep:tiktoken-rs"]
+langfuse = ["dep:reqwest", "dep:moka", "dep:httpdate"]
 
 [dependencies]
 async-trait = { workspace = true }
@@ -24,4 +26,8 @@ serde_json = { workspace = true }
 
 minijinja = { workspace = true }
 
-tiktoken-rs = { version = "0.9.1", optional = true }
+tiktoken-rs = { version = "0.12", optional = true }
+
+reqwest = { version = "0.13", features = ["json", "query", "stream"], optional = true }
+moka = { version = "0.12", features = ["future"], optional = true }
+httpdate = { version = "1", optional = true }

@@ -19,6 +19,19 @@ pub enum Role {
     Assistant,
 }
 
+impl TryFrom<&str> for Role {
+    type Error = PromptError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "system" => Ok(Self::System),
+            "user" => Ok(Self::User),
+            "assistant" => Ok(Self::Assistant),
+            value => Err(PromptError::source(format!("unsupported prompt role `{value}`",))),
+        }
+    }
+}
+
 /// A single rendered message with a precomputed token count.
 #[derive(Debug, Clone)]
 pub struct RenderedMessage {
@@ -224,5 +237,16 @@ mod tests {
         assert_eq!(msgs.len(), 2);
         assert_eq!(msgs[0].role, Role::System);
         assert_eq!(msgs[1].role, Role::User);
+    }
+
+    #[test]
+    fn role_converts_supported_names_and_rejects_unknown_names() {
+        assert_eq!(Role::try_from("system").unwrap(), Role::System);
+        assert_eq!(Role::try_from("user").unwrap(), Role::User);
+        assert_eq!(Role::try_from("assistant").unwrap(), Role::Assistant);
+        assert!(matches!(
+            Role::try_from("tool"),
+            Err(PromptError::Source { message, .. }) if message.contains("tool")
+        ));
     }
 }

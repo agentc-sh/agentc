@@ -44,6 +44,7 @@ use crate::{
     errors::BlocksError,
     feature::{ArchetypeStandalone, Cli, GenerationFeatureSet, HttpServer, LongLivedProcess},
     fields::FieldsSpec,
+    graph::codegen::prompt::PromptCargoFragment,
     runtime::EMBEDDED_RUNTIME,
 };
 
@@ -218,6 +219,17 @@ impl Archetype for StandaloneArchetype {
                                 .build(A2aClientCargoFragment),
                         )
                         .add(
+                            TemplateFragmentBlock::builder()
+                                .id("prompt_cargo")
+                                .contribute(Contribution::<CargoDependencyContribution>::strict(
+                                    "cargo::dependencies",
+                                ))
+                                .contribute(Contribution::<CargoPatchContribution>::strict(
+                                    "cargo::patches",
+                                ))
+                                .build(PromptCargoFragment),
+                        )
+                        .add(
                             CodeGenBlock::builder()
                                 .id("migrator_rs")
                                 .extension_point("migrator::use", reducers::concat)
@@ -388,6 +400,21 @@ mod tests {
                 .contribution
                 .provides
                 .contains::<HttpServer>()
+        );
+    }
+
+    #[test]
+    fn registers_prompt_cargo_fragment() {
+        let resolved = StandaloneArchetype
+            .resolve(context(None), StandaloneArchetypeConfig::default())
+            .unwrap();
+
+        assert!(
+            resolved
+                .contribution
+                .blocks
+                .iter()
+                .any(|block| block.id() == "prompt_cargo")
         );
     }
 

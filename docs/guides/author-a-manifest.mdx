@@ -52,7 +52,7 @@ on the ReAct graph and points its model at the provider. This already compiles a
 
 The `prompt` is the agent's standing instructions. It is a Jinja2 template rendered before each run,
 so it can adapt to the agent's identity and to per-request context. Keep it plain to start, and reach
-for [Write dynamic prompts](/guides/write-dynamic-prompts) when you want it to change per run.
+for [Write templated prompts](/guides/write-templated-prompts) when you want it to change per run.
 
 ```hcl
 prompt = "You are {{ agent_name }}, a concise and helpful assistant."

@@ -4,8 +4,6 @@
 
 use serde::{Deserialize, Serialize};
 
-use agentc_prompt::template::PromptTemplate;
-
 use crate::types::capability::{CapabilityPolicy, CapabilitySet};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -16,8 +14,6 @@ pub struct AgentIdentity {
     pub provider: String,
     /// The default model to use for this agent if not specified in the input.
     pub model: String,
-    /// The prompt template used to render the system prompt for this agent.
-    pub prompt: PromptTemplate,
     /// The capabilities that this agent has been granted, which determine what tools it can use.
     pub capabilities: CapabilitySet,
     /// The capability policy that determines how to handle custom overrides of capabilities in the input.
