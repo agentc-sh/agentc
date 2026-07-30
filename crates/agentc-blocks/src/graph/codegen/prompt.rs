@@ -159,7 +159,7 @@ impl PromptSourceCodeGen {
                     .client(
                         LangfuseClient::builder()
                             .public_key(#public_key.clone())
-                            .secret_key(#secret_key.clone())
+                            .secret_key(#secret_key.clone().as_inner())
                             #(#client_calls)*
                             .build()?
                     )
