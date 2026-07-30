@@ -412,39 +412,71 @@ impl Manifest {
             description: agent_block
                 .description
                 .map(|d| d.interpolate(&locals)),
-            prompt: agent_block
-                .prompt
-                .map(|prompt| match prompt {
-                    ManifestAgentPrompt::Prompt(content) => {
-                        ResolvedContextAgentPromptSource::Constant {
-                            messages: vec![ResolvedContextAgentPromptMessage {
-                                role: ResolvedContextAgentPromptMessageRole::System,
-                                content: content.interpolate(&locals),
-                            }],
-                        }
+            prompt: match agent_block.prompt {
+                None => None,
+                Some(ManifestAgentPrompt::Prompt(content)) => {
+                    Some(ResolvedContextAgentPromptSource::Constant {
+                        messages: vec![ResolvedContextAgentPromptMessage {
+                            role: ResolvedContextAgentPromptMessageRole::System,
+                            content: content.interpolate(&locals),
+                        }],
+                    })
+                }
+                Some(ManifestAgentPrompt::Messages(messages)) => {
+                    Some(ResolvedContextAgentPromptSource::Constant {
+                        messages: messages
+                            .into_iter()
+                            .map(|message| ResolvedContextAgentPromptMessage {
+                                role: match message.role {
+                                    ManifestAgentPromptMessageRole::System => {
+                                        ResolvedContextAgentPromptMessageRole::System
+                                    }
+                                    ManifestAgentPromptMessageRole::User => {
+                                        ResolvedContextAgentPromptMessageRole::User
+                                    }
+                                    ManifestAgentPromptMessageRole::Assistant => {
+                                        ResolvedContextAgentPromptMessageRole::Assistant
+                                    }
+                                },
+                                content: message.content.interpolate(&locals),
+                            })
+                            .collect(),
+                    })
+                }
+                Some(ManifestAgentPrompt::Source(
+                    ManifestAgentPromptSource::Langfuse(prompt),
+                )) => {
+                    if prompt.label.is_some() && prompt.version.is_some() {
+                        return Err(ManifestError::resolution(
+                            "Langfuse prompt cannot set both `label` and `version`",
+                        ));
                     }
-                    ManifestAgentPrompt::Messages(messages) => {
-                        ResolvedContextAgentPromptSource::Constant {
-                            messages: messages
-                                .into_iter()
-                                .map(|message| ResolvedContextAgentPromptMessage {
-                                    role: match message.role {
-                                        ManifestAgentPromptMessageRole::System => {
-                                            ResolvedContextAgentPromptMessageRole::System
-                                        }
-                                        ManifestAgentPromptMessageRole::User => {
-                                            ResolvedContextAgentPromptMessageRole::User
-                                        }
-                                        ManifestAgentPromptMessageRole::Assistant => {
-                                            ResolvedContextAgentPromptMessageRole::Assistant
-                                        }
-                                    },
-                                    content: message.content.interpolate(&locals),
-                                })
-                                .collect(),
-                        }
-                    }
-                }),
+
+                    Some(ResolvedContextAgentPromptSource::Langfuse(
+                        ResolvedContextAgentPromptSourceLangfuse {
+                            prompt_name: prompt
+                                .prompt_name
+                                .interpolate(&locals),
+                            public_key: prompt
+                                .public_key
+                                .interpolate(&locals),
+                            secret_key: prompt
+                                .secret_key
+                                .interpolate(&locals),
+                            base_url: prompt
+                                .base_url
+                                .map(|value| value.interpolate(&locals)),
+                            label: prompt
+                                .label
+                                .map(|value| value.interpolate(&locals)),
+                            version: prompt.version,
+                            cache_ttl_seconds: prompt.cache_ttl_seconds,
+                            fetch_timeout_seconds: prompt.fetch_timeout_seconds,
+                            max_retries: prompt.max_retries,
+                        },
+                    ))
+                }
+            },
             capabilities: agent_block
                 .capabilities
                 .clone()
@@ -868,7 +900,10 @@ mod tests {
     use async_trait::async_trait;
 
     use super::*;
-    use crate::parser::SpecFormat;
+    use crate::parser::{
+        SpecFormat,
+        middleware::hcl::RuntimeFunctionDeserialize,
+    };
     use agentc_compiler::generator::errors::GeneratorError;
 
     struct EmptyLoader;
@@ -877,6 +912,72 @@ mod tests {
     impl ResourceLoader for EmptyLoader {
         async fn load(&self, path: &str) -> Result<String, GeneratorError> {
             Err(GeneratorError::resource_not_found(path))
+        }
+    }
+
+    struct LangfuseManifestFixture;
+
+    impl LangfuseManifestFixture {
+        fn manifest(selector: &str) -> Manifest {
+            SpecFormat::hcl()
+                .with_hcl_deserialize_middleware(RuntimeFunctionDeserialize)
+                .deserialize_string::<Manifest>(&format!(
+                    r#"
+build {{
+  archetype = "standalone"
+}}
+
+providers {{}}
+
+locals {{
+  prompt_folder = "support"
+  public_key    = "public"
+  secret_key    = "secret"
+  base_url      = "https://langfuse.example.com"
+  label         = "staging"
+}}
+
+agent "assistant" {{
+  graph {{
+    type = "react"
+  }}
+
+  prompt = {{
+    source = "langfuse"
+
+    prompt_name           = "${{locals.prompt_folder}}/assistant"
+    public_key            = runtime("LANGFUSE_PUBLIC_KEY", "${{locals.public_key}}")
+    secret_key            = secret(runtime("LANGFUSE_SECRET_KEY", "${{locals.secret_key}}"))
+    base_url              = "${{locals.base_url}}"
+    cache_ttl_seconds     = runtime("LANGFUSE_CACHE_TTL", 30)
+    fetch_timeout_seconds = runtime("LANGFUSE_FETCH_TIMEOUT", 5)
+    max_retries           = runtime("LANGFUSE_MAX_RETRIES", 2)
+    {selector}
+  }}
+
+  model {{
+    provider = "anthropic"
+    name     = "claude-haiku-4-5"
+  }}
+}}
+"#
+                ))
+                .expect("manifest should deserialize")
+        }
+
+        async fn resolve(
+            selector: &str,
+        ) -> Result<ResolvedContextAgentPromptSourceLangfuse, ManifestError> {
+            let (resolved, _) = Self::manifest(selector)
+                .resolve(&EmptyLoader, &[])
+                .await?;
+            let Some(ResolvedContextAgentPromptSource::Langfuse(prompt)) =
+                resolved.agent.prompt
+            else {
+                panic!("prompt should resolve as Langfuse");
+            };
+
+            Ok(prompt)
         }
     }
 
@@ -945,6 +1046,92 @@ mod tests {
                 .deserialize_string::<Manifest>(Self::json())
                 .expect("manifest should deserialize")
         }
+    }
+
+    #[tokio::test]
+    async fn resolves_langfuse_prompt_runtime_configuration() {
+        let prompt = LangfuseManifestFixture::resolve("")
+            .await
+            .expect("Langfuse prompt should resolve");
+
+        assert!(matches!(
+            prompt.prompt_name,
+            RuntimeValue::Constant(value) if value == "support/assistant"
+        ));
+        assert!(matches!(
+            prompt.public_key,
+            RuntimeValue::Runtime {
+                env,
+                default: Some(default),
+                secret: false,
+            } if env == "LANGFUSE_PUBLIC_KEY" && default == "public"
+        ));
+        assert!(matches!(
+            prompt.secret_key,
+            RuntimeValue::Runtime {
+                env,
+                default: Some(default),
+                secret: true,
+            } if env == "LANGFUSE_SECRET_KEY" && default == "secret"
+        ));
+        assert!(matches!(
+            prompt.base_url,
+            Some(RuntimeValue::Constant(value))
+                if value == "https://langfuse.example.com"
+        ));
+        assert!(prompt.label.is_none());
+        assert!(prompt.version.is_none());
+        assert!(matches!(
+            prompt.cache_ttl_seconds,
+            Some(RuntimeValue::Runtime { env, default: Some(30), .. })
+                if env == "LANGFUSE_CACHE_TTL"
+        ));
+        assert!(matches!(
+            prompt.fetch_timeout_seconds,
+            Some(RuntimeValue::Runtime { env, default: Some(5), .. })
+                if env == "LANGFUSE_FETCH_TIMEOUT"
+        ));
+        assert!(matches!(
+            prompt.max_retries,
+            Some(RuntimeValue::Runtime { env, default: Some(2), .. })
+                if env == "LANGFUSE_MAX_RETRIES"
+        ));
+    }
+
+    #[tokio::test]
+    async fn resolves_langfuse_label_selector() {
+        let prompt = LangfuseManifestFixture::resolve(
+            r#"label = runtime("LANGFUSE_LABEL", "${locals.label}")"#,
+        )
+        .await
+        .expect("Langfuse prompt should resolve");
+
+        assert!(matches!(
+            prompt.label,
+            Some(RuntimeValue::Runtime {
+                env,
+                default: Some(default),
+                secret: false,
+            }) if env == "LANGFUSE_LABEL" && default == "staging"
+        ));
+        assert!(prompt.version.is_none());
+    }
+
+    #[tokio::test]
+    async fn rejects_conflicting_langfuse_selectors() {
+        let error = LangfuseManifestFixture::resolve(
+            r#"
+label   = "production"
+version = 7
+"#,
+        )
+        .await
+        .expect_err("conflicting selectors should fail");
+
+        assert_eq!(
+            error.to_string(),
+            "manifest resolution failed: Langfuse prompt cannot set both `label` and `version`",
+        );
     }
 
     #[test]
