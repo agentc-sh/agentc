@@ -4615,13 +4615,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "malachite-base"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c6b9d4679f346f85a8f466d0171478304dab8b0e944dd38086411ab5f6100a17"
+dependencies = [
+ "hashbrown 0.16.1",
+ "itertools 0.14.0",
+ "libm",
+ "ryu",
+]
+
+[[package]]
 name = "malachite-bigint"
 version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cc58206ba15e9c406e20c95c5f86efa07b12f94080945908e910b3a0faa23fef"
 dependencies = [
- "malachite-base",
- "malachite-nz",
+ "malachite-base 0.9.2",
+ "malachite-nz 0.9.2",
+ "num-integer",
+ "num-traits",
+ "paste",
+]
+
+[[package]]
+name = "malachite-bigint"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5064cf3abe01ff3b80b0349936ebad6c52f7c793182d9c7992bf79ece18c0d22"
+dependencies = [
+ "malachite-base 0.10.0",
+ "malachite-nz 0.10.0",
  "num-integer",
  "num-traits",
  "paste",
@@ -4635,20 +4660,32 @@ checksum = "a137660cdba20f136c8a223125f08088adb4e0b72fbb8466f08c43e31cc0427d"
 dependencies = [
  "itertools 0.14.0",
  "libm",
- "malachite-base",
+ "malachite-base 0.9.2",
+ "wide",
+]
+
+[[package]]
+name = "malachite-nz"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8a6821ab988221c35d421ba16c4f8dca101efe5ae1cbfa9831f1fdb1596c755e"
+dependencies = [
+ "itertools 0.14.0",
+ "libm",
+ "malachite-base 0.10.0",
  "wide",
 ]
 
 [[package]]
 name = "malachite-q"
-version = "0.9.2"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5ffcbeed95e34c0fcc3864ccd146e129cbbf7de1513d3afbcfb47c7674c82d94"
+checksum = "3cf7894cd9617e43ef5d9824633f7dfc1bffd0298880dd668f20bdffb7a6e8ea"
 dependencies = [
  "itertools 0.14.0",
  "libm",
- "malachite-base",
- "malachite-nz",
+ "malachite-base 0.10.0",
+ "malachite-nz 0.10.0",
 ]
 
 [[package]]
@@ -6561,7 +6598,7 @@ checksum = "bc10e50b7a1f2cc3887e983721cb51fc7574be0066c84bff3ef9e5c096e8d6d5"
 dependencies = [
  "libc",
  "libm",
- "malachite-bigint",
+ "malachite-bigint 0.9.2",
  "num-complex",
  "num-integer",
  "num-traits",
@@ -7548,13 +7585,13 @@ dependencies = [
 [[package]]
 name = "rustpython-codegen"
 version = "0.5.0"
-source = "git+https://github.com/RustPython/RustPython?rev=ea79826#ea798265cab1d9d5c29fe05b19f714936dcfd786"
+source = "git+https://github.com/RustPython/RustPython?rev=ede18e4#ede18e44cbd5a522d5bd55d89da9391294a5af6b"
 dependencies = [
  "bitflags 2.13.0",
  "indexmap",
  "itertools 0.15.0",
  "log",
- "malachite-bigint",
+ "malachite-bigint 0.10.0",
  "memchr",
  "num-complex",
  "num-traits",
@@ -7571,7 +7608,7 @@ dependencies = [
 [[package]]
 name = "rustpython-common"
 version = "0.5.0"
-source = "git+https://github.com/RustPython/RustPython?rev=ea79826#ea798265cab1d9d5c29fe05b19f714936dcfd786"
+source = "git+https://github.com/RustPython/RustPython?rev=ede18e4#ede18e44cbd5a522d5bd55d89da9391294a5af6b"
 dependencies = [
  "ascii",
  "bitflags 2.13.0",
@@ -7579,8 +7616,8 @@ dependencies = [
  "itertools 0.15.0",
  "libc",
  "lock_api",
- "malachite-base",
- "malachite-bigint",
+ "malachite-base 0.10.0",
+ "malachite-bigint 0.10.0",
  "malachite-q",
  "num-complex",
  "num-traits",
@@ -7595,7 +7632,7 @@ dependencies = [
 [[package]]
 name = "rustpython-compiler"
 version = "0.5.0"
-source = "git+https://github.com/RustPython/RustPython?rev=ea79826#ea798265cab1d9d5c29fe05b19f714936dcfd786"
+source = "git+https://github.com/RustPython/RustPython?rev=ede18e4#ede18e44cbd5a522d5bd55d89da9391294a5af6b"
 dependencies = [
  "rustpython-codegen",
  "rustpython-compiler-core",
@@ -7609,13 +7646,13 @@ dependencies = [
 [[package]]
 name = "rustpython-compiler-core"
 version = "0.5.0"
-source = "git+https://github.com/RustPython/RustPython?rev=ea79826#ea798265cab1d9d5c29fe05b19f714936dcfd786"
+source = "git+https://github.com/RustPython/RustPython?rev=ede18e4#ede18e44cbd5a522d5bd55d89da9391294a5af6b"
 dependencies = [
  "bitflags 2.13.0",
  "bitflagset",
  "itertools 0.15.0",
  "lz4_flex",
- "malachite-bigint",
+ "malachite-bigint 0.10.0",
  "num-complex",
  "num-traits",
  "rustpython-ruff_source_file",
@@ -7625,7 +7662,7 @@ dependencies = [
 [[package]]
 name = "rustpython-derive"
 version = "0.5.0"
-source = "git+https://github.com/RustPython/RustPython?rev=ea79826#ea798265cab1d9d5c29fe05b19f714936dcfd786"
+source = "git+https://github.com/RustPython/RustPython?rev=ede18e4#ede18e44cbd5a522d5bd55d89da9391294a5af6b"
 dependencies = [
  "rustpython-compiler",
  "rustpython-derive-impl",
@@ -7635,7 +7672,7 @@ dependencies = [
 [[package]]
 name = "rustpython-derive-impl"
 version = "0.5.0"
-source = "git+https://github.com/RustPython/RustPython?rev=ea79826#ea798265cab1d9d5c29fe05b19f714936dcfd786"
+source = "git+https://github.com/RustPython/RustPython?rev=ede18e4#ede18e44cbd5a522d5bd55d89da9391294a5af6b"
 dependencies = [
  "itertools 0.15.0",
  "proc-macro2",
@@ -7650,7 +7687,7 @@ dependencies = [
 [[package]]
 name = "rustpython-doc"
 version = "0.5.0"
-source = "git+https://github.com/RustPython/RustPython?rev=ea79826#ea798265cab1d9d5c29fe05b19f714936dcfd786"
+source = "git+https://github.com/RustPython/RustPython?rev=ede18e4#ede18e44cbd5a522d5bd55d89da9391294a5af6b"
 dependencies = [
  "phf 0.14.0",
 ]
@@ -7658,9 +7695,10 @@ dependencies = [
 [[package]]
 name = "rustpython-host_env"
 version = "0.5.0"
-source = "git+https://github.com/RustPython/RustPython?rev=ea79826#ea798265cab1d9d5c29fe05b19f714936dcfd786"
+source = "git+https://github.com/RustPython/RustPython?rev=ede18e4#ede18e44cbd5a522d5bd55d89da9391294a5af6b"
 dependencies = [
  "bitflags 2.13.0",
+ "cc",
  "dns-lookup",
  "gethostname",
  "getrandom 0.4.3",
@@ -7669,6 +7707,7 @@ dependencies = [
  "libffi",
  "libloading",
  "mac_address",
+ "memchr",
  "memmap2",
  "nix 0.31.3",
  "num-traits",
@@ -7690,7 +7729,7 @@ dependencies = [
 [[package]]
 name = "rustpython-literal"
 version = "0.5.0"
-source = "git+https://github.com/RustPython/RustPython?rev=ea79826#ea798265cab1d9d5c29fe05b19f714936dcfd786"
+source = "git+https://github.com/RustPython/RustPython?rev=ede18e4#ede18e44cbd5a522d5bd55d89da9391294a5af6b"
 dependencies = [
  "hexf-parse",
  "is-macro",
@@ -7703,7 +7742,7 @@ dependencies = [
 [[package]]
 name = "rustpython-pylib"
 version = "0.5.0"
-source = "git+https://github.com/RustPython/RustPython?rev=ea79826#ea798265cab1d9d5c29fe05b19f714936dcfd786"
+source = "git+https://github.com/RustPython/RustPython?rev=ede18e4#ede18e44cbd5a522d5bd55d89da9391294a5af6b"
 dependencies = [
  "glob",
  "rustpython-compiler-core",
@@ -7779,7 +7818,7 @@ dependencies = [
 [[package]]
 name = "rustpython-sre_engine"
 version = "0.5.0"
-source = "git+https://github.com/RustPython/RustPython?rev=ea79826#ea798265cab1d9d5c29fe05b19f714936dcfd786"
+source = "git+https://github.com/RustPython/RustPython?rev=ede18e4#ede18e44cbd5a522d5bd55d89da9391294a5af6b"
 dependencies = [
  "bitflags 2.13.0",
  "num_enum",
@@ -7791,7 +7830,7 @@ dependencies = [
 [[package]]
 name = "rustpython-stdlib"
 version = "0.5.0"
-source = "git+https://github.com/RustPython/RustPython?rev=ea79826#ea798265cab1d9d5c29fe05b19f714936dcfd786"
+source = "git+https://github.com/RustPython/RustPython?rev=ede18e4#ede18e44cbd5a522d5bd55d89da9391294a5af6b"
 dependencies = [
  "adler32",
  "ascii",
@@ -7812,7 +7851,7 @@ dependencies = [
  "itertools 0.15.0",
  "libc",
  "libz-rs-sys",
- "malachite-bigint",
+ "malachite-bigint 0.10.0",
  "md-5 0.11.0",
  "memchr",
  "mt19937",
@@ -7850,7 +7889,7 @@ dependencies = [
 [[package]]
 name = "rustpython-unicode"
 version = "0.5.0"
-source = "git+https://github.com/RustPython/RustPython?rev=ea79826#ea798265cab1d9d5c29fe05b19f714936dcfd786"
+source = "git+https://github.com/RustPython/RustPython?rev=ede18e4#ede18e44cbd5a522d5bd55d89da9391294a5af6b"
 dependencies = [
  "icu_casemap",
  "icu_locale",
@@ -7864,7 +7903,7 @@ dependencies = [
 [[package]]
 name = "rustpython-vm"
 version = "0.5.0"
-source = "git+https://github.com/RustPython/RustPython?rev=ea79826#ea798265cab1d9d5c29fe05b19f714936dcfd786"
+source = "git+https://github.com/RustPython/RustPython?rev=ede18e4#ede18e44cbd5a522d5bd55d89da9391294a5af6b"
 dependencies = [
  "ascii",
  "bitflags 2.13.0",
@@ -7882,7 +7921,7 @@ dependencies = [
  "itoa",
  "libc",
  "log",
- "malachite-bigint",
+ "malachite-bigint 0.10.0",
  "memchr",
  "num-complex",
  "num-integer",
@@ -7921,7 +7960,7 @@ dependencies = [
 [[package]]
 name = "rustpython-wtf8"
 version = "0.5.0"
-source = "git+https://github.com/RustPython/RustPython?rev=ea79826#ea798265cab1d9d5c29fe05b19f714936dcfd786"
+source = "git+https://github.com/RustPython/RustPython?rev=ede18e4#ede18e44cbd5a522d5bd55d89da9391294a5af6b"
 dependencies = [
  "ascii",
  "bstr",
