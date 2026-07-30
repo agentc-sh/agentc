@@ -8,6 +8,7 @@
     "use-the-bash-tool",
     "control-tool-access-with-capabilities",
     "write-templated-prompts",
+    "manage-prompts-with-langfuse",
     "pass-context-from-the-client",
     "configure-a-model-provider",
     "connect-a-copilotkit-frontend",
