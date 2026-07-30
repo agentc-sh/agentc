@@ -154,10 +154,11 @@ impl PromptStore {
             self.cache
                 .entry(key.clone())
                 .and_try_compute_with(|entry| async move {
-                    if entry
-                        .as_ref()
-                        .is_some_and(|entry| entry.value().is_fresh(&key.selector, ttl))
-                    {
+                    if entry.as_ref().is_some_and(|entry| {
+                        entry
+                            .value()
+                            .is_fresh(&key.selector, ttl)
+                    }) {
                         return Ok(Op::Nop);
                     }
 
@@ -184,9 +185,7 @@ impl PromptStore {
             .filter_map(|(key, _)| (key.name == name).then(|| key.as_ref().clone()))
             .collect::<Vec<_>>()
         {
-            self.cache
-                .invalidate(&key)
-                .await;
+            self.cache.invalidate(&key).await;
         }
     }
 
@@ -210,10 +209,7 @@ mod tests {
     };
 
     use serde_json::json;
-    use wiremock::{
-        Mock, MockServer, Request, Respond, ResponseTemplate,
-        matchers::method,
-    };
+    use wiremock::{Mock, MockServer, Request, Respond, ResponseTemplate, matchers::method};
 
     use super::*;
 
@@ -273,7 +269,11 @@ mod tests {
 
     impl Respond for SequenceResponder {
         fn respond(&self, _request: &Request) -> ResponseTemplate {
-            if self.calls.fetch_add(1, Ordering::SeqCst) == 0 {
+            if self
+                .calls
+                .fetch_add(1, Ordering::SeqCst)
+                == 0
+            {
                 self.first.clone()
             } else {
                 self.remaining.clone()
@@ -307,10 +307,7 @@ mod tests {
         let (server, store) = StoreFixture::store().await;
 
         Mock::given(method("GET"))
-            .respond_with(
-                StoreFixture::response()
-                    .set_delay(Duration::from_millis(20)),
-            )
+            .respond_with(StoreFixture::response().set_delay(Duration::from_millis(20)))
             .mount(&server)
             .await;
 
@@ -334,19 +331,11 @@ mod tests {
             .await;
 
         store
-            .get(
-                "assistant",
-                GetPromptRequest::new()
-                    .without_cache(),
-            )
+            .get("assistant", GetPromptRequest::new().without_cache())
             .await
             .expect("first load should succeed");
         store
-            .get(
-                "assistant",
-                GetPromptRequest::new()
-                    .without_cache(),
-            )
+            .get("assistant", GetPromptRequest::new().without_cache())
             .await
             .expect("second load should succeed");
 
@@ -358,10 +347,7 @@ mod tests {
         let (server, store) = StoreFixture::store().await;
 
         Mock::given(method("GET"))
-            .respond_with(
-                StoreFixture::response()
-                    .append_header("cache-control", "no-store"),
-            )
+            .respond_with(StoreFixture::response().append_header("cache-control", "no-store"))
             .mount(&server)
             .await;
 
@@ -406,10 +392,7 @@ mod tests {
         let (server, store) = StoreFixture::store().await;
 
         Mock::given(method("GET"))
-            .respond_with(
-                StoreFixture::response()
-                    .append_header("cache-control", "max-age=0"),
-            )
+            .respond_with(StoreFixture::response().append_header("cache-control", "max-age=0"))
             .mount(&server)
             .await;
 

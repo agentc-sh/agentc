@@ -151,10 +151,8 @@ impl TryFrom<ChatPrompt> for PromptTemplate {
         for item in value.prompt {
             match item {
                 ChatPromptItem::Message(message) => {
-                    template = template.with_part(
-                        Role::try_from(message.role.as_str())?,
-                        message.content,
-                    );
+                    template =
+                        template.with_part(Role::try_from(message.role.as_str())?, message.content);
                 }
                 ChatPromptItem::Placeholder(placeholder) => {
                     return Err(PromptError::source(format!(
@@ -278,12 +276,10 @@ mod tests {
     #[test]
     fn text_prompt_converts_to_one_system_part_without_rendering_jinja() {
         assert_eq!(
-            PromptTemplate::try_from(
-                PromptFixture::text("You are {{ agent_name }}."),
-            )
-            .expect("text prompt should convert")
-            .into_parts()
-            .collect::<Vec<_>>(),
+            PromptTemplate::try_from(PromptFixture::text("You are {{ agent_name }}."),)
+                .expect("text prompt should convert")
+                .into_parts()
+                .collect::<Vec<_>>(),
             vec![(Role::System, "You are {{ agent_name }}.".to_string())],
         );
     }

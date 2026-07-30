@@ -37,15 +37,11 @@ impl LangfuseError {
         Self::Configuration(message.into())
     }
 
-    pub(super) fn request(
-        source: impl Into<Box<dyn std::error::Error + Send + Sync>>,
-    ) -> Self {
+    pub(super) fn request(source: impl Into<Box<dyn std::error::Error + Send + Sync>>) -> Self {
         Self::Request { source: source.into() }
     }
 
-    pub(super) fn decode(
-        source: impl Into<Box<dyn std::error::Error + Send + Sync>>,
-    ) -> Self {
+    pub(super) fn decode(source: impl Into<Box<dyn std::error::Error + Send + Sync>>) -> Self {
         Self::Decode { source: source.into() }
     }
 

@@ -174,8 +174,7 @@ impl CodeGen<ResolvedContext> for AgentCodeGen {
         let (tool_imports, tool_registrations) = ToolsCodeGen::generate(ctx, &self.fields)?;
         let (skill_imports, skill_registrations) = SkillsCodeGen::generate(ctx)?;
         let agent_identity = IdentityCodeGen::generate(ctx, &self.fields)?;
-        let (prompt_imports, prompt_source) =
-            PromptSourceCodeGen::generate(ctx, &self.fields)?;
+        let (prompt_imports, prompt_source) = PromptSourceCodeGen::generate(ctx, &self.fields)?;
 
         let source = quote! {
             use std::sync::Arc;
@@ -407,10 +406,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        context::{
-            ResolvedContextAgentPromptSource,
-            ResolvedContextAgentPromptSourceLangfuse,
-        },
+        context::{ResolvedContextAgentPromptSource, ResolvedContextAgentPromptSourceLangfuse},
         graph::{ReActGraphModelConfig, ReActGraphModelRetryConfig},
     };
 
@@ -534,24 +530,17 @@ mod tests {
 
     #[test]
     fn generated_agent_wires_langfuse_prompt_source() {
-        let rendered = AgentCodeGenFixture::generated_agent_for(
-            AgentCodeGenFixture::langfuse_context(),
-        );
+        let rendered =
+            AgentCodeGenFixture::generated_agent_for(AgentCodeGenFixture::langfuse_context());
 
         assert!(rendered.contains("use std :: time :: Duration"));
         assert!(rendered.contains("LangfusePromptSource"));
         assert!(rendered.contains("LangfuseClient"));
         assert!(rendered.contains("LangfusePromptSource :: builder"));
         assert!(rendered.contains("LangfuseClient :: builder"));
-        assert!(
-            rendered.contains("config . agent . prompt . langfuse . prompt_name")
-        );
-        assert!(
-            rendered.contains("config . agent . prompt . langfuse . public_key")
-        );
-        assert!(
-            rendered.contains("config . agent . prompt . langfuse . secret_key")
-        );
+        assert!(rendered.contains("config . agent . prompt . langfuse . prompt_name"));
+        assert!(rendered.contains("config . agent . prompt . langfuse . public_key"));
+        assert!(rendered.contains("config . agent . prompt . langfuse . secret_key"));
         assert!(rendered.contains("base_url"));
         assert!(rendered.contains("fetch_timeout"));
         assert!(rendered.contains("max_retries"));

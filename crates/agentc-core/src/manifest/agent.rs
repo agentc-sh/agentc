@@ -120,10 +120,7 @@ mod tests {
     use super::*;
     use crate::{
         manifest::Manifest,
-        parser::{
-            SpecFormat,
-            middleware::hcl::RuntimeFunctionDeserialize,
-        },
+        parser::{SpecFormat, middleware::hcl::RuntimeFunctionDeserialize},
     };
 
     struct AgentPromptFixture;
@@ -183,15 +180,9 @@ agent "assistant" {{
         };
 
         assert_eq!(messages.len(), 2);
-        assert!(matches!(
-            &messages[0].role,
-            ManifestAgentPromptMessageRole::System
-        ));
+        assert!(matches!(&messages[0].role, ManifestAgentPromptMessageRole::System));
         assert_eq!(messages[0].content, "System");
-        assert!(matches!(
-            &messages[1].role,
-            ManifestAgentPromptMessageRole::User
-        ));
+        assert!(matches!(&messages[1].role, ManifestAgentPromptMessageRole::User));
         assert_eq!(messages[1].content, "User");
     }
 
@@ -275,9 +266,6 @@ agent "assistant" {{
             panic!("prompt should be a Langfuse source");
         };
 
-        assert!(matches!(
-            prompt.version,
-            Some(RuntimeValue::Constant(7))
-        ));
+        assert!(matches!(prompt.version, Some(RuntimeValue::Constant(7))));
     }
 }

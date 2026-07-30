@@ -23,24 +23,16 @@ impl<'a> Prompts<'a> {
         name: impl Into<String>,
         request: GetPromptRequest,
     ) -> Result<Prompt, LangfuseError> {
-        self.store
-            .get(name, request)
-            .await
+        self.store.get(name, request).await
     }
 
-    pub async fn invalidate(
-        &self,
-        name: impl Into<String>,
-        selector: PromptSelector,
-    ) {
+    pub async fn invalidate(&self, name: impl Into<String>, selector: PromptSelector) {
         self.store
             .invalidate(name, selector)
             .await;
     }
 
     pub async fn invalidate_name(&self, name: &str) {
-        self.store
-            .invalidate_name(name)
-            .await;
+        self.store.invalidate_name(name).await;
     }
 }

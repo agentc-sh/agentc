@@ -15,13 +15,10 @@ use agentc_compiler::generator::{
 };
 
 use crate::{
-    archetype::standalone::codegen::cargo::{
-        CargoDependencyContribution, CargoPatchContribution,
-    },
+    archetype::standalone::codegen::cargo::{CargoDependencyContribution, CargoPatchContribution},
     context::{
-        ResolvedContext, ResolvedContextAgentPromptMessage,
-        ResolvedContextAgentPromptMessageRole, ResolvedContextAgentPromptSource,
-        ResolvedContextAgentPromptSourceLangfuse,
+        ResolvedContext, ResolvedContextAgentPromptMessage, ResolvedContextAgentPromptMessageRole,
+        ResolvedContextAgentPromptSource, ResolvedContextAgentPromptSourceLangfuse,
     },
     contributions::dependency::RuntimeDependencyContribution,
     fields::FieldsSpec,
@@ -46,9 +43,7 @@ impl PromptSourceCodeGen {
         }
     }
 
-    fn constant(
-        messages: &[ResolvedContextAgentPromptMessage],
-    ) -> (TokenStream, TokenStream) {
+    fn constant(messages: &[ResolvedContextAgentPromptMessage]) -> (TokenStream, TokenStream) {
         let imports = quote! {
             use agentc_prompt::{
                 source::ConstantPromptSource,
@@ -57,10 +52,7 @@ impl PromptSourceCodeGen {
         };
 
         if messages.is_empty() {
-            return (
-                imports,
-                quote! { ConstantPromptSource::new(PromptTemplate::default()) },
-            );
+            return (imports, quote! { ConstantPromptSource::new(PromptTemplate::default()) });
         }
 
         let parts = messages.iter().map(|message| {
@@ -89,26 +81,18 @@ impl PromptSourceCodeGen {
         prompt: &ResolvedContextAgentPromptSourceLangfuse,
         fields: &FieldsSpec,
     ) -> Result<(TokenStream, TokenStream), GeneratorError> {
-        let prompt_name = Self::required_accessor(
-            fields,
-            &["agent", "prompt", "langfuse", "prompt_name"],
-        )?;
-        let public_key = Self::required_accessor(
-            fields,
-            &["agent", "prompt", "langfuse", "public_key"],
-        )?;
-        let secret_key = Self::required_accessor(
-            fields,
-            &["agent", "prompt", "langfuse", "secret_key"],
-        )?;
+        let prompt_name =
+            Self::required_accessor(fields, &["agent", "prompt", "langfuse", "prompt_name"])?;
+        let public_key =
+            Self::required_accessor(fields, &["agent", "prompt", "langfuse", "public_key"])?;
+        let secret_key =
+            Self::required_accessor(fields, &["agent", "prompt", "langfuse", "secret_key"])?;
         let mut client_calls = Vec::new();
         let mut source_calls = Vec::new();
 
         if prompt.base_url.is_some() {
-            let base_url = Self::required_accessor(
-                fields,
-                &["agent", "prompt", "langfuse", "base_url"],
-            )?;
+            let base_url =
+                Self::required_accessor(fields, &["agent", "prompt", "langfuse", "base_url"])?;
 
             client_calls.push(quote! {
                 .base_url(#base_url.clone())
@@ -127,10 +111,8 @@ impl PromptSourceCodeGen {
         }
 
         if prompt.max_retries.is_some() {
-            let max_retries = Self::required_accessor(
-                fields,
-                &["agent", "prompt", "langfuse", "max_retries"],
-            )?;
+            let max_retries =
+                Self::required_accessor(fields, &["agent", "prompt", "langfuse", "max_retries"])?;
 
             client_calls.push(quote! {
                 .max_retries(#max_retries)
@@ -138,19 +120,14 @@ impl PromptSourceCodeGen {
         }
 
         if prompt.label.is_some() {
-            let label = Self::required_accessor(
-                fields,
-                &["agent", "prompt", "langfuse", "label"],
-            )?;
+            let label = Self::required_accessor(fields, &["agent", "prompt", "langfuse", "label"])?;
 
             source_calls.push(quote! {
                 .label(#label.clone())
             });
         } else if prompt.version.is_some() {
-            let version = Self::required_accessor(
-                fields,
-                &["agent", "prompt", "langfuse", "version"],
-            )?;
+            let version =
+                Self::required_accessor(fields, &["agent", "prompt", "langfuse", "version"])?;
 
             source_calls.push(quote! {
                 .version(#version)
@@ -168,31 +145,29 @@ impl PromptSourceCodeGen {
             });
         }
 
-        Ok(
-            (
-                quote! {
-                    use std::time::Duration;
+        Ok((
+            quote! {
+                use std::time::Duration;
 
-                    use agentc_prompt::source::langfuse::{
-                        LangfusePromptSource,
-                        client::LangfuseClient,
-                    };
-                },
-                quote! {
-                    LangfusePromptSource::builder()
-                        .client(
-                            LangfuseClient::builder()
-                                .public_key(#public_key.clone())
-                                .secret_key(#secret_key.clone())
-                                #(#client_calls)*
-                                .build()?
-                        )
-                        .prompt_name(#prompt_name.clone())
-                        #(#source_calls)*
-                        .build()?
-                },
-            )
-        )
+                use agentc_prompt::source::langfuse::{
+                    LangfusePromptSource,
+                    client::LangfuseClient,
+                };
+            },
+            quote! {
+                LangfusePromptSource::builder()
+                    .client(
+                        LangfuseClient::builder()
+                            .public_key(#public_key.clone())
+                            .secret_key(#secret_key.clone())
+                            #(#client_calls)*
+                            .build()?
+                    )
+                    .prompt_name(#prompt_name.clone())
+                    #(#source_calls)*
+                    .build()?
+            },
+        ))
     }
 
     fn required_accessor(
@@ -221,35 +196,19 @@ impl TemplateFragment<ResolvedContext> for PromptCargoFragment {
         match point {
             "cargo::dependencies" => {
                 let mut dependency =
-                    RuntimeDependencyContribution::new("agentc-prompt")
-                        .feature("tiktoken");
+                    RuntimeDependencyContribution::new("agentc-prompt").feature("tiktoken");
 
-                if matches!(
-                    &ctx.agent.prompt,
-                    Some(ResolvedContextAgentPromptSource::Langfuse(_))
-                ) {
+                if matches!(&ctx.agent.prompt, Some(ResolvedContextAgentPromptSource::Langfuse(_)))
+                {
                     dependency = dependency.feature("langfuse");
                 }
 
-                Ok(
-                    ErasedContributionValue::new(
-                        CargoDependencyContribution::runtime(dependency),
-                    )
-                )
+                Ok(ErasedContributionValue::new(CargoDependencyContribution::runtime(dependency)))
             }
-            "cargo::patches" => Ok(
-                ErasedContributionValue::new(
-                    CargoPatchContribution::runtime(
-                        RuntimeDependencyContribution::new("agentc-prompt"),
-                    ),
-                )
-            ),
-            _ => Err(
-                GeneratorError::unexpected(format!(
-                    "Unknown extension point '{}'",
-                    point,
-                ))
-            ),
+            "cargo::patches" => Ok(ErasedContributionValue::new(CargoPatchContribution::runtime(
+                RuntimeDependencyContribution::new("agentc-prompt"),
+            ))),
+            _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point,))),
         }
     }
 
@@ -269,9 +228,8 @@ mod tests {
     use super::*;
     use crate::{
         context::{
-            ResolvedContextAgent, ResolvedContextAgentModel,
-            ResolvedContextAgentPromptMessage, ResolvedContextAgentPromptMessageRole,
-            ResolvedContextRuntime,
+            ResolvedContextAgent, ResolvedContextAgentModel, ResolvedContextAgentPromptMessage,
+            ResolvedContextAgentPromptMessageRole, ResolvedContextRuntime,
         },
         types::RuntimeValue,
     };
@@ -279,9 +237,7 @@ mod tests {
     struct PromptCodeGenFixture;
 
     impl PromptCodeGenFixture {
-        fn context(
-            prompt: Option<ResolvedContextAgentPromptSource>,
-        ) -> ResolvedContext {
+        fn context(prompt: Option<ResolvedContextAgentPromptSource>) -> ResolvedContext {
             ResolvedContext {
                 slug: "assistant".to_string(),
                 agent_name: "assistant".to_string(),
@@ -311,31 +267,24 @@ mod tests {
             label: Option<RuntimeValue<String>>,
             version: Option<RuntimeValue<u32>>,
         ) -> ResolvedContextAgentPromptSource {
-            ResolvedContextAgentPromptSource::Langfuse(
-                ResolvedContextAgentPromptSourceLangfuse {
-                    prompt_name: RuntimeValue::constant("support/assistant".to_string()),
-                    public_key: RuntimeValue::required_runtime("LANGFUSE_PUBLIC_KEY"),
-                    secret_key: RuntimeValue::secret_runtime("LANGFUSE_SECRET_KEY"),
-                    base_url: Some(RuntimeValue::constant(
-                        "https://cloud.langfuse.com".to_string(),
-                    )),
-                    label,
-                    version,
-                    cache_ttl_seconds: Some(RuntimeValue::constant(30)),
-                    fetch_timeout_seconds: Some(RuntimeValue::constant(5)),
-                    max_retries: Some(RuntimeValue::constant(2)),
-                },
-            )
+            ResolvedContextAgentPromptSource::Langfuse(ResolvedContextAgentPromptSourceLangfuse {
+                prompt_name: RuntimeValue::constant("support/assistant".to_string()),
+                public_key: RuntimeValue::required_runtime("LANGFUSE_PUBLIC_KEY"),
+                secret_key: RuntimeValue::secret_runtime("LANGFUSE_SECRET_KEY"),
+                base_url: Some(RuntimeValue::constant("https://cloud.langfuse.com".to_string())),
+                label,
+                version,
+                cache_ttl_seconds: Some(RuntimeValue::constant(30)),
+                fetch_timeout_seconds: Some(RuntimeValue::constant(5)),
+                max_retries: Some(RuntimeValue::constant(2)),
+            })
         }
 
-        fn generate(
-            prompt: Option<ResolvedContextAgentPromptSource>,
-        ) -> (String, String) {
+        fn generate(prompt: Option<ResolvedContextAgentPromptSource>) -> (String, String) {
             let context = Self::context(prompt);
             let fields = FieldsSpec::collect_from(&context.agent);
-            let (imports, source) =
-                PromptSourceCodeGen::generate(&context, &fields)
-                    .expect("prompt source should generate");
+            let (imports, source) = PromptSourceCodeGen::generate(&context, &fields)
+                .expect("prompt source should generate");
 
             (imports.to_string(), source.to_string())
         }
@@ -343,14 +292,13 @@ mod tests {
 
     #[test]
     fn constant_source_generates_prompt_template() {
-        let (imports, source) = PromptCodeGenFixture::generate(Some(
-            ResolvedContextAgentPromptSource::Constant {
+        let (imports, source) =
+            PromptCodeGenFixture::generate(Some(ResolvedContextAgentPromptSource::Constant {
                 messages: vec![ResolvedContextAgentPromptMessage {
                     role: ResolvedContextAgentPromptMessageRole::System,
                     content: "hi {{ agent_name }}".to_string(),
                 }],
-            },
-        ));
+            }));
 
         assert!(imports.contains("ConstantPromptSource"));
         assert!(imports.contains("PromptTemplate"));
@@ -363,12 +311,11 @@ mod tests {
 
     #[test]
     fn langfuse_source_generates_configured_builders() {
-        let (imports, source) = PromptCodeGenFixture::generate(Some(
-            PromptCodeGenFixture::langfuse(
+        let (imports, source) =
+            PromptCodeGenFixture::generate(Some(PromptCodeGenFixture::langfuse(
                 Some(RuntimeValue::constant("staging".to_string())),
                 None,
-            ),
-        ));
+            )));
 
         assert!(imports.contains("std :: time :: Duration"));
         assert!(imports.contains("LangfusePromptSource"));
@@ -387,9 +334,8 @@ mod tests {
 
     #[test]
     fn langfuse_default_selector_omits_selector_calls() {
-        let (_, source) = PromptCodeGenFixture::generate(Some(
-            PromptCodeGenFixture::langfuse(None, None),
-        ));
+        let (_, source) =
+            PromptCodeGenFixture::generate(Some(PromptCodeGenFixture::langfuse(None, None)));
 
         assert!(!source.contains("label"));
         assert!(!source.contains("version"));

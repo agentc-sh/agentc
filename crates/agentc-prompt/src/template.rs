@@ -27,9 +27,7 @@ impl TryFrom<&str> for Role {
             "system" => Ok(Self::System),
             "user" => Ok(Self::User),
             "assistant" => Ok(Self::Assistant),
-            value => Err(PromptError::source(format!(
-                "unsupported prompt role `{value}`",
-            ))),
+            value => Err(PromptError::source(format!("unsupported prompt role `{value}`",))),
         }
     }
 }

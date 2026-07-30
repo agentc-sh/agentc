@@ -4,12 +4,7 @@
 
 use std::time::Duration;
 
-use super::{
-    LangfuseClient,
-    cache::PromptStore,
-    error::LangfuseError,
-    transport::HttpTransport,
-};
+use super::{LangfuseClient, cache::PromptStore, error::LangfuseError, transport::HttpTransport};
 
 pub const DEFAULT_BASE_URL: &str = "https://cloud.langfuse.com";
 pub const DEFAULT_PROMPT_CACHE_CAPACITY: u64 = 128;
@@ -78,21 +73,17 @@ impl LangfuseClientBuilder {
             .filter(|value| !value.is_empty())
             .ok_or(LangfuseError::MissingField("secret_key"))?;
 
-        Ok(
-            LangfuseClient::new(
-                PromptStore::new(
-                    HttpTransport::new(
-                        self.base_url,
-                        public_key,
-                        secret_key,
-                        self.fetch_timeout,
-                        self.max_retries,
-                    )?,
-                    self.prompt_cache_ttl,
-                    self.prompt_cache_capacity,
-                )
-            )
-        )
+        Ok(LangfuseClient::new(PromptStore::new(
+            HttpTransport::new(
+                self.base_url,
+                public_key,
+                secret_key,
+                self.fetch_timeout,
+                self.max_retries,
+            )?,
+            self.prompt_cache_ttl,
+            self.prompt_cache_capacity,
+        )))
     }
 }
 
@@ -152,8 +143,16 @@ mod tests {
             panic!("embedded credentials should fail");
         };
 
-        assert!(!error.to_string().contains("sensitive-public"));
-        assert!(!error.to_string().contains("sensitive-secret"));
+        assert!(
+            !error
+                .to_string()
+                .contains("sensitive-public")
+        );
+        assert!(
+            !error
+                .to_string()
+                .contains("sensitive-secret")
+        );
         assert!(!format!("{error:?}").contains("sensitive-public"));
         assert!(!format!("{error:?}").contains("sensitive-secret"));
     }

@@ -443,9 +443,7 @@ impl Manifest {
                             .collect(),
                     })
                 }
-                Some(ManifestAgentPrompt::Source(
-                    ManifestAgentPromptSource::Langfuse(prompt),
-                )) => {
+                Some(ManifestAgentPrompt::Source(ManifestAgentPromptSource::Langfuse(prompt))) => {
                     if prompt.label.is_some() && prompt.version.is_some() {
                         return Err(ManifestError::resolution(
                             "Langfuse prompt cannot set both `label` and `version`",
@@ -454,15 +452,9 @@ impl Manifest {
 
                     Some(ResolvedContextAgentPromptSource::Langfuse(
                         ResolvedContextAgentPromptSourceLangfuse {
-                            prompt_name: prompt
-                                .prompt_name
-                                .interpolate(&locals),
-                            public_key: prompt
-                                .public_key
-                                .interpolate(&locals),
-                            secret_key: prompt
-                                .secret_key
-                                .interpolate(&locals),
+                            prompt_name: prompt.prompt_name.interpolate(&locals),
+                            public_key: prompt.public_key.interpolate(&locals),
+                            secret_key: prompt.secret_key.interpolate(&locals),
                             base_url: prompt
                                 .base_url
                                 .map(|value| value.interpolate(&locals)),
@@ -900,10 +892,7 @@ mod tests {
     use async_trait::async_trait;
 
     use super::*;
-    use crate::parser::{
-        SpecFormat,
-        middleware::hcl::RuntimeFunctionDeserialize,
-    };
+    use crate::parser::{SpecFormat, middleware::hcl::RuntimeFunctionDeserialize};
     use agentc_compiler::generator::errors::GeneratorError;
 
     struct EmptyLoader;
@@ -971,8 +960,7 @@ agent "assistant" {{
             let (resolved, _) = Self::manifest(selector)
                 .resolve(&EmptyLoader, &[])
                 .await?;
-            let Some(ResolvedContextAgentPromptSource::Langfuse(prompt)) =
-                resolved.agent.prompt
+            let Some(ResolvedContextAgentPromptSource::Langfuse(prompt)) = resolved.agent.prompt
             else {
                 panic!("prompt should resolve as Langfuse");
             };

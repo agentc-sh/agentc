@@ -110,10 +110,7 @@ impl HttpTransport {
             return Err(self.response_error(response).await);
         }
 
-        let metadata = ResponseMetadata::from_headers(
-            response.headers(),
-            SystemTime::now(),
-        );
+        let metadata = ResponseMetadata::from_headers(response.headers(), SystemTime::now());
 
         Ok(FetchedPrompt {
             prompt: response
@@ -131,21 +128,15 @@ impl HttpTransport {
             .map_err(|error| LangfuseError::configuration(error.to_string()))?;
 
         if !matches!(url.scheme(), "http" | "https") {
-            return Err(LangfuseError::configuration(
-                "base URL must use HTTP or HTTPS",
-            ));
+            return Err(LangfuseError::configuration("base URL must use HTTP or HTTPS"));
         }
 
         if url.host_str().is_none() {
-            return Err(LangfuseError::configuration(
-                "base URL must include a host",
-            ));
+            return Err(LangfuseError::configuration("base URL must include a host"));
         }
 
         if !url.username().is_empty() || url.password().is_some() {
-            return Err(LangfuseError::configuration(
-                "base URL must not include credentials",
-            ));
+            return Err(LangfuseError::configuration("base URL must not include credentials"));
         }
 
         url.set_query(None);
@@ -194,10 +185,7 @@ impl HttpTransport {
             }
         }
 
-        LangfuseError::response(
-            status,
-            self.sanitize_error_body(&body),
-        )
+        LangfuseError::response(status, self.sanitize_error_body(&body))
     }
 
     fn sanitize_error_body(&self, body: &[u8]) -> String {
@@ -253,7 +241,9 @@ impl ResponseMetadata {
             } else if directive.eq_ignore_ascii_case("no-cache") {
                 self.no_cache = true;
             } else if let Some((name, value)) = directive.split_once('=')
-                && name.trim().eq_ignore_ascii_case("max-age")
+                && name
+                    .trim()
+                    .eq_ignore_ascii_case("max-age")
                 && let Ok(seconds) = value
                     .trim()
                     .trim_matches('"')
@@ -313,9 +303,7 @@ mod tests {
     use serde_json::json;
     use wiremock::{
         Mock, MockServer, Request, Respond, ResponseTemplate,
-        matchers::{
-            header, method, path, query_param, query_param_is_missing,
-        },
+        matchers::{header, method, path, query_param, query_param_is_missing},
     };
 
     use super::*;
@@ -330,11 +318,7 @@ mod tests {
             (server, transport)
         }
 
-        fn transport_for(
-            server: &MockServer,
-            timeout: Duration,
-            retries: u32,
-        ) -> HttpTransport {
+        fn transport_for(server: &MockServer, timeout: Duration, retries: u32) -> HttpTransport {
             HttpTransport::new(
                 server.uri(),
                 "public".to_string(),
@@ -388,7 +372,11 @@ mod tests {
 
     impl Respond for SequenceResponder {
         fn respond(&self, _request: &Request) -> ResponseTemplate {
-            if self.calls.fetch_add(1, Ordering::SeqCst) == 0 {
+            if self
+                .calls
+                .fetch_add(1, Ordering::SeqCst)
+                == 0
+            {
                 self.first.clone()
             } else {
                 self.remaining.clone()
@@ -402,16 +390,10 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path("/api/public/v2/prompts/assistant"))
-            .and(header(
-                "authorization",
-                "Basic cHVibGljOnNlY3JldA==",
-            ))
+            .and(header("authorization", "Basic cHVibGljOnNlY3JldA=="))
             .and(query_param_is_missing("label"))
             .and(query_param_is_missing("version"))
-            .respond_with(
-                ResponseTemplate::new(200)
-                    .set_body_json(TransportFixture::text_prompt()),
-            )
+            .respond_with(ResponseTemplate::new(200).set_body_json(TransportFixture::text_prompt()))
             .mount(&server)
             .await;
 
@@ -434,10 +416,7 @@ mod tests {
             .and(path("/api/public/v2/prompts/assistant"))
             .and(query_param("label", "staging"))
             .and(query_param_is_missing("version"))
-            .respond_with(
-                ResponseTemplate::new(200)
-                    .set_body_json(TransportFixture::chat_prompt()),
-            )
+            .respond_with(ResponseTemplate::new(200).set_body_json(TransportFixture::chat_prompt()))
             .expect(1)
             .mount(&server)
             .await;
@@ -445,19 +424,13 @@ mod tests {
             .and(path("/api/public/v2/prompts/assistant"))
             .and(query_param("version", "3"))
             .and(query_param_is_missing("label"))
-            .respond_with(
-                ResponseTemplate::new(200)
-                    .set_body_json(TransportFixture::text_prompt()),
-            )
+            .respond_with(ResponseTemplate::new(200).set_body_json(TransportFixture::text_prompt()))
             .expect(1)
             .mount(&server)
             .await;
 
         transport
-            .fetch(
-                "assistant",
-                &PromptSelector::Label("staging".to_string()),
-            )
+            .fetch("assistant", &PromptSelector::Label("staging".to_string()))
             .await
             .expect("label prompt should load");
         transport
@@ -471,10 +444,7 @@ mod tests {
         let (server, transport) = TransportFixture::transport().await;
 
         Mock::given(method("GET"))
-            .respond_with(
-                ResponseTemplate::new(200)
-                    .set_body_json(TransportFixture::text_prompt()),
-            )
+            .respond_with(ResponseTemplate::new(200).set_body_json(TransportFixture::text_prompt()))
             .mount(&server)
             .await;
 
@@ -499,17 +469,11 @@ mod tests {
         let (server, transport) = TransportFixture::transport().await;
 
         Mock::given(path("/api/public/v2/prompts/text"))
-            .respond_with(
-                ResponseTemplate::new(200)
-                    .set_body_json(TransportFixture::text_prompt()),
-            )
+            .respond_with(ResponseTemplate::new(200).set_body_json(TransportFixture::text_prompt()))
             .mount(&server)
             .await;
         Mock::given(path("/api/public/v2/prompts/chat"))
-            .respond_with(
-                ResponseTemplate::new(200)
-                    .set_body_json(TransportFixture::chat_prompt()),
-            )
+            .respond_with(ResponseTemplate::new(200).set_body_json(TransportFixture::chat_prompt()))
             .mount(&server)
             .await;
 
@@ -615,13 +579,9 @@ mod tests {
             .await;
 
         assert!(matches!(
-            TransportFixture::transport_for(
-                &server,
-                Duration::from_millis(10),
-                0,
-            )
-            .fetch("assistant", &PromptSelector::Default)
-            .await,
+            TransportFixture::transport_for(&server, Duration::from_millis(10), 0,)
+                .fetch("assistant", &PromptSelector::Default)
+                .await,
             Err(LangfuseError::Request { .. })
         ));
     }

@@ -38,10 +38,7 @@ impl PromptSource for LangfusePromptSource {
             .await
             .map_err(|error| {
                 PromptError::sourced_source(
-                    format!(
-                        "failed to load Langfuse prompt `{}`",
-                        self.prompt_name,
-                    ),
+                    format!("failed to load Langfuse prompt `{}`", self.prompt_name,),
                     error,
                 )
             })?
@@ -85,10 +82,10 @@ mod tests {
             .expect_err("load should fail");
 
         assert!(error.to_string().contains("assistant"));
-        assert!(
-            error
-                .source()
-                .is_some_and(|source| source.downcast_ref::<LangfuseError>().is_some())
-        );
+        assert!(error.source().is_some_and(|source| {
+            source
+                .downcast_ref::<LangfuseError>()
+                .is_some()
+        }));
     }
 }

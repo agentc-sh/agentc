@@ -5,8 +5,7 @@
 use serde::Deserialize;
 
 use super::types::{
-    ChatMessage, ChatPrompt, ChatPromptItem, MessagePlaceholder, Prompt, PromptMetadata,
-    TextPrompt,
+    ChatMessage, ChatPrompt, ChatPromptItem, MessagePlaceholder, Prompt, PromptMetadata, TextPrompt,
 };
 
 #[derive(Debug, Deserialize)]
@@ -125,9 +124,7 @@ impl From<WireChatPromptItem> for ChatPromptItem {
                     WireMessagePlaceholderKind::Placeholder => {}
                 }
 
-                Self::Placeholder(MessagePlaceholder {
-                    name: placeholder.name,
-                })
+                Self::Placeholder(MessagePlaceholder { name: placeholder.name })
             }
         }
     }

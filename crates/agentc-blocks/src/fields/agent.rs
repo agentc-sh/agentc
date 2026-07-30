@@ -17,45 +17,25 @@ impl IntoFieldSpecs for ResolvedContextAgent {
         }
 
         if let Some(ResolvedContextAgentPromptSource::Langfuse(prompt)) = &self.prompt {
-            fields.push(
-                &["agent", "prompt", "langfuse", "prompt_name"],
-                &prompt.prompt_name,
-            );
-            fields.push(
-                &["agent", "prompt", "langfuse", "public_key"],
-                &prompt.public_key,
-            );
-            fields.push(
-                &["agent", "prompt", "langfuse", "secret_key"],
-                &prompt.secret_key,
-            );
+            fields.push(&["agent", "prompt", "langfuse", "prompt_name"], &prompt.prompt_name);
+            fields.push(&["agent", "prompt", "langfuse", "public_key"], &prompt.public_key);
+            fields.push(&["agent", "prompt", "langfuse", "secret_key"], &prompt.secret_key);
 
             if let Some(base_url) = &prompt.base_url {
-                fields.push(
-                    &["agent", "prompt", "langfuse", "base_url"],
-                    base_url,
-                );
+                fields.push(&["agent", "prompt", "langfuse", "base_url"], base_url);
             }
 
             if let Some(label) = &prompt.label {
-                fields.push(
-                    &["agent", "prompt", "langfuse", "label"],
-                    label,
-                );
+                fields.push(&["agent", "prompt", "langfuse", "label"], label);
             }
 
             if let Some(version) = &prompt.version {
-                fields.push(
-                    &["agent", "prompt", "langfuse", "version"],
-                    version,
-                );
+                fields.push(&["agent", "prompt", "langfuse", "version"], version);
             }
 
             if let Some(cache_ttl_seconds) = &prompt.cache_ttl_seconds {
-                fields.push(
-                    &["agent", "prompt", "langfuse", "cache_ttl_seconds"],
-                    cache_ttl_seconds,
-                );
+                fields
+                    .push(&["agent", "prompt", "langfuse", "cache_ttl_seconds"], cache_ttl_seconds);
             }
 
             if let Some(fetch_timeout_seconds) = &prompt.fetch_timeout_seconds {
@@ -66,10 +46,7 @@ impl IntoFieldSpecs for ResolvedContextAgent {
             }
 
             if let Some(max_retries) = &prompt.max_retries {
-                fields.push(
-                    &["agent", "prompt", "langfuse", "max_retries"],
-                    max_retries,
-                );
+                fields.push(&["agent", "prompt", "langfuse", "max_retries"], max_retries);
             }
         }
     }
@@ -79,9 +56,7 @@ impl IntoFieldSpecs for ResolvedContextAgent {
 mod tests {
     use super::*;
     use crate::{
-        context::{
-            ResolvedContextAgentModel, ResolvedContextAgentPromptSourceLangfuse,
-        },
+        context::{ResolvedContextAgentModel, ResolvedContextAgentPromptSourceLangfuse},
         types::RuntimeValue,
     };
 

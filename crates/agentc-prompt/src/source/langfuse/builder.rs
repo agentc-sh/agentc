@@ -67,9 +67,7 @@ impl LangfusePromptSourceBuilder {
         self
     }
 
-    pub fn build(
-        self,
-    ) -> Result<LangfusePromptSource, LangfusePromptSourceConfigError> {
+    pub fn build(self) -> Result<LangfusePromptSource, LangfusePromptSourceConfigError> {
         let client = self
             .client
             .ok_or(LangfusePromptSourceConfigError::MissingClient)?;
@@ -94,11 +92,7 @@ impl LangfusePromptSourceBuilder {
             None => request,
         };
 
-        Ok(LangfusePromptSource {
-            client,
-            prompt_name,
-            request,
-        })
+        Ok(LangfusePromptSource { client, prompt_name, request })
     }
 }
 
