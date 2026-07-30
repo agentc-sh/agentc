@@ -17,7 +17,8 @@ use crate::{
     graph::{
         codegen::{
             a2a::A2aCodeGen, identity::IdentityCodeGen, mcp::McpCodeGen,
-            models::ModelRegistryCodeGen, skills::SkillsCodeGen, tools::ToolsCodeGen,
+            models::ModelRegistryCodeGen, prompt::PromptSourceCodeGen, skills::SkillsCodeGen,
+            tools::ToolsCodeGen,
         },
         react::ReActGraphConfig,
     },
@@ -173,6 +174,7 @@ impl CodeGen<ResolvedContext> for AgentCodeGen {
         let (tool_imports, tool_registrations) = ToolsCodeGen::generate(ctx, &self.fields)?;
         let (skill_imports, skill_registrations) = SkillsCodeGen::generate(ctx)?;
         let agent_identity = IdentityCodeGen::generate(ctx, &self.fields)?;
+        let (prompt_imports, prompt_source) = PromptSourceCodeGen::generate(ctx, &self.fields)?;
 
         let source = quote! {
             use std::sync::Arc;
@@ -183,7 +185,6 @@ impl CodeGen<ResolvedContext> for AgentCodeGen {
             use agentc_prompt::{
                 compaction::TailWindow,
                 counter::TiktokenCounter,
-                template::{PromptTemplate, Role},
             };
             use agentc_model::registry::ModelRegistry;
             use agentc_agent::{
@@ -216,6 +217,7 @@ impl CodeGen<ResolvedContext> for AgentCodeGen {
 
             use crate::config::{A2aTenantConfig, Config, McpTransportConfig};
 
+            #prompt_imports
             #(#model_imports)*
             #(#tool_imports)*
             #(#skill_imports)*
@@ -259,7 +261,8 @@ impl CodeGen<ResolvedContext> for AgentCodeGen {
                     )
                     .with_model_registry(model_registry)
                     .with_token_counter(TiktokenCounter::o200k_base())
-                    .with_compaction_strategy(TailWindow);
+                    .with_compaction_strategy(TailWindow)
+                    .with_prompt_source(#prompt_source);
 
                 #(#tool_registrations)*
                 #(#skill_registrations)*
@@ -402,7 +405,10 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::graph::{ReActGraphModelConfig, ReActGraphModelRetryConfig};
+    use crate::{
+        context::{ResolvedContextAgentPromptSource, ResolvedContextAgentPromptSourceLangfuse},
+        graph::{ReActGraphModelConfig, ReActGraphModelRetryConfig},
+    };
 
     struct AgentCodeGenFixture;
 
@@ -430,17 +436,43 @@ mod tests {
         }
 
         fn generated_agent() -> String {
+            Self::generated_agent_for(Self::context())
+        }
+
+        fn generated_agent_for(context: ResolvedContext) -> String {
             AgentCodeGen {
-                fields: FieldsSpec::collect_from(&Self::context()),
+                fields: FieldsSpec::collect_from(&context),
                 config: ReActGraphConfig::default(),
             }
-            .generate_files(&GenerationContext::new(Self::context()), &ExtensionRegistry::empty())
+            .generate_files(&GenerationContext::new(context), &ExtensionRegistry::empty())
             .unwrap()
             .into_iter()
             .find(|(path, _)| path == &PathBuf::from("src/agent.rs"))
             .expect("agent file should be generated")
             .1
             .to_string()
+        }
+
+        fn langfuse_context() -> ResolvedContext {
+            let mut context = Self::context();
+
+            context.agent.prompt = Some(ResolvedContextAgentPromptSource::Langfuse(
+                ResolvedContextAgentPromptSourceLangfuse {
+                    prompt_name: RuntimeValue::constant("support/assistant".to_string()),
+                    public_key: RuntimeValue::required_runtime("LANGFUSE_PUBLIC_KEY"),
+                    secret_key: RuntimeValue::secret_runtime("LANGFUSE_SECRET_KEY"),
+                    base_url: Some(RuntimeValue::constant(
+                        "https://cloud.langfuse.com".to_string(),
+                    )),
+                    label: Some(RuntimeValue::constant("staging".to_string())),
+                    version: None,
+                    cache_ttl_seconds: Some(RuntimeValue::constant(30)),
+                    fetch_timeout_seconds: Some(RuntimeValue::constant(5)),
+                    max_retries: Some(RuntimeValue::constant(2)),
+                },
+            ));
+
+            context
         }
 
         fn configured_codegen() -> AgentCodeGen {
@@ -486,6 +518,34 @@ mod tests {
         assert!(rendered.contains("default_model_config : ModelConfig :: new"));
         assert!(rendered.contains("config . react . model . timeout"));
         assert!(rendered.contains("ModelConfigRetry"));
+    }
+
+    #[test]
+    fn generated_agent_wires_constant_prompt_source() {
+        let rendered = AgentCodeGenFixture::generated_agent();
+
+        assert!(rendered.contains("with_prompt_source (ConstantPromptSource :: new"));
+        assert!(rendered.contains("PromptTemplate :: default"));
+    }
+
+    #[test]
+    fn generated_agent_wires_langfuse_prompt_source() {
+        let rendered =
+            AgentCodeGenFixture::generated_agent_for(AgentCodeGenFixture::langfuse_context());
+
+        assert!(rendered.contains("use std :: time :: Duration"));
+        assert!(rendered.contains("LangfusePromptSource"));
+        assert!(rendered.contains("LangfuseClient"));
+        assert!(rendered.contains("LangfusePromptSource :: builder"));
+        assert!(rendered.contains("LangfuseClient :: builder"));
+        assert!(rendered.contains("config . agent . prompt . langfuse . prompt_name"));
+        assert!(rendered.contains("config . agent . prompt . langfuse . public_key"));
+        assert!(rendered.contains("config . agent . prompt . langfuse . secret_key"));
+        assert!(rendered.contains("base_url"));
+        assert!(rendered.contains("fetch_timeout"));
+        assert!(rendered.contains("max_retries"));
+        assert!(rendered.contains("label"));
+        assert!(rendered.contains("cache_ttl"));
     }
 
     #[test]
