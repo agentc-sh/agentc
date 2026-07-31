@@ -38,10 +38,8 @@ pub trait InvokeAgentSpans: GraphNode {
 pub(crate) struct InvokeAgentSpan;
 
 impl InvokeAgentSpan {
-    pub(crate) fn record_input<N>(
-        span: &Span,
-        input: &InputOf<N>,
-    ) where
+    pub(crate) fn record_input<N>(span: &Span, input: &InputOf<N>)
+    where
         N: InvokeAgentSpans,
     {
         if let Ok(input) = serde_json::to_string(input) {
@@ -55,10 +53,8 @@ impl InvokeAgentSpan {
         }
     }
 
-    pub(crate) fn record_output<N>(
-        span: &Span,
-        outcome: &RunOutcome<StateOf<N>>,
-    ) where
+    pub(crate) fn record_output<N>(span: &Span, outcome: &RunOutcome<StateOf<N>>)
+    where
         N: InvokeAgentSpans,
     {
         if let Ok(output) = serde_json::to_string(&AgentOutputAttribute::new(outcome)) {
@@ -108,10 +104,7 @@ mod tests {
     use serde::Serialize;
     use serde_json::json;
 
-    use crate::{
-        graph::runtime::RunOutcome,
-        instrument::AgentOutputAttribute,
-    };
+    use crate::{graph::runtime::RunOutcome, instrument::AgentOutputAttribute};
 
     #[derive(Serialize)]
     struct TestState {
@@ -121,9 +114,9 @@ mod tests {
     #[test]
     fn completed_output_preserves_terminal_state() {
         assert_eq!(
-            serde_json::to_value(AgentOutputAttribute::new(&RunOutcome::completed(
-                TestState { value: 42 },
-            )))
+            serde_json::to_value(AgentOutputAttribute::new(&RunOutcome::completed(TestState {
+                value: 42
+            },)))
             .unwrap(),
             json!({
                 "status": "completed",
@@ -174,9 +167,9 @@ mod tests {
     #[test]
     fn cancelled_output_preserves_terminal_state() {
         assert_eq!(
-            serde_json::to_value(AgentOutputAttribute::new(&RunOutcome::cancelled(
-                TestState { value: 42 },
-            )))
+            serde_json::to_value(AgentOutputAttribute::new(&RunOutcome::cancelled(TestState {
+                value: 42
+            },)))
             .unwrap(),
             json!({
                 "status": "cancelled",

@@ -22,17 +22,11 @@ pub struct GenAiPart(GenAiPartValue);
 impl GenAiPart {
     /// Creates a text part.
     pub fn text(content: impl Into<String>) -> Self {
-        Self(GenAiPartValue::Text {
-            content: content.into(),
-        })
+        Self(GenAiPartValue::Text { content: content.into() })
     }
 
     /// Creates a tool-call part.
-    pub fn tool_call(
-        id: impl Into<String>,
-        name: impl Into<String>,
-        arguments: Value,
-    ) -> Self {
+    pub fn tool_call(id: impl Into<String>, name: impl Into<String>, arguments: Value) -> Self {
         Self(GenAiPartValue::ToolCall {
             id: id.into(),
             name: name.into(),
@@ -41,14 +35,8 @@ impl GenAiPart {
     }
 
     /// Creates a tool-call response part.
-    pub fn tool_call_response(
-        id: impl Into<String>,
-        response: Value,
-    ) -> Self {
-        Self(GenAiPartValue::ToolCallResponse {
-            id: id.into(),
-            response,
-        })
+    pub fn tool_call_response(id: impl Into<String>, response: Value) -> Self {
+        Self(GenAiPartValue::ToolCallResponse { id: id.into(), response })
     }
 
     /// Creates an inline media part.
@@ -79,9 +67,7 @@ impl GenAiPart {
 
     /// Creates a visible reasoning part.
     pub fn reasoning(content: impl Into<String>) -> Self {
-        Self(GenAiPartValue::Reasoning {
-            content: content.into(),
-        })
+        Self(GenAiPartValue::Reasoning { content: content.into() })
     }
 }
 
@@ -125,16 +111,8 @@ mod tests {
     fn media_parts_preserve_location_and_metadata() {
         assert_eq!(
             serde_json::to_value([
-                GenAiPart::uri(
-                    "image/png",
-                    GenAiModality::Image,
-                    "https://example.com/image.png",
-                ),
-                GenAiPart::blob(
-                    "audio/mpeg",
-                    GenAiModality::Audio,
-                    "base64-content",
-                ),
+                GenAiPart::uri("image/png", GenAiModality::Image, "https://example.com/image.png",),
+                GenAiPart::blob("audio/mpeg", GenAiModality::Audio, "base64-content",),
             ])
             .unwrap(),
             json!([

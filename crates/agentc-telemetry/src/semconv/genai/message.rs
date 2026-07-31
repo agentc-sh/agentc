@@ -44,14 +44,8 @@ impl GenAiMessage {
         Self::new(GenAiRole::Tool, parts)
     }
 
-    fn new(
-        role: GenAiRole,
-        parts: impl IntoIterator<Item = GenAiPart>,
-    ) -> Self {
-        Self {
-            role,
-            parts: parts.into_iter().collect(),
-        }
+    fn new(role: GenAiRole, parts: impl IntoIterator<Item = GenAiPart>) -> Self {
+        Self { role, parts: parts.into_iter().collect() }
     }
 }
 
@@ -65,10 +59,7 @@ pub struct GenAiOutputMessage {
 
 impl GenAiOutputMessage {
     /// Creates an output candidate from a message and its finish reason.
-    pub fn new(
-        message: GenAiMessage,
-        finish_reason: impl Into<String>,
-    ) -> Self {
+    pub fn new(message: GenAiMessage, finish_reason: impl Into<String>) -> Self {
         Self {
             role: message.role,
             parts: message.parts,

@@ -2,10 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-use agentc_agent::{
-    instrument::InvokeAgentSpans,
-    types::conversion::ToModelType,
-};
+use agentc_agent::{instrument::InvokeAgentSpans, types::conversion::ToModelType};
 use agentc_model::types::message::ChatMessage;
 use agentc_telemetry::semconv::genai::{
     GenAiInputMessages, GenAiOutputMessage, GenAiOutputMessages, ToGenAiType,
@@ -71,16 +68,14 @@ impl InvokeAgentSpans for ReActNode {
             return Ok(None);
         };
 
-        Ok(
-            Some(GenAiOutputMessages::new([GenAiOutputMessage::new(
-                message.to_gen_ai_type()?,
-                if assistant.has_tool_calls() {
-                    "tool_call"
-                } else {
-                    "stop"
-                },
-            )])),
-        )
+        Ok(Some(GenAiOutputMessages::new([GenAiOutputMessage::new(
+            message.to_gen_ai_type()?,
+            if assistant.has_tool_calls() {
+                "tool_call"
+            } else {
+                "stop"
+            },
+        )])))
     }
 }
 
@@ -90,16 +85,11 @@ mod tests {
     use uuid::Uuid;
 
     use agentc_agent::{
-        graph::state::GraphStateInput,
-        instrument::InvokeAgentSpans,
-        types::tools::ToolCall,
+        graph::state::GraphStateInput, instrument::InvokeAgentSpans, types::tools::ToolCall,
     };
 
     use crate::{
-        graph::{
-            runtime::ReActNode,
-            state::ReActStateInput,
-        },
+        graph::{runtime::ReActNode, state::ReActStateInput},
         types::message::{AssistantMessage, Message, ReasoningMessage},
     };
 
@@ -174,8 +164,7 @@ mod tests {
                     &ReActStateInput {
                         run_id,
                         messages: vec![
-                            Message::assistant("historical")
-                                .with_run_id(Uuid::from_u128(1)),
+                            Message::assistant("historical").with_run_id(Uuid::from_u128(1)),
                             Message::Reasoning(
                                 ReasoningMessage::new("visible reasoning")
                                     .with_run_id(run_id)
@@ -265,8 +254,9 @@ mod tests {
             ReActNode::output_messages(
                 &ReActStateInput {
                     run_id: Uuid::from_u128(1),
-                    messages: vec![Message::assistant("historical")
-                        .with_run_id(Uuid::from_u128(2))],
+                    messages: vec![
+                        Message::assistant("historical").with_run_id(Uuid::from_u128(2))
+                    ],
                     ..Default::default()
                 }
                 .initialize(),

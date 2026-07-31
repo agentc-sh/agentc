@@ -81,21 +81,15 @@ static TIME_PER_OUTPUT_CHUNK: LazyLock<Histogram<f64>> = LazyLock::new(|| {
 impl ToGenAiType for SystemMessage {
     type GenAiType = GenAiMessage;
 
-    fn to_gen_ai_type(
-        &self,
-    ) -> Result<Self::GenAiType, serde_json::Error> {
-        Ok(
-            GenAiMessage::system([GenAiPart::text(self.content.clone())]),
-        )
+    fn to_gen_ai_type(&self) -> Result<Self::GenAiType, serde_json::Error> {
+        Ok(GenAiMessage::system([GenAiPart::text(self.content.clone())]))
     }
 }
 
 impl ToGenAiType for UserMessage {
     type GenAiType = Vec<GenAiMessage>;
 
-    fn to_gen_ai_type(
-        &self,
-    ) -> Result<Self::GenAiType, serde_json::Error> {
+    fn to_gen_ai_type(&self) -> Result<Self::GenAiType, serde_json::Error> {
         let mut messages = Vec::new();
         let mut parts = Vec::new();
 
@@ -137,9 +131,7 @@ impl ToGenAiType for UserMessage {
 impl ToGenAiType for AssistantMessage {
     type GenAiType = GenAiMessage;
 
-    fn to_gen_ai_type(
-        &self,
-    ) -> Result<Self::GenAiType, serde_json::Error> {
+    fn to_gen_ai_type(&self) -> Result<Self::GenAiType, serde_json::Error> {
         let mut parts = Vec::new();
 
         for content in &self.content {
@@ -166,9 +158,7 @@ impl ToGenAiType for AssistantMessage {
 impl ToGenAiType for ChatMessage {
     type GenAiType = Vec<GenAiMessage>;
 
-    fn to_gen_ai_type(
-        &self,
-    ) -> Result<Self::GenAiType, serde_json::Error> {
+    fn to_gen_ai_type(&self) -> Result<Self::GenAiType, serde_json::Error> {
         match self {
             ChatMessage::System(message) => Ok(vec![message.to_gen_ai_type()?]),
             ChatMessage::User(message) => message.to_gen_ai_type(),
@@ -180,65 +170,46 @@ impl ToGenAiType for ChatMessage {
 impl ToGenAiType for ToolCall {
     type GenAiType = GenAiPart;
 
-    fn to_gen_ai_type(
-        &self,
-    ) -> Result<Self::GenAiType, serde_json::Error> {
-        Ok(
-            GenAiPart::tool_call(
-                self.id.clone(),
-                self.name.clone(),
-                self.arguments.clone(),
-            ),
-        )
+    fn to_gen_ai_type(&self) -> Result<Self::GenAiType, serde_json::Error> {
+        Ok(GenAiPart::tool_call(self.id.clone(), self.name.clone(), self.arguments.clone()))
     }
 }
 
 impl ToGenAiType for ToolResult {
     type GenAiType = GenAiPart;
 
-    fn to_gen_ai_type(
-        &self,
-    ) -> Result<Self::GenAiType, serde_json::Error> {
-        Ok(
-            GenAiPart::tool_call_response(
-                self.call_id.clone(),
-                match self.content.as_slice() {
-                    [] => Value::Array(Vec::new()),
-                    [ToolResultContent::Text(content)] => Value::String(content.clone()),
-                    [ToolResultContent::Image(image)] => {
-                        serde_json::to_value(image.to_gen_ai_type()?)?
-                    }
-                    contents => Value::Array(
-                        contents
-                            .iter()
-                            .map(|content| match content {
-                                ToolResultContent::Text(content) => {
-                                    Ok(Value::String(content.clone()))
-                                }
-                                ToolResultContent::Image(image) => {
-                                    serde_json::to_value(image.to_gen_ai_type()?)
-                                }
-                            })
-                            .collect::<Result<Vec<_>, _>>()?,
-                    ),
-                },
-            ),
-        )
+    fn to_gen_ai_type(&self) -> Result<Self::GenAiType, serde_json::Error> {
+        Ok(GenAiPart::tool_call_response(
+            self.call_id.clone(),
+            match self.content.as_slice() {
+                [] => Value::Array(Vec::new()),
+                [ToolResultContent::Text(content)] => Value::String(content.clone()),
+                [ToolResultContent::Image(image)] => serde_json::to_value(image.to_gen_ai_type()?)?,
+                contents => Value::Array(
+                    contents
+                        .iter()
+                        .map(|content| match content {
+                            ToolResultContent::Text(content) => Ok(Value::String(content.clone())),
+                            ToolResultContent::Image(image) => {
+                                serde_json::to_value(image.to_gen_ai_type()?)
+                            }
+                        })
+                        .collect::<Result<Vec<_>, _>>()?,
+                ),
+            },
+        ))
     }
 }
 
 impl ToGenAiType for Reasoning {
     type GenAiType = Vec<GenAiPart>;
 
-    fn to_gen_ai_type(
-        &self,
-    ) -> Result<Self::GenAiType, serde_json::Error> {
-        Ok(
-            self.gen_ai_content()
-                .into_iter()
-                .map(GenAiPart::reasoning)
-                .collect(),
-        )
+    fn to_gen_ai_type(&self) -> Result<Self::GenAiType, serde_json::Error> {
+        Ok(self
+            .gen_ai_content()
+            .into_iter()
+            .map(GenAiPart::reasoning)
+            .collect())
     }
 }
 
@@ -258,92 +229,60 @@ impl Reasoning {
 impl ToGenAiType for Image {
     type GenAiType = GenAiPart;
 
-    fn to_gen_ai_type(
-        &self,
-    ) -> Result<Self::GenAiType, serde_json::Error> {
-        Ok(
-            match &self.data {
-                MediaData::Base64(content) => GenAiPart::blob(
-                    self.media_type.clone(),
-                    GenAiModality::Image,
-                    content.clone(),
-                ),
-                MediaData::Url(uri) => GenAiPart::uri(
-                    self.media_type.clone(),
-                    GenAiModality::Image,
-                    uri.to_string(),
-                ),
-            },
-        )
+    fn to_gen_ai_type(&self) -> Result<Self::GenAiType, serde_json::Error> {
+        Ok(match &self.data {
+            MediaData::Base64(content) => {
+                GenAiPart::blob(self.media_type.clone(), GenAiModality::Image, content.clone())
+            }
+            MediaData::Url(uri) => {
+                GenAiPart::uri(self.media_type.clone(), GenAiModality::Image, uri.to_string())
+            }
+        })
     }
 }
 
 impl ToGenAiType for Audio {
     type GenAiType = GenAiPart;
 
-    fn to_gen_ai_type(
-        &self,
-    ) -> Result<Self::GenAiType, serde_json::Error> {
-        Ok(
-            match &self.data {
-                MediaData::Base64(content) => GenAiPart::blob(
-                    self.media_type.clone(),
-                    GenAiModality::Audio,
-                    content.clone(),
-                ),
-                MediaData::Url(uri) => GenAiPart::uri(
-                    self.media_type.clone(),
-                    GenAiModality::Audio,
-                    uri.to_string(),
-                ),
-            },
-        )
+    fn to_gen_ai_type(&self) -> Result<Self::GenAiType, serde_json::Error> {
+        Ok(match &self.data {
+            MediaData::Base64(content) => {
+                GenAiPart::blob(self.media_type.clone(), GenAiModality::Audio, content.clone())
+            }
+            MediaData::Url(uri) => {
+                GenAiPart::uri(self.media_type.clone(), GenAiModality::Audio, uri.to_string())
+            }
+        })
     }
 }
 
 impl ToGenAiType for Video {
     type GenAiType = GenAiPart;
 
-    fn to_gen_ai_type(
-        &self,
-    ) -> Result<Self::GenAiType, serde_json::Error> {
-        Ok(
-            match &self.data {
-                MediaData::Base64(content) => GenAiPart::blob(
-                    self.media_type.clone(),
-                    GenAiModality::Video,
-                    content.clone(),
-                ),
-                MediaData::Url(uri) => GenAiPart::uri(
-                    self.media_type.clone(),
-                    GenAiModality::Video,
-                    uri.to_string(),
-                ),
-            },
-        )
+    fn to_gen_ai_type(&self) -> Result<Self::GenAiType, serde_json::Error> {
+        Ok(match &self.data {
+            MediaData::Base64(content) => {
+                GenAiPart::blob(self.media_type.clone(), GenAiModality::Video, content.clone())
+            }
+            MediaData::Url(uri) => {
+                GenAiPart::uri(self.media_type.clone(), GenAiModality::Video, uri.to_string())
+            }
+        })
     }
 }
 
 impl ToGenAiType for Document {
     type GenAiType = GenAiPart;
 
-    fn to_gen_ai_type(
-        &self,
-    ) -> Result<Self::GenAiType, serde_json::Error> {
-        Ok(
-            match &self.data {
-                MediaData::Base64(content) => GenAiPart::blob(
-                    self.media_type.clone(),
-                    GenAiModality::Document,
-                    content.clone(),
-                ),
-                MediaData::Url(uri) => GenAiPart::uri(
-                    self.media_type.clone(),
-                    GenAiModality::Document,
-                    uri.to_string(),
-                ),
-            },
-        )
+    fn to_gen_ai_type(&self) -> Result<Self::GenAiType, serde_json::Error> {
+        Ok(match &self.data {
+            MediaData::Base64(content) => {
+                GenAiPart::blob(self.media_type.clone(), GenAiModality::Document, content.clone())
+            }
+            MediaData::Url(uri) => {
+                GenAiPart::uri(self.media_type.clone(), GenAiModality::Document, uri.to_string())
+            }
+        })
     }
 }
 
@@ -718,10 +657,8 @@ impl<M: CompletionModel + Send + Sync> CompletionModel for InstrumentedCompletio
         };
 
         if let Some(system) = system.as_ref()
-            && let Ok(content) = GenAiSystemInstructions::new([
-                GenAiPart::text(system.as_str()),
-            ])
-            .to_json()
+            && let Ok(content) =
+                GenAiSystemInstructions::new([GenAiPart::text(system.as_str())]).to_json()
         {
             span.record(attribute::GEN_AI_SYSTEM_INSTRUCTIONS, content.as_str());
         }
@@ -774,9 +711,7 @@ mod tests {
 
     use agentc_telemetry::{
         Span,
-        semconv::genai::{
-            GenAiInputMessages, GenAiPart, GenAiSystemInstructions, ToGenAiType,
-        },
+        semconv::genai::{GenAiInputMessages, GenAiPart, GenAiSystemInstructions, ToGenAiType},
     };
 
     use crate::{
@@ -906,11 +841,9 @@ mod tests {
                                 .to_gen_ai_type()
                                 .expect("history should convert")
                         })
-                        .chain([
-                            latest
-                                .to_gen_ai_type()
-                                .expect("latest message should convert"),
-                        ])
+                        .chain([latest
+                            .to_gen_ai_type()
+                            .expect("latest message should convert"),])
                         .flatten(),
                 )
                 .to_json()
