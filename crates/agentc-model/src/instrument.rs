@@ -6,7 +6,6 @@
 
 use async_trait::async_trait;
 use futures::Stream;
-use serde::Serialize;
 use serde_json::Value;
 use std::{
     pin::Pin,
@@ -18,7 +17,14 @@ use std::{
 use agentc_telemetry::{
     Instrument, Span, field, info_span,
     metrics::{Histogram, KeyValue, meter},
-    semconv::{attribute, metric},
+    semconv::{
+        attribute,
+        genai::{
+            GenAiInputMessages, GenAiMessage, GenAiModality, GenAiOutputMessage,
+            GenAiOutputMessages, GenAiPart, GenAiSystemInstructions, ToGenAiType,
+        },
+        metric,
+    },
 };
 
 use crate::{
@@ -28,8 +34,11 @@ use crate::{
     types::{
         identity::{ModelId, ProviderId},
         inference::InferenceParams,
-        media::MediaData,
-        message::{AssistantContent, AssistantMessage, ChatMessage, UserContent, UserMessage},
+        media::{Audio, Document, Image, MediaData, Video},
+        message::{
+            AssistantContent, AssistantMessage, ChatMessage, SystemMessage, UserContent,
+            UserMessage,
+        },
         reasoning::{Reasoning, ReasoningContent},
         request::CompletionRequest,
         stream::{CompletionStreamEvent, CompletionStreamFinal},
@@ -69,207 +78,173 @@ static TIME_PER_OUTPUT_CHUNK: LazyLock<Histogram<f64>> = LazyLock::new(|| {
         .build()
 });
 
-#[derive(Serialize)]
-struct GenAiInputMessages(Vec<GenAiMessage>);
+impl ToGenAiType for SystemMessage {
+    type GenAiType = GenAiMessage;
 
-impl GenAiInputMessages {
-    fn new(history: &[&ChatMessage], latest: &UserMessage) -> Result<Self, serde_json::Error> {
-        let mut messages = Vec::new();
-
-        for message in history {
-            match *message {
-                ChatMessage::User(message) => Self::push_user(&mut messages, message)?,
-                ChatMessage::Assistant(message) => messages.push(GenAiMessage::assistant(message)),
-                ChatMessage::System(_) => {}
-            }
-        }
-
-        Self::push_user(&mut messages, latest)?;
-
-        Ok(Self(messages))
+    fn to_gen_ai_type(
+        &self,
+    ) -> Result<Self::GenAiType, serde_json::Error> {
+        Ok(
+            GenAiMessage::system([GenAiPart::text(self.content.clone())]),
+        )
     }
+}
 
-    fn push_user(
-        messages: &mut Vec<GenAiMessage>,
-        message: &UserMessage,
-    ) -> Result<(), serde_json::Error> {
+impl ToGenAiType for UserMessage {
+    type GenAiType = Vec<GenAiMessage>;
+
+    fn to_gen_ai_type(
+        &self,
+    ) -> Result<Self::GenAiType, serde_json::Error> {
+        let mut messages = Vec::new();
         let mut parts = Vec::new();
 
-        for content in &message.content {
+        for content in &self.content {
             match content {
                 UserContent::Text(content) => {
-                    parts.push(GenAiPart::Text { content: content.clone() });
+                    parts.push(GenAiPart::text(content.clone()));
                 }
                 UserContent::ToolResult(result) => {
-                    Self::push_message(messages, GenAiRole::User, std::mem::take(&mut parts));
-                    messages.push(GenAiMessage {
-                        role: GenAiRole::Tool,
-                        parts: vec![GenAiPart::tool_call_response(result)?],
-                    });
+                    if !parts.is_empty() {
+                        messages.push(GenAiMessage::user(std::mem::take(&mut parts)));
+                    }
+
+                    messages.push(GenAiMessage::tool([result.to_gen_ai_type()?]));
                 }
                 UserContent::Image(image) => {
-                    parts.push(GenAiPart::media("image", &image.data, &image.media_type));
+                    parts.push(image.to_gen_ai_type()?);
                 }
                 UserContent::Audio(audio) => {
-                    parts.push(GenAiPart::media("audio", &audio.data, &audio.media_type));
+                    parts.push(audio.to_gen_ai_type()?);
                 }
                 UserContent::Video(video) => {
-                    parts.push(GenAiPart::media("video", &video.data, &video.media_type));
+                    parts.push(video.to_gen_ai_type()?);
                 }
                 UserContent::Document(document) => {
-                    parts.push(GenAiPart::media("document", &document.data, &document.media_type));
+                    parts.push(document.to_gen_ai_type()?);
                 }
             }
         }
 
-        Self::push_message(messages, GenAiRole::User, parts);
-
-        Ok(())
-    }
-
-    fn push_message(messages: &mut Vec<GenAiMessage>, role: GenAiRole, parts: Vec<GenAiPart>) {
         if !parts.is_empty() {
-            messages.push(GenAiMessage { role, parts });
+            messages.push(GenAiMessage::user(parts));
         }
-    }
 
-    fn to_json(&self) -> Result<String, serde_json::Error> {
-        serde_json::to_string(self)
+        Ok(messages)
     }
 }
 
-#[derive(Serialize)]
-struct GenAiMessage {
-    role: GenAiRole,
-    parts: Vec<GenAiPart>,
-}
+impl ToGenAiType for AssistantMessage {
+    type GenAiType = GenAiMessage;
 
-impl GenAiMessage {
-    fn assistant(message: &AssistantMessage) -> Self {
+    fn to_gen_ai_type(
+        &self,
+    ) -> Result<Self::GenAiType, serde_json::Error> {
         let mut parts = Vec::new();
 
-        for content in &message.content {
+        for content in &self.content {
             match content {
                 AssistantContent::Text(content) => {
-                    parts.push(GenAiPart::Text { content: content.clone() });
+                    parts.push(GenAiPart::text(content.clone()));
                 }
                 AssistantContent::ToolCall(call) => {
-                    parts.push(GenAiPart::tool_call(call));
+                    parts.push(call.to_gen_ai_type()?);
                 }
                 AssistantContent::Reasoning(reasoning) => {
-                    parts.extend(
-                        GenAiPart::reasoning_content(reasoning)
-                            .into_iter()
-                            .map(|content| GenAiPart::Reasoning { content }),
-                    );
+                    parts.extend(reasoning.to_gen_ai_type()?);
                 }
                 AssistantContent::Image(image) => {
-                    parts.push(GenAiPart::media("image", &image.data, &image.media_type));
+                    parts.push(image.to_gen_ai_type()?);
                 }
             }
         }
 
-        Self { role: GenAiRole::Assistant, parts }
+        Ok(GenAiMessage::assistant(parts))
     }
 }
 
-#[derive(Serialize)]
-struct GenAiOutputMessage {
-    role: GenAiRole,
-    parts: Vec<GenAiPart>,
-    finish_reason: String,
-}
+impl ToGenAiType for ChatMessage {
+    type GenAiType = Vec<GenAiMessage>;
 
-#[derive(Serialize)]
-#[serde(rename_all = "snake_case")]
-enum GenAiRole {
-    User,
-    Assistant,
-    Tool,
-}
-
-#[derive(Serialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
-enum GenAiPart {
-    Text {
-        content: String,
-    },
-    ToolCall {
-        id: String,
-        name: String,
-        arguments: Value,
-    },
-    ToolCallResponse {
-        id: String,
-        response: Value,
-    },
-    Blob {
-        mime_type: String,
-        modality: &'static str,
-        content: String,
-    },
-    Uri {
-        mime_type: String,
-        modality: &'static str,
-        uri: String,
-    },
-    Reasoning {
-        content: String,
-    },
-}
-
-impl GenAiPart {
-    fn media(modality: &'static str, data: &MediaData, mime_type: &str) -> Self {
-        match data {
-            MediaData::Base64(content) => Self::Blob {
-                mime_type: mime_type.to_string(),
-                modality,
-                content: content.clone(),
-            },
-            MediaData::Url(uri) => Self::Uri {
-                mime_type: mime_type.to_string(),
-                modality,
-                uri: uri.to_string(),
-            },
+    fn to_gen_ai_type(
+        &self,
+    ) -> Result<Self::GenAiType, serde_json::Error> {
+        match self {
+            ChatMessage::System(message) => Ok(vec![message.to_gen_ai_type()?]),
+            ChatMessage::User(message) => message.to_gen_ai_type(),
+            ChatMessage::Assistant(message) => Ok(vec![message.to_gen_ai_type()?]),
         }
     }
+}
 
-    fn tool_call(call: &ToolCall) -> Self {
-        Self::ToolCall {
-            id: call.id.clone(),
-            name: call.name.clone(),
-            arguments: call.arguments.clone(),
-        }
+impl ToGenAiType for ToolCall {
+    type GenAiType = GenAiPart;
+
+    fn to_gen_ai_type(
+        &self,
+    ) -> Result<Self::GenAiType, serde_json::Error> {
+        Ok(
+            GenAiPart::tool_call(
+                self.id.clone(),
+                self.name.clone(),
+                self.arguments.clone(),
+            ),
+        )
     }
+}
 
-    fn tool_call_response(result: &ToolResult) -> Result<Self, serde_json::Error> {
-        Ok(Self::ToolCallResponse {
-            id: result.call_id.clone(),
-            response: match result.content.as_slice() {
-                [] => Value::Array(Vec::new()),
-                [content] => Self::tool_result_content(content)?,
-                contents => Value::Array(
-                    contents
-                        .iter()
-                        .map(Self::tool_result_content)
-                        .collect::<Result<Vec<_>, _>>()?,
-                ),
-            },
-        })
+impl ToGenAiType for ToolResult {
+    type GenAiType = GenAiPart;
+
+    fn to_gen_ai_type(
+        &self,
+    ) -> Result<Self::GenAiType, serde_json::Error> {
+        Ok(
+            GenAiPart::tool_call_response(
+                self.call_id.clone(),
+                match self.content.as_slice() {
+                    [] => Value::Array(Vec::new()),
+                    [ToolResultContent::Text(content)] => Value::String(content.clone()),
+                    [ToolResultContent::Image(image)] => {
+                        serde_json::to_value(image.to_gen_ai_type()?)?
+                    }
+                    contents => Value::Array(
+                        contents
+                            .iter()
+                            .map(|content| match content {
+                                ToolResultContent::Text(content) => {
+                                    Ok(Value::String(content.clone()))
+                                }
+                                ToolResultContent::Image(image) => {
+                                    serde_json::to_value(image.to_gen_ai_type()?)
+                                }
+                            })
+                            .collect::<Result<Vec<_>, _>>()?,
+                    ),
+                },
+            ),
+        )
     }
+}
 
-    fn tool_result_content(content: &ToolResultContent) -> Result<Value, serde_json::Error> {
-        match content {
-            ToolResultContent::Text(content) => Ok(Value::String(content.clone())),
-            ToolResultContent::Image(image) => {
-                serde_json::to_value(Self::media("image", &image.data, &image.media_type))
-            }
-        }
+impl ToGenAiType for Reasoning {
+    type GenAiType = Vec<GenAiPart>;
+
+    fn to_gen_ai_type(
+        &self,
+    ) -> Result<Self::GenAiType, serde_json::Error> {
+        Ok(
+            self.gen_ai_content()
+                .into_iter()
+                .map(GenAiPart::reasoning)
+                .collect(),
+        )
     }
+}
 
-    fn reasoning_content(reasoning: &Reasoning) -> Vec<String> {
-        reasoning
-            .content
+impl Reasoning {
+    fn gen_ai_content(&self) -> Vec<String> {
+        self.content
             .iter()
             .filter_map(|content| match content {
                 ReasoningContent::Text { text, .. } => Some(text.clone()),
@@ -278,9 +253,97 @@ impl GenAiPart {
             })
             .collect()
     }
+}
 
-    fn system_instructions(content: &str) -> Result<String, serde_json::Error> {
-        serde_json::to_string(&[Self::Text { content: content.to_string() }])
+impl ToGenAiType for Image {
+    type GenAiType = GenAiPart;
+
+    fn to_gen_ai_type(
+        &self,
+    ) -> Result<Self::GenAiType, serde_json::Error> {
+        Ok(
+            match &self.data {
+                MediaData::Base64(content) => GenAiPart::blob(
+                    self.media_type.clone(),
+                    GenAiModality::Image,
+                    content.clone(),
+                ),
+                MediaData::Url(uri) => GenAiPart::uri(
+                    self.media_type.clone(),
+                    GenAiModality::Image,
+                    uri.to_string(),
+                ),
+            },
+        )
+    }
+}
+
+impl ToGenAiType for Audio {
+    type GenAiType = GenAiPart;
+
+    fn to_gen_ai_type(
+        &self,
+    ) -> Result<Self::GenAiType, serde_json::Error> {
+        Ok(
+            match &self.data {
+                MediaData::Base64(content) => GenAiPart::blob(
+                    self.media_type.clone(),
+                    GenAiModality::Audio,
+                    content.clone(),
+                ),
+                MediaData::Url(uri) => GenAiPart::uri(
+                    self.media_type.clone(),
+                    GenAiModality::Audio,
+                    uri.to_string(),
+                ),
+            },
+        )
+    }
+}
+
+impl ToGenAiType for Video {
+    type GenAiType = GenAiPart;
+
+    fn to_gen_ai_type(
+        &self,
+    ) -> Result<Self::GenAiType, serde_json::Error> {
+        Ok(
+            match &self.data {
+                MediaData::Base64(content) => GenAiPart::blob(
+                    self.media_type.clone(),
+                    GenAiModality::Video,
+                    content.clone(),
+                ),
+                MediaData::Url(uri) => GenAiPart::uri(
+                    self.media_type.clone(),
+                    GenAiModality::Video,
+                    uri.to_string(),
+                ),
+            },
+        )
+    }
+}
+
+impl ToGenAiType for Document {
+    type GenAiType = GenAiPart;
+
+    fn to_gen_ai_type(
+        &self,
+    ) -> Result<Self::GenAiType, serde_json::Error> {
+        Ok(
+            match &self.data {
+                MediaData::Base64(content) => GenAiPart::blob(
+                    self.media_type.clone(),
+                    GenAiModality::Document,
+                    content.clone(),
+                ),
+                MediaData::Url(uri) => GenAiPart::uri(
+                    self.media_type.clone(),
+                    GenAiModality::Document,
+                    uri.to_string(),
+                ),
+            },
+        )
     }
 }
 
@@ -348,14 +411,14 @@ impl GenAiOutput {
                 {
                     *part = GenAiOutputPart::Reasoning {
                         id: reasoning.id.clone(),
-                        content: GenAiPart::reasoning_content(reasoning),
+                        content: reasoning.gen_ai_content(),
                         complete: true,
                     };
                 } else {
                     self.parts
                         .push(GenAiOutputPart::Reasoning {
                             id: reasoning.id.clone(),
-                            content: GenAiPart::reasoning_content(reasoning),
+                            content: reasoning.gen_ai_content(),
                             complete: true,
                         });
                 }
@@ -369,10 +432,9 @@ impl GenAiOutput {
     }
 
     fn to_json(&self, final_response: &CompletionStreamFinal) -> Result<String, serde_json::Error> {
-        serde_json::to_string(&[GenAiOutputMessage {
-            role: GenAiRole::Assistant,
-            parts: self.message_parts(),
-            finish_reason: final_response
+        GenAiOutputMessages::new([GenAiOutputMessage::new(
+            GenAiMessage::assistant(self.message_parts()),
+            final_response
                 .finish_reason
                 .clone()
                 .unwrap_or_else(|| {
@@ -386,7 +448,8 @@ impl GenAiOutput {
                         "unknown".to_string()
                     }
                 }),
-        }])
+        )])
+        .to_json()
     }
 
     fn message_parts(&self) -> Vec<GenAiPart> {
@@ -395,18 +458,22 @@ impl GenAiOutput {
         for part in &self.parts {
             match part {
                 GenAiOutputPart::Text(content) if !content.is_empty() => {
-                    parts.push(GenAiPart::Text { content: content.clone() });
+                    parts.push(GenAiPart::text(content.clone()));
                 }
                 GenAiOutputPart::Reasoning { content, .. } => {
                     parts.extend(
                         content
                             .iter()
                             .filter(|content| !content.is_empty())
-                            .map(|content| GenAiPart::Reasoning { content: content.clone() }),
+                            .map(|content| GenAiPart::reasoning(content.clone())),
                     );
                 }
                 GenAiOutputPart::ToolCall(call) => {
-                    parts.push(GenAiPart::tool_call(call));
+                    parts.push(GenAiPart::tool_call(
+                        call.id.clone(),
+                        call.name.clone(),
+                        call.arguments.clone(),
+                    ));
                 }
                 _ => {}
             }
@@ -651,13 +718,21 @@ impl<M: CompletionModel + Send + Sync> CompletionModel for InstrumentedCompletio
         };
 
         if let Some(system) = system.as_ref()
-            && let Ok(content) = GenAiPart::system_instructions(system)
+            && let Ok(content) = GenAiSystemInstructions::new([
+                GenAiPart::text(system.as_str()),
+            ])
+            .to_json()
         {
             span.record(attribute::GEN_AI_SYSTEM_INSTRUCTIONS, content.as_str());
         }
 
-        if let Ok(content) =
-            GenAiInputMessages::new(&rest, latest).and_then(|messages| messages.to_json())
+        if let Ok(content) = rest
+            .iter()
+            .map(|message| message.to_gen_ai_type())
+            .chain([latest.to_gen_ai_type()])
+            .collect::<Result<Vec<_>, _>>()
+            .map(|messages| GenAiInputMessages::new(messages.into_iter().flatten()))
+            .and_then(|messages| messages.to_json())
         {
             span.record(attribute::GEN_AI_INPUT_MESSAGES, content.as_str());
         }
@@ -692,17 +767,32 @@ impl<M: CompletionModel + 'static> AsInstrumentedModel for M {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use futures::{StreamExt, stream};
-    use serde_json::{from_str, json};
+    use serde_json::{Value, from_str, json};
+    use std::time::Instant;
     use url::Url;
 
-    use crate::types::{
-        media::{Audio, Image},
-        message::ChatHistory,
-        stream::ToolCallDelta,
-        usage::TokenUsage,
+    use agentc_telemetry::{
+        Span,
+        semconv::genai::{
+            GenAiInputMessages, GenAiPart, GenAiSystemInstructions, ToGenAiType,
+        },
+    };
+
+    use crate::{
+        instrument::{GenAiOutput, InstrumentedStream},
+        stream::ChatCompletionStream,
+        types::{
+            media::{Audio, Image, MediaData},
+            message::{
+                AssistantContent, AssistantMessage, ChatHistory, ChatMessage, UserContent,
+                UserMessage,
+            },
+            reasoning::{Reasoning, ReasoningContent},
+            stream::{CompletionStreamEvent, CompletionStreamFinal, ToolCallDelta},
+            tools::{ToolCall, ToolResult, ToolResultContent},
+            usage::TokenUsage,
+        },
     };
 
     #[test]
@@ -710,21 +800,28 @@ mod tests {
         assert_eq!(
             from_str::<Value>(
                 &GenAiInputMessages::new(
-                    &[&ChatMessage::User(UserMessage {
-                        content: vec![
-                            UserContent::Text("before".to_string()),
-                            UserContent::ToolResult(ToolResult {
-                                call_id: "call-1".to_string(),
-                                content: vec![ToolResultContent::Text("result".to_string(),)],
-                            }),
-                            UserContent::Text("after".to_string()),
-                        ],
-                    })],
-                    &UserMessage {
-                        content: vec![UserContent::Text("latest".to_string())],
-                    },
+                    [
+                        UserMessage {
+                            content: vec![
+                                UserContent::Text("before".to_string()),
+                                UserContent::ToolResult(ToolResult {
+                                    call_id: "call-1".to_string(),
+                                    content: vec![ToolResultContent::Text("result".to_string())],
+                                }),
+                                UserContent::Text("after".to_string()),
+                            ],
+                        }
+                        .to_gen_ai_type()
+                        .expect("history should convert"),
+                        UserMessage {
+                            content: vec![UserContent::Text("latest".to_string())],
+                        }
+                        .to_gen_ai_type()
+                        .expect("latest message should convert"),
+                    ]
+                    .into_iter()
+                    .flatten(),
                 )
-                .expect("input messages should convert")
                 .to_json()
                 .expect("input messages should serialize"),
             )
@@ -784,11 +881,12 @@ mod tests {
 
         assert_eq!(
             from_str::<Value>(
-                &GenAiPart::system_instructions(
+                &GenAiSystemInstructions::new([GenAiPart::text(
                     system
                         .as_deref()
                         .expect("system instructions should exist"),
-                )
+                )])
+                .to_json()
                 .expect("system instructions should serialize"),
             )
             .expect("system instruction JSON should parse"),
@@ -801,10 +899,22 @@ mod tests {
         );
         assert_eq!(
             from_str::<Value>(
-                &GenAiInputMessages::new(&rest, latest)
-                    .expect("input messages should convert")
-                    .to_json()
-                    .expect("input messages should serialize"),
+                &GenAiInputMessages::new(
+                    rest.iter()
+                        .map(|message| {
+                            message
+                                .to_gen_ai_type()
+                                .expect("history should convert")
+                        })
+                        .chain([
+                            latest
+                                .to_gen_ai_type()
+                                .expect("latest message should convert"),
+                        ])
+                        .flatten(),
+                )
+                .to_json()
+                .expect("input messages should serialize"),
             )
             .expect("input JSON should parse"),
             json!([
@@ -826,8 +936,7 @@ mod tests {
         assert_eq!(
             from_str::<Value>(
                 &GenAiInputMessages::new(
-                    &[],
-                    &UserMessage {
+                    UserMessage {
                         content: vec![
                             UserContent::Image(Image {
                                 data: MediaData::Url(
@@ -841,9 +950,10 @@ mod tests {
                                 media_type: "audio/mpeg".to_string(),
                             }),
                         ],
-                    },
+                    }
+                    .to_gen_ai_type()
+                    .expect("input message should convert"),
                 )
-                .expect("input messages should convert")
                 .to_json()
                 .expect("input messages should serialize"),
             )
@@ -875,26 +985,33 @@ mod tests {
         assert_eq!(
             from_str::<Value>(
                 &GenAiInputMessages::new(
-                    &[&ChatMessage::Assistant(AssistantMessage {
-                        id: None,
-                        content: vec![AssistantContent::Reasoning(Reasoning {
-                            id: Some("reasoning-1".to_string()),
-                            content: vec![
-                                ReasoningContent::Text {
-                                    text: "visible".to_string(),
-                                    signature: Some("signature".to_string()),
-                                },
-                                ReasoningContent::Encrypted("encrypted".to_string(),),
-                                ReasoningContent::Redacted("redacted".to_string(),),
-                                ReasoningContent::Summary("summary".to_string(),),
-                            ],
-                        })],
-                    })],
-                    &UserMessage {
-                        content: vec![UserContent::Text("continue".to_string())],
-                    },
+                    [
+                        ChatMessage::Assistant(AssistantMessage {
+                            id: None,
+                            content: vec![AssistantContent::Reasoning(Reasoning {
+                                id: Some("reasoning-1".to_string()),
+                                content: vec![
+                                    ReasoningContent::Text {
+                                        text: "visible".to_string(),
+                                        signature: Some("signature".to_string()),
+                                    },
+                                    ReasoningContent::Encrypted("encrypted".to_string()),
+                                    ReasoningContent::Redacted("redacted".to_string()),
+                                    ReasoningContent::Summary("summary".to_string()),
+                                ],
+                            })],
+                        })
+                        .to_gen_ai_type()
+                        .expect("assistant message should convert"),
+                        UserMessage {
+                            content: vec![UserContent::Text("continue".to_string())],
+                        }
+                        .to_gen_ai_type()
+                        .expect("user message should convert"),
+                    ]
+                    .into_iter()
+                    .flatten(),
                 )
-                .expect("input messages should convert")
                 .to_json()
                 .expect("input messages should serialize"),
             )
