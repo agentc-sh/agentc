@@ -5,11 +5,10 @@
 use async_trait::async_trait;
 use futures::StreamExt;
 use rig_core::{
-    client::CompletionClient, completion::CompletionModel as RigCompletionModel, message::Message,
-    providers::{
-        openai::responses_api::streaming::StreamingCompletionResponse,
-        xai,
-    },
+    client::CompletionClient,
+    completion::CompletionModel as RigCompletionModel,
+    message::Message,
+    providers::{openai::responses_api::streaming::StreamingCompletionResponse, xai},
 };
 use serde_json::json;
 

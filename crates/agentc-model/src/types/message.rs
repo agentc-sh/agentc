@@ -165,14 +165,7 @@ impl ChatHistory {
     /// joining system messages into an owned preamble.
     pub fn split_ref(
         &self,
-    ) -> Result<
-        (
-            Option<String>,
-            &UserMessage,
-            Vec<&ChatMessage>,
-        ),
-        ModelError,
-    > {
+    ) -> Result<(Option<String>, &UserMessage, Vec<&ChatMessage>), ModelError> {
         let mut system_parts = Vec::new();
         let mut messages = Vec::new();
 

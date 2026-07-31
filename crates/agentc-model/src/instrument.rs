@@ -29,13 +29,7 @@ use crate::{
         identity::{ModelId, ProviderId},
         inference::InferenceParams,
         media::MediaData,
-        message::{
-            AssistantContent,
-            AssistantMessage,
-            ChatMessage,
-            UserContent,
-            UserMessage,
-        },
+        message::{AssistantContent, AssistantMessage, ChatMessage, UserContent, UserMessage},
         reasoning::{Reasoning, ReasoningContent},
         request::CompletionRequest,
         stream::{CompletionStreamEvent, CompletionStreamFinal},
@@ -79,18 +73,13 @@ static TIME_PER_OUTPUT_CHUNK: LazyLock<Histogram<f64>> = LazyLock::new(|| {
 struct GenAiInputMessages(Vec<GenAiMessage>);
 
 impl GenAiInputMessages {
-    fn new(
-        history: &[&ChatMessage],
-        latest: &UserMessage,
-    ) -> Result<Self, serde_json::Error> {
+    fn new(history: &[&ChatMessage], latest: &UserMessage) -> Result<Self, serde_json::Error> {
         let mut messages = Vec::new();
 
         for message in history {
             match *message {
                 ChatMessage::User(message) => Self::push_user(&mut messages, message)?,
-                ChatMessage::Assistant(message) => {
-                    messages.push(GenAiMessage::assistant(message))
-                }
+                ChatMessage::Assistant(message) => messages.push(GenAiMessage::assistant(message)),
                 ChatMessage::System(_) => {}
             }
         }
@@ -109,9 +98,7 @@ impl GenAiInputMessages {
         for content in &message.content {
             match content {
                 UserContent::Text(content) => {
-                    parts.push(GenAiPart::Text {
-                        content: content.clone(),
-                    });
+                    parts.push(GenAiPart::Text { content: content.clone() });
                 }
                 UserContent::ToolResult(result) => {
                     Self::push_message(messages, GenAiRole::User, std::mem::take(&mut parts));
@@ -121,32 +108,16 @@ impl GenAiInputMessages {
                     });
                 }
                 UserContent::Image(image) => {
-                    parts.push(GenAiPart::media(
-                        "image",
-                        &image.data,
-                        &image.media_type,
-                    ));
+                    parts.push(GenAiPart::media("image", &image.data, &image.media_type));
                 }
                 UserContent::Audio(audio) => {
-                    parts.push(GenAiPart::media(
-                        "audio",
-                        &audio.data,
-                        &audio.media_type,
-                    ));
+                    parts.push(GenAiPart::media("audio", &audio.data, &audio.media_type));
                 }
                 UserContent::Video(video) => {
-                    parts.push(GenAiPart::media(
-                        "video",
-                        &video.data,
-                        &video.media_type,
-                    ));
+                    parts.push(GenAiPart::media("video", &video.data, &video.media_type));
                 }
                 UserContent::Document(document) => {
-                    parts.push(GenAiPart::media(
-                        "document",
-                        &document.data,
-                        &document.media_type,
-                    ));
+                    parts.push(GenAiPart::media("document", &document.data, &document.media_type));
                 }
             }
         }
@@ -156,11 +127,7 @@ impl GenAiInputMessages {
         Ok(())
     }
 
-    fn push_message(
-        messages: &mut Vec<GenAiMessage>,
-        role: GenAiRole,
-        parts: Vec<GenAiPart>,
-    ) {
+    fn push_message(messages: &mut Vec<GenAiMessage>, role: GenAiRole, parts: Vec<GenAiPart>) {
         if !parts.is_empty() {
             messages.push(GenAiMessage { role, parts });
         }
@@ -184,9 +151,7 @@ impl GenAiMessage {
         for content in &message.content {
             match content {
                 AssistantContent::Text(content) => {
-                    parts.push(GenAiPart::Text {
-                        content: content.clone(),
-                    });
+                    parts.push(GenAiPart::Text { content: content.clone() });
                 }
                 AssistantContent::ToolCall(call) => {
                     parts.push(GenAiPart::tool_call(call));
@@ -199,19 +164,12 @@ impl GenAiMessage {
                     );
                 }
                 AssistantContent::Image(image) => {
-                    parts.push(GenAiPart::media(
-                        "image",
-                        &image.data,
-                        &image.media_type,
-                    ));
+                    parts.push(GenAiPart::media("image", &image.data, &image.media_type));
                 }
             }
         }
 
-        Self {
-            role: GenAiRole::Assistant,
-            parts,
-        }
+        Self { role: GenAiRole::Assistant, parts }
     }
 }
 
@@ -261,11 +219,7 @@ enum GenAiPart {
 }
 
 impl GenAiPart {
-    fn media(
-        modality: &'static str,
-        data: &MediaData,
-        mime_type: &str,
-    ) -> Self {
+    fn media(modality: &'static str, data: &MediaData, mime_type: &str) -> Self {
         match data {
             MediaData::Base64(content) => Self::Blob {
                 mime_type: mime_type.to_string(),
@@ -304,17 +258,11 @@ impl GenAiPart {
         })
     }
 
-    fn tool_result_content(
-        content: &ToolResultContent,
-    ) -> Result<Value, serde_json::Error> {
+    fn tool_result_content(content: &ToolResultContent) -> Result<Value, serde_json::Error> {
         match content {
             ToolResultContent::Text(content) => Ok(Value::String(content.clone())),
             ToolResultContent::Image(image) => {
-                serde_json::to_value(Self::media(
-                    "image",
-                    &image.data,
-                    &image.media_type,
-                ))
+                serde_json::to_value(Self::media("image", &image.data, &image.media_type))
             }
         }
     }
@@ -332,9 +280,7 @@ impl GenAiPart {
     }
 
     fn system_instructions(content: &str) -> Result<String, serde_json::Error> {
-        serde_json::to_string(&[Self::Text {
-            content: content.to_string(),
-        }])
+        serde_json::to_string(&[Self::Text { content: content.to_string() }])
     }
 }
 
@@ -350,12 +296,16 @@ impl GenAiOutput {
                 if let Some(GenAiOutputPart::Text(content)) = self.parts.last_mut() {
                     content.push_str(delta);
                 } else {
-                    self.parts.push(GenAiOutputPart::Text(delta.clone()));
+                    self.parts
+                        .push(GenAiOutputPart::Text(delta.clone()));
                 }
             }
             CompletionStreamEvent::ReasoningDelta { id, delta } => {
-                if let Some(GenAiOutputPart::Reasoning { content, .. }) =
-                    self.parts.iter_mut().rev().find(|part| {
+                if let Some(GenAiOutputPart::Reasoning { content, .. }) = self
+                    .parts
+                    .iter_mut()
+                    .rev()
+                    .find(|part| {
                         matches!(
                             part,
                             GenAiOutputPart::Reasoning {
@@ -372,49 +322,53 @@ impl GenAiOutput {
                         content.push(delta.clone());
                     }
                 } else {
-                    self.parts.push(GenAiOutputPart::Reasoning {
-                        id: id.clone(),
-                        content: vec![delta.clone()],
-                        complete: false,
-                    });
+                    self.parts
+                        .push(GenAiOutputPart::Reasoning {
+                            id: id.clone(),
+                            content: vec![delta.clone()],
+                            complete: false,
+                        });
                 }
             }
             CompletionStreamEvent::Reasoning(reasoning) => {
-                if let Some(part) = self.parts.iter_mut().rev().find(|part| {
-                    matches!(
-                        part,
-                        GenAiOutputPart::Reasoning {
-                            id,
-                            complete: false,
-                            ..
-                        } if id.as_ref() == reasoning.id.as_ref()
-                    )
-                }) {
+                if let Some(part) = self
+                    .parts
+                    .iter_mut()
+                    .rev()
+                    .find(|part| {
+                        matches!(
+                            part,
+                            GenAiOutputPart::Reasoning {
+                                id,
+                                complete: false,
+                                ..
+                            } if id.as_ref() == reasoning.id.as_ref()
+                        )
+                    })
+                {
                     *part = GenAiOutputPart::Reasoning {
                         id: reasoning.id.clone(),
                         content: GenAiPart::reasoning_content(reasoning),
                         complete: true,
                     };
                 } else {
-                    self.parts.push(GenAiOutputPart::Reasoning {
-                        id: reasoning.id.clone(),
-                        content: GenAiPart::reasoning_content(reasoning),
-                        complete: true,
-                    });
+                    self.parts
+                        .push(GenAiOutputPart::Reasoning {
+                            id: reasoning.id.clone(),
+                            content: GenAiPart::reasoning_content(reasoning),
+                            complete: true,
+                        });
                 }
             }
             CompletionStreamEvent::ToolCall(call) => {
-                self.parts.push(GenAiOutputPart::ToolCall(call.clone()));
+                self.parts
+                    .push(GenAiOutputPart::ToolCall(call.clone()));
             }
-            CompletionStreamEvent::ToolCallDelta { .. }
-            | CompletionStreamEvent::Done(_) => {}
+            CompletionStreamEvent::ToolCallDelta { .. } | CompletionStreamEvent::Done(_) => {}
         }
     }
 
-    fn to_json(
-        &self,
-        final_response: &CompletionStreamFinal,
-    ) -> Result<String, serde_json::Error> {
+    fn to_json(&self, final_response: &CompletionStreamFinal) -> Result<String, serde_json::Error> {
         serde_json::to_string(&[GenAiOutputMessage {
             role: GenAiRole::Assistant,
             parts: self.message_parts(),
@@ -441,18 +395,14 @@ impl GenAiOutput {
         for part in &self.parts {
             match part {
                 GenAiOutputPart::Text(content) if !content.is_empty() => {
-                    parts.push(GenAiPart::Text {
-                        content: content.clone(),
-                    });
+                    parts.push(GenAiPart::Text { content: content.clone() });
                 }
                 GenAiOutputPart::Reasoning { content, .. } => {
                     parts.extend(
                         content
                             .iter()
                             .filter(|content| !content.is_empty())
-                            .map(|content| GenAiPart::Reasoning {
-                                content: content.clone(),
-                            }),
+                            .map(|content| GenAiPart::Reasoning { content: content.clone() }),
                     );
                 }
                 GenAiOutputPart::ToolCall(call) => {
@@ -537,14 +487,10 @@ impl InstrumentedStream {
                 .record(attribute::GEN_AI_OUTPUT_MESSAGES, output.as_str());
         }
 
-        self.span.record(
-            "gen_ai.usage.input_tokens",
-            final_response.usage.input_tokens as i64,
-        );
-        self.span.record(
-            "gen_ai.usage.output_tokens",
-            final_response.usage.output_tokens as i64,
-        );
+        self.span
+            .record("gen_ai.usage.input_tokens", final_response.usage.input_tokens as i64);
+        self.span
+            .record("gen_ai.usage.output_tokens", final_response.usage.output_tokens as i64);
         if let Some(cache_read) = final_response.usage.cache_input_tokens {
             self.span
                 .record("gen_ai.usage.cache_read.input_tokens", cache_read as i64);
@@ -607,9 +553,7 @@ impl Stream for InstrumentedStream {
                 match &event {
                     CompletionStreamEvent::TextDelta { .. }
                     | CompletionStreamEvent::ToolCallDelta { .. } => this.output_chunks += 1,
-                    CompletionStreamEvent::Done(final_response) => {
-                        this.record_done(final_response)
-                    }
+                    CompletionStreamEvent::Done(final_response) => this.record_done(final_response),
                     _ => {}
                 }
 
@@ -700,11 +644,7 @@ impl<M: CompletionModel + Send + Sync> CompletionModel for InstrumentedCompletio
             Ok(messages) => messages,
             Err(error) => {
                 span.record(attribute::ERROR_TYPE, error.error_type());
-                InstrumentedStream::record_failed(
-                    &attributes,
-                    start,
-                    error.error_type(),
-                );
+                InstrumentedStream::record_failed(&attributes, start, error.error_type());
 
                 return Err(error);
             }
@@ -716,8 +656,8 @@ impl<M: CompletionModel + Send + Sync> CompletionModel for InstrumentedCompletio
             span.record(attribute::GEN_AI_SYSTEM_INSTRUCTIONS, content.as_str());
         }
 
-        if let Ok(content) = GenAiInputMessages::new(&rest, latest)
-            .and_then(|messages| messages.to_json())
+        if let Ok(content) =
+            GenAiInputMessages::new(&rest, latest).and_then(|messages| messages.to_json())
         {
             span.record(attribute::GEN_AI_INPUT_MESSAGES, content.as_str());
         }
@@ -775,9 +715,7 @@ mod tests {
                             UserContent::Text("before".to_string()),
                             UserContent::ToolResult(ToolResult {
                                 call_id: "call-1".to_string(),
-                                content: vec![ToolResultContent::Text(
-                                    "result".to_string(),
-                                )],
+                                content: vec![ToolResultContent::Text("result".to_string(),)],
                             }),
                             UserContent::Text("after".to_string()),
                         ],
@@ -946,15 +884,9 @@ mod tests {
                                     text: "visible".to_string(),
                                     signature: Some("signature".to_string()),
                                 },
-                                ReasoningContent::Encrypted(
-                                    "encrypted".to_string(),
-                                ),
-                                ReasoningContent::Redacted(
-                                    "redacted".to_string(),
-                                ),
-                                ReasoningContent::Summary(
-                                    "summary".to_string(),
-                                ),
+                                ReasoningContent::Encrypted("encrypted".to_string(),),
+                                ReasoningContent::Redacted("redacted".to_string(),),
+                                ReasoningContent::Summary("summary".to_string(),),
                             ],
                         })],
                     })],
@@ -999,12 +931,8 @@ mod tests {
         let mut output = GenAiOutput::default();
 
         for event in [
-            CompletionStreamEvent::TextDelta {
-                delta: "hel".to_string(),
-            },
-            CompletionStreamEvent::TextDelta {
-                delta: "lo".to_string(),
-            },
+            CompletionStreamEvent::TextDelta { delta: "hel".to_string() },
+            CompletionStreamEvent::TextDelta { delta: "lo".to_string() },
             CompletionStreamEvent::ReasoningDelta {
                 id: Some("reasoning-1".to_string()),
                 delta: "draft".to_string(),

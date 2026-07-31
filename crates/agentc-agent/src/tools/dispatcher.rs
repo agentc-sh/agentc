@@ -116,10 +116,7 @@ impl ToolDispatcher {
             );
 
             if let Ok(arguments) = serde_json::to_string(&call.arguments) {
-                span.record(
-                    attribute::GEN_AI_TOOL_CALL_ARGUMENTS,
-                    arguments.as_str(),
-                );
+                span.record(attribute::GEN_AI_TOOL_CALL_ARGUMENTS, arguments.as_str());
             }
 
             match tool
@@ -132,15 +129,10 @@ impl ToolDispatcher {
                 .await
             {
                 ToolResponse::Success { content, state_update } => {
-                    if let Ok(result) = serde_json::to_string(
-                        &ToolResultAttribute {
-                            result: &content,
-                        },
-                    ) {
-                        span.record(
-                            attribute::GEN_AI_TOOL_CALL_RESULT,
-                            result.as_str(),
-                        );
+                    if let Ok(result) =
+                        serde_json::to_string(&ToolResultAttribute { result: &content })
+                    {
+                        span.record(attribute::GEN_AI_TOOL_CALL_RESULT, result.as_str());
                     }
 
                     EXECUTE_TOOL_DURATION.record(start.elapsed().as_secs_f64(), &attributes);
@@ -226,12 +218,8 @@ mod tests {
         ] {
             assert_eq!(
                 from_str::<Value>(
-                    &serde_json::to_string(
-                        &ToolResultAttribute {
-                            result: &result,
-                        },
-                    )
-                    .expect("tool result should serialize"),
+                    &serde_json::to_string(&ToolResultAttribute { result: &result },)
+                        .expect("tool result should serialize"),
                 )
                 .expect("tool result JSON should parse"),
                 json!({

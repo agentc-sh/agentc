@@ -27,22 +27,20 @@ use crate::{
 
 impl CompletionStreamMetadata for gemini::streaming::StreamingCompletionResponse {
     fn finish_reason(&self) -> Option<String> {
-        self.finish_reason.as_ref().and_then(|reason| {
-            serde_json::to_value(reason)
-                .ok()?
-                .as_str()
-                .map(|reason| match reason {
-                    "STOP" => "stop".to_string(),
-                    "MAX_TOKENS" => "length".to_string(),
-                    "SAFETY"
-                    | "RECITATION"
-                    | "LANGUAGE"
-                    | "BLOCKLIST"
-                    | "PROHIBITED_CONTENT"
-                    | "SPII" => "content_filter".to_string(),
-                    reason => reason.to_lowercase(),
-                })
-        })
+        self.finish_reason
+            .as_ref()
+            .and_then(|reason| {
+                serde_json::to_value(reason)
+                    .ok()?
+                    .as_str()
+                    .map(|reason| match reason {
+                        "STOP" => "stop".to_string(),
+                        "MAX_TOKENS" => "length".to_string(),
+                        "SAFETY" | "RECITATION" | "LANGUAGE" | "BLOCKLIST"
+                        | "PROHIBITED_CONTENT" | "SPII" => "content_filter".to_string(),
+                        reason => reason.to_lowercase(),
+                    })
+            })
     }
 }
 
