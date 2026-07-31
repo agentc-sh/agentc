@@ -16,9 +16,9 @@ An agent emits several kinds of operational signal, each answering a different q
 configurable level, which is the first place to look when you want a running narrative of a process.
 
 **Traces** answer "where did the time go, and what led to what." Every significant operation produces
-a span. Each run from start to finish, each graph step, each tool execution with its arguments and
-result status, and each model request with token counts when the provider reports them. Spans are
-nested, so you can follow the full causal chain of a run and see exactly which tool call or model
+a span. Model spans include rendered system instructions, ordered input, completed output, and token
+usage when the provider reports it. Local tool spans include arguments and successful results. Spans
+are nested, so you can follow the full causal chain of a run and see exactly which tool call or model
 request dominated a slow response.
 
 **Metrics** answer "how much, and how often." Aggregated measurements such as request counts,
@@ -36,6 +36,15 @@ natural target is an OpenTelemetry Collector, which receives the telemetry and r
 onward to whatever backends you use, for example Jaeger or Grafana Tempo for traces, Prometheus for
 metrics, and a log store for logs. Any OTLP-compatible backend works, so you can also send directly to
 a vendor such as Honeycomb or Datadog without a collector in between.
+
+## Trace content and data handling
+
+When OTLP export is enabled, model and tool content is included in exported traces. Prompts,
+messages, media, tool arguments, and tool results may contain secrets or personally identifiable
+information. Multimodal input and long contexts can also increase trace volume substantially.
+
+Production deployments should account for backend retention, access control, trace volume, and cost.
+An OpenTelemetry Collector can remove content attributes before traces leave your infrastructure.
 
 ## Why it matters
 
