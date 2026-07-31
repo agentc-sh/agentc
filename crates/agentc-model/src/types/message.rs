@@ -161,6 +161,45 @@ impl ChatHistory {
         self.0.pop()
     }
 
+    /// Borrows the latest user message and preceding non-system history while
+    /// joining system messages into an owned preamble.
+    pub fn split_ref(
+        &self,
+    ) -> Result<
+        (
+            Option<String>,
+            &UserMessage,
+            Vec<&ChatMessage>,
+        ),
+        ModelError,
+    > {
+        let mut system_parts = Vec::new();
+        let mut messages = Vec::new();
+
+        for message in &self.0 {
+            match message {
+                ChatMessage::System(system) => {
+                    system_parts.push(system.content.as_str());
+                }
+                message => messages.push(message),
+            }
+        }
+
+        Ok((
+            (!system_parts.is_empty()).then(|| system_parts.join("\n")),
+            match messages.pop() {
+                Some(ChatMessage::User(content)) => content,
+                Some(_) => {
+                    return Err(ModelError::invalid_request(
+                        "latest message must be a user message",
+                    ));
+                }
+                None => return Err(ModelError::invalid_request("no messages in request")),
+            },
+            messages,
+        ))
+    }
+
     /// Splits the chat history into an optional system prompt, the latest user message, and the remaining messages.
     /// All system messages are extracted and their content concatenated into a single preamble string so that
     /// none remain in the returned history (providers represent system context as a preamble, not a turn).
@@ -188,5 +227,39 @@ impl ChatHistory {
             },
             self.into_messages(),
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn split_ref_borrows_the_non_system_history() {
+        let history = ChatHistory::new(vec![
+            ChatMessage::system("first"),
+            ChatMessage::user("prior"),
+            ChatMessage::system("second"),
+            ChatMessage::user("latest"),
+        ]);
+
+        let (system, latest, rest) = history
+            .split_ref()
+            .expect("history should split");
+
+        assert_eq!(system.as_deref(), Some("first\nsecond"));
+        assert!(matches!(
+            latest.content.as_slice(),
+            [UserContent::Text(content)] if content == "latest"
+        ));
+        assert!(matches!(
+            rest.as_slice(),
+            [ChatMessage::User(UserMessage { content })]
+                if matches!(
+                    content.as_slice(),
+                    [UserContent::Text(content)] if content == "prior"
+                )
+        ));
+        assert_eq!(history.messages().len(), 4);
     }
 }
