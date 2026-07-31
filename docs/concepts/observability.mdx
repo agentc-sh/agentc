@@ -43,6 +43,13 @@ When OTLP export is enabled, model and tool content is included in exported trac
 messages, media, tool arguments, and tool results may contain secrets or personally identifiable
 information. Multimodal input and long contexts can also increase trace volume substantially.
 
+The `invoke_agent` span includes two views of the run. The portable view contains the input messages
+and final completed response using the OpenTelemetry GenAI message schema. The exact agentc view
+contains the complete graph input and terminal outcome, including the resulting state for completed,
+interrupted, and cancelled runs. Exact state can contain model configuration, capability overrides,
+context variables, tool definitions, arbitrary context, and conversation history, so it can be larger
+and more sensitive than the portable message view.
+
 Production deployments should account for backend retention, access control, trace volume, and cost.
 An OpenTelemetry Collector can remove content attributes before traces leave your infrastructure.
 

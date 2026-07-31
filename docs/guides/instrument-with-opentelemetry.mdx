@@ -32,9 +32,10 @@ between.
 
 ## Remove content before external export
 
-Direct export to a backend includes rendered model instructions, model input and output, and local
-tool arguments and successful results. When that content must not leave your infrastructure, place an
-OpenTelemetry Collector between the agent and the external backend:
+Direct export to a backend includes full agent input and terminal state, rendered model instructions,
+model input and output, and local tool arguments and successful results. When that content must not
+leave your infrastructure, place an OpenTelemetry Collector between the agent and the external
+backend:
 
 ```text
 agent server
@@ -65,6 +66,10 @@ processors:
         action: delete
       - key: gen_ai.tool.call.result
         action: delete
+      - key: agentc.agent.input
+        action: delete
+      - key: agentc.agent.output
+        action: delete
 
 service:
   pipelines:
@@ -74,8 +79,9 @@ service:
         - batch
 ```
 
-Deleting these attributes retains span hierarchy, operation identity, timing, provider, model, token
-usage, finish reason, and errors.
+Deleting these attributes removes model, tool, and full agent-state content while retaining span
+hierarchy, operation identity, timing, provider and model identity, token usage, finish reasons,
+terminal status fields outside the content attributes, and errors.
 
 ## Set the log level
 
