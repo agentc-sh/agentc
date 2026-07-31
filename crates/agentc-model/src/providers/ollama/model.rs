@@ -12,7 +12,10 @@ use serde_json::json;
 
 use crate::{
     errors::{IntoModelError, ModelError},
-    providers::ollama::constants::{OTEL_PROVIDER_NAME, PROVIDER},
+    providers::{
+        ollama::constants::{OTEL_PROVIDER_NAME, PROVIDER},
+        rig::events::CompletionStreamMetadata,
+    },
     stream::ChatCompletionStream,
     traits::CompletionModel,
     types::{
@@ -21,6 +24,12 @@ use crate::{
         request::CompletionRequest,
     },
 };
+
+impl CompletionStreamMetadata for ollama::StreamingCompletionResponse {
+    fn finish_reason(&self) -> Option<String> {
+        self.done_reason.clone()
+    }
+}
 
 /// A specific Ollama model instance. Obtained from
 /// [`OllamaClient::model`](crate::providers::ollama::OllamaClient::model).

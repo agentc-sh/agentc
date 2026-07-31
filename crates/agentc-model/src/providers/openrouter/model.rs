@@ -12,7 +12,10 @@ use serde_json::json;
 
 use crate::{
     errors::{IntoModelError, ModelError},
-    providers::openrouter::constants::{OTEL_PROVIDER_NAME, PROVIDER},
+    providers::{
+        openrouter::constants::{OTEL_PROVIDER_NAME, PROVIDER},
+        rig::events::CompletionStreamMetadata,
+    },
     stream::ChatCompletionStream,
     traits::CompletionModel,
     types::{
@@ -21,6 +24,8 @@ use crate::{
         request::CompletionRequest,
     },
 };
+
+impl CompletionStreamMetadata for openrouter::streaming::StreamingCompletionResponse {}
 
 /// A specific OpenRouter model instance. Obtained from
 /// [`OpenRouterClient::model`](crate::providers::openrouter::client::OpenRouterClient::model).

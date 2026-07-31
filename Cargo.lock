@@ -584,6 +584,8 @@ dependencies = [
  "opentelemetry-semantic-conventions",
  "opentelemetry_sdk 0.32.1",
  "sentry",
+ "serde",
+ "serde_json",
  "tokio",
  "tracing",
  "tracing-opentelemetry",
