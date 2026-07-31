@@ -5,14 +5,19 @@
 use async_trait::async_trait;
 use futures::StreamExt;
 use rig_core::{
-    client::CompletionClient, completion::CompletionModel as RigCompletionModel, message::Message,
-    providers::xai,
+    client::CompletionClient,
+    completion::CompletionModel as RigCompletionModel,
+    message::Message,
+    providers::{openai::responses_api::streaming::StreamingCompletionResponse, xai},
 };
 use serde_json::json;
 
 use crate::{
     errors::{IntoModelError, ModelError},
-    providers::xai::constants::{OTEL_PROVIDER_NAME, PROVIDER},
+    providers::{
+        rig::events::CompletionStreamMetadata,
+        xai::constants::{OTEL_PROVIDER_NAME, PROVIDER},
+    },
     stream::ChatCompletionStream,
     traits::CompletionModel,
     types::{
@@ -21,6 +26,8 @@ use crate::{
         request::CompletionRequest,
     },
 };
+
+impl CompletionStreamMetadata for StreamingCompletionResponse {}
 
 /// A specific xAI model instance. Obtained from
 /// [`XaiClient::model`](crate::providers::xai::client::XaiClient::model).

@@ -33,6 +33,7 @@ use crate::{
         runtime::{Graph, RunOutcome, SessionConfig},
         state::{GraphNode, InputOf, StateOf},
     },
+    instrument::{InvokeAgentSpan, InvokeAgentSpans},
     stream::{EventEmitter, RunStream},
     tools::{
         registry::ToolRegistry,
@@ -56,7 +57,7 @@ static INVOKE_AGENT_DURATION: LazyLock<Histogram<f64>> = LazyLock::new(|| {
 /// require context-window management.
 pub struct Agent<N, E, M = ()>
 where
-    N: GraphNode<Context = AgentContext<E, M>>,
+    N: GraphNode<Context = AgentContext<E, M>> + InvokeAgentSpans,
     E: From<AgentEvent<StateOf<N>>> + Send + Clone + 'static,
     M: Send + Clone + 'static,
 {
@@ -73,7 +74,7 @@ where
 
 impl<N, E, M> Agent<N, E, M>
 where
-    N: GraphNode<Context = AgentContext<E, M>> + 'static,
+    N: GraphNode<Context = AgentContext<E, M>> + InvokeAgentSpans + 'static,
     E: From<AgentEvent<StateOf<N>>> + Send + Clone + 'static,
     M: Send + Clone + 'static,
 {
@@ -131,8 +132,15 @@ where
                     gen_ai.operation.name = "invoke_agent",
                     gen_ai.agent.name = %agent_name,
                     gen_ai.conversation.id = %session_id,
+                    gen_ai.input.messages = field::Empty,
+                    gen_ai.output.messages = field::Empty,
+                    agentc.agent.input = field::Empty,
+                    agentc.agent.output = field::Empty,
                     error.type = field::Empty,
                 );
+
+                InvokeAgentSpan::record_input::<N>(&span, &params.input);
+
                 let start = Instant::now();
 
                 let result = graph
@@ -170,6 +178,10 @@ where
                 }
 
                 INVOKE_AGENT_DURATION.record(start.elapsed().as_secs_f64(), &attributes);
+
+                if let Ok(outcome) = &result {
+                    InvokeAgentSpan::record_output::<N>(&span, outcome);
+                }
 
                 match result {
                     Ok(result) => {
@@ -210,7 +222,7 @@ where
 
 pub struct AgentBuilder<N, E, M = ()>
 where
-    N: GraphNode<Context = AgentContext<E, M>> + 'static,
+    N: GraphNode<Context = AgentContext<E, M>> + InvokeAgentSpans + 'static,
     E: From<AgentEvent<StateOf<N>>> + Send + Clone + 'static,
     M: Send + Clone + 'static,
 {
@@ -228,7 +240,7 @@ where
 
 impl<N, E, M> Default for AgentBuilder<N, E, M>
 where
-    N: GraphNode<Context = AgentContext<E, M>> + 'static,
+    N: GraphNode<Context = AgentContext<E, M>> + InvokeAgentSpans + 'static,
     E: From<AgentEvent<StateOf<N>>> + Send + Clone + 'static,
     M: Send + Clone + 'static,
     NoCompaction: CompactionStrategy<M>,
@@ -240,7 +252,7 @@ where
 
 impl<N, E, M> AgentBuilder<N, E, M>
 where
-    N: GraphNode<Context = AgentContext<E, M>> + 'static,
+    N: GraphNode<Context = AgentContext<E, M>> + InvokeAgentSpans + 'static,
     E: From<AgentEvent<StateOf<N>>> + Send + Clone + 'static,
     M: Send + Clone + 'static,
 {

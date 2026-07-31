@@ -472,7 +472,9 @@ impl ReActNode {
                     });
                 }
                 CompletionStreamEvent::ToolCall(tool_call) => tool_calls.push(tool_call),
-                CompletionStreamEvent::Done(usage) => token_usage = Some(usage),
+                CompletionStreamEvent::Done(final_response) => {
+                    token_usage = Some(final_response.usage)
+                }
                 _ => {}
             }
         }
