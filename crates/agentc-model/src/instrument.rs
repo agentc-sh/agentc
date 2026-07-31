@@ -27,8 +27,7 @@ use crate::{
         identity::{ModelId, ProviderId},
         inference::InferenceParams,
         request::CompletionRequest,
-        stream::CompletionStreamEvent,
-        usage::TokenUsage,
+        stream::{CompletionStreamEvent, CompletionStreamFinal},
     },
 };
 
@@ -115,25 +114,29 @@ impl InstrumentedStream {
         TIME_TO_FIRST_CHUNK.record(elapsed, &self.attrs);
     }
 
-    fn record_done(&mut self, usage: &TokenUsage) {
+    fn record_done(&mut self, final_response: &CompletionStreamFinal) {
         self.saw_done = true;
 
-        self.span
-            .record("gen_ai.usage.input_tokens", usage.input_tokens as i64);
-        self.span
-            .record("gen_ai.usage.output_tokens", usage.output_tokens as i64);
-        if let Some(cache_read) = usage.cache_input_tokens {
+        self.span.record(
+            "gen_ai.usage.input_tokens",
+            final_response.usage.input_tokens as i64,
+        );
+        self.span.record(
+            "gen_ai.usage.output_tokens",
+            final_response.usage.output_tokens as i64,
+        );
+        if let Some(cache_read) = final_response.usage.cache_input_tokens {
             self.span
                 .record("gen_ai.usage.cache_read.input_tokens", cache_read as i64);
         }
 
         let mut input_attrs = self.attrs.clone();
         input_attrs.push(KeyValue::new(attribute::GEN_AI_TOKEN_TYPE, "input"));
-        TOKEN_USAGE.record(usage.input_tokens as u64, &input_attrs);
+        TOKEN_USAGE.record(final_response.usage.input_tokens as u64, &input_attrs);
 
         let mut output_attrs = self.attrs.clone();
         output_attrs.push(KeyValue::new(attribute::GEN_AI_TOKEN_TYPE, "output"));
-        TOKEN_USAGE.record(usage.output_tokens as u64, &output_attrs);
+        TOKEN_USAGE.record(final_response.usage.output_tokens as u64, &output_attrs);
     }
 
     fn finalize(&mut self) {
@@ -182,7 +185,9 @@ impl Stream for InstrumentedStream {
                 match &event {
                     CompletionStreamEvent::TextDelta { .. }
                     | CompletionStreamEvent::ToolCallDelta { .. } => this.output_chunks += 1,
-                    CompletionStreamEvent::Done(usage) => this.record_done(usage),
+                    CompletionStreamEvent::Done(final_response) => {
+                        this.record_done(final_response)
+                    }
                     _ => {}
                 }
 
@@ -300,14 +305,19 @@ mod tests {
 
     use futures::{StreamExt, stream};
 
+    use crate::types::usage::TokenUsage;
+
     #[tokio::test]
     async fn adapter_yields_the_inner_events_unchanged() {
         let inner = ChatCompletionStream::new(stream::iter(vec![
             Ok(CompletionStreamEvent::TextDelta { delta: "hi".to_string() }),
-            Ok(CompletionStreamEvent::Done(TokenUsage {
-                input_tokens: 3,
-                output_tokens: 5,
-                cache_input_tokens: None,
+            Ok(CompletionStreamEvent::Done(CompletionStreamFinal {
+                usage: TokenUsage {
+                    input_tokens: 3,
+                    output_tokens: 5,
+                    cache_input_tokens: None,
+                },
+                finish_reason: None,
             })),
         ]));
 
