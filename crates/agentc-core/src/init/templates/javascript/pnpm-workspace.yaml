@@ -1,0 +1,7 @@
+onlyBuiltDependencies:
+  - esbuild
+  - "@agentc-sh/tdk"
+
+allowBuilds:
+  esbuild: true
+  "@agentc-sh/tdk": true
