@@ -64,6 +64,14 @@ pub enum Error {
     /// The blocking worker-join task failed.
     #[error("worker join task failed: {0}")]
     JoinTask(#[from] tokio::task::JoinError),
+
+    /// An unexpected error occurred.
+    #[error("unexpected error: {message}")]
+    Unexpected {
+        message: String,
+        #[source]
+        source: Option<Box<dyn std::error::Error + Send + Sync>>,
+    },
 }
 
 impl Error {
@@ -137,5 +145,13 @@ impl Error {
     /// Creates an [`Error::JoinTask`] error.
     pub fn join_task(error: impl Into<tokio::task::JoinError>) -> Self {
         Self::JoinTask(error.into())
+    }
+
+    /// Creates an [`Error::Unexpected`] error.
+    pub fn unexpected(message: impl Into<String>, source: impl Into<Option<Box<dyn std::error::Error + Send + Sync>>>) -> Self {
+        Self::Unexpected {
+            message: message.into(),
+            source: source.into(),
+        }
     }
 }

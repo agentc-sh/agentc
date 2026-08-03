@@ -172,12 +172,18 @@ impl JavascriptToolBuilder {
                     Box::pin(async move {
                         context
                             .module()
-                            .get::<JavascriptToolDefinition>(&export_name)
+                            .get::<Option<JavascriptToolDefinition>>(&export_name)
                             .await
                     })
                 }
             })
             .await?
+            .ok_or_else(|| {
+                Error::unexpected(format!(
+                    "export '{}' does not exist or is not a valid tool definition",
+                    export_name
+                ), None)
+            })?
             .into();
 
         Ok(JavascriptTool {
