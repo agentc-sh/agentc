@@ -614,12 +614,8 @@ dependencies = [
  "futures",
  "include_dir",
  "json-patch",
- "llrt_modules 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "oxc 0.138.0",
  "pyo3",
  "pythonize",
- "rquickjs 0.11.0",
- "rquickjs-serde 0.5.0",
  "rust-bash",
  "rustpython-pylib",
  "rustpython-stdlib",
@@ -1764,15 +1760,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "217698eaf96b4a3f0bc4f3662aaa55bdf913cd54d7204591faa790070c6d0853"
 
 [[package]]
-name = "crc32c"
-version = "0.6.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3a47af21622d091a8f0fb295b88bc886ac74efcc613efc19f5d0b21de5c89e47"
-dependencies = [
- "rustc_version",
-]
-
-[[package]]
 name = "crc32fast"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2778,9 +2765,9 @@ dependencies = [
  "async-trait",
  "bytes",
  "futures",
- "oxc 0.140.0",
- "rquickjs 0.12.2",
- "rquickjs-serde 0.6.1",
+ "oxc",
+ "rquickjs",
+ "rquickjs-serde",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -2793,8 +2780,8 @@ version = "0.1.5"
 source = "git+https://github.com/wizrds/guestjs.git?rev=0.1.5#5d031c3c76047d6e4ad1cf29bd9229f7724acb9b"
 dependencies = [
  "guestjs-core",
- "llrt_modules 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "rquickjs 0.12.2",
+ "llrt_modules",
+ "rquickjs",
 ]
 
 [[package]]
@@ -3866,16 +3853,6 @@ dependencies = [
 
 [[package]]
 name = "junction"
-version = "1.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8cfc352a66ba903c23239ef51e809508b6fc2b0f90e3476ac7a9ff47e863ae95"
-dependencies = [
- "scopeguard",
- "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "junction"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "160f2eade097f30263b548aae5deb12ad349c909baa710fa24b92c9090b2e006"
@@ -4065,34 +4042,12 @@ name = "llrt_abort"
 version = "0.8.1-beta"
 source = "git+https://github.com/awslabs/llrt?rev=101ae49#101ae49b6a6d31dd468c8310c38eab93702db885"
 dependencies = [
- "llrt_async_hooks 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_events 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_exceptions 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_timers 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "rquickjs 0.12.2",
-]
-
-[[package]]
-name = "llrt_abort"
-version = "0.8.1-beta"
-source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
-dependencies = [
- "llrt_async_hooks 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_events 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_exceptions 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_timers 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "rquickjs 0.11.0",
-]
-
-[[package]]
-name = "llrt_assert"
-version = "0.8.1-beta"
-source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
-dependencies = [
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "rquickjs 0.11.0",
+ "llrt_async_hooks",
+ "llrt_events",
+ "llrt_exceptions",
+ "llrt_timers",
+ "llrt_utils",
+ "rquickjs",
 ]
 
 [[package]]
@@ -4100,20 +4055,9 @@ name = "llrt_async_hooks"
 version = "0.8.1-beta"
 source = "git+https://github.com/awslabs/llrt?rev=101ae49#101ae49b6a6d31dd468c8310c38eab93702db885"
 dependencies = [
- "llrt_hooking 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "rquickjs 0.12.2",
- "tracing",
-]
-
-[[package]]
-name = "llrt_async_hooks"
-version = "0.8.1-beta"
-source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
-dependencies = [
- "llrt_hooking 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "rquickjs 0.11.0",
+ "llrt_hooking",
+ "llrt_utils",
+ "rquickjs",
  "tracing",
 ]
 
@@ -4123,22 +4067,10 @@ version = "0.8.1-beta"
 source = "git+https://github.com/awslabs/llrt?rev=101ae49#101ae49b6a6d31dd468c8310c38eab93702db885"
 dependencies = [
  "itoa",
- "llrt_encoding 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_stream_web 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "rquickjs 0.12.2",
- "ryu",
-]
-
-[[package]]
-name = "llrt_buffer"
-version = "0.8.1-beta"
-source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
-dependencies = [
- "itoa",
- "llrt_encoding 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "rquickjs 0.11.0",
+ "llrt_encoding",
+ "llrt_stream_web",
+ "llrt_utils",
+ "rquickjs",
  "ryu",
 ]
 
@@ -4148,30 +4080,6 @@ version = "0.8.1-beta"
 source = "git+https://github.com/awslabs/llrt?rev=101ae49#101ae49b6a6d31dd468c8310c38eab93702db885"
 dependencies = [
  "rustc_version",
-]
-
-[[package]]
-name = "llrt_build"
-version = "0.8.1-beta"
-source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
-dependencies = [
- "rustc_version",
-]
-
-[[package]]
-name = "llrt_child_process"
-version = "0.8.1-beta"
-source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
-dependencies = [
- "itoa",
- "libc",
- "llrt_buffer 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_context 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_events 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_stream",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "rquickjs 0.11.0",
- "tokio",
 ]
 
 [[package]]
@@ -4185,33 +4093,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "llrt_compression"
-version = "0.8.1-beta"
-source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
-dependencies = [
- "brotlic",
- "flate2",
- "zstd",
-]
-
-[[package]]
 name = "llrt_console"
 version = "0.8.1-beta"
 source = "git+https://github.com/awslabs/llrt?rev=101ae49#101ae49b6a6d31dd468c8310c38eab93702db885"
 dependencies = [
- "llrt_logging 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "rquickjs 0.12.2",
-]
-
-[[package]]
-name = "llrt_console"
-version = "0.8.1-beta"
-source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
-dependencies = [
- "llrt_logging 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "rquickjs 0.11.0",
+ "llrt_logging",
+ "llrt_utils",
+ "rquickjs",
 ]
 
 [[package]]
@@ -4219,69 +4107,11 @@ name = "llrt_context"
 version = "0.8.1-beta"
 source = "git+https://github.com/awslabs/llrt?rev=101ae49#101ae49b6a6d31dd468c8310c38eab93702db885"
 dependencies = [
- "llrt_build 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "rquickjs 0.12.2",
+ "llrt_build",
+ "llrt_utils",
+ "rquickjs",
  "tokio",
  "tracing",
-]
-
-[[package]]
-name = "llrt_context"
-version = "0.8.1-beta"
-source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
-dependencies = [
- "llrt_build 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "rquickjs 0.11.0",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "llrt_crypto"
-version = "0.8.1-beta"
-source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
-dependencies = [
- "crc32c",
- "crc32fast",
- "llrt_buffer 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_context 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_encoding 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "md-5 0.11.0",
- "once_cell",
- "rand 0.10.2",
- "ring",
- "rquickjs 0.11.0",
-]
-
-[[package]]
-name = "llrt_dgram"
-version = "0.8.1-beta"
-source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
-dependencies = [
- "itoa",
- "llrt_buffer 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_context 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_events 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "rquickjs 0.11.0",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "llrt_dns"
-version = "0.8.1-beta"
-source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
-dependencies = [
- "either",
- "llrt_context 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_hooking 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "rquickjs 0.11.0",
- "tokio",
 ]
 
 [[package]]
@@ -4290,21 +4120,8 @@ version = "0.8.1-beta"
 source = "git+https://github.com/awslabs/llrt?rev=101ae49#101ae49b6a6d31dd468c8310c38eab93702db885"
 dependencies = [
  "hyper-util",
- "llrt_context 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "quick_cache",
- "tokio",
- "tower-service",
-]
-
-[[package]]
-name = "llrt_dns_cache"
-version = "0.8.1-beta"
-source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
-dependencies = [
- "hyper-util",
- "llrt_context 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
+ "llrt_context",
+ "llrt_utils",
  "quick_cache",
  "tokio",
  "tower-service",
@@ -4317,19 +4134,7 @@ source = "git+https://github.com/awslabs/llrt?rev=101ae49#101ae49b6a6d31dd468c83
 dependencies = [
  "base64-simd",
  "hex-simd",
- "llrt_build 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "memchr",
- "phf 0.13.1",
-]
-
-[[package]]
-name = "llrt_encoding"
-version = "0.8.1-beta"
-source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
-dependencies = [
- "base64-simd",
- "hex-simd",
- "llrt_build 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
+ "llrt_build",
  "memchr",
  "phf 0.13.1",
 ]
@@ -4339,18 +4144,8 @@ name = "llrt_events"
 version = "0.8.1-beta"
 source = "git+https://github.com/awslabs/llrt?rev=101ae49#101ae49b6a6d31dd468c8310c38eab93702db885"
 dependencies = [
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "rquickjs 0.12.2",
- "tracing",
-]
-
-[[package]]
-name = "llrt_events"
-version = "0.8.1-beta"
-source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
-dependencies = [
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "rquickjs 0.11.0",
+ "llrt_utils",
+ "rquickjs",
  "tracing",
 ]
 
@@ -4359,17 +4154,8 @@ name = "llrt_exceptions"
 version = "0.8.1-beta"
 source = "git+https://github.com/awslabs/llrt?rev=101ae49#101ae49b6a6d31dd468c8310c38eab93702db885"
 dependencies = [
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "rquickjs 0.12.2",
-]
-
-[[package]]
-name = "llrt_exceptions"
-version = "0.8.1-beta"
-source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
-dependencies = [
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "rquickjs 0.11.0",
+ "llrt_utils",
+ "rquickjs",
 ]
 
 [[package]]
@@ -4383,21 +4169,21 @@ dependencies = [
  "http-body-util",
  "hyper",
  "itoa",
- "llrt_abort 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_buffer 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_compression 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_context 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_encoding 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_http 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_json 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_stream_web 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_url 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
+ "llrt_abort",
+ "llrt_buffer",
+ "llrt_compression",
+ "llrt_context",
+ "llrt_encoding",
+ "llrt_http",
+ "llrt_json",
+ "llrt_stream_web",
+ "llrt_url",
+ "llrt_utils",
  "once_cell",
  "percent-encoding",
  "pin-project-lite",
  "rand 0.10.2",
- "rquickjs 0.12.2",
+ "rquickjs",
  "sha2 0.11.0",
  "tokio",
  "tracing",
@@ -4405,62 +4191,18 @@ dependencies = [
 ]
 
 [[package]]
-name = "llrt_fetch"
-version = "0.8.1-beta"
-source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
-dependencies = [
- "bytes",
- "either",
- "http-body-util",
- "hyper",
- "itoa",
- "llrt_abort 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_buffer 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_compression 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_context 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_encoding 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_http 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_json 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_url 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "once_cell",
- "percent-encoding",
- "pin-project-lite",
- "rand 0.10.2",
- "rquickjs 0.11.0",
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "llrt_fs"
 version = "0.8.1-beta"
 source = "git+https://github.com/awslabs/llrt?rev=101ae49#101ae49b6a6d31dd468c8310c38eab93702db885"
 dependencies = [
  "either",
- "junction 2.0.0",
- "llrt_buffer 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_encoding 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_path 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
+ "junction",
+ "llrt_buffer",
+ "llrt_encoding",
+ "llrt_path",
+ "llrt_utils",
  "rand 0.10.2",
- "rquickjs 0.12.2",
- "tokio",
-]
-
-[[package]]
-name = "llrt_fs"
-version = "0.8.1-beta"
-source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
-dependencies = [
- "either",
- "junction 1.4.2",
- "llrt_buffer 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_encoding 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_path 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "rand 0.10.2",
- "rquickjs 0.11.0",
+ "rquickjs",
  "tokio",
 ]
 
@@ -4469,19 +4211,9 @@ name = "llrt_hooking"
 version = "0.8.1-beta"
 source = "git+https://github.com/awslabs/llrt?rev=101ae49#101ae49b6a6d31dd468c8310c38eab93702db885"
 dependencies = [
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
+ "llrt_utils",
  "once_cell",
- "rquickjs 0.12.2",
-]
-
-[[package]]
-name = "llrt_hooking"
-version = "0.8.1-beta"
-source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
-dependencies = [
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "once_cell",
- "rquickjs 0.11.0",
+ "rquickjs",
 ]
 
 [[package]]
@@ -4494,41 +4226,12 @@ dependencies = [
  "hyper",
  "hyper-rustls",
  "hyper-util",
- "llrt_dns_cache 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_tls 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
+ "llrt_dns_cache",
+ "llrt_tls",
+ "llrt_utils",
  "once_cell",
- "rquickjs 0.12.2",
+ "rquickjs",
  "rustls",
-]
-
-[[package]]
-name = "llrt_http"
-version = "0.8.1-beta"
-source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
-dependencies = [
- "bytes",
- "http-body-util",
- "hyper",
- "hyper-rustls",
- "hyper-util",
- "llrt_dns_cache 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_tls 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "once_cell",
- "rquickjs 0.11.0",
- "rustls",
-]
-
-[[package]]
-name = "llrt_intl"
-version = "0.8.1-beta"
-source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
-dependencies = [
- "itoa",
- "jiff",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "rquickjs 0.11.0",
 ]
 
 [[package]]
@@ -4537,22 +4240,9 @@ version = "0.8.1-beta"
 source = "git+https://github.com/awslabs/llrt?rev=101ae49#101ae49b6a6d31dd468c8310c38eab93702db885"
 dependencies = [
  "itoa",
- "llrt_build 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "rquickjs 0.12.2",
- "ryu",
- "simd-json",
-]
-
-[[package]]
-name = "llrt_json"
-version = "0.8.1-beta"
-source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
-dependencies = [
- "itoa",
- "llrt_build 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "rquickjs 0.11.0",
+ "llrt_build",
+ "llrt_utils",
+ "rquickjs",
  "ryu",
  "simd-json",
 ]
@@ -4563,27 +4253,12 @@ version = "0.8.1-beta"
 source = "git+https://github.com/awslabs/llrt?rev=101ae49#101ae49b6a6d31dd468c8310c38eab93702db885"
 dependencies = [
  "itoa",
- "llrt_context 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_encoding 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_json 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_numbers 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "rquickjs 0.12.2",
- "ryu",
-]
-
-[[package]]
-name = "llrt_logging"
-version = "0.8.1-beta"
-source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
-dependencies = [
- "itoa",
- "llrt_context 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_encoding 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_json 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_numbers 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "rquickjs 0.11.0",
+ "llrt_context",
+ "llrt_encoding",
+ "llrt_json",
+ "llrt_numbers",
+ "llrt_utils",
+ "rquickjs",
  "ryu",
 ]
 
@@ -4593,94 +4268,24 @@ version = "0.8.1-beta"
 source = "git+https://github.com/awslabs/llrt?rev=101ae49#101ae49b6a6d31dd468c8310c38eab93702db885"
 dependencies = [
  "home",
- "llrt_abort 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_buffer 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_console 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_fetch 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_fs 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_hooking 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_http 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_json 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_os 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_path 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_stream_web 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_timers 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_tls 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_url 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
+ "llrt_abort",
+ "llrt_buffer",
+ "llrt_console",
+ "llrt_fetch",
+ "llrt_fs",
+ "llrt_hooking",
+ "llrt_http",
+ "llrt_json",
+ "llrt_os",
+ "llrt_path",
+ "llrt_stream_web",
+ "llrt_timers",
+ "llrt_tls",
+ "llrt_url",
+ "llrt_utils",
  "once_cell",
- "rquickjs 0.12.2",
+ "rquickjs",
  "simd-json",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "llrt_modules"
-version = "0.8.1-beta"
-source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
-dependencies = [
- "home",
- "llrt_abort 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_assert",
- "llrt_async_hooks 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_buffer 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_child_process",
- "llrt_console 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_crypto",
- "llrt_dgram",
- "llrt_dns",
- "llrt_events 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_exceptions 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_fetch 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_fs 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_hooking 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_http 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_intl",
- "llrt_json 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_navigator",
- "llrt_net",
- "llrt_os 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_path 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_perf_hooks",
- "llrt_process",
- "llrt_stream_web 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_string_decoder",
- "llrt_temporal",
- "llrt_timers 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_tls 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_tty",
- "llrt_url 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_util",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_zlib",
- "once_cell",
- "rquickjs 0.11.0",
- "simd-json",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "llrt_navigator"
-version = "0.8.1-beta"
-source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
-dependencies = [
- "rquickjs 0.11.0",
-]
-
-[[package]]
-name = "llrt_net"
-version = "0.8.1-beta"
-source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
-dependencies = [
- "itoa",
- "llrt_buffer 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_context 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_events 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_stream",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "rquickjs 0.11.0",
  "tokio",
  "tracing",
 ]
@@ -4691,19 +4296,8 @@ version = "0.8.1-beta"
 source = "git+https://github.com/awslabs/llrt?rev=101ae49#101ae49b6a6d31dd468c8310c38eab93702db885"
 dependencies = [
  "itoa",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "rquickjs 0.12.2",
- "ryu",
-]
-
-[[package]]
-name = "llrt_numbers"
-version = "0.8.1-beta"
-source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
-dependencies = [
- "itoa",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "rquickjs 0.11.0",
+ "llrt_utils",
+ "rquickjs",
  "ryu",
 ]
 
@@ -4714,28 +4308,10 @@ source = "git+https://github.com/awslabs/llrt?rev=101ae49#101ae49b6a6d31dd468c83
 dependencies = [
  "home",
  "libc",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
+ "llrt_utils",
  "num_cpus",
  "once_cell",
- "rquickjs 0.12.2",
- "users",
- "whoami 2.1.2",
- "windows-registry",
- "windows-result",
- "windows-version",
-]
-
-[[package]]
-name = "llrt_os"
-version = "0.8.1-beta"
-source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
-dependencies = [
- "home",
- "libc",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "num_cpus",
- "once_cell",
- "rquickjs 0.11.0",
+ "rquickjs",
  "users",
  "whoami 2.1.2",
  "windows-registry",
@@ -4748,52 +4324,9 @@ name = "llrt_path"
 version = "0.8.1-beta"
 source = "git+https://github.com/awslabs/llrt?rev=101ae49#101ae49b6a6d31dd468c8310c38eab93702db885"
 dependencies = [
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
+ "llrt_utils",
  "memchr",
- "rquickjs 0.12.2",
-]
-
-[[package]]
-name = "llrt_path"
-version = "0.8.1-beta"
-source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
-dependencies = [
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "memchr",
- "rquickjs 0.11.0",
-]
-
-[[package]]
-name = "llrt_perf_hooks"
-version = "0.8.1-beta"
-source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
-dependencies = [
- "llrt_events 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "rquickjs 0.11.0",
-]
-
-[[package]]
-name = "llrt_process"
-version = "0.8.1-beta"
-source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
-dependencies = [
- "libc",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "rquickjs 0.11.0",
-]
-
-[[package]]
-name = "llrt_stream"
-version = "0.8.1-beta"
-source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
-dependencies = [
- "llrt_buffer 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_context 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_events 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "rquickjs 0.11.0",
- "tokio",
+ "rquickjs",
 ]
 
 [[package]]
@@ -4801,40 +4334,9 @@ name = "llrt_stream_web"
 version = "0.8.1-beta"
 source = "git+https://github.com/awslabs/llrt?rev=101ae49#101ae49b6a6d31dd468c8310c38eab93702db885"
 dependencies = [
- "llrt_abort 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "rquickjs 0.12.2",
-]
-
-[[package]]
-name = "llrt_stream_web"
-version = "0.8.1-beta"
-source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
-dependencies = [
- "llrt_abort 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "rquickjs 0.11.0",
-]
-
-[[package]]
-name = "llrt_string_decoder"
-version = "0.8.1-beta"
-source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
-dependencies = [
- "llrt_buffer 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_encoding 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "rquickjs 0.11.0",
-]
-
-[[package]]
-name = "llrt_temporal"
-version = "0.8.1-beta"
-source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
-dependencies = [
- "jiff",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "rquickjs 0.11.0",
+ "llrt_abort",
+ "llrt_utils",
+ "rquickjs",
 ]
 
 [[package]]
@@ -4842,24 +4344,11 @@ name = "llrt_timers"
 version = "0.8.1-beta"
 source = "git+https://github.com/awslabs/llrt?rev=101ae49#101ae49b6a6d31dd468c8310c38eab93702db885"
 dependencies = [
- "llrt_context 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_hooking 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
+ "llrt_context",
+ "llrt_hooking",
+ "llrt_utils",
  "once_cell",
- "rquickjs 0.12.2",
- "tokio",
-]
-
-[[package]]
-name = "llrt_timers"
-version = "0.8.1-beta"
-source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
-dependencies = [
- "llrt_context 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_hooking 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "once_cell",
- "rquickjs 0.11.0",
+ "rquickjs",
  "tokio",
 ]
 
@@ -4875,56 +4364,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "llrt_tls"
-version = "0.8.1-beta"
-source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
-dependencies = [
- "once_cell",
- "rustls",
- "tracing",
- "webpki-roots 1.0.8",
-]
-
-[[package]]
-name = "llrt_tty"
-version = "0.8.1-beta"
-source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
-dependencies = [
- "libc",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "rquickjs 0.11.0",
-]
-
-[[package]]
 name = "llrt_url"
 version = "0.8.1-beta"
 source = "git+https://github.com/awslabs/llrt?rev=101ae49#101ae49b6a6d31dd468c8310c38eab93702db885"
 dependencies = [
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
- "rquickjs 0.12.2",
+ "llrt_utils",
+ "rquickjs",
  "url",
-]
-
-[[package]]
-name = "llrt_url"
-version = "0.8.1-beta"
-source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
-dependencies = [
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "rquickjs 0.11.0",
- "url",
-]
-
-[[package]]
-name = "llrt_util"
-version = "0.8.1-beta"
-source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
-dependencies = [
- "llrt_context 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_encoding 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_logging 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "rquickjs 0.11.0",
 ]
 
 [[package]]
@@ -4933,38 +4379,13 @@ version = "0.8.1-beta"
 source = "git+https://github.com/awslabs/llrt?rev=101ae49#101ae49b6a6d31dd468c8310c38eab93702db885"
 dependencies = [
  "libc",
- "llrt_build 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
+ "llrt_build",
  "memchr",
- "rquickjs 0.12.2",
+ "rquickjs",
  "simdutf8",
  "tokio",
  "tracing",
  "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "llrt_utils"
-version = "0.8.1-beta"
-source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
-dependencies = [
- "libc",
- "llrt_build 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "rquickjs 0.11.0",
- "tokio",
- "tracing",
- "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "llrt_zlib"
-version = "0.8.1-beta"
-source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
-dependencies = [
- "llrt_buffer 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_compression 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_context 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "rquickjs 0.11.0",
 ]
 
 [[package]]
@@ -5985,39 +5406,21 @@ checksum = "d211803b9b6b570f68772237e415a029d5a50c65d382910b879fb19d3271f94d"
 
 [[package]]
 name = "oxc"
-version = "0.138.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "877f4f705cb80d82d68e25b7db5dd8551d0f21c584c3457e90968502e6b65c0d"
-dependencies = [
- "oxc_allocator 0.138.0",
- "oxc_ast 0.138.0",
- "oxc_codegen 0.138.0",
- "oxc_diagnostics 0.138.0",
- "oxc_parser 0.138.0",
- "oxc_regular_expression 0.138.0",
- "oxc_span 0.138.0",
- "oxc_syntax 0.138.0",
- "oxc_transformer 0.138.0",
- "oxc_transformer_plugins 0.138.0",
-]
-
-[[package]]
-name = "oxc"
 version = "0.140.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a008ef09284f00605b6c81a08c28695cb47fd9f514dc06464670ad49f0f132e0"
 dependencies = [
- "oxc_allocator 0.140.0",
- "oxc_ast 0.140.0",
- "oxc_codegen 0.140.0",
- "oxc_diagnostics 0.140.0",
- "oxc_parser 0.140.0",
- "oxc_regular_expression 0.140.0",
- "oxc_semantic 0.140.0",
- "oxc_span 0.140.0",
- "oxc_syntax 0.140.0",
- "oxc_transformer 0.140.0",
- "oxc_transformer_plugins 0.140.0",
+ "oxc_allocator",
+ "oxc_ast",
+ "oxc_codegen",
+ "oxc_diagnostics",
+ "oxc_parser",
+ "oxc_regular_expression",
+ "oxc_semantic",
+ "oxc_span",
+ "oxc_syntax",
+ "oxc_transformer",
+ "oxc_transformer_plugins",
 ]
 
 [[package]]
@@ -6061,44 +5464,14 @@ dependencies = [
 
 [[package]]
 name = "oxc_allocator"
-version = "0.138.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e8c54f9bbf7e174b39691080396390a9c6bea6d0dce206660567c1b88951f7b6"
-dependencies = [
- "allocator-api2",
- "hashbrown 0.17.1",
- "oxc_data_structures 0.138.0",
- "rustc-hash",
-]
-
-[[package]]
-name = "oxc_allocator"
 version = "0.140.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0f8245ba555b465d3577732d5f9d9306babb0aaa7b80e97a2ce21f74fae442a3"
 dependencies = [
  "allocator-api2",
  "hashbrown 0.17.1",
- "oxc_data_structures 0.140.0",
+ "oxc_data_structures",
  "rustc-hash",
-]
-
-[[package]]
-name = "oxc_ast"
-version = "0.138.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22bf885a47f8e0562ae73e0487ec8f83358bbbca8aad99a8293a9919d6d9e7fe"
-dependencies = [
- "bitflags 2.13.0",
- "oxc_allocator 0.138.0",
- "oxc_ast_macros 0.138.0",
- "oxc_data_structures 0.138.0",
- "oxc_diagnostics 0.138.0",
- "oxc_estree 0.138.0",
- "oxc_regular_expression 0.138.0",
- "oxc_span 0.138.0",
- "oxc_str 0.138.0",
- "oxc_syntax 0.138.0",
 ]
 
 [[package]]
@@ -6108,27 +5481,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3305400b90fff2a30b272b58fe6080d25369407b2ac37c4ac652996a9677efe0"
 dependencies = [
  "bitflags 2.13.0",
- "oxc_allocator 0.140.0",
- "oxc_ast_macros 0.140.0",
- "oxc_data_structures 0.140.0",
- "oxc_diagnostics 0.140.0",
- "oxc_estree 0.140.0",
- "oxc_regular_expression 0.140.0",
- "oxc_span 0.140.0",
- "oxc_str 0.140.0",
- "oxc_syntax 0.140.0",
-]
-
-[[package]]
-name = "oxc_ast_macros"
-version = "0.138.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "81dcc7cd7607a42e3fed0d789535789ac6c16284f941a8aeed251265f29d1e52"
-dependencies = [
- "phf 0.14.0",
- "proc-macro2",
- "quote",
- "syn 2.0.118",
+ "oxc_allocator",
+ "oxc_ast_macros",
+ "oxc_data_structures",
+ "oxc_diagnostics",
+ "oxc_estree",
+ "oxc_regular_expression",
+ "oxc_span",
+ "oxc_str",
+ "oxc_syntax",
 ]
 
 [[package]]
@@ -6145,48 +5506,14 @@ dependencies = [
 
 [[package]]
 name = "oxc_ast_visit"
-version = "0.138.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f22557685c3d7e0a7e2fb3038072774a54bb4ac29f934719f628c364d808c15"
-dependencies = [
- "oxc_allocator 0.138.0",
- "oxc_ast 0.138.0",
- "oxc_span 0.138.0",
- "oxc_syntax 0.138.0",
-]
-
-[[package]]
-name = "oxc_ast_visit"
 version = "0.140.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4640e6d0de2e0f6c820d1444a468d070c710111df76ce90a1694ac386641e133"
 dependencies = [
- "oxc_allocator 0.140.0",
- "oxc_ast 0.140.0",
- "oxc_span 0.140.0",
- "oxc_syntax 0.140.0",
-]
-
-[[package]]
-name = "oxc_codegen"
-version = "0.138.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b9feb869721e14ab8484c697372c468a3df3cb96ca8c02bfe34981fc8d614e9"
-dependencies = [
- "bitflags 2.13.0",
- "cow-utils",
- "dragonbox_ecma",
- "itoa",
- "oxc_allocator 0.138.0",
- "oxc_ast 0.138.0",
- "oxc_data_structures 0.138.0",
- "oxc_index",
- "oxc_semantic 0.138.0",
- "oxc_sourcemap",
- "oxc_span 0.138.0",
- "oxc_str 0.138.0",
- "oxc_syntax 0.138.0",
- "rustc-hash",
+ "oxc_allocator",
+ "oxc_ast",
+ "oxc_span",
+ "oxc_syntax",
 ]
 
 [[package]]
@@ -6199,29 +5526,16 @@ dependencies = [
  "cow-utils",
  "dragonbox_ecma",
  "itoa",
- "oxc_allocator 0.140.0",
- "oxc_ast 0.140.0",
- "oxc_data_structures 0.140.0",
+ "oxc_allocator",
+ "oxc_ast",
+ "oxc_data_structures",
  "oxc_index",
- "oxc_semantic 0.140.0",
+ "oxc_semantic",
  "oxc_sourcemap",
- "oxc_span 0.140.0",
- "oxc_str 0.140.0",
- "oxc_syntax 0.140.0",
+ "oxc_span",
+ "oxc_str",
+ "oxc_syntax",
  "rustc-hash",
-]
-
-[[package]]
-name = "oxc_compat"
-version = "0.138.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ad6fd43a0b19ee2f8c190c4ff4918b1f22e2af605cd3a032eea9099ba5ec6f3f"
-dependencies = [
- "cow-utils",
- "oxc-browserslist",
- "oxc_syntax 0.138.0",
- "rustc-hash",
- "serde",
 ]
 
 [[package]]
@@ -6232,18 +5546,9 @@ checksum = "0f8ecc06571912f29113f7e5669f7bd2915d3932270b0d877a3679686f5f4c7d"
 dependencies = [
  "cow-utils",
  "oxc-browserslist",
- "oxc_syntax 0.140.0",
+ "oxc_syntax",
  "rustc-hash",
  "serde",
-]
-
-[[package]]
-name = "oxc_data_structures"
-version = "0.138.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "30c920b812d5c7cd2c6b914dbeda4a7e6720e1de7869119b6de833ae39bedac9"
-dependencies = [
- "ropey",
 ]
 
 [[package]]
@@ -6253,17 +5558,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "acfb6e704f95e115c0e9ea8bef791c3d915cd2fcd1643661cf0bf5172c818097"
 dependencies = [
  "ropey",
-]
-
-[[package]]
-name = "oxc_diagnostics"
-version = "0.138.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b2d82feef8bf6118f57dffdc2cd9c22426b438b3f3298bc398bdf596297aeaa"
-dependencies = [
- "cow-utils",
- "oxc-miette",
- "percent-encoding",
 ]
 
 [[package]]
@@ -6279,22 +5573,6 @@ dependencies = [
 
 [[package]]
 name = "oxc_ecmascript"
-version = "0.138.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1a5382979eb00843975f7dc33b567d9821f818b26f78d3e31ccf94af3cf78a8c"
-dependencies = [
- "cow-utils",
- "num-bigint 0.4.7",
- "num-traits",
- "oxc_allocator 0.138.0",
- "oxc_ast 0.138.0",
- "oxc_regular_expression 0.138.0",
- "oxc_span 0.138.0",
- "oxc_syntax 0.138.0",
-]
-
-[[package]]
-name = "oxc_ecmascript"
 version = "0.140.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b3321b606c9217e8e5527cd01906b98e17f232acbb6fab7eac05236e7731d9a"
@@ -6302,19 +5580,13 @@ dependencies = [
  "cow-utils",
  "num-bigint 0.5.1",
  "num-traits",
- "oxc_allocator 0.140.0",
- "oxc_ast 0.140.0",
- "oxc_regular_expression 0.140.0",
- "oxc_span 0.140.0",
- "oxc_syntax 0.140.0",
+ "oxc_allocator",
+ "oxc_ast",
+ "oxc_regular_expression",
+ "oxc_span",
+ "oxc_syntax",
  "smallvec",
 ]
-
-[[package]]
-name = "oxc_estree"
-version = "0.138.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9891b86dad0ad62c3ff1585aa0601af7b49bb3d19c7115e3115e2fba3d13d6d2"
 
 [[package]]
 name = "oxc_estree"
@@ -6334,30 +5606,6 @@ dependencies = [
 
 [[package]]
 name = "oxc_parser"
-version = "0.138.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dd79d7f27f20413eaeecada4d850aeb0220e70c821d4863d9fb0df115eae62a9"
-dependencies = [
- "bitflags 2.13.0",
- "cow-utils",
- "memchr",
- "num-bigint 0.4.7",
- "num-traits",
- "oxc_allocator 0.138.0",
- "oxc_ast 0.138.0",
- "oxc_data_structures 0.138.0",
- "oxc_diagnostics 0.138.0",
- "oxc_ecmascript 0.138.0",
- "oxc_regular_expression 0.138.0",
- "oxc_span 0.138.0",
- "oxc_str 0.138.0",
- "oxc_syntax 0.138.0",
- "rustc-hash",
- "seq-macro",
-]
-
-[[package]]
-name = "oxc_parser"
 version = "0.140.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8abd68f81349d37ea79f1d99d2370e15f282cc9fbe66e8544d072595744ab38e"
@@ -6367,34 +5615,17 @@ dependencies = [
  "memchr",
  "num-bigint 0.5.1",
  "num-traits",
- "oxc_allocator 0.140.0",
- "oxc_ast 0.140.0",
- "oxc_data_structures 0.140.0",
- "oxc_diagnostics 0.140.0",
- "oxc_ecmascript 0.140.0",
- "oxc_regular_expression 0.140.0",
- "oxc_span 0.140.0",
- "oxc_str 0.140.0",
- "oxc_syntax 0.140.0",
+ "oxc_allocator",
+ "oxc_ast",
+ "oxc_data_structures",
+ "oxc_diagnostics",
+ "oxc_ecmascript",
+ "oxc_regular_expression",
+ "oxc_span",
+ "oxc_str",
+ "oxc_syntax",
  "rustc-hash",
  "seq-macro",
-]
-
-[[package]]
-name = "oxc_regular_expression"
-version = "0.138.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "95bee883f864fb7c75d92ccae3b7db98afc4dce5d0b8b5165e681d93cb010399"
-dependencies = [
- "bitflags 2.13.0",
- "oxc_allocator 0.138.0",
- "oxc_ast_macros 0.138.0",
- "oxc_diagnostics 0.138.0",
- "oxc_span 0.138.0",
- "oxc_str 0.138.0",
- "phf 0.14.0",
- "rustc-hash",
- "unicode-id-start",
 ]
 
 [[package]]
@@ -6404,37 +5635,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4eba6a56b1c633963c09c383062e47fb8a99ff4a4ded6bd883fcf554f8e1a48f"
 dependencies = [
  "bitflags 2.13.0",
- "oxc_allocator 0.140.0",
- "oxc_ast_macros 0.140.0",
- "oxc_diagnostics 0.140.0",
- "oxc_span 0.140.0",
- "oxc_str 0.140.0",
+ "oxc_allocator",
+ "oxc_ast_macros",
+ "oxc_diagnostics",
+ "oxc_span",
+ "oxc_str",
  "phf 0.14.0",
  "rustc-hash",
  "unicode-id-start",
-]
-
-[[package]]
-name = "oxc_semantic"
-version = "0.138.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7074088f38672fbafd4aa79f516835661ff539175858323f287775e2d9c89449"
-dependencies = [
- "itertools 0.15.0",
- "memchr",
- "oxc_allocator 0.138.0",
- "oxc_ast 0.138.0",
- "oxc_ast_visit 0.138.0",
- "oxc_data_structures 0.138.0",
- "oxc_diagnostics 0.138.0",
- "oxc_ecmascript 0.138.0",
- "oxc_index",
- "oxc_span 0.138.0",
- "oxc_str 0.138.0",
- "oxc_syntax 0.138.0",
- "rustc-hash",
- "self_cell",
- "smallvec",
 ]
 
 [[package]]
@@ -6445,16 +5653,16 @@ checksum = "5967f96881e1694d10b453311fa681b4df0f38760628e1de613b046566cd8c8e"
 dependencies = [
  "itertools 0.15.0",
  "memchr",
- "oxc_allocator 0.140.0",
- "oxc_ast 0.140.0",
- "oxc_ast_visit 0.140.0",
- "oxc_data_structures 0.140.0",
- "oxc_diagnostics 0.140.0",
- "oxc_ecmascript 0.140.0",
+ "oxc_allocator",
+ "oxc_ast",
+ "oxc_ast_visit",
+ "oxc_data_structures",
+ "oxc_diagnostics",
+ "oxc_ecmascript",
  "oxc_index",
- "oxc_span 0.140.0",
- "oxc_str 0.140.0",
- "oxc_syntax 0.140.0",
+ "oxc_span",
+ "oxc_str",
+ "oxc_syntax",
  "rustc-hash",
  "self_cell",
  "smallvec",
@@ -6475,42 +5683,16 @@ dependencies = [
 
 [[package]]
 name = "oxc_span"
-version = "0.138.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8faf48e243cdacc96018515701bea560664a4cdef545c1fc50be139c0637db13"
-dependencies = [
- "compact_str",
- "oxc-miette",
- "oxc_allocator 0.138.0",
- "oxc_ast_macros 0.138.0",
- "oxc_estree 0.138.0",
- "oxc_str 0.138.0",
-]
-
-[[package]]
-name = "oxc_span"
 version = "0.140.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e83fa0a0fe6e5e2f5abb173a64afe8db711bb612acbc002c663fd13b08a8cbf3"
 dependencies = [
  "compact_str",
  "oxc-miette",
- "oxc_allocator 0.140.0",
- "oxc_ast_macros 0.140.0",
- "oxc_estree 0.140.0",
- "oxc_str 0.140.0",
-]
-
-[[package]]
-name = "oxc_str"
-version = "0.138.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7beac249fbb9815b974f1b1c2d22cb59be0c2a4a2ad42f1ee948e2600f4ff04c"
-dependencies = [
- "compact_str",
- "hashbrown 0.17.1",
- "oxc_allocator 0.138.0",
- "oxc_estree 0.138.0",
+ "oxc_allocator",
+ "oxc_ast_macros",
+ "oxc_estree",
+ "oxc_str",
 ]
 
 [[package]]
@@ -6521,28 +5703,8 @@ checksum = "d9e9531af3bc70e5eb75d196c01011d5bc0de1f6de73f0fc8bf343384353794f"
 dependencies = [
  "compact_str",
  "hashbrown 0.17.1",
- "oxc_allocator 0.140.0",
- "oxc_estree 0.140.0",
-]
-
-[[package]]
-name = "oxc_syntax"
-version = "0.138.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6dbe873bf4a3e494a56ec34f2710cb44309a071fd2c8360b893a12347d584c34"
-dependencies = [
- "bitflags 2.13.0",
- "cow-utils",
- "dragonbox_ecma",
- "nonmax",
- "oxc_allocator 0.138.0",
- "oxc_ast_macros 0.138.0",
- "oxc_estree 0.138.0",
- "oxc_index",
- "oxc_span 0.138.0",
- "oxc_str 0.138.0",
- "phf 0.14.0",
- "unicode-id-start",
+ "oxc_allocator",
+ "oxc_estree",
 ]
 
 [[package]]
@@ -6555,44 +5717,14 @@ dependencies = [
  "cow-utils",
  "dragonbox_ecma",
  "nonmax",
- "oxc_allocator 0.140.0",
- "oxc_ast_macros 0.140.0",
- "oxc_estree 0.140.0",
+ "oxc_allocator",
+ "oxc_ast_macros",
+ "oxc_estree",
  "oxc_index",
- "oxc_span 0.140.0",
- "oxc_str 0.140.0",
+ "oxc_span",
+ "oxc_str",
  "phf 0.14.0",
  "unicode-id-start",
-]
-
-[[package]]
-name = "oxc_transformer"
-version = "0.138.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "87a71b406724d9e1b3bdf8c700207524268a232af7e13302aeea53f98168e05d"
-dependencies = [
- "base64",
- "compact_str",
- "hmac-sha1-compact",
- "indexmap",
- "itoa",
- "memchr",
- "oxc_allocator 0.138.0",
- "oxc_ast 0.138.0",
- "oxc_ast_visit 0.138.0",
- "oxc_compat 0.138.0",
- "oxc_data_structures 0.138.0",
- "oxc_diagnostics 0.138.0",
- "oxc_ecmascript 0.138.0",
- "oxc_regular_expression 0.138.0",
- "oxc_semantic 0.138.0",
- "oxc_span 0.138.0",
- "oxc_str 0.138.0",
- "oxc_syntax 0.138.0",
- "oxc_traverse 0.138.0",
- "rustc-hash",
- "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -6607,45 +5739,22 @@ dependencies = [
  "indexmap",
  "itoa",
  "memchr",
- "oxc_allocator 0.140.0",
- "oxc_ast 0.140.0",
- "oxc_ast_visit 0.140.0",
- "oxc_compat 0.140.0",
- "oxc_data_structures 0.140.0",
- "oxc_diagnostics 0.140.0",
- "oxc_ecmascript 0.140.0",
- "oxc_regular_expression 0.140.0",
- "oxc_semantic 0.140.0",
- "oxc_span 0.140.0",
- "oxc_str 0.140.0",
- "oxc_syntax 0.140.0",
- "oxc_traverse 0.140.0",
+ "oxc_allocator",
+ "oxc_ast",
+ "oxc_ast_visit",
+ "oxc_compat",
+ "oxc_data_structures",
+ "oxc_diagnostics",
+ "oxc_ecmascript",
+ "oxc_regular_expression",
+ "oxc_semantic",
+ "oxc_span",
+ "oxc_str",
+ "oxc_syntax",
+ "oxc_traverse",
  "rustc-hash",
  "serde",
  "serde_json",
-]
-
-[[package]]
-name = "oxc_transformer_plugins"
-version = "0.138.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7c56f5cec2db3cdfc8268cb29a267a0c7927e065f431575caf63457609e26fcd"
-dependencies = [
- "cow-utils",
- "itoa",
- "oxc_allocator 0.138.0",
- "oxc_ast 0.138.0",
- "oxc_ast_visit 0.138.0",
- "oxc_diagnostics 0.138.0",
- "oxc_ecmascript 0.138.0",
- "oxc_parser 0.138.0",
- "oxc_semantic 0.138.0",
- "oxc_span 0.138.0",
- "oxc_str 0.138.0",
- "oxc_syntax 0.138.0",
- "oxc_transformer 0.138.0",
- "oxc_traverse 0.138.0",
- "rustc-hash",
 ]
 
 [[package]]
@@ -6656,37 +5765,18 @@ checksum = "126f92dd95a0bfa6bb2e1a9c2fb04cb2824338ffb921f812a2744bd70a872da9"
 dependencies = [
  "cow-utils",
  "itoa",
- "oxc_allocator 0.140.0",
- "oxc_ast 0.140.0",
- "oxc_ast_visit 0.140.0",
- "oxc_diagnostics 0.140.0",
- "oxc_ecmascript 0.140.0",
- "oxc_parser 0.140.0",
- "oxc_semantic 0.140.0",
- "oxc_span 0.140.0",
- "oxc_str 0.140.0",
- "oxc_syntax 0.140.0",
- "oxc_transformer 0.140.0",
- "oxc_traverse 0.140.0",
- "rustc-hash",
-]
-
-[[package]]
-name = "oxc_traverse"
-version = "0.138.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c380b884f59c1f974f7ab966d758c31f3a765278d0348e6ec012c07fefd9da07"
-dependencies = [
- "itoa",
- "oxc_allocator 0.138.0",
- "oxc_ast 0.138.0",
- "oxc_ast_visit 0.138.0",
- "oxc_data_structures 0.138.0",
- "oxc_ecmascript 0.138.0",
- "oxc_semantic 0.138.0",
- "oxc_span 0.138.0",
- "oxc_str 0.138.0",
- "oxc_syntax 0.138.0",
+ "oxc_allocator",
+ "oxc_ast",
+ "oxc_ast_visit",
+ "oxc_diagnostics",
+ "oxc_ecmascript",
+ "oxc_parser",
+ "oxc_semantic",
+ "oxc_span",
+ "oxc_str",
+ "oxc_syntax",
+ "oxc_transformer",
+ "oxc_traverse",
  "rustc-hash",
 ]
 
@@ -6697,15 +5787,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3ab67032768715dda6647be4043e6a8f9762a3a9090ca7a5d3795339ce87e18f"
 dependencies = [
  "itoa",
- "oxc_allocator 0.140.0",
- "oxc_ast 0.140.0",
- "oxc_ast_visit 0.140.0",
- "oxc_data_structures 0.140.0",
- "oxc_ecmascript 0.140.0",
- "oxc_semantic 0.140.0",
- "oxc_span 0.140.0",
- "oxc_str 0.140.0",
- "oxc_syntax 0.140.0",
+ "oxc_allocator",
+ "oxc_ast",
+ "oxc_ast_visit",
+ "oxc_data_structures",
+ "oxc_ecmascript",
+ "oxc_semantic",
+ "oxc_span",
+ "oxc_str",
+ "oxc_syntax",
  "rustc-hash",
 ]
 
@@ -6885,7 +5975,6 @@ checksum = "c1562dc717473dbaa4c1f85a36410e03c047b2e7df7f45ee938fbef64ae7fadf"
 dependencies = [
  "phf_macros 0.13.1",
  "phf_shared 0.13.1",
- "serde",
 ]
 
 [[package]]
@@ -8057,43 +7146,14 @@ dependencies = [
 
 [[package]]
 name = "rquickjs"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c50dc6d6c587c339edb4769cf705867497a2baf0eca8b4645fa6ecd22f02c77a"
-dependencies = [
- "either",
- "indexmap",
- "rquickjs-core 0.11.0",
- "rquickjs-macro 0.11.0",
-]
-
-[[package]]
-name = "rquickjs"
 version = "0.12.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4e04e4eedfb060b503b5f0a2644abb890b0b3620d3fb674f9455f230014964e4"
 dependencies = [
  "either",
  "indexmap",
- "rquickjs-core 0.12.2",
- "rquickjs-macro 0.12.2",
-]
-
-[[package]]
-name = "rquickjs-core"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8bf7840285c321c3ab20e752a9afb95548c75cd7f4632a0627cea3507e310c1"
-dependencies = [
- "async-lock",
- "chrono",
- "dlopen2",
- "either",
- "hashbrown 0.16.1",
- "indexmap",
- "phf 0.13.1",
- "relative-path",
- "rquickjs-sys 0.11.0",
+ "rquickjs-core",
+ "rquickjs-macro",
 ]
 
 [[package]]
@@ -8110,26 +7170,7 @@ dependencies = [
  "indexmap",
  "phf 0.14.0",
  "relative-path",
- "rquickjs-sys 0.12.2",
-]
-
-[[package]]
-name = "rquickjs-macro"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7106215ff41a5677b104906a13e1a440b880f4b6362b5dc4f3978c267fad2b80"
-dependencies = [
- "convert_case 0.10.0",
- "fnv",
- "ident_case",
- "indexmap",
- "phf_generator 0.13.1",
- "phf_shared 0.13.1",
- "proc-macro-crate 3.5.0",
- "proc-macro2",
- "quote",
- "rquickjs-core 0.11.0",
- "syn 2.0.118",
+ "rquickjs-sys",
 ]
 
 [[package]]
@@ -8147,18 +7188,8 @@ dependencies = [
  "proc-macro-crate 3.5.0",
  "proc-macro2",
  "quote",
- "rquickjs-core 0.12.2",
+ "rquickjs-core",
  "syn 2.0.118",
-]
-
-[[package]]
-name = "rquickjs-serde"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e9382258c8bd1cc5c555887e5e379ab1491ff0287ca68ceb07be39ea561beb23"
-dependencies = [
- "rquickjs 0.11.0",
- "serde",
 ]
 
 [[package]]
@@ -8167,17 +7198,8 @@ version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "04cf0aa631f8d0c5051db35f9f59899c34074d7b6be280c03fd4ce6165d0ed35"
 dependencies = [
- "rquickjs 0.12.2",
+ "rquickjs",
  "serde",
-]
-
-[[package]]
-name = "rquickjs-sys"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "27344601ef27460e82d6a4e1ecb9e7e99f518122095f3c51296da8e9be2b9d83"
-dependencies = [
- "cc",
 ]
 
 [[package]]
@@ -8496,7 +7518,7 @@ dependencies = [
  "dns-lookup",
  "gethostname",
  "getrandom 0.4.3",
- "junction 2.0.0",
+ "junction",
  "libc",
  "libffi",
  "libloading",
