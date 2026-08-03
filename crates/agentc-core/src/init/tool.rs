@@ -163,9 +163,6 @@ mod tests {
         .unwrap();
         let content = vfs.get("pnpm-workspace.yaml").unwrap();
         assert!(content.contains("esbuild"), "pnpm-workspace.yaml missing esbuild: {content}");
-        assert!(
-            content.contains("@agentc-sh/tdk"),
-            "pnpm-workspace.yaml missing tdk: {content}"
-        );
+        assert!(content.contains("@agentc-sh/tdk"), "pnpm-workspace.yaml missing tdk: {content}");
     }
 }

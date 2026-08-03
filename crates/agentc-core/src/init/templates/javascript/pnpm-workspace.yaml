@@ -1,6 +1,6 @@
 onlyBuiltDependencies:
   - esbuild
-  - "@agentc-sh/tdk"
+  - "@agentc-sh/tdk@https://codeload.github.com/agentc-sh/typescript-tdk/tar.gz/9895090eff105dff7d7a9e69ca3f46670fafe829"
 
 allowBuilds:
   esbuild: true
