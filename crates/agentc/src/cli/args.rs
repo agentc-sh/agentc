@@ -16,7 +16,7 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 #[clap(
     name = "agentc",
     version,
-    author = "Tim Pogue",
+    author = "agentc Authors",
     about = "An LLM agent compiler and runtime."
 )]
 pub struct CliArgs {
@@ -54,10 +54,14 @@ impl CliArgs {
                     .await
                     .unwrap_or_else(|e| e.exit());
 
-                (command as &dyn Cmd)
+                let outcome = (command as &dyn Cmd)
                     .walk_execute(&mut ctx)
                     .await
                     .unwrap_or_else(|e| e.exit());
+
+                if !outcome.is_success() {
+                    std::process::exit(outcome.code());
+                }
             }
             _ => {
                 Self::command()

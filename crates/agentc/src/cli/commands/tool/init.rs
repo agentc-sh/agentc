@@ -12,6 +12,7 @@ use crate::cli::{
     context::Ctx,
     errors::CliError,
     traits::Cmd,
+    types::CmdOutcome,
     ui::{UiFormat, traits::Ui},
 };
 
@@ -50,7 +51,7 @@ pub struct CliCommandToolInit {
 
 #[async_trait]
 impl Cmd for CliCommandToolInit {
-    async fn run(&self, _ctx: &mut Ctx) -> Result<(), CliError> {
+    async fn run(&self, _ctx: &mut Ctx) -> Result<CmdOutcome, CliError> {
         let dir = self
             .directory
             .clone()
@@ -81,6 +82,6 @@ impl Cmd for CliCommandToolInit {
             .ui()
             .success(&format!("Created {}", self.name));
 
-        Ok(())
+        Ok(CmdOutcome::Success)
     }
 }

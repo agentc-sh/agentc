@@ -23,6 +23,7 @@ use crate::cli::{
     context::Ctx,
     errors::CliError,
     traits::Cmd,
+    types::CmdOutcome,
     ui::{StreamRenderer, UiFormat},
 };
 
@@ -50,7 +51,7 @@ pub struct CliCommandGenerate {
 
 #[async_trait]
 impl Cmd for CliCommandGenerate {
-    async fn run(&self, _ctx: &mut Ctx) -> Result<(), CliError> {
+    async fn run(&self, _ctx: &mut Ctx) -> Result<CmdOutcome, CliError> {
         if !self.context.is_dir() || !self.context.join("agent.acl").is_file() {
             return Err(CliError::invalid_parameters(format!(
                 "Context path '{}' must be a directory containing 'agent.acl'",
@@ -141,10 +142,14 @@ impl Cmd for CliCommandGenerate {
                 }
 
                 renderer.on_success();
-            }
-            Err(e) => renderer.on_failure(&e.to_string()),
-        }
 
-        Ok(())
+                Ok(CmdOutcome::Success)
+            }
+            Err(e) => {
+                renderer.on_failure(&e.to_string());
+
+                Ok(CmdOutcome::failure(1))
+            }
+        }
     }
 }
