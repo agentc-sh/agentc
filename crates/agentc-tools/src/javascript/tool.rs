@@ -2,16 +2,11 @@
 //
 // SPDX-License-Identifier: MIT
 
-use async_trait::async_trait;
-use json_patch::Patch;
-use serde::Deserialize;
-use serde_json::{Value, from_value};
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
 
 use agentc_agent::{
     graph::state::GraphState,
     tools::{
-        activity::ActivityDelta,
         errors::ToolError,
         traits::Tool,
         types::{ToolInput, ToolOutput},
@@ -21,21 +16,21 @@ use agentc_agent::{
         tools::ToolDefinition,
     },
 };
+use agentc_executor_typescript::{
+    error::Error,
+    executor::Executor,
+    guestjs::handle::{Awaitable, Function},
+};
+use async_trait::async_trait;
 
-use crate::javascript::runtime::{
-    errors::RuntimeError,
-    protocol::{ArgValue, FunctionArgs},
-    traits::{Runtime, RuntimeExt},
+use crate::javascript::{
+    input::JavascriptToolInput,
+    types::{JavascriptToolDefinition, JavascriptToolResult},
 };
 
-#[derive(Deserialize)]
-struct ToolResult {
-    output: Value,
-    state_update: Option<Patch>,
-}
-
+/// A JavaScript tool executed by a shared TypeScript package executor.
 pub struct JavascriptTool {
-    pool: Arc<dyn Runtime>,
+    executor: Executor,
     export_name: String,
     definition: ToolDefinition,
     capabilities: CapabilitySet,
@@ -43,6 +38,7 @@ pub struct JavascriptTool {
 }
 
 impl JavascriptTool {
+    /// Creates a builder for a JavaScript tool.
     pub fn builder() -> JavascriptToolBuilder {
         JavascriptToolBuilder::new()
     }
@@ -54,8 +50,8 @@ where
     S: GraphState + 'static,
     S::Update: Default,
 {
-    type State = Value;
-    type StateUpdate = Patch;
+    type State = serde_json::Value;
+    type StateUpdate = json_patch::Patch;
 
     fn definition(&self) -> ToolDefinition {
         self.definition.clone()
@@ -69,97 +65,82 @@ where
         &self,
         input: ToolInput<Self::State>,
     ) -> Result<ToolOutput<Self::StateUpdate>, ToolError> {
-        // Weak reference prevents the Arc on the emitter from keeping the sender alive after
-        // the drain is dropped, which would cause a deadlock in the react graph call_tools path.
-        let emit_tx = Arc::new(input.emitter.and_then(|e| e.sender()));
-        let weak_tx = Arc::downgrade(&emit_tx);
-
-        let mut fields: Vec<(String, ArgValue)> = vec![
-            ("args".into(), ArgValue::Json(input.args)),
-            ("state".into(), ArgValue::Json(input.state.unwrap_or(Value::Null))),
-        ];
-
-        if emit_tx.is_some() {
-            fields.push((
-                "emit".into(),
-                ArgValue::Callable(Arc::new(move |params| {
-                    if let Some(arc) = weak_tx.upgrade()
-                        && let Some(tx) = arc.as_ref()
-                    {
-                        let delta: ActivityDelta = match params.into_iter().next() {
-                            Some(ArgValue::Json(v)) => match from_value(v) {
-                                Ok(d) => d,
-                                Err(_) => return Ok(Value::Null),
-                            },
-                            _ => return Ok(Value::Null),
-                        };
-                        let _ = tx.try_send(delta);
-                    }
-                    Ok(Value::Null)
-                })),
-            ));
-        }
-
-        let args = FunctionArgs::new().param(ArgValue::Object(fields));
-
+        let export_name = self.export_name.clone();
         let result = tokio::time::timeout(
             self.timeout,
-            self.pool
-                .call_export_method::<ToolResult>(&self.export_name, args),
+            self.executor.execute(move |context| {
+                Box::pin(async move {
+                    let (input, _emitter) =
+                        JavascriptToolInput::new(input.args, input.state, input.emitter)
+                            .into_parts();
+
+                    context
+                        .module()
+                        .object(&export_name)
+                        .await?
+                        .get::<Function>("execute")
+                        .await?
+                        .call::<_, Awaitable<JavascriptToolResult>>((input,))
+                        .await?
+                        .await
+                })
+            }),
         )
         .await
-        .map_err(|_| {
-            ToolError::sourced_execution_error(
-                "javascript",
-                "tool execution timed out",
-                None::<RuntimeError>,
-            )
-        })?
-        .map_err(ToolError::from)?;
+        .map_err(|_| ToolError::execution_error("javascript", "tool execution timed out"))?
+        .map_err(|error| {
+            ToolError::sourced_execution_error("javascript", error.to_string(), Some(error))
+        })?;
 
         let mut output = ToolOutput::ok(result.output);
 
-        if let Some(patch) = result.state_update {
-            output = output.with_state(patch);
+        if let Some(state_update) = result.state_update {
+            output = output.with_state(state_update);
         }
 
         Ok(output)
     }
 }
 
+/// Configures a JavaScript tool backed by a shared TypeScript package executor.
 pub struct JavascriptToolBuilder {
-    runtime: Option<Arc<dyn Runtime>>,
+    executor: Option<Executor>,
     export_name: Option<String>,
     capabilities: CapabilitySet,
     timeout: Duration,
 }
 
 impl JavascriptToolBuilder {
+    /// Creates an empty JavaScript tool builder.
     pub fn new() -> Self {
         Self {
-            runtime: None,
+            executor: None,
             export_name: None,
             capabilities: CapabilitySet::default(),
             timeout: Duration::from_secs(30),
         }
     }
 
-    pub fn runtime(mut self, runtime: Arc<dyn Runtime>) -> Self {
-        self.runtime = Some(runtime);
+    /// Sets the shared package executor.
+    pub fn executor(mut self, executor: Executor) -> Self {
+        self.executor = Some(executor);
         self
     }
 
+    /// Sets the package export implementing the tool.
     pub fn export_name(mut self, name: impl Into<String>) -> Self {
         self.export_name = Some(name.into());
         self
     }
 
+    /// Adds one required tool capability.
     pub fn capability(mut self, capability: impl Into<Capability>) -> Self {
         self.capabilities
             .insert(capability.into());
         self
     }
 
+    /// Adds required tool capabilities.
     pub fn capabilities<I, C>(mut self, capabilities: I) -> Self
     where
         I: IntoIterator<Item = C>,
@@ -169,25 +150,38 @@ impl JavascriptToolBuilder {
         self
     }
 
+    /// Sets the maximum duration of one tool invocation.
     pub fn timeout(mut self, duration: Duration) -> Self {
         self.timeout = duration;
         self
     }
 
-    pub async fn build(self) -> Result<JavascriptTool, RuntimeError> {
-        let runtime = self
-            .runtime
-            .expect("runtime must be provided to build a JavascriptTool");
+    /// Builds the JavaScript tool and validates its package export.
+    pub async fn build(self) -> Result<JavascriptTool, Error> {
+        let executor = self
+            .executor
+            .expect("executor must be provided to build a JavascriptTool");
         let export_name = self
             .export_name
             .expect("export_name must be provided to build a JavascriptTool");
+        let definition = executor
+            .execute({
+                let export_name = export_name.clone();
 
-        let definition = runtime
-            .get_export::<ToolDefinition>(&export_name)
-            .await?;
+                move |context| {
+                    Box::pin(async move {
+                        context
+                            .module()
+                            .get::<JavascriptToolDefinition>(&export_name)
+                            .await
+                    })
+                }
+            })
+            .await?
+            .into();
 
         Ok(JavascriptTool {
-            pool: runtime,
+            executor,
             export_name,
             definition,
             capabilities: self.capabilities,
@@ -204,481 +198,354 @@ impl Default for JavascriptToolBuilder {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::time::Duration;
+
     use agentc_agent::{
         graph::state::{GraphState, GraphStateInput, GraphStateUpdate},
         tools::{
-            dispatcher::{DispatchOutcome, ToolRegistryExt},
-            registry::ToolRegistry,
-            types::ToolExecutionContext,
+            activity::{ActivityDelta, ActivityEmitter},
+            errors::ToolError,
+            traits::Tool,
+            types::{ToolExecutionContext, ToolInput, ToolOutput},
         },
-        types::tools::ToolCall,
     };
+    use agentc_executor_typescript::executor::Executor;
     use serde::{Deserialize, Serialize};
-    use serde_json::json;
+    use serde_json::{Value, json};
+    use tokio::sync::mpsc;
 
-    use crate::javascript::runtime::quickjs::runtime::QuickJsRuntimeBuilder;
+    use crate::javascript::tool::JavascriptTool;
 
-    #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-    struct DummyState;
+    const TOOL_SOURCE: &str = r#"
+export const direct = {
+    name: "direct",
+    description: "returns a direct result",
+    parameters: {},
+    execute(input) {
+        return {
+            output: input.args.value,
+            state_update: null,
+        };
+    },
+};
 
-    #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-    struct DummyUpdate {
-        k: i32,
+export const promised = {
+    name: "promised",
+    description: "returns a promised result",
+    parameters: {},
+    async execute(input) {
+        return {
+            output: input.args.value * 2,
+            state_update: null,
+        };
+    },
+};
+
+export const state = {
+    name: "state",
+    description: "reads and updates state",
+    parameters: {},
+    execute(input) {
+        return {
+            output: input.state.status,
+            state_update: [{ op: "add", path: "/count", value: 2 }],
+        };
+    },
+};
+
+export const emitter = {
+    name: "emitter",
+    description: "emits activity",
+    parameters: {},
+    execute(input) {
+        if (!input.emit) {
+            return {
+                output: "absent",
+                state_update: null,
+            };
+        }
+
+        globalThis.retainedEmit = input.emit;
+        input.emit({ activity_type: "first", patch: [] });
+        input.emit({ activity_type: "second", patch: [] });
+
+        return {
+            output: "present",
+            state_update: null,
+        };
+    },
+};
+
+export const failure = {
+    name: "failure",
+    description: "throws an exception",
+    parameters: {},
+    execute() {
+        throw new Error("tool failed");
+    },
+};
+
+export const delayed = {
+    name: "delayed",
+    description: "returns after a delay",
+    parameters: {},
+    async execute(input) {
+        await new Promise((resolve) => setTimeout(resolve, input.args.delay));
+
+        return {
+            output: input.args.value,
+            state_update: null,
+        };
+    },
+};
+"#;
+
+    #[derive(Clone, Debug, Default, Deserialize, Serialize)]
+    struct TestState;
+
+    #[derive(Clone, Debug, Default, Deserialize, Serialize)]
+    struct TestStateUpdate;
+
+    #[derive(Clone, Debug, Deserialize, Serialize)]
+    struct TestStateInput;
+
+    impl GraphState for TestState {
+        type Update = TestStateUpdate;
+        type Input = TestStateInput;
     }
 
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    struct DummyInput;
+    impl GraphStateUpdate for TestStateUpdate {
+        type State = TestState;
 
-    impl GraphState for DummyState {
-        type Update = DummyUpdate;
-        type Input = DummyInput;
-    }
+        fn apply(self, _state: &mut Self::State) {}
 
-    impl GraphStateUpdate for DummyUpdate {
-        type State = DummyState;
-        fn apply(self, _: &mut DummyState) {}
         fn merge(self, _other: Self) -> Self {
             self
         }
     }
 
-    impl GraphStateInput for DummyInput {
-        type State = DummyState;
-        fn initialize(self) -> DummyState {
-            DummyState
+    impl GraphStateInput for TestStateInput {
+        type State = TestState;
+
+        fn initialize(self) -> Self::State {
+            TestState
         }
     }
 
-    // Tools receive a single input object: { args, state, emit? }.
-    const JS: &str = r#"
-        export const add = {
-            name: "add",
-            description: "add a and b",
-            parameters: {},
-            async execute(input) { return { output: input.args.a + input.args.b, state_update: null }; }
-        };
-        export const double = {
-            name: "double",
-            description: "double x",
-            parameters: {},
-            async execute(input) { return { output: input.args.x * 2, state_update: null }; }
-        };
-    "#;
+    struct TestHarness;
 
-    #[tokio::test]
-    async fn multi_tool_shared_runtime() {
-        let runtime: Arc<dyn Runtime> = Arc::new(
-            QuickJsRuntimeBuilder::new()
-                .source(JS)
-                .num_interpreters(1)
+    impl TestHarness {
+        async fn executor(workers: usize) -> Executor {
+            Executor::builder("tools.ts", TOOL_SOURCE)
+                .workers(workers)
+                .standard_environment()
                 .build()
                 .await
-                .unwrap(),
-        );
+                .unwrap()
+        }
 
-        let add = JavascriptToolBuilder::new()
-            .runtime(runtime.clone())
-            .export_name("add")
-            .build()
-            .await
-            .unwrap();
-
-        let double = JavascriptToolBuilder::new()
-            .runtime(runtime.clone())
-            .export_name("double")
-            .build()
-            .await
-            .unwrap();
-
-        let dispatcher = ToolRegistry::builder()
-            .with_tool::<DummyState, _>(add)
-            .with_tool::<DummyState, _>(double)
-            .build()
-            .dispatcher();
-
-        let state = DummyState;
-
-        let out_add = dispatcher
-            .dispatch::<DummyState>(
-                ToolCall {
-                    id: "1".into(),
-                    name: "add".into(),
-                    arguments: json!({"a": 3, "b": 4}),
-                },
-                &state,
-                ToolExecutionContext {
-                    tenant_id: "test".to_string(),
-                    session_id: Default::default(),
-                    run_id: Default::default(),
-                },
-                None,
-            )
-            .await;
-
-        let out_double = dispatcher
-            .dispatch::<DummyState>(
-                ToolCall {
-                    id: "2".into(),
-                    name: "double".into(),
-                    arguments: json!({"x": 5}),
-                },
-                &state,
-                ToolExecutionContext {
-                    tenant_id: "test".to_string(),
-                    session_id: Default::default(),
-                    run_id: Default::default(),
-                },
-                None,
-            )
-            .await;
-
-        assert!(
-            matches!(out_add,    DispatchOutcome::Success { ref content, .. } if *content == json!(7))
-        );
-        assert!(
-            matches!(out_double, DispatchOutcome::Success { ref content, .. } if *content == json!(10))
-        );
-    }
-
-    // emit is passed as a field inside the input object: input.emit(delta)
-    const EMIT_JS: &str = r#"
-        export const emitter_tool = {
-            name: "emitter_tool",
-            description: "emits a delta then returns",
-            parameters: {},
-            async execute(input) {
-                if (input.emit) {
-                    input.emit({ activity_type: "test_type", patch: [{"op":"add","path":"/foo","value":1}] });
-                }
-                return { output: "done", state_update: null };
-            }
-        };
-    "#;
-
-    #[tokio::test]
-    async fn emit_delivers_activity_delta() {
-        use agentc_agent::tools::activity::{ActivityDelta, ActivityEmitter};
-        use tokio::sync::mpsc;
-
-        let runtime: Arc<dyn Runtime> = Arc::new(
-            QuickJsRuntimeBuilder::new()
-                .source(EMIT_JS)
-                .num_interpreters(1)
+        async fn tool(executor: &Executor, export_name: &str) -> JavascriptTool {
+            JavascriptTool::builder()
+                .executor(executor.clone())
+                .export_name(export_name)
                 .build()
                 .await
-                .unwrap(),
-        );
+                .unwrap()
+        }
 
-        let tool = JavascriptToolBuilder::new()
-            .runtime(runtime)
-            .export_name("emitter_tool")
-            .build()
-            .await
-            .unwrap();
-
-        let dispatcher = ToolRegistry::builder()
-            .with_tool::<DummyState, _>(tool)
-            .build()
-            .dispatcher();
-
-        let state = DummyState;
-        let (tx, mut rx) = mpsc::channel::<ActivityDelta>(8);
-
-        let outcome = dispatcher
-            .dispatch::<DummyState>(
-                ToolCall {
-                    id: "1".into(),
-                    name: "emitter_tool".into(),
-                    arguments: json!({}),
-                },
-                &state,
+        fn input(args: Value) -> ToolInput<Value> {
+            ToolInput::new(
+                args,
                 ToolExecutionContext {
                     tenant_id: "test".to_string(),
                     session_id: Default::default(),
                     run_id: Default::default(),
                 },
-                Some(ActivityEmitter::new(tx)),
             )
-            .await;
+        }
 
-        assert!(
-            matches!(outcome, DispatchOutcome::Success { ref content, .. } if *content == json!("done"))
-        );
-
-        let delta = rx
-            .recv()
-            .await
-            .expect("expected a delta");
-        assert_eq!(delta.activity_type, "test_type");
-        assert_eq!(delta.patch.len(), 1);
+        async fn execute(
+            tool: &JavascriptTool,
+            input: ToolInput<Value>,
+        ) -> Result<ToolOutput<json_patch::Patch>, ToolError> {
+            Tool::<TestState>::execute(tool, input).await
+        }
     }
-
-    // A tool that guards on input.emit before calling it must succeed without throwing
-    // when no ActivityEmitter is supplied.
-    #[tokio::test]
-    async fn emit_is_absent_without_emitter() {
-        let runtime: Arc<dyn Runtime> = Arc::new(
-            QuickJsRuntimeBuilder::new()
-                .source(EMIT_JS)
-                .num_interpreters(1)
-                .build()
-                .await
-                .unwrap(),
-        );
-
-        let tool = JavascriptToolBuilder::new()
-            .runtime(runtime)
-            .export_name("emitter_tool")
-            .build()
-            .await
-            .unwrap();
-
-        let dispatcher = ToolRegistry::builder()
-            .with_tool::<DummyState, _>(tool)
-            .build()
-            .dispatcher();
-
-        let outcome = dispatcher
-            .dispatch::<DummyState>(
-                ToolCall {
-                    id: "1".into(),
-                    name: "emitter_tool".into(),
-                    arguments: json!({}),
-                },
-                &DummyState,
-                ToolExecutionContext {
-                    tenant_id: "test".to_string(),
-                    session_id: Default::default(),
-                    run_id: Default::default(),
-                },
-                None,
-            )
-            .await;
-
-        assert!(
-            matches!(outcome, DispatchOutcome::Success { ref content, .. } if *content == json!("done"))
-        );
-    }
-
-    // A tool may call emit multiple times in a single invocation. Each call should
-    // produce a separate ActivityDelta on the receiver in order.
-    const MULTI_EMIT_JS: &str = r#"
-        export const multi_emitter = {
-            name: "multi_emitter",
-            description: "emits several deltas",
-            parameters: {},
-            async execute(input) {
-                input.emit({ activity_type: "step_1", patch: [{"op":"add","path":"/a","value":1}] });
-                input.emit({ activity_type: "step_2", patch: [{"op":"add","path":"/b","value":2}] });
-                input.emit({ activity_type: "step_3", patch: [{"op":"add","path":"/c","value":3}] });
-                return { output: "done", state_update: null };
-            }
-        };
-    "#;
 
     #[tokio::test]
-    async fn multiple_emits_are_all_delivered() {
-        use agentc_agent::tools::activity::{ActivityDelta, ActivityEmitter};
-        use tokio::sync::mpsc;
+    async fn shared_executor_supports_direct_and_promised_exports() {
+        let executor = TestHarness::executor(1).await;
+        let direct = TestHarness::tool(&executor, "direct").await;
+        let promised = TestHarness::tool(&executor, "promised").await;
 
-        let runtime: Arc<dyn Runtime> = Arc::new(
-            QuickJsRuntimeBuilder::new()
-                .source(MULTI_EMIT_JS)
-                .num_interpreters(1)
-                .build()
+        assert_eq!(Tool::<TestState>::definition(&direct).name, "direct",);
+        assert_eq!(
+            TestHarness::execute(&direct, TestHarness::input(json!({"value": 4})),)
                 .await
-                .unwrap(),
+                .unwrap()
+                .output,
+            json!(4),
+        );
+        assert_eq!(
+            TestHarness::execute(&promised, TestHarness::input(json!({"value": 4})),)
+                .await
+                .unwrap()
+                .output,
+            json!(8),
         );
 
-        let tool = JavascriptToolBuilder::new()
-            .runtime(runtime)
-            .export_name("multi_emitter")
-            .build()
-            .await
-            .unwrap();
-
-        let dispatcher = ToolRegistry::builder()
-            .with_tool::<DummyState, _>(tool)
-            .build()
-            .dispatcher();
-
-        let (tx, mut rx) = mpsc::channel::<ActivityDelta>(8);
-
-        dispatcher
-            .dispatch::<DummyState>(
-                ToolCall {
-                    id: "1".into(),
-                    name: "multi_emitter".into(),
-                    arguments: json!({}),
-                },
-                &DummyState,
-                ToolExecutionContext {
-                    tenant_id: "test".to_string(),
-                    session_id: Default::default(),
-                    run_id: Default::default(),
-                },
-                Some(ActivityEmitter::new(tx)),
-            )
-            .await;
-
-        let d1 = rx
-            .recv()
-            .await
-            .expect("expected delta 1");
-        let d2 = rx
-            .recv()
-            .await
-            .expect("expected delta 2");
-        let d3 = rx
-            .recv()
-            .await
-            .expect("expected delta 3");
-
-        assert_eq!(d1.activity_type, "step_1");
-        assert_eq!(d2.activity_type, "step_2");
-        assert_eq!(d3.activity_type, "step_3");
+        executor.shutdown().await.unwrap();
     }
 
-    // A tool that reads input.state and reflects it in the output proves that state
-    // is correctly serialized and passed through to the JS execution context.
-    const STATE_READ_JS: &str = r#"
-        export const state_reader = {
-            name: "state_reader",
-            description: "echoes a field from the agent state",
-            parameters: {},
-            async execute(input) {
-                return { output: input.state ? input.state.value : null, state_update: null };
-            }
-        };
-    "#;
-
-    #[tokio::test]
-    async fn state_is_passed_to_tool() {
-        let runtime: Arc<dyn Runtime> = Arc::new(
-            QuickJsRuntimeBuilder::new()
-                .source(STATE_READ_JS)
-                .num_interpreters(1)
-                .build()
-                .await
-                .unwrap(),
-        );
-
-        let tool = JavascriptToolBuilder::new()
-            .runtime(runtime)
-            .export_name("state_reader")
-            .build()
-            .await
-            .unwrap();
-
-        let dispatcher = ToolRegistry::builder()
-            .with_tool::<DummyState, _>(tool)
-            .build()
-            .dispatcher();
-
-        let outcome = dispatcher
-            .dispatch::<DummyState>(
-                ToolCall {
-                    id: "1".into(),
-                    name: "state_reader".into(),
-                    arguments: json!({}),
-                },
-                &DummyState,
-                ToolExecutionContext {
-                    tenant_id: "test".to_string(),
-                    session_id: Default::default(),
-                    run_id: Default::default(),
-                },
-                None,
-            )
-            .await;
-
-        // DummyState serializes as `{}` so input.state.value is undefined → null output.
-        assert!(
-            matches!(outcome, DispatchOutcome::Success { ref content, .. } if content.is_null())
-        );
-    }
-
-    // A tool that returns a state_update JSON Patch. The patch should be propagated
-    // through ToolOutput so callers can apply it to the agent state.
-    const STATE_UPDATE_JS: &str = r#"
-        export const state_patcher = {
-            name: "state_patcher",
-            description: "returns a state patch",
-            parameters: {},
-            async execute(input) {
-                return {
-                    output: "patched",
-                    state_update: [{"op":"add","path":"/k","value":99}]
-                };
-            }
-        };
-    "#;
-
-    #[tokio::test]
-    async fn state_update_propagates() {
-        let runtime: Arc<dyn Runtime> = Arc::new(
-            QuickJsRuntimeBuilder::new()
-                .source(STATE_UPDATE_JS)
-                .num_interpreters(1)
-                .build()
-                .await
-                .unwrap(),
-        );
-
-        let tool = JavascriptToolBuilder::new()
-            .runtime(runtime)
-            .export_name("state_patcher")
-            .build()
-            .await
-            .unwrap();
-
-        let dispatcher = ToolRegistry::builder()
-            .with_tool::<DummyState, _>(tool)
-            .build()
-            .dispatcher();
-
-        let outcome = dispatcher
-            .dispatch::<DummyState>(
-                ToolCall {
-                    id: "1".into(),
-                    name: "state_patcher".into(),
-                    arguments: json!({}),
-                },
-                &DummyState,
-                ToolExecutionContext {
-                    tenant_id: "test".to_string(),
-                    session_id: Default::default(),
-                    run_id: Default::default(),
-                },
-                None,
-            )
-            .await;
-
-        assert!(
-            matches!(outcome, DispatchOutcome::Success { ref content, .. } if *content == json!("patched"))
-        );
-    }
-
-    // Building a tool whose export name does not exist in the module should fail at
-    // build time rather than at invocation time.
     #[tokio::test]
     async fn builder_rejects_unknown_export() {
-        let runtime: Arc<dyn Runtime> = Arc::new(
-            QuickJsRuntimeBuilder::new()
-                .source(JS)
-                .num_interpreters(1)
+        let executor = TestHarness::executor(1).await;
+
+        assert!(
+            JavascriptTool::builder()
+                .executor(executor.clone())
+                .export_name("unknown")
                 .build()
                 .await
-                .unwrap(),
+                .is_err()
         );
 
-        let result = JavascriptToolBuilder::new()
-            .runtime(runtime)
-            .export_name("nonexistent")
-            .build()
-            .await;
+        executor.shutdown().await.unwrap();
+    }
 
-        assert!(result.is_err());
+    #[tokio::test]
+    async fn transfers_arguments_and_state_update() {
+        let executor = TestHarness::executor(1).await;
+        let tool = TestHarness::tool(&executor, "state").await;
+        let result = TestHarness::execute(
+            &tool,
+            TestHarness::input(json!({"unused": true})).with_state(json!({"status": "ready"})),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(result.output, json!("ready"));
+        assert_eq!(
+            serde_json::to_value(result.state_update.unwrap()).unwrap(),
+            json!([{"op": "add", "path": "/count", "value": 2}]),
+        );
+
+        executor.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn activity_emitter_is_optional_and_preserves_order() {
+        let executor = TestHarness::executor(1).await;
+        let tool = TestHarness::tool(&executor, "emitter").await;
+
+        assert_eq!(
+            TestHarness::execute(&tool, TestHarness::input(json!({})),)
+                .await
+                .unwrap()
+                .output,
+            json!("absent"),
+        );
+
+        let (sender, mut receiver) = mpsc::channel::<ActivityDelta>(2);
+
+        assert_eq!(
+            TestHarness::execute(
+                &tool,
+                TestHarness::input(json!({})).with_activity_emitter(ActivityEmitter::new(sender)),
+            )
+            .await
+            .unwrap()
+            .output,
+            json!("present"),
+        );
+        assert_eq!(
+            receiver
+                .recv()
+                .await
+                .unwrap()
+                .activity_type,
+            "first",
+        );
+        assert_eq!(
+            receiver
+                .recv()
+                .await
+                .unwrap()
+                .activity_type,
+            "second",
+        );
+        assert!(receiver.recv().await.is_none());
+
+        executor.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn guest_exception_preserves_execution_source() {
+        let executor = TestHarness::executor(1).await;
+        let tool = TestHarness::tool(&executor, "failure").await;
+
+        assert!(matches!(
+            TestHarness::execute(&tool, TestHarness::input(json!({})),).await,
+            Err(ToolError::ExecutionError { source: Some(_), .. })
+        ));
+
+        executor.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn invocation_timeout_is_tool_specific() {
+        let executor = TestHarness::executor(1).await;
+        let tool = JavascriptTool::builder()
+            .executor(executor.clone())
+            .export_name("delayed")
+            .timeout(Duration::from_millis(1))
+            .build()
+            .await
+            .unwrap();
+
+        assert!(matches!(
+            TestHarness::execute(
+                &tool,
+                TestHarness::input(json!({
+                    "delay": 20,
+                    "value": "late",
+                })),
+            )
+            .await,
+            Err(ToolError::ExecutionError {
+                message,
+                source: None,
+                ..
+            }) if message == "tool execution timed out"
+        ));
+
+        tokio::time::sleep(Duration::from_millis(25)).await;
+        executor.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn concurrent_calls_share_the_package_executor() {
+        let executor = TestHarness::executor(2).await;
+        let tool = TestHarness::tool(&executor, "delayed").await;
+        let first = TestHarness::execute(
+            &tool,
+            TestHarness::input(json!({
+                "delay": 1,
+                "value": "first",
+            })),
+        );
+        let second = TestHarness::execute(
+            &tool,
+            TestHarness::input(json!({
+                "delay": 1,
+                "value": "second",
+            })),
+        );
+        let (first, second) = tokio::join!(first, second);
+
+        assert_eq!(first.unwrap().output, json!("first"));
+        assert_eq!(second.unwrap().output, json!("second"));
+
+        executor.shutdown().await.unwrap();
     }
 }

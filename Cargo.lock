@@ -608,6 +608,7 @@ name = "agentc-tools"
 version = "0.3.1"
 dependencies = [
  "agentc-agent",
+ "agentc-executor-typescript",
  "anyhow",
  "async-trait",
  "futures",
@@ -2757,8 +2758,8 @@ dependencies = [
 
 [[package]]
 name = "guestjs"
-version = "0.1.3"
-source = "git+ssh://git@github.com/wizrds/guestjs.git?rev=0.1.3#49274b17a446df5b5a0f2963064122539bc90e4b"
+version = "0.1.5"
+source = "git+https://github.com/wizrds/guestjs.git?rev=0.1.5#5d031c3c76047d6e4ad1cf29bd9229f7724acb9b"
 dependencies = [
  "async-trait",
  "guestjs-core",
@@ -2771,8 +2772,8 @@ dependencies = [
 
 [[package]]
 name = "guestjs-core"
-version = "0.1.3"
-source = "git+ssh://git@github.com/wizrds/guestjs.git?rev=0.1.3#49274b17a446df5b5a0f2963064122539bc90e4b"
+version = "0.1.5"
+source = "git+https://github.com/wizrds/guestjs.git?rev=0.1.5#5d031c3c76047d6e4ad1cf29bd9229f7724acb9b"
 dependencies = [
  "async-trait",
  "bytes",
@@ -2788,17 +2789,18 @@ dependencies = [
 
 [[package]]
 name = "guestjs-llrt"
-version = "0.1.3"
-source = "git+ssh://git@github.com/wizrds/guestjs.git?rev=0.1.3#49274b17a446df5b5a0f2963064122539bc90e4b"
+version = "0.1.5"
+source = "git+https://github.com/wizrds/guestjs.git?rev=0.1.5#5d031c3c76047d6e4ad1cf29bd9229f7724acb9b"
 dependencies = [
  "guestjs-core",
  "llrt_modules 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
+ "rquickjs 0.12.2",
 ]
 
 [[package]]
 name = "guestjs-macros"
-version = "0.1.3"
-source = "git+ssh://git@github.com/wizrds/guestjs.git?rev=0.1.3#49274b17a446df5b5a0f2963064122539bc90e4b"
+version = "0.1.5"
+source = "git+https://github.com/wizrds/guestjs.git?rev=0.1.5#5d031c3c76047d6e4ad1cf29bd9229f7724acb9b"
 dependencies = [
  "darling 0.23.0",
  "heck 0.5.0",
@@ -4175,6 +4177,16 @@ dependencies = [
 [[package]]
 name = "llrt_compression"
 version = "0.8.1-beta"
+source = "git+https://github.com/awslabs/llrt?rev=101ae49#101ae49b6a6d31dd468c8310c38eab93702db885"
+dependencies = [
+ "brotlic",
+ "flate2",
+ "zstd",
+]
+
+[[package]]
+name = "llrt_compression"
+version = "0.8.1-beta"
 source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
 dependencies = [
  "brotlic",
@@ -4275,6 +4287,19 @@ dependencies = [
 [[package]]
 name = "llrt_dns_cache"
 version = "0.8.1-beta"
+source = "git+https://github.com/awslabs/llrt?rev=101ae49#101ae49b6a6d31dd468c8310c38eab93702db885"
+dependencies = [
+ "hyper-util",
+ "llrt_context 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
+ "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
+ "quick_cache",
+ "tokio",
+ "tower-service",
+]
+
+[[package]]
+name = "llrt_dns_cache"
+version = "0.8.1-beta"
 source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
 dependencies = [
  "hyper-util",
@@ -4350,6 +4375,38 @@ dependencies = [
 [[package]]
 name = "llrt_fetch"
 version = "0.8.1-beta"
+source = "git+https://github.com/awslabs/llrt?rev=101ae49#101ae49b6a6d31dd468c8310c38eab93702db885"
+dependencies = [
+ "bytes",
+ "either",
+ "http-body",
+ "http-body-util",
+ "hyper",
+ "itoa",
+ "llrt_abort 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
+ "llrt_buffer 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
+ "llrt_compression 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
+ "llrt_context 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
+ "llrt_encoding 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
+ "llrt_http 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
+ "llrt_json 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
+ "llrt_stream_web 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
+ "llrt_url 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
+ "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
+ "once_cell",
+ "percent-encoding",
+ "pin-project-lite",
+ "rand 0.10.2",
+ "rquickjs 0.12.2",
+ "sha2 0.11.0",
+ "tokio",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "llrt_fetch"
+version = "0.8.1-beta"
 source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
 dependencies = [
  "bytes",
@@ -4359,12 +4416,12 @@ dependencies = [
  "itoa",
  "llrt_abort 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
  "llrt_buffer 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_compression",
+ "llrt_compression 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
  "llrt_context 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
  "llrt_encoding 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_http",
+ "llrt_http 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
  "llrt_json 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_url",
+ "llrt_url 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
  "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
  "once_cell",
  "percent-encoding",
@@ -4373,6 +4430,22 @@ dependencies = [
  "rquickjs 0.11.0",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "llrt_fs"
+version = "0.8.1-beta"
+source = "git+https://github.com/awslabs/llrt?rev=101ae49#101ae49b6a6d31dd468c8310c38eab93702db885"
+dependencies = [
+ "either",
+ "junction 2.0.0",
+ "llrt_buffer 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
+ "llrt_encoding 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
+ "llrt_path 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
+ "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
+ "rand 0.10.2",
+ "rquickjs 0.12.2",
+ "tokio",
 ]
 
 [[package]]
@@ -4414,6 +4487,24 @@ dependencies = [
 [[package]]
 name = "llrt_http"
 version = "0.8.1-beta"
+source = "git+https://github.com/awslabs/llrt?rev=101ae49#101ae49b6a6d31dd468c8310c38eab93702db885"
+dependencies = [
+ "bytes",
+ "http-body-util",
+ "hyper",
+ "hyper-rustls",
+ "hyper-util",
+ "llrt_dns_cache 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
+ "llrt_tls 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
+ "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
+ "once_cell",
+ "rquickjs 0.12.2",
+ "rustls",
+]
+
+[[package]]
+name = "llrt_http"
+version = "0.8.1-beta"
 source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
 dependencies = [
  "bytes",
@@ -4421,8 +4512,8 @@ dependencies = [
  "hyper",
  "hyper-rustls",
  "hyper-util",
- "llrt_dns_cache",
- "llrt_tls",
+ "llrt_dns_cache 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
+ "llrt_tls 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
  "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
  "once_cell",
  "rquickjs 0.11.0",
@@ -4502,12 +4593,20 @@ version = "0.8.1-beta"
 source = "git+https://github.com/awslabs/llrt?rev=101ae49#101ae49b6a6d31dd468c8310c38eab93702db885"
 dependencies = [
  "home",
+ "llrt_abort 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
  "llrt_buffer 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
  "llrt_console 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
+ "llrt_fetch 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
+ "llrt_fs 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
  "llrt_hooking 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
+ "llrt_http 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
  "llrt_json 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
+ "llrt_os 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
  "llrt_path 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
+ "llrt_stream_web 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
  "llrt_timers 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
+ "llrt_tls 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
+ "llrt_url 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
  "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
  "once_cell",
  "rquickjs 0.12.2",
@@ -4533,15 +4632,15 @@ dependencies = [
  "llrt_dns",
  "llrt_events 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
  "llrt_exceptions 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_fetch",
- "llrt_fs",
+ "llrt_fetch 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
+ "llrt_fs 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
  "llrt_hooking 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_http",
+ "llrt_http 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
  "llrt_intl",
  "llrt_json 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
  "llrt_navigator",
  "llrt_net",
- "llrt_os",
+ "llrt_os 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
  "llrt_path 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
  "llrt_perf_hooks",
  "llrt_process",
@@ -4549,9 +4648,9 @@ dependencies = [
  "llrt_string_decoder",
  "llrt_temporal",
  "llrt_timers 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_tls",
+ "llrt_tls 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
  "llrt_tty",
- "llrt_url",
+ "llrt_url 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
  "llrt_util",
  "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
  "llrt_zlib",
@@ -4606,6 +4705,24 @@ dependencies = [
  "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
  "rquickjs 0.11.0",
  "ryu",
+]
+
+[[package]]
+name = "llrt_os"
+version = "0.8.1-beta"
+source = "git+https://github.com/awslabs/llrt?rev=101ae49#101ae49b6a6d31dd468c8310c38eab93702db885"
+dependencies = [
+ "home",
+ "libc",
+ "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
+ "num_cpus",
+ "once_cell",
+ "rquickjs 0.12.2",
+ "users",
+ "whoami 2.1.2",
+ "windows-registry",
+ "windows-result",
+ "windows-version",
 ]
 
 [[package]]
@@ -4749,6 +4866,17 @@ dependencies = [
 [[package]]
 name = "llrt_tls"
 version = "0.8.1-beta"
+source = "git+https://github.com/awslabs/llrt?rev=101ae49#101ae49b6a6d31dd468c8310c38eab93702db885"
+dependencies = [
+ "once_cell",
+ "rustls",
+ "tracing",
+ "webpki-roots 1.0.8",
+]
+
+[[package]]
+name = "llrt_tls"
+version = "0.8.1-beta"
 source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
 dependencies = [
  "once_cell",
@@ -4765,6 +4893,16 @@ dependencies = [
  "libc",
  "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
  "rquickjs 0.11.0",
+]
+
+[[package]]
+name = "llrt_url"
+version = "0.8.1-beta"
+source = "git+https://github.com/awslabs/llrt?rev=101ae49#101ae49b6a6d31dd468c8310c38eab93702db885"
+dependencies = [
+ "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=101ae49)",
+ "rquickjs 0.12.2",
+ "url",
 ]
 
 [[package]]
@@ -4823,7 +4961,7 @@ version = "0.8.1-beta"
 source = "git+https://github.com/awslabs/llrt?rev=e64c2b7601#e64c2b760194a8aaebb4e95ba01bc1c2b9848160"
 dependencies = [
  "llrt_buffer 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
- "llrt_compression",
+ "llrt_compression 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
  "llrt_context 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
  "llrt_utils 0.8.1-beta (git+https://github.com/awslabs/llrt?rev=e64c2b7601)",
  "rquickjs 0.11.0",

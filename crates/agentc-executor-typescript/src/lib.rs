@@ -5,6 +5,8 @@
 #[allow(unused_extern_crates)]
 extern crate self as agentc_executor_typescript;
 
+pub use guestjs;
+
 pub mod context;
 pub mod error;
 pub mod execution;

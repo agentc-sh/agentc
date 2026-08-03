@@ -17,4 +17,18 @@ futures = { workspace = true }
 
 thiserror = { workspace = true }
 
-guestjs = { git = "ssh://git@github.com/wizrds/guestjs.git", rev = "0.1.3", features = ["tokio", "typescript", "llrt-buffer", "llrt-console"] }
+[dependencies.guestjs]
+git = "https://github.com/wizrds/guestjs.git"
+rev = "0.1.5"
+features = [
+    "tokio",
+    "typescript",
+    "llrt-buffer",
+    "llrt-console",
+    "llrt-fetch",
+    "llrt-fs",
+    "llrt-os",
+    "llrt-process-env",
+    "llrt-timers",
+    "llrt-url",
+]

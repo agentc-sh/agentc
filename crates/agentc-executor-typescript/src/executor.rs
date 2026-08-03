@@ -12,7 +12,7 @@ use std::{
 };
 
 use futures::future::LocalBoxFuture;
-use guestjs::runtime::RuntimeBuilder;
+use guestjs::{llrt::Llrt, runtime::RuntimeBuilder};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
@@ -140,6 +140,22 @@ impl ExecutorBuilder {
         self.configurations
             .push(Arc::new(configure));
         self
+    }
+
+    /// Adds the standard JavaScript environment to every worker.
+    pub fn standard_environment(self) -> Self {
+        self.configure(|builder| {
+            builder.bind_native(
+                Llrt::builder()
+                    .buffer()
+                    .console()
+                    .timers()
+                    .url()
+                    .os()
+                    .process_env()
+                    .build(),
+            )
+        })
     }
 
     /// Sets the shared token used for executor and guest cancellation.
@@ -363,6 +379,24 @@ export function fail() {
 }
 "#;
 
+    const STANDARD_ENVIRONMENT_SOURCE: &str = r#"
+import os from "node:os";
+import timers from "node:timers";
+
+const timer = await new Promise((resolve) => {
+    timers.setTimeout(() => resolve("ready"), 0);
+});
+
+export default [
+    Buffer.from("agentc").toString(),
+    typeof console.log,
+    new URL("https://example.com/path").hostname,
+    timer,
+    typeof os.platform(),
+    typeof process.env,
+].join(":");
+"#;
+
     struct TestExecutor;
 
     impl TestExecutor {
@@ -473,6 +507,33 @@ export function fail() {
             .unwrap();
 
         assert_eq!(configurations.load(Ordering::SeqCst), 3);
+
+        executor.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn installs_standard_javascript_environment() {
+        let executor = Executor::builder("environment.ts", STANDARD_ENVIRONMENT_SOURCE)
+            .workers(1)
+            .standard_environment()
+            .build()
+            .await
+            .unwrap();
+
+        assert_eq!(
+            executor
+                .execute(|context| {
+                    Box::pin(async move {
+                        context
+                            .module()
+                            .get::<String>("default")
+                            .await
+                    })
+                })
+                .await
+                .unwrap(),
+            "agentc:function:example.com:ready:string:object",
+        );
 
         executor.shutdown().await.unwrap();
     }
