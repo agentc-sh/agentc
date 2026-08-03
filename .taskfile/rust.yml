@@ -33,6 +33,7 @@ tasks:
           -p agentc-database \
           -p agentc-domain \
           -p agentc-domain-sql \
+          -p agentc-executor-typescript \
           -p agentc-http \
           -p agentc-mcp \
           -p agentc-model \
@@ -93,6 +94,7 @@ tasks:
           -p agentc-database \
           -p agentc-domain \
           -p agentc-domain-sql \
+          -p agentc-executor-typescript \
           -p agentc-http \
           -p agentc-mcp \
           -p agentc-model \
