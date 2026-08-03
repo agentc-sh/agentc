@@ -168,10 +168,7 @@ impl Archetype for StandaloneArchetype {
                         env!("CARGO_PKG_VERSION"),
                     ))
                     .typed_extension_point(CargoPatchesExtensionPoint::new("cargo::patches"))
-                    .with_template(
-                        "cargo_toml",
-                        include_str!("templates/Cargo.toml.j2"),
-                    )
+                    .with_template("cargo_toml", include_str!("templates/Cargo.toml.j2"))
                     .with_var("runtime_version", env!("CARGO_PKG_VERSION"))
                     .build(),
             )
@@ -205,9 +202,7 @@ impl Archetype for StandaloneArchetype {
                     .contribute(Contribution::<CargoDependencyContribution>::strict(
                         "cargo::dependencies",
                     ))
-                    .contribute(Contribution::<CargoPatchContribution>::strict(
-                        "cargo::patches",
-                    ))
+                    .contribute(Contribution::<CargoPatchContribution>::strict("cargo::patches"))
                     .build(A2aClientCargoFragment),
             )
             .add(
@@ -273,9 +268,7 @@ impl Archetype for StandaloneArchetype {
                     .contribute(Contribution::<CargoDependencyContribution>::strict(
                         "cargo::dependencies",
                     ))
-                    .contribute(Contribution::<CargoPatchContribution>::strict(
-                        "cargo::patches",
-                    ))
+                    .contribute(Contribution::<CargoPatchContribution>::strict("cargo::patches"))
                     .build(JavascriptToolCargoFragment),
             );
         }

@@ -18,9 +18,7 @@ use agentc_compiler::generator::{
 };
 
 use crate::{
-    archetype::standalone::codegen::cargo::{
-        CargoDependencyContribution, CargoPatchContribution,
-    },
+    archetype::standalone::codegen::cargo::{CargoDependencyContribution, CargoPatchContribution},
     context::{ResolvedContext, ResolvedContextToolJavascript, ResolvedContextToolKind},
     contributions::dependency::RuntimeDependencyContribution,
     fields::FieldsSpec,
@@ -280,8 +278,18 @@ mod tests {
         ]);
         let registrations = JavascriptToolsFixture::registrations(&ctx);
 
-        assert_eq!(registrations.matches("Executor :: builder").count(), 1);
-        assert_eq!(registrations.matches("JavascriptTool :: builder").count(), 2);
+        assert_eq!(
+            registrations
+                .matches("Executor :: builder")
+                .count(),
+            1
+        );
+        assert_eq!(
+            registrations
+                .matches("JavascriptTool :: builder")
+                .count(),
+            2
+        );
         assert!(registrations.contains("include_str ! (\"/artifacts/pkg/dist/index.js\")"));
         assert!(registrations.contains("\"search\""));
         assert!(registrations.contains("\"lookup\""));
@@ -311,7 +319,12 @@ mod tests {
         ]);
         let registrations = JavascriptToolsFixture::registrations(&ctx);
 
-        assert_eq!(registrations.matches("Executor :: builder").count(), 2);
+        assert_eq!(
+            registrations
+                .matches("Executor :: builder")
+                .count(),
+            2
+        );
         assert!(registrations.contains("include_str ! (\"/artifacts/a/dist/index.js\")"));
         assert!(registrations.contains("include_str ! (\"/artifacts/b/dist/index.js\")"));
     }
@@ -409,8 +422,16 @@ mod tests {
     fn absent_javascript_tools_generate_no_imports_or_registrations() {
         let ctx = JavascriptToolsFixture::context([]);
 
-        assert!(JavascriptTools(&ctx).imports().is_none());
-        assert!(JavascriptTools(&ctx).feature().is_none());
+        assert!(
+            JavascriptTools(&ctx)
+                .imports()
+                .is_none()
+        );
+        assert!(
+            JavascriptTools(&ctx)
+                .feature()
+                .is_none()
+        );
         assert!(JavascriptToolsFixture::registrations(&ctx).is_empty());
     }
 }
