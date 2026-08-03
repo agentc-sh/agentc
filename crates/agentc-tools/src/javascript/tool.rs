@@ -179,10 +179,13 @@ impl JavascriptToolBuilder {
             })
             .await?
             .ok_or_else(|| {
-                Error::unexpected(format!(
-                    "export '{}' does not exist or is not a valid tool definition",
-                    export_name
-                ), None)
+                Error::unexpected(
+                    format!(
+                        "export '{}' does not exist or is not a valid tool definition",
+                        export_name
+                    ),
+                    None,
+                )
             })?
             .into();
 

@@ -148,7 +148,10 @@ impl Error {
     }
 
     /// Creates an [`Error::Unexpected`] error.
-    pub fn unexpected(message: impl Into<String>, source: impl Into<Option<Box<dyn std::error::Error + Send + Sync>>>) -> Self {
+    pub fn unexpected(
+        message: impl Into<String>,
+        source: impl Into<Option<Box<dyn std::error::Error + Send + Sync>>>,
+    ) -> Self {
         Self::Unexpected {
             message: message.into(),
             source: source.into(),
