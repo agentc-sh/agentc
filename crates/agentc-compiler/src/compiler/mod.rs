@@ -10,5 +10,5 @@ pub mod types;
 pub use crate::compiler::{
     errors::CompilerError,
     traits::{Compiler, NullOutputSink, OutputSink},
-    types::{Artifact, CompileParams},
+    types::CompileParams,
 };

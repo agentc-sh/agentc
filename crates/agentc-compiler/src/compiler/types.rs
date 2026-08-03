@@ -10,7 +10,6 @@ pub struct CompileParams {
     pub target_dir: PathBuf,
     pub cache_dir: Option<PathBuf>,
     pub release: bool,
-    pub target: Option<String>,
     pub verbose: bool,
     pub args: Vec<String>,
 }
@@ -22,7 +21,6 @@ impl CompileParams {
             target_dir: target_dir.into(),
             cache_dir: None,
             release: false,
-            target: None,
             verbose: false,
             args: Vec::new(),
         }
@@ -30,18 +28,6 @@ impl CompileParams {
 
     pub fn with_release(mut self, release: bool) -> Self {
         self.release = release;
-        self
-    }
-
-    pub fn with_target(mut self, target: impl Into<String>) -> Self {
-        self.target = Some(target.into());
-        self
-    }
-
-    pub fn maybe_with_target(mut self, target: Option<impl Into<String>>) -> Self {
-        if let Some(target) = target {
-            self.target = Some(target.into());
-        }
         self
     }
 
@@ -83,9 +69,4 @@ impl CompileParams {
             .extend(args.into_iter().map(Into::into));
         self
     }
-}
-
-#[derive(Debug, Clone)]
-pub struct Artifact {
-    pub target_dir: PathBuf,
 }
