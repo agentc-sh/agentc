@@ -12,4 +12,4 @@ pub mod traits;
 pub mod types;
 pub mod ui;
 
-pub use crate::cli::{args::CliArgs, types::CmdOutcome};
+pub use crate::cli::args::CliArgs;

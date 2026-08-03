@@ -86,6 +86,8 @@ pub enum CliCommands {
     Generate(generate::CliCommandGenerate),
     #[clap(name = "build", about = "Build an agent from a manifest")]
     Build(build::CliCommandBuild),
+    #[clap(name = "run", about = "Build an agent from a manifest and run it")]
+    Run(run::CliCommandRun),
     #[clap(name = "inspect", about = "Inspect the resolved manifest of an agent")]
     Inspect(inspect::CliCommandInspect),
     #[clap(name = "init", about = "Scaffold a new agent project")]
@@ -101,6 +103,7 @@ impl Cmd for CliCommands {
             CliCommands::Completions(cmd) => Some(cmd as &dyn Cmd),
             CliCommands::Generate(cmd) => Some(cmd as &dyn Cmd),
             CliCommands::Build(cmd) => Some(cmd as &dyn Cmd),
+            CliCommands::Run(cmd) => Some(cmd as &dyn Cmd),
             CliCommands::Inspect(cmd) => Some(cmd as &dyn Cmd),
             CliCommands::Init(cmd) => Some(cmd as &dyn Cmd),
             CliCommands::Tool(cmd) => Some(cmd as &dyn Cmd),
