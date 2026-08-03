@@ -17,6 +17,7 @@ const JS_PACKAGE: &str = include_str!("templates/javascript/package.json");
 const JS_TSCONFIG: &str = include_str!("templates/javascript/tsconfig.json");
 const JS_README: &str = include_str!("templates/javascript/README.md");
 const JS_INDEX: &str = include_str!("templates/javascript/src/index.ts");
+const JS_PNPM_WORKSPACE: &str = include_str!("templates/javascript/pnpm-workspace.yaml");
 
 pub enum ToolLanguage {
     Python,
@@ -71,6 +72,10 @@ impl InitTool {
                 );
                 vfs.insert("README.md", Self::render_template(JS_README, &ctx, "README.md")?);
                 vfs.insert("src/index.ts", Self::render_template(JS_INDEX, &ctx, "src/index.ts")?);
+                vfs.insert(
+                    "pnpm-workspace.yaml",
+                    Self::render_template(JS_PNPM_WORKSPACE, &ctx, "pnpm-workspace.yaml")?,
+                );
             }
         }
 
@@ -147,5 +152,17 @@ mod tests {
         })
         .unwrap();
         assert!(vfs.get("tsconfig.json").is_some());
+    }
+
+    #[test]
+    fn javascript_pnpm_workspace_allowlists_build_scripts() {
+        let vfs = InitTool::scaffold(InitToolParams {
+            name: "my-tool".into(),
+            language: ToolLanguage::Javascript,
+        })
+        .unwrap();
+        let content = vfs.get("pnpm-workspace.yaml").unwrap();
+        assert!(content.contains("esbuild"), "pnpm-workspace.yaml missing esbuild: {content}");
+        assert!(content.contains("@agentc-sh/tdk"), "pnpm-workspace.yaml missing tdk: {content}");
     }
 }
