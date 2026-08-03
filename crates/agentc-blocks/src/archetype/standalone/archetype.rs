@@ -44,7 +44,10 @@ use crate::{
     errors::BlocksError,
     feature::{ArchetypeStandalone, Cli, GenerationFeatureSet, HttpServer, LongLivedProcess},
     fields::FieldsSpec,
-    graph::codegen::prompt::PromptCargoFragment,
+    graph::codegen::{
+        prompt::PromptCargoFragment,
+        tools::javascript::{JavascriptToolCargoFragment, JavascriptTools},
+    },
     runtime::EMBEDDED_RUNTIME,
 };
 
@@ -143,6 +146,132 @@ impl Archetype for StandaloneArchetype {
         config: Self::Config,
     ) -> Result<ResolvedArchetype, BlocksError> {
         let fields = FieldsSpec::collect_from(&context);
+        let mut blocks = BlockSet::new()
+            .add(
+                TemplateBlock::builder()
+                    .with_manifest(TemplateBlockManifest {
+                        id: "cargo_toml".to_string(),
+                        files: vec![FileSpec {
+                            path: "Cargo.toml".to_string(),
+                            template: "cargo_toml".to_string(),
+                            condition: None,
+                        }],
+                        extension_points: vec![ExtensionPointSpec {
+                            name: "tools::features".to_string(),
+                            reducer: Reducer::JoinComma,
+                        }],
+                        slot_fills: vec![],
+                        description: None,
+                    })
+                    .typed_extension_point(CargoDependenciesExtensionPoint::new(
+                        "cargo::dependencies",
+                        env!("CARGO_PKG_VERSION"),
+                    ))
+                    .typed_extension_point(CargoPatchesExtensionPoint::new("cargo::patches"))
+                    .with_template("cargo_toml", include_str!("templates/Cargo.toml.j2"))
+                    .with_var("runtime_version", env!("CARGO_PKG_VERSION"))
+                    .build(),
+            )
+            .add(
+                TemplateBlock::builder()
+                    .with_manifest(TemplateBlockManifest {
+                        id: "rust-toolchain_toml".to_string(),
+                        files: vec![FileSpec {
+                            path: "rust-toolchain.toml".to_string(),
+                            template: "rust-toolchain_toml".to_string(),
+                            condition: None,
+                        }],
+                        extension_points: vec![],
+                        slot_fills: vec![],
+                        description: None,
+                    })
+                    .with_template(
+                        "rust-toolchain_toml",
+                        include_str!("templates/rust-toolchain.toml.j2"),
+                    )
+                    .build(),
+            )
+            .add(
+                CodeGenBlock::builder()
+                    .id("build_rs")
+                    .build(BuildScriptCodeGen),
+            )
+            .add(
+                TemplateFragmentBlock::builder()
+                    .id("a2a_client_cargo")
+                    .contribute(Contribution::<CargoDependencyContribution>::strict(
+                        "cargo::dependencies",
+                    ))
+                    .contribute(Contribution::<CargoPatchContribution>::strict("cargo::patches"))
+                    .build(A2aClientCargoFragment),
+            )
+            .add(
+                TemplateFragmentBlock::builder()
+                    .id("prompt_cargo")
+                    .contribute(Contribution::<CargoDependencyContribution>::strict(
+                        "cargo::dependencies",
+                    ))
+                    .contribute(Contribution::<CargoPatchContribution>::strict("cargo::patches"))
+                    .build(PromptCargoFragment),
+            )
+            .add(
+                CodeGenBlock::builder()
+                    .id("migrator_rs")
+                    .extension_point("migrator::use", reducers::concat)
+                    .extension_point("migrator::migrations", reducers::concat)
+                    .build(MigratorCodeGen),
+            )
+            .add(
+                CodeGenBlock::builder()
+                    .id("config_rs")
+                    .extension_point("config::use", reducers::concat)
+                    .extension_point("config::fields", reducers::concat)
+                    .extension_point("config::impls", reducers::concat)
+                    .extension_point("config::loader", reducers::concat)
+                    .extension_point("config::mapper", reducers::concat)
+                    .build(ConfigCodeGen { fields: fields.clone() }),
+            )
+            .add(
+                CodeGenBlock::builder()
+                    .id("cli_mod")
+                    .extension_point("cli::mod::use", reducers::concat)
+                    .extension_point("cli::mod::variants", reducers::concat)
+                    .extension_point("cli::mod::arms", reducers::concat)
+                    .build(CliModCodeGen),
+            )
+            .add(
+                CodeGenBlock::builder()
+                    .id("cli_shutdown")
+                    .build(CliShutdownCodeGen),
+            )
+            .add(
+                CodeGenBlock::builder()
+                    .id("cli_config")
+                    .build(CliConfigCodeGen),
+            )
+            .add(
+                CodeGenBlock::builder()
+                    .id("cli_migrate")
+                    .build(CliMigrateCodeGen),
+            )
+            .add(
+                CodeGenBlock::builder()
+                    .id("main_rs")
+                    .extension_point("main::modules", reducers::concat)
+                    .build(EntrypointCodeGen),
+            );
+
+        if JavascriptTools::is_present(&context) {
+            blocks = blocks.add(
+                TemplateFragmentBlock::builder()
+                    .id("javascript_tool_cargo")
+                    .contribute(Contribution::<CargoDependencyContribution>::strict(
+                        "cargo::dependencies",
+                    ))
+                    .contribute(Contribution::<CargoPatchContribution>::strict("cargo::patches"))
+                    .build(JavascriptToolCargoFragment),
+            );
+        }
 
         Ok(ResolvedArchetype {
             name: self.name().to_string(),
@@ -151,132 +280,7 @@ impl Archetype for StandaloneArchetype {
                 .target_triple()?
                 .map(|t| t.to_string()),
             contribution: GenerationContribution::new()
-                .with_blocks(
-                    BlockSet::new()
-                        .add(
-                            TemplateBlock::builder()
-                                .with_manifest(TemplateBlockManifest {
-                                    id: "cargo_toml".to_string(),
-                                    files: vec![FileSpec {
-                                        path: "Cargo.toml".to_string(),
-                                        template: "cargo_toml".to_string(),
-                                        condition: None,
-                                    }],
-                                    extension_points: vec![ExtensionPointSpec {
-                                        name: "tools::features".to_string(),
-                                        reducer: Reducer::JoinComma,
-                                    }],
-                                    slot_fills: vec![],
-                                    description: None,
-                                })
-                                .typed_extension_point(CargoDependenciesExtensionPoint::new(
-                                    "cargo::dependencies",
-                                    env!("CARGO_PKG_VERSION"),
-                                ))
-                                .typed_extension_point(CargoPatchesExtensionPoint::new(
-                                    "cargo::patches",
-                                ))
-                                .with_template(
-                                    "cargo_toml",
-                                    include_str!("templates/Cargo.toml.j2"),
-                                )
-                                .with_var("runtime_version", env!("CARGO_PKG_VERSION"))
-                                .build(),
-                        )
-                        .add(
-                            TemplateBlock::builder()
-                                .with_manifest(TemplateBlockManifest {
-                                    id: "rust-toolchain_toml".to_string(),
-                                    files: vec![FileSpec {
-                                        path: "rust-toolchain.toml".to_string(),
-                                        template: "rust-toolchain_toml".to_string(),
-                                        condition: None,
-                                    }],
-                                    extension_points: vec![],
-                                    slot_fills: vec![],
-                                    description: None,
-                                })
-                                .with_template(
-                                    "rust-toolchain_toml",
-                                    include_str!("templates/rust-toolchain.toml.j2"),
-                                )
-                                .build(),
-                        )
-                        .add(
-                            CodeGenBlock::builder()
-                                .id("build_rs")
-                                .build(BuildScriptCodeGen),
-                        )
-                        .add(
-                            TemplateFragmentBlock::builder()
-                                .id("a2a_client_cargo")
-                                .contribute(Contribution::<CargoDependencyContribution>::strict(
-                                    "cargo::dependencies",
-                                ))
-                                .contribute(Contribution::<CargoPatchContribution>::strict(
-                                    "cargo::patches",
-                                ))
-                                .build(A2aClientCargoFragment),
-                        )
-                        .add(
-                            TemplateFragmentBlock::builder()
-                                .id("prompt_cargo")
-                                .contribute(Contribution::<CargoDependencyContribution>::strict(
-                                    "cargo::dependencies",
-                                ))
-                                .contribute(Contribution::<CargoPatchContribution>::strict(
-                                    "cargo::patches",
-                                ))
-                                .build(PromptCargoFragment),
-                        )
-                        .add(
-                            CodeGenBlock::builder()
-                                .id("migrator_rs")
-                                .extension_point("migrator::use", reducers::concat)
-                                .extension_point("migrator::migrations", reducers::concat)
-                                .build(MigratorCodeGen),
-                        )
-                        .add(
-                            CodeGenBlock::builder()
-                                .id("config_rs")
-                                .extension_point("config::use", reducers::concat)
-                                .extension_point("config::fields", reducers::concat)
-                                .extension_point("config::impls", reducers::concat)
-                                .extension_point("config::loader", reducers::concat)
-                                .extension_point("config::mapper", reducers::concat)
-                                .build(ConfigCodeGen { fields: fields.clone() }),
-                        )
-                        .add(
-                            CodeGenBlock::builder()
-                                .id("cli_mod")
-                                .extension_point("cli::mod::use", reducers::concat)
-                                .extension_point("cli::mod::variants", reducers::concat)
-                                .extension_point("cli::mod::arms", reducers::concat)
-                                .build(CliModCodeGen),
-                        )
-                        .add(
-                            CodeGenBlock::builder()
-                                .id("cli_shutdown")
-                                .build(CliShutdownCodeGen),
-                        )
-                        .add(
-                            CodeGenBlock::builder()
-                                .id("cli_config")
-                                .build(CliConfigCodeGen),
-                        )
-                        .add(
-                            CodeGenBlock::builder()
-                                .id("cli_migrate")
-                                .build(CliMigrateCodeGen),
-                        )
-                        .add(
-                            CodeGenBlock::builder()
-                                .id("main_rs")
-                                .extension_point("main::modules", reducers::concat)
-                                .build(EntrypointCodeGen),
-                        )
-                        .into_inner(),
-                )
+                .with_blocks(blocks.into_inner())
                 .with_embedded_assets(EMBEDDED_RUNTIME.iter().collect())
                 .with_provides(
                     GenerationFeatureSet::new()
@@ -296,8 +300,8 @@ mod tests {
     use super::*;
     use crate::{
         context::{
-            ResolvedContextTool, ResolvedContextToolKind, ResolvedContextToolPython,
-            ResolvedContextToolPythonInterpreter,
+            ResolvedContextTool, ResolvedContextToolJavascript, ResolvedContextToolKind,
+            ResolvedContextToolPython, ResolvedContextToolPythonInterpreter,
         },
         contributions::dependency::RuntimeDependencyContribution,
         types::RuntimeValue,
@@ -347,6 +351,27 @@ mod tests {
                     site_packages_path: "/artifacts/adder/.venv/site-packages".to_string(),
                     module_name: "adder".to_string(),
                     interpreter: ResolvedContextToolPythonInterpreter::Static,
+                }),
+            },
+        );
+
+        ctx
+    }
+
+    fn javascript_context() -> ResolvedContext {
+        let mut ctx = context(None);
+
+        ctx.tools.insert(
+            "search".to_string(),
+            ResolvedContextTool {
+                name: "search".to_string(),
+                description: None,
+                enabled: RuntimeValue::constant(true),
+                capabilities: vec![],
+                config: HashMap::new(),
+                kind: ResolvedContextToolKind::Javascript(ResolvedContextToolJavascript {
+                    bundle_path: "/artifacts/search/dist/index.js".to_string(),
+                    export_name: "search".to_string(),
                 }),
             },
         );
@@ -578,5 +603,87 @@ mod tests {
             "agentc-tools = {{ version = \"{}\", default-features = false, features = [\"python-static\"] }}",
             env!("CARGO_PKG_VERSION"),
         )));
+    }
+
+    #[test]
+    fn registers_javascript_tool_cargo_fragment_with_javascript_tool() {
+        let resolved = StandaloneArchetype
+            .resolve(javascript_context(), StandaloneArchetypeConfig::default())
+            .unwrap();
+
+        assert!(
+            resolved
+                .contribution
+                .blocks
+                .iter()
+                .any(|block| block.id() == "javascript_tool_cargo")
+        );
+    }
+
+    #[test]
+    fn omits_javascript_tool_cargo_fragment_without_javascript_tool() {
+        let resolved = StandaloneArchetype
+            .resolve(context(None), StandaloneArchetypeConfig::default())
+            .unwrap();
+
+        assert!(
+            !resolved
+                .contribution
+                .blocks
+                .iter()
+                .any(|block| block.id() == "javascript_tool_cargo")
+        );
+    }
+
+    #[tokio::test]
+    async fn contributes_executor_dependency_when_javascript_tool_present() {
+        let ctx = javascript_context();
+        let resolved = StandaloneArchetype
+            .resolve(ctx.clone(), StandaloneArchetypeConfig::default())
+            .unwrap();
+
+        let dependency = resolved
+            .contribution
+            .blocks
+            .iter()
+            .find(|block| block.id() == "javascript_tool_cargo")
+            .expect("javascript tool cargo block is registered")
+            .render_contribution(&GenerationContext::new(ctx), "cargo::dependencies")
+            .await
+            .unwrap()
+            .downcast::<CargoDependencyContribution>()
+            .unwrap();
+
+        assert!(matches!(
+            dependency,
+            CargoDependencyContribution::Runtime(dependency)
+                if dependency.name == "agentc-executor-typescript"
+        ));
+    }
+
+    #[tokio::test]
+    async fn contributes_executor_patch_when_javascript_tool_present() {
+        let ctx = javascript_context();
+        let resolved = StandaloneArchetype
+            .resolve(ctx.clone(), StandaloneArchetypeConfig::default())
+            .unwrap();
+
+        let patch = resolved
+            .contribution
+            .blocks
+            .iter()
+            .find(|block| block.id() == "javascript_tool_cargo")
+            .expect("javascript tool cargo block is registered")
+            .render_contribution(&GenerationContext::new(ctx), "cargo::patches")
+            .await
+            .unwrap()
+            .downcast::<CargoPatchContribution>()
+            .unwrap();
+
+        assert!(matches!(
+            patch,
+            CargoPatchContribution::Runtime(dependency)
+                if dependency.name == "agentc-executor-typescript"
+        ));
     }
 }

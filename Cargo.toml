@@ -25,6 +25,7 @@ members = [
     "crates/agentc-mcp",
     "crates/agentc-config",
     "crates/agentc-prompt",
+    "crates/agentc-executor-typescript",
     "crates/agentc-compiler",
     "crates/agentc-blocks",
     "crates/agentc-core",

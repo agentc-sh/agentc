@@ -163,6 +163,11 @@ pub static EMBEDDED_RUNTIME: &[EmbeddedAsset] = &[
         mode: ExtractionMode::TarGz,
     },
     EmbeddedAsset {
+        name: "agentc-executor-typescript",
+        bytes: include_bytes!("../../embedded/agentc-executor-typescript.crate"),
+        mode: ExtractionMode::TarGz,
+    },
+    EmbeddedAsset {
         name: "agentc-http",
         bytes: include_bytes!("../../embedded/agentc-http.crate"),
         mode: ExtractionMode::TarGz,
