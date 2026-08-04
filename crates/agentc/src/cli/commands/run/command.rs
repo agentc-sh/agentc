@@ -7,7 +7,6 @@ use clap::{ArgAction, Args};
 use std::path::PathBuf;
 
 use agentc_core::{
-    build::{pipeline::BuildPipeline, types::BuildParams},
     compiler::{
         asset::{ArtifactStore, AssetResolver, LocalFileHandler},
         generator::loader::FileSystemLoader,
@@ -15,11 +14,12 @@ use agentc_core::{
     },
     manifest::Manifest,
     parser::{SpecFormat, SpecParser, middleware::hcl::RuntimeFunctionDeserialize},
+    run::{pipeline::RunPipeline, types::RunParams},
 };
 
 use crate::cli::{
     catalog::DefaultCompilationCatalog,
-    commands::build::renderer::BuildStreamRenderer,
+    commands::run::renderer::RunStreamRenderer,
     context::Ctx,
     errors::CliError,
     traits::Cmd,
@@ -28,13 +28,10 @@ use crate::cli::{
 };
 
 #[derive(Clone, Args, Debug)]
-pub struct CliCommandBuild {
+pub struct CliCommandRun {
     /// The directory path containing the agent manifest file.
     #[clap(default_value = ".")]
     context: PathBuf,
-    /// The output directory where the compiled binary will be saved.
-    #[clap(short, long)]
-    output: Option<PathBuf>,
     /// Build in release mode.
     #[clap(long, action = ArgAction::SetTrue)]
     release: bool,
@@ -45,6 +42,9 @@ pub struct CliCommandBuild {
     #[clap(long, default_value = "auto")]
     format: UiFormat,
     /// Additional arguments to pass to the build process.
+    #[clap(long = "build-arg", value_name = "ARG")]
+    build_arg: Vec<String>,
+    /// Arguments to pass to the built agent.
     #[clap(last = true)]
     args: Vec<String>,
     /// Skip cleanup of ephemeral build artifacts (e.g. temporary venvs) after compilation.
@@ -53,13 +53,13 @@ pub struct CliCommandBuild {
     /// Override the directory used for compiler caches (e.g. cargo target dir).
     #[clap(long)]
     cache_dir: Option<PathBuf>,
-    /// Skip reading and writing the compiler cache for this build.
+    /// Skip reading and writing the compiler cache for this run.
     #[clap(long, action = ArgAction::SetTrue)]
     no_cache: bool,
 }
 
 #[async_trait]
-impl Cmd for CliCommandBuild {
+impl Cmd for CliCommandRun {
     async fn run(&self, _ctx: &mut Ctx) -> Result<CmdOutcome, CliError> {
         if !self.context.is_dir() || !self.context.join("agent.acl").is_file() {
             return Err(CliError::invalid_parameters(format!(
@@ -84,17 +84,11 @@ impl Cmd for CliCommandBuild {
             .await
             .map_err(|e| CliError::unexpected_error(e.to_string()))?;
 
-        let (pipeline, mut rx) = BuildPipeline::builder()
+        let (pipeline, mut rx) = RunPipeline::builder()
             .manifest(manifest)
-            .params(BuildParams {
-                output_dir: self
-                    .output
-                    .as_ref()
-                    .map(|p| {
-                        p.canonicalize()
-                            .unwrap_or_else(|_| p.clone())
-                    })
-                    .unwrap_or_else(|| context.join("artifacts").join("build")),
+            .params(RunParams {
+                context_dir: context.clone(),
+                output_dir: context.join("artifacts").join("build"),
                 target_dir: context
                     .join("artifacts")
                     .join("generated"),
@@ -109,6 +103,7 @@ impl Cmd for CliCommandBuild {
                 no_cache: self.no_cache,
                 release: self.release,
                 verbose: self.verbose,
+                build_args: self.build_arg.clone(),
                 args: self.args.clone(),
             })
             .asset_resolver(
@@ -127,7 +122,7 @@ impl Cmd for CliCommandBuild {
             .build()
             .map_err(|e| CliError::unexpected_error(e.to_string()))?;
 
-        let mut renderer = BuildStreamRenderer::new(self.format.ui(), self.verbose);
+        let mut renderer = RunStreamRenderer::new(self.format.ui(), self.verbose);
 
         let (result, _) = tokio::join!(async { pipeline.run().await }, async {
             while let Some(event) = rx.recv().await {
@@ -136,10 +131,15 @@ impl Cmd for CliCommandBuild {
         });
 
         match result {
-            Ok(_) => {
+            Ok(result) => {
                 renderer.on_success();
 
-                Ok(CmdOutcome::Success)
+                match result.exit_code {
+                    Some(0) => Ok(CmdOutcome::Success),
+                    Some(code) => Ok(CmdOutcome::failure(code)),
+                    // An invocation killed by a signal has no status of its own.
+                    None => Ok(CmdOutcome::failure(1)),
+                }
             }
             Err(e) => {
                 renderer.on_failure(&e.to_string());

@@ -13,6 +13,7 @@ pub mod inspect;
 pub mod manifest;
 pub mod parser;
 pub mod pipeline;
+pub mod run;
 
 pub mod blocks {
     pub use agentc_blocks::*;
