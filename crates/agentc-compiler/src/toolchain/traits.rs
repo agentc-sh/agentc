@@ -20,6 +20,7 @@ use crate::{
 pub trait Toolchain: Send + Sync {
     type Artifact: Send + Sync + 'static;
 
+    /// The compiler for this toolchain, which produces an artifact of the associated type.
     fn compiler(&self) -> &dyn Compiler<Artifact = Self::Artifact>;
 
     /// The runner for this toolchain, if what it builds can be invoked.
@@ -73,9 +74,7 @@ where
     T: Toolchain + 'static,
 {
     fn supports_run(&self) -> bool {
-        self.toolchain
-            .runner()
-            .is_some()
+        self.toolchain.runner().is_some()
     }
 
     async fn compile_erased(
@@ -94,18 +93,17 @@ where
     }
 
     async fn run_erased(&self, params: RunParams) -> Result<RunOutcome, ToolchainError> {
-        Ok(
-            self.toolchain
-                .runner()
-                .ok_or(ToolchainError::RunUnsupported)?
-                .run(
-                    self.artifact
-                        .as_ref()
-                        .ok_or(ToolchainError::NotBuilt)?,
-                    params,
-                )
-                .await?
-        )
+        Ok(self
+            .toolchain
+            .runner()
+            .ok_or(ToolchainError::RunUnsupported)?
+            .run(
+                self.artifact
+                    .as_ref()
+                    .ok_or(ToolchainError::NotBuilt)?,
+                params,
+            )
+            .await?)
     }
 }
 
@@ -174,7 +172,10 @@ mod tests {
         }
 
         fn without_runner() -> Self {
-            Self { compiler: RecordingCompiler, runner: None }
+            Self {
+                compiler: RecordingCompiler,
+                runner: None,
+            }
         }
     }
 
@@ -217,7 +218,8 @@ mod tests {
             .unwrap();
 
         assert!(matches!(
-            cell.run_erased(RunParams::new("/project")).await,
+            cell.run_erased(RunParams::new("/project"))
+                .await,
             Err(ToolchainError::RunUnsupported),
         ));
     }
@@ -229,11 +231,9 @@ mod tests {
         cell.compile_erased(CompileParams::new("/project", "/out"), &NullOutputSink)
             .await
             .unwrap();
-        cell.run_erased(
-            RunParams::new("/project").with_args(["run", "hello"]),
-        )
-        .await
-        .unwrap();
+        cell.run_erased(RunParams::new("/project").with_args(["run", "hello"]))
+            .await
+            .unwrap();
 
         assert_eq!(
             cell.toolchain

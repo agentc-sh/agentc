@@ -130,10 +130,7 @@ mod tests {
         }
 
         async fn run_erased(&self, params: RunParams) -> Result<RunOutcome, ToolchainError> {
-            self.seen
-                .lock()
-                .unwrap()
-                .push(params);
+            self.seen.lock().unwrap().push(params);
 
             Ok(RunOutcome::new(self.exit_code))
         }
@@ -146,7 +143,9 @@ mod tests {
         assert_eq!(
             LaunchStep::new(PathBuf::from("/project"), Vec::new())
                 .execute(
-                    LaunchStepInput { toolchain: Box::new(FakeToolchain::new(Some(3))) },
+                    LaunchStepInput {
+                        toolchain: Box::new(FakeToolchain::new(Some(3)))
+                    },
                     tx,
                 )
                 .await
@@ -163,7 +162,9 @@ mod tests {
         assert_eq!(
             LaunchStep::new(PathBuf::from("/project"), Vec::new())
                 .execute(
-                    LaunchStepInput { toolchain: Box::new(FakeToolchain::new(None)) },
+                    LaunchStepInput {
+                        toolchain: Box::new(FakeToolchain::new(None))
+                    },
                     tx,
                 )
                 .await
@@ -178,18 +179,15 @@ mod tests {
         let (tx, _rx) = mpsc::channel(8);
         let seen = Recorder::default();
 
-        LaunchStep::new(
-            PathBuf::from("/project"),
-            vec!["run".to_string(), "hello".to_string()],
-        )
-        .execute(
-            LaunchStepInput {
-                toolchain: Box::new(FakeToolchain::recording(Some(0), seen.clone())),
-            },
-            tx,
-        )
-        .await
-        .unwrap();
+        LaunchStep::new(PathBuf::from("/project"), vec!["run".to_string(), "hello".to_string()])
+            .execute(
+                LaunchStepInput {
+                    toolchain: Box::new(FakeToolchain::recording(Some(0), seen.clone())),
+                },
+                tx,
+            )
+            .await
+            .unwrap();
 
         let seen = seen.lock().unwrap();
 

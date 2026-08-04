@@ -217,9 +217,9 @@ impl RunPipelineBuilder {
                 asset_resolver: self.asset_resolver.ok_or_else(|| {
                     RunError::pipeline_configuration("asset resolver is required")
                 })?,
-                loader: self
-                    .loader
-                    .ok_or_else(|| RunError::pipeline_configuration("resource loader is required"))?,
+                loader: self.loader.ok_or_else(|| {
+                    RunError::pipeline_configuration("resource loader is required")
+                })?,
                 catalog: self.catalog.ok_or_else(|| {
                     RunError::pipeline_configuration("compilation catalog is required")
                 })?,

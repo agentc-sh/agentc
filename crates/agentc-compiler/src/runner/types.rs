@@ -15,7 +15,10 @@ pub struct RunParams {
 
 impl RunParams {
     pub fn new(context_dir: impl Into<PathBuf>) -> Self {
-        Self { context_dir: context_dir.into(), args: Vec::new() }
+        Self {
+            context_dir: context_dir.into(),
+            args: Vec::new(),
+        }
     }
 
     pub fn with_args<I, A>(mut self, args: I) -> Self

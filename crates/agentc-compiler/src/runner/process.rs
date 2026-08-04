@@ -68,20 +68,18 @@ impl Runner for ProcessRunner {
         // Inheriting stdio hands the terminal to the child, which keeps its output
         // unbuffered and its input interactive. On unix it also delivers Ctrl+C
         // through the foreground process group, so no signal handling is needed here.
-        Ok(
-            RunOutcome::new(
-                Command::new(&invocation.program)
-                    .current_dir(&invocation.working_dir)
-                    .args(&invocation.args)
-                    .stdin(Stdio::inherit())
-                    .stdout(Stdio::inherit())
-                    .stderr(Stdio::inherit())
-                    .spawn()?
-                    .wait()
-                    .await?
-                    .code(),
-            )
-        )
+        Ok(RunOutcome::new(
+            Command::new(&invocation.program)
+                .current_dir(&invocation.working_dir)
+                .args(&invocation.args)
+                .stdin(Stdio::inherit())
+                .stdout(Stdio::inherit())
+                .stderr(Stdio::inherit())
+                .spawn()?
+                .wait()
+                .await?
+                .code(),
+        ))
     }
 }
 

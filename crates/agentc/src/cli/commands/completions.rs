@@ -8,9 +8,7 @@ use async_trait::async_trait;
 use clap::{Args, CommandFactory};
 use clap_complete::{Shell, generate};
 
-use crate::cli::{
-    args::CliArgs, context::Ctx, errors::CliError, traits::Cmd, types::CmdOutcome,
-};
+use crate::cli::{args::CliArgs, context::Ctx, errors::CliError, traits::Cmd, types::CmdOutcome};
 
 #[derive(Debug, Clone, Args)]
 pub struct CliCommandCompletions {
