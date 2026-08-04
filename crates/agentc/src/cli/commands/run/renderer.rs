@@ -159,7 +159,7 @@ impl<U: Ui> StreamRenderer<RunEvent> for RunStreamRenderer<U> {
             // The invocation owns the terminal from here on, so every indicator is
             // retired and nothing further is printed until `on_failure`.
             RunEvent::Launching => {
-                self.finish_active(&format!("running {}", self.agent()));
+                self.ui.success(&format!("running {}", self.agent()));
                 self.ui.println("");
             }
             _ => {}
