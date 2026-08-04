@@ -7,8 +7,9 @@ use std::path::PathBuf;
 use thiserror::Error;
 
 use agentc_compiler::{
-    compiler::{CompileParams, Compiler, CompilerError, OutputSink},
+    compiler::{CompileParams, OutputSink},
     generator::vfs::VirtualFileSystem,
+    toolchain::{errors::ToolchainError, traits::ErasedToolchain},
     transformer::types::TransformedAsset,
 };
 
@@ -20,8 +21,8 @@ use crate::pipeline::{
 
 #[derive(Debug, Error)]
 pub enum CompileStepError {
-    #[error("compiler error: {0}")]
-    Compiler(#[from] CompilerError),
+    #[error("toolchain error: {0}")]
+    Toolchain(#[from] ToolchainError),
 
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
@@ -43,7 +44,7 @@ pub struct CompileStepInput {
     pub agent_name: String,
     pub archetype_name: String,
     pub vfs: VirtualFileSystem,
-    pub compiler: Box<dyn Compiler>,
+    pub toolchain: Box<dyn ErasedToolchain>,
     pub assets: Vec<TransformedAsset>,
 }
 
@@ -53,7 +54,7 @@ impl From<ExtractStepOutput> for CompileStepInput {
             agent_name: output.agent_name,
             archetype_name: output.archetype_name,
             vfs: output.vfs,
-            compiler: output.compiler,
+            toolchain: output.toolchain,
             assets: output.assets,
         }
     }
@@ -61,6 +62,7 @@ impl From<ExtractStepOutput> for CompileStepInput {
 
 pub struct CompileStepOutput {
     pub output_dir: PathBuf,
+    pub toolchain: Box<dyn ErasedToolchain>,
     pub assets: Vec<TransformedAsset>,
 }
 
@@ -136,7 +138,7 @@ impl Step for CompileStep {
     type Event = CompileStepEvent;
     type Error = CompileStepError;
 
-    async fn execute<S>(self, input: Self::Input, tx: S) -> Result<Self::Output, Self::Error>
+    async fn execute<S>(self, mut input: Self::Input, tx: S) -> Result<Self::Output, Self::Error>
     where
         S: Tx<Item = Self::Event> + Clone + Send + Sync + 'static,
     {
@@ -157,25 +159,25 @@ impl Step for CompileStep {
             .await
             .map_err(|_| CompileStepError::EventChannelClosed)?;
 
-        let sink = CompilerOutputSink { tx: &tx };
-        let artifact = input
-            .compiler
-            .compile(
+        input
+            .toolchain
+            .compile_erased(
                 CompileParams::new(self.project_dir.clone(), self.output_dir.clone())
                     .maybe_with_cache_dir(self.cache_dir.clone())
                     .with_release(self.release)
                     .with_verbose(self.verbose)
                     .with_args(self.args.clone()),
-                &sink,
+                &CompilerOutputSink { tx: &tx },
             )
             .await?;
 
-        tx.send(CompileStepEvent::CompileCompleted { output_dir: artifact.target_dir.clone() })
+        tx.send(CompileStepEvent::CompileCompleted { output_dir: self.output_dir.clone() })
             .await
             .map_err(|_| CompileStepError::EventChannelClosed)?;
 
         Ok(CompileStepOutput {
-            output_dir: artifact.target_dir,
+            output_dir: self.output_dir,
+            toolchain: input.toolchain,
             assets: input.assets,
         })
     }

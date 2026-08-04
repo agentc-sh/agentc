@@ -5,8 +5,11 @@
 #[allow(unused_extern_crates)]
 extern crate self as agentc_compiler;
 
+pub mod artifact;
 pub mod asset;
 pub mod compiler;
 pub mod generator;
+pub mod runner;
+pub mod toolchain;
 pub mod transformer;
 pub mod utils;

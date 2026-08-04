@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter, Result as FmtResult};
 
 use agentc_compiler::{
-    compiler::cargo::CargoCompiler,
     generator::{
         blocks::{
             BlockSet,
@@ -18,6 +17,7 @@ use agentc_compiler::{
         },
         extension::{Contribution, reducers},
     },
+    toolchain::traits::ErasedToolchainCell,
 };
 
 use crate::{
@@ -36,6 +36,7 @@ use crate::{
             entrypoint::EntrypointCodeGen,
             migrator::MigratorCodeGen,
         },
+        standalone::toolchain::StandaloneToolchain,
         traits::Archetype,
         types::ResolvedArchetype,
     },
@@ -275,10 +276,10 @@ impl Archetype for StandaloneArchetype {
 
         Ok(ResolvedArchetype {
             name: self.name().to_string(),
-            compiler: Box::new(CargoCompiler::new()),
-            target: config
-                .target_triple()?
-                .map(|t| t.to_string()),
+            toolchain: ErasedToolchainCell::erase(StandaloneToolchain::new(
+                config.target_triple()?,
+                TargetTriple::from((Os::current()?, Arch::current()?)),
+            )),
             contribution: GenerationContribution::new()
                 .with_blocks(blocks.into_inner())
                 .with_embedded_assets(EMBEDDED_RUNTIME.iter().collect())

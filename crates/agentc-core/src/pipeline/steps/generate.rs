@@ -7,10 +7,10 @@ use thiserror::Error;
 
 use agentc_blocks::{context::ResolvedContext, runtime::EmbeddedAsset};
 use agentc_compiler::{
-    compiler::Compiler,
     generator::{
         blocks::Block, errors::GeneratorError, pipeline::Generator, vfs::VirtualFileSystem,
     },
+    toolchain::traits::ErasedToolchain,
     transformer::types::TransformedAsset,
 };
 
@@ -36,7 +36,7 @@ pub struct GenerateStepInput {
     pub graph_name: String,
     pub context: ResolvedContext,
     pub blocks: Vec<Box<dyn Block<ResolvedContext>>>,
-    pub compiler: Box<dyn Compiler>,
+    pub toolchain: Box<dyn ErasedToolchain>,
     pub assets: Vec<TransformedAsset>,
     pub embedded_assets: Vec<&'static EmbeddedAsset>,
 }
@@ -49,7 +49,7 @@ impl From<ComposeStepOutput> for GenerateStepInput {
             graph_name: output.graph_name,
             context: output.context,
             blocks: output.blocks,
-            compiler: output.compiler,
+            toolchain: output.toolchain,
             assets: output.assets,
             embedded_assets: output.embedded_assets,
         }
@@ -61,7 +61,7 @@ pub struct GenerateStepOutput {
     pub archetype_name: String,
     pub graph_name: String,
     pub vfs: VirtualFileSystem,
-    pub compiler: Box<dyn Compiler>,
+    pub toolchain: Box<dyn ErasedToolchain>,
     pub assets: Vec<TransformedAsset>,
     pub embedded_assets: Vec<&'static EmbeddedAsset>,
 }
@@ -111,7 +111,7 @@ impl Step for GenerateStep {
             archetype_name: input.archetype_name,
             graph_name: input.graph_name,
             vfs,
-            compiler: input.compiler,
+            toolchain: input.toolchain,
             assets: input.assets,
             embedded_assets: input.embedded_assets,
         })
