@@ -7,7 +7,7 @@ pub mod method;
 pub mod pattern;
 
 pub use crate::client::policies::{
-    address::PublicAddressFilter,
+    address::PublicAddressPolicy,
     method::MethodPolicy,
     pattern::{PatternPolicy, UrlPattern},
 };

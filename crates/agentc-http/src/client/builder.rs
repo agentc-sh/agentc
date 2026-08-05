@@ -15,7 +15,7 @@ use crate::client::{
     errors::{HttpClientError, RedirectRejection},
     limits::Limits,
     middleware::PolicyMiddleware,
-    policy::{AddressFilter, Policy, RedirectContext},
+    policy::{Policy, RedirectContext},
     resolver::GuardedResolver,
 };
 
@@ -34,7 +34,6 @@ pub struct HttpClientBuilder {
     max_response_bytes: Option<u64>,
     concurrency: Option<Arc<Semaphore>>,
     policies: Vec<Arc<dyn Policy>>,
-    address_filter: Option<Arc<dyn AddressFilter>>,
     middleware: Vec<Arc<dyn Middleware>>,
     header_error: Option<String>,
 }
@@ -88,7 +87,6 @@ impl HttpClientBuilder {
             max_response_bytes: None,
             concurrency: None,
             policies: Vec::new(),
-            address_filter: None,
             middleware: Vec::new(),
             header_error: None,
         }
@@ -178,12 +176,6 @@ impl HttpClientBuilder {
         self
     }
 
-    /// Sets the filter applied to every resolved address.
-    pub fn address_filter(mut self, filter: impl AddressFilter) -> Self {
-        self.address_filter = Some(Arc::new(filter));
-        self
-    }
-
     /// Adds a middleware applied after the policy and tracing middleware.
     pub fn middleware(mut self, middleware: impl Middleware) -> Self {
         self.middleware.push(Arc::new(middleware));
@@ -215,8 +207,8 @@ impl HttpClientBuilder {
             transport = transport.read_timeout(timeout);
         }
 
-        if let Some(filter) = &self.address_filter {
-            transport = transport.dns_resolver(Arc::new(GuardedResolver::new(filter.clone())));
+        if !policies.is_empty() {
+            transport = transport.dns_resolver(Arc::new(GuardedResolver::new(policies.clone())));
         }
 
         let mut client = ClientBuilder::new(

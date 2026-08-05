@@ -4,20 +4,22 @@
 
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 
-use crate::client::policy::AddressFilter;
+use url::{Host, Url};
+
+use crate::client::policy::{Denied, Policy};
 
 /// Permits only public unicast addresses.
 ///
 /// Loopback, private, link-local, unique-local, unspecified, broadcast, and documentation
 /// addresses are refused unless individually permitted.
 #[derive(Default)]
-pub struct PublicAddressFilter {
+pub struct PublicAddressPolicy {
     loopback: bool,
     private: bool,
     link_local: bool,
 }
 
-impl PublicAddressFilter {
+impl PublicAddressPolicy {
     fn permits_v4(&self, address: Ipv4Addr) -> bool {
         if address.is_unspecified() || address.is_broadcast() || Self::is_documentation(address) {
             return false;
@@ -62,6 +64,13 @@ impl PublicAddressFilter {
         matches!(address.octets(), [192, 0, 2, _] | [198, 51, 100, _] | [203, 0, 113, _])
     }
 
+    fn permits(&self, address: IpAddr) -> bool {
+        match address {
+            IpAddr::V4(address) => self.permits_v4(address),
+            IpAddr::V6(address) => self.permits_v6(address),
+        }
+    }
+
     /// Additionally permits loopback addresses.
     pub fn allow_loopback(mut self) -> Self {
         self.loopback = true;
@@ -81,15 +90,32 @@ impl PublicAddressFilter {
     }
 }
 
-impl AddressFilter for PublicAddressFilter {
+impl Policy for PublicAddressPolicy {
     fn name(&self) -> &'static str {
         "public-addresses"
     }
 
-    fn allows(&self, _host: &str, address: SocketAddr) -> bool {
-        match address.ip() {
-            IpAddr::V4(address) => self.permits_v4(address),
-            IpAddr::V6(address) => self.permits_v6(address),
+    fn check_url(&self, url: &Url) -> Result<(), Denied> {
+        // A destination written as a literal address never reaches the resolver, so the same rule
+        // has to recognize it here.
+        match url.host() {
+            Some(Host::Ipv4(address)) if !self.permits(address.into()) => {
+                Err(Denied::new(format!("address {address} is not permitted")))
+            }
+            Some(Host::Ipv6(address)) if !self.permits(address.into()) => {
+                Err(Denied::new(format!("address {address} is not permitted")))
+            }
+            _ => Ok(()),
+        }
+    }
+
+    fn check_address(&self, _host: &str, address: SocketAddr) -> Result<(), Denied> {
+        match self.permits(address.ip()) {
+            true => Ok(()),
+            false => Err(Denied::new(format!(
+                "address {} is not permitted",
+                address.ip(),
+            ))),
         }
     }
 }
@@ -104,31 +130,74 @@ mod tests {
             .expect("test address parses")
     }
 
+    fn url(value: &str) -> Url {
+        Url::parse(value).expect("test url parses")
+    }
+
     #[test]
     fn public_addresses_are_permitted() {
-        assert!(PublicAddressFilter::default().allows("example.com", address("93.184.216.34")));
+        assert!(
+            PublicAddressPolicy::default()
+                .check_address("example.com", address("93.184.216.34"))
+                .is_ok()
+        );
     }
 
     #[test]
     fn loopback_and_private_addresses_are_refused() {
-        let filter = PublicAddressFilter::default();
+        let policy = PublicAddressPolicy::default();
 
-        assert!(!filter.allows("example.com", address("127.0.0.1")));
-        assert!(!filter.allows("example.com", address("10.0.0.1")));
-        assert!(!filter.allows("example.com", address("192.168.1.1")));
+        assert!(
+            policy
+                .check_address("example.com", address("127.0.0.1"))
+                .is_err()
+        );
+        assert!(
+            policy
+                .check_address("example.com", address("10.0.0.1"))
+                .is_err()
+        );
+        assert!(
+            policy
+                .check_address("example.com", address("192.168.1.1"))
+                .is_err()
+        );
     }
 
     #[test]
     fn the_cloud_metadata_address_is_refused() {
-        assert!(!PublicAddressFilter::default().allows("example.com", address("169.254.169.254")));
+        assert!(
+            PublicAddressPolicy::default()
+                .check_address("example.com", address("169.254.169.254"))
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn a_literal_address_is_refused_without_resolution() {
+        assert!(
+            PublicAddressPolicy::default()
+                .check_url(&url("http://169.254.169.254/latest/meta-data"))
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn a_host_name_is_left_to_resolution() {
+        assert!(
+            PublicAddressPolicy::default()
+                .check_url(&url("https://example.com/"))
+                .is_ok()
+        );
     }
 
     #[test]
     fn refused_ranges_can_be_permitted_individually() {
         assert!(
-            PublicAddressFilter::default()
+            PublicAddressPolicy::default()
                 .allow_loopback()
-                .allows("localhost", address("127.0.0.1"))
+                .check_address("localhost", address("127.0.0.1"))
+                .is_ok()
         );
     }
 }

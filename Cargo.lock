@@ -418,6 +418,8 @@ version = "0.3.1"
 dependencies = [
  "futures",
  "guestjs",
+ "serde",
+ "serde_json",
  "thiserror 2.0.18",
  "tokio",
  "tokio-util",
@@ -2754,8 +2756,8 @@ dependencies = [
 
 [[package]]
 name = "guestjs"
-version = "0.1.6"
-source = "git+https://github.com/wizrds/guestjs.git?rev=0.1.6#17113f6b6c1117a6a348c0a47073e25720699ac7"
+version = "0.1.7"
+source = "git+https://github.com/wizrds/guestjs.git?rev=0.1.7#c986f7c63a40e5d1ecb05fb9f0fbc459e93d60fc"
 dependencies = [
  "async-trait",
  "guestjs-core",
@@ -2768,8 +2770,8 @@ dependencies = [
 
 [[package]]
 name = "guestjs-core"
-version = "0.1.6"
-source = "git+https://github.com/wizrds/guestjs.git?rev=0.1.6#17113f6b6c1117a6a348c0a47073e25720699ac7"
+version = "0.1.7"
+source = "git+https://github.com/wizrds/guestjs.git?rev=0.1.7#c986f7c63a40e5d1ecb05fb9f0fbc459e93d60fc"
 dependencies = [
  "async-trait",
  "bytes",
@@ -2785,8 +2787,8 @@ dependencies = [
 
 [[package]]
 name = "guestjs-llrt"
-version = "0.1.6"
-source = "git+https://github.com/wizrds/guestjs.git?rev=0.1.6#17113f6b6c1117a6a348c0a47073e25720699ac7"
+version = "0.1.7"
+source = "git+https://github.com/wizrds/guestjs.git?rev=0.1.7#c986f7c63a40e5d1ecb05fb9f0fbc459e93d60fc"
 dependencies = [
  "bytes",
  "futures",
@@ -2798,8 +2800,8 @@ dependencies = [
 
 [[package]]
 name = "guestjs-macros"
-version = "0.1.6"
-source = "git+https://github.com/wizrds/guestjs.git?rev=0.1.6#17113f6b6c1117a6a348c0a47073e25720699ac7"
+version = "0.1.7"
+source = "git+https://github.com/wizrds/guestjs.git?rev=0.1.7#c986f7c63a40e5d1ecb05fb9f0fbc459e93d60fc"
 dependencies = [
  "darling 0.23.0",
  "heck 0.5.0",

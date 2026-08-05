@@ -18,11 +18,6 @@ pub enum HttpClientError {
     #[error("denied by policy '{policy}': {reason}")]
     Denied { policy: &'static str, reason: String },
 
-    /// Every address the host name resolved to was refused by the
-    /// [`AddressFilter`](crate::client::policy::AddressFilter).
-    #[error("no permitted address for host '{host}'")]
-    AddressDenied { host: String },
-
     /// The request exceeded its deadline.
     #[error("request timed out")]
     Timeout,
@@ -64,11 +59,6 @@ impl HttpClientError {
             policy,
             reason: denial.into_reason(),
         }
-    }
-
-    /// Builds an [`AddressDenied`](crate::client::errors::HttpClientError::AddressDenied) error.
-    pub fn address_denied(host: impl Into<String>) -> Self {
-        Self::AddressDenied { host: host.into() }
     }
 
     /// Builds an [`InvalidRequest`](crate::client::errors::HttpClientError::InvalidRequest) error.

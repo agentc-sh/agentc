@@ -168,19 +168,11 @@ pub trait Policy: Send + Sync + 'static {
     fn check_response(&self, _response: &ResponseContext<'_>) -> Result<(), Denied> {
         Ok(())
     }
-}
 
-/// A filter applied to every address a host name resolves to.
-///
-/// This is separate from [`Policy`](crate::client::policy::Policy) because it operates on resolved
-/// addresses, which is the only layer at which a permitted host name pointing at an internal
-/// address can be caught.
-pub trait AddressFilter: Send + Sync + 'static {
-    /// The name reported when this filter rejects every address.
-    fn name(&self) -> &'static str;
-
-    /// Whether a connection to `address` on behalf of `host` is permitted.
-    fn allows(&self, host: &str, address: SocketAddr) -> bool;
+    /// Evaluates an address a host name resolved to.
+    fn check_address(&self, _host: &str, _address: SocketAddr) -> Result<(), Denied> {
+        Ok(())
+    }
 }
 
 #[cfg(test)]
