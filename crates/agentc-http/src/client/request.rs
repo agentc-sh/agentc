@@ -138,12 +138,10 @@ impl HttpRequestBuilder {
         T: Serialize + ?Sized,
     {
         self.map(|mut request| {
-            request
-                .url
-                .set_query(Some(
-                    &serde_urlencoded::to_string(query)
-                        .map_err(|error| HttpClientError::invalid_request(error.to_string()))?,
-                ));
+            request.url.set_query(Some(
+                &serde_urlencoded::to_string(query)
+                    .map_err(|error| HttpClientError::invalid_request(error.to_string()))?,
+            ));
 
             Ok(request)
         })

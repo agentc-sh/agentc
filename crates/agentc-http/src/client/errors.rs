@@ -16,7 +16,10 @@ pub enum HttpClientError {
     /// A [`Policy`](crate::client::policy::Policy) refused the request, a redirect hop, or the
     /// response.
     #[error("denied by policy '{policy}': {reason}")]
-    Denied { policy: &'static str, reason: String },
+    Denied {
+        policy: &'static str,
+        reason: String,
+    },
 
     /// The request exceeded its deadline.
     #[error("request timed out")]
@@ -55,31 +58,22 @@ pub enum HttpClientError {
 impl HttpClientError {
     /// Builds a [`Denied`](crate::client::errors::HttpClientError::Denied) error.
     pub fn denied(policy: &'static str, denial: Denied) -> Self {
-        Self::Denied {
-            policy,
-            reason: denial.into_reason(),
-        }
+        Self::Denied { policy, reason: denial.into_reason() }
     }
 
     /// Builds an [`InvalidRequest`](crate::client::errors::HttpClientError::InvalidRequest) error.
     pub fn invalid_request(message: impl Into<String>) -> Self {
-        Self::InvalidRequest {
-            message: message.into(),
-        }
+        Self::InvalidRequest { message: message.into() }
     }
 
     /// Builds a [`Configuration`](crate::client::errors::HttpClientError::Configuration) error.
     pub fn configuration(message: impl Into<String>) -> Self {
-        Self::Configuration {
-            message: message.into(),
-        }
+        Self::Configuration { message: message.into() }
     }
 
     /// Builds a [`Decode`](crate::client::errors::HttpClientError::Decode) error.
     pub fn decode(message: impl Into<String>) -> Self {
-        Self::Decode {
-            message: message.into(),
-        }
+        Self::Decode { message: message.into() }
     }
 }
 
@@ -91,7 +85,10 @@ impl HttpClientError {
 #[derive(Debug, Error)]
 pub(crate) enum RedirectRejection {
     #[error("denied by policy '{policy}': {reason}")]
-    Denied { policy: &'static str, reason: String },
+    Denied {
+        policy: &'static str,
+        reason: String,
+    },
 
     #[error("too many redirects")]
     LimitExceeded,
@@ -104,10 +101,9 @@ impl RedirectRejection {
         while let Some(current) = source {
             if let Some(rejection) = current.downcast_ref::<Self>() {
                 return Some(match rejection {
-                    Self::Denied { policy, reason } => Self::Denied {
-                        policy,
-                        reason: reason.clone(),
-                    },
+                    Self::Denied { policy, reason } => {
+                        Self::Denied { policy, reason: reason.clone() }
+                    }
                     Self::LimitExceeded => Self::LimitExceeded,
                 });
             }
@@ -133,17 +129,17 @@ impl From<MiddlewareError> for HttpClientError {
         match error {
             // `PolicyMiddleware` boxes this crate's own error, so recover it rather than
             // reporting a denial as an opaque transport failure.
-            MiddlewareError::Middleware(error) => error
-                .downcast::<Self>()
-                .unwrap_or_else(|error| Self::Transport {
-                    source: MiddlewareError::Middleware(error),
-                }),
+            MiddlewareError::Middleware(error) => {
+                error
+                    .downcast::<Self>()
+                    .unwrap_or_else(|error| Self::Transport {
+                        source: MiddlewareError::Middleware(error),
+                    })
+            }
             MiddlewareError::Reqwest(error) => match RedirectRejection::recover(&error) {
                 Some(rejection) => rejection.into(),
                 None if error.is_timeout() => Self::Timeout,
-                None => Self::Transport {
-                    source: MiddlewareError::Reqwest(error),
-                },
+                None => Self::Transport { source: MiddlewareError::Reqwest(error) },
             },
         }
     }

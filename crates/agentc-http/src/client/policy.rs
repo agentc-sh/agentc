@@ -16,9 +16,7 @@ pub struct Denied {
 impl Denied {
     /// Builds a refusal carrying the given reason.
     pub fn new(reason: impl Into<Cow<'static, str>>) -> Self {
-        Self {
-            reason: reason.into(),
-        }
+        Self { reason: reason.into() }
     }
 
     /// The reason this refusal carries.
@@ -40,11 +38,7 @@ pub struct RequestContext<'a> {
 
 impl<'a> RequestContext<'a> {
     pub(crate) fn new(method: &'a Method, url: &'a Url, headers: &'a HeaderMap) -> Self {
-        Self {
-            method,
-            url,
-            headers,
-        }
+        Self { method, url, headers }
     }
 
     /// The request method.
@@ -72,11 +66,7 @@ pub struct RedirectContext<'a> {
 
 impl<'a> RedirectContext<'a> {
     pub(crate) fn new(status: StatusCode, url: &'a Url, previous: &'a [Url]) -> Self {
-        Self {
-            status,
-            url,
-            previous,
-        }
+        Self { status, url, previous }
     }
 
     /// The status that produced this hop.
@@ -110,12 +100,7 @@ impl<'a> ResponseContext<'a> {
         headers: &'a HeaderMap,
         content_length: Option<u64>,
     ) -> Self {
-        Self {
-            status,
-            url,
-            headers,
-            content_length,
-        }
+        Self { status, url, headers, content_length }
     }
 
     /// The response status.

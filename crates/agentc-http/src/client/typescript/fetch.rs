@@ -44,10 +44,9 @@ impl FetchBody {
             return Ok(Some(Self::Bytes(bytes)));
         }
 
-        Ok(
-            init.get::<Option<String>>("body")?
-                .map(Self::Text)
-        )
+        Ok(init
+            .get::<Option<String>>("body")?
+            .map(Self::Text))
     }
 }
 
@@ -80,11 +79,17 @@ impl FetchRequest {
             init: FetchInit {
                 method: init
                     .as_ref()
-                    .and_then(|init| init.get::<Option<String>>("method").ok())
+                    .and_then(|init| {
+                        init.get::<Option<String>>("method")
+                            .ok()
+                    })
                     .flatten(),
                 headers: init
                     .as_ref()
-                    .and_then(|init| init.get::<Option<FetchHeaders>>("headers").ok())
+                    .and_then(|init| {
+                        init.get::<Option<FetchHeaders>>("headers")
+                            .ok()
+                    })
                     .flatten(),
             },
         })

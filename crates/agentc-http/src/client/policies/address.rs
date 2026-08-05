@@ -112,10 +112,7 @@ impl Policy for PublicAddressPolicy {
     fn check_address(&self, _host: &str, address: SocketAddr) -> Result<(), Denied> {
         match self.permits(address.ip()) {
             true => Ok(()),
-            false => Err(Denied::new(format!(
-                "address {} is not permitted",
-                address.ip(),
-            ))),
+            false => Err(Denied::new(format!("address {} is not permitted", address.ip(),))),
         }
     }
 }

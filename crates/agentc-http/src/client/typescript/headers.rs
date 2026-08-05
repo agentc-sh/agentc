@@ -36,9 +36,7 @@ impl Headers {
     }
 
     pub(crate) fn new(inner: impl Into<HeaderMap>) -> Self {
-        Self {
-            inner: inner.into(),
-        }
+        Self { inner: inner.into() }
     }
 }
 
@@ -51,11 +49,9 @@ impl HostClass for Headers {
         });
 
         spec.method("has", |headers, scope, args| {
-            Ok(
-                headers
-                    .lookup(&args.get_owned::<String>(scope, 0)?)
-                    .is_some()
-            )
+            Ok(headers
+                .lookup(&args.get_owned::<String>(scope, 0)?)
+                .is_some())
         });
 
         spec.method("keys", |headers, _scope, _args| Ok(headers.names()));

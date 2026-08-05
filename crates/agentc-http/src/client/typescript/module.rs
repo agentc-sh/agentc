@@ -31,11 +31,13 @@ impl HttpModule {
             ClientSource::Ready(client) => Ok(client.clone()),
             ClientSource::PerGuest { builder, client } => match client.get() {
                 Some(client) => Ok(client.clone()),
-                None => Ok(
-                    client
-                        .get_or_init(|| builder.build().expect("client configuration is valid"))
-                        .clone()
-                ),
+                None => Ok(client
+                    .get_or_init(|| {
+                        builder
+                            .build()
+                            .expect("client configuration is valid")
+                    })
+                    .clone()),
             },
         }
     }
@@ -211,12 +213,12 @@ export async function denied(url) {
         let address = server().await;
         let executor = executor(HttpClient::builder()).await;
 
-        assert_eq!(
-            call(&executor, "read", format!("http://{address}/ok")).await,
-            "200:hello",
-        );
+        assert_eq!(call(&executor, "read", format!("http://{address}/ok")).await, "200:hello",);
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 
     #[tokio::test]
@@ -246,14 +248,16 @@ export async function denied(url) {
             5,
         );
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 
     #[tokio::test]
     async fn a_denied_host_surfaces_as_a_guest_exception() {
         let address = server().await;
-        let executor =
-            executor(HttpClient::builder().policy(PublicAddressPolicy::default())).await;
+        let executor = executor(HttpClient::builder().policy(PublicAddressPolicy::default())).await;
 
         assert!(
             call(&executor, "denied", format!("http://{address}/ok"))
@@ -261,6 +265,9 @@ export async function denied(url) {
                 .contains("agentc:http:")
         );
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 }

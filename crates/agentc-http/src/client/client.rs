@@ -32,9 +32,7 @@ impl HttpClient {
     }
 
     pub(crate) fn from_inner(inner: HttpClientInner) -> Self {
-        Self {
-            inner: Arc::new(inner),
-        }
+        Self { inner: Arc::new(inner) }
     }
 
     /// Starts a `GET` request.
@@ -116,7 +114,10 @@ impl HttpClientInner {
             builder = builder.body(Body::from(body));
         }
 
-        if let Some(timeout) = parts.timeout.or(self.limits.request_timeout) {
+        if let Some(timeout) = parts
+            .timeout
+            .or(self.limits.request_timeout)
+        {
             builder = builder.timeout(timeout);
         }
 
@@ -124,13 +125,7 @@ impl HttpClientInner {
             builder = builder.with_extension(OtelName(label));
         }
 
-        Ok(
-            HttpResponse::new(
-                builder.send().await?,
-                self.limits.max_response_bytes,
-                permit,
-            )
-        )
+        Ok(HttpResponse::new(builder.send().await?, self.limits.max_response_bytes, permit))
     }
 }
 
@@ -213,10 +208,7 @@ mod tests {
                 .get(format!("http://{address}/ok"))
                 .send()
                 .await,
-            Err(HttpClientError::Denied {
-                policy: "deny-all",
-                ..
-            }),
+            Err(HttpClientError::Denied { policy: "deny-all", .. }),
         ));
     }
 
@@ -246,10 +238,8 @@ mod tests {
         assert!(matches!(
             HttpClient::builder()
                 .policy(
-                    PatternPolicy::allow([
-                        UrlPattern::parse(format!("http://{address}/*"))
-                            .expect("test pattern parses"),
-                    ])
+                    PatternPolicy::allow([UrlPattern::parse(format!("http://{address}/*"))
+                        .expect("test pattern parses"),])
                     .expect("test policy builds"),
                 )
                 .build()
@@ -257,10 +247,7 @@ mod tests {
                 .get(format!("http://{address}/away"))
                 .send()
                 .await,
-            Err(HttpClientError::Denied {
-                policy: "url-pattern",
-                ..
-            }),
+            Err(HttpClientError::Denied { policy: "url-pattern", .. }),
         ));
     }
 }

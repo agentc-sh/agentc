@@ -99,23 +99,17 @@ impl HostClass for Response {
 
         spec.getter("url", |response, _scope| Ok(response.url.to_string()));
 
-        spec.getter("bodyUsed", |response, _scope| {
-            Ok(response.body.borrow().is_none())
-        });
+        spec.getter("bodyUsed", |response, _scope| Ok(response.body.borrow().is_none()));
 
         spec.getter("statusText", |response, _scope| {
-            Ok(
-                response
-                    .status
-                    .canonical_reason()
-                    .unwrap_or_default()
-                    .to_owned()
-            )
+            Ok(response
+                .status
+                .canonical_reason()
+                .unwrap_or_default()
+                .to_owned())
         });
 
-        spec.getter("headers", |response, _scope| {
-            Ok(Headers::new(response.headers.clone()))
-        });
+        spec.getter("headers", |response, _scope| Ok(Headers::new(response.headers.clone())));
 
         spec.getter("body", |response, _scope| {
             Ok(HostReadableStream::from_stream(

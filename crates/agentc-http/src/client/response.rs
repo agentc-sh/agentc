@@ -109,9 +109,7 @@ impl HttpBodyStream {
             inner: response
                 .bytes_stream()
                 .map(|chunk| {
-                    chunk.map_err(|error| HttpClientError::Transport {
-                        source: error.into(),
-                    })
+                    chunk.map_err(|error| HttpClientError::Transport { source: error.into() })
                 })
                 .boxed(),
             limit,

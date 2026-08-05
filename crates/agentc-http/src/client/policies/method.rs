@@ -40,12 +40,12 @@ impl Policy for MethodPolicy {
     }
 
     fn check_request(&self, request: &RequestContext<'_>) -> Result<(), Denied> {
-        match self.methods.contains(request.method().as_str()) {
+        match self
+            .methods
+            .contains(request.method().as_str())
+        {
             true => Ok(()),
-            false => Err(Denied::new(format!(
-                "method {} is not permitted",
-                request.method(),
-            ))),
+            false => Err(Denied::new(format!("method {} is not permitted", request.method(),))),
         }
     }
 }

@@ -11,7 +11,9 @@ mod errors;
 
 use agentc_executor_typescript::guestjs::host::HostLibrary;
 
-use crate::client::{builder::HttpClientBuilder, client::HttpClient, typescript::module::HttpModule};
+use crate::client::{
+    builder::HttpClientBuilder, client::HttpClient, typescript::module::HttpModule,
+};
 
 /// The guest capabilities exposed by this crate.
 pub struct HttpLibrary;

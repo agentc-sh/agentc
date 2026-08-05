@@ -82,14 +82,12 @@ impl PatternPolicy {
     where
         I: IntoIterator<Item = UrlPattern>,
     {
-        Ok(
-            Self {
-                patterns: patterns
-                    .into_iter()
-                    .map(UrlPattern::compile)
-                    .collect::<Result<_, _>>()?,
-            }
-        )
+        Ok(Self {
+            patterns: patterns
+                .into_iter()
+                .map(UrlPattern::compile)
+                .collect::<Result<_, _>>()?,
+        })
     }
 }
 
@@ -157,12 +155,10 @@ mod tests {
 
     #[test]
     fn an_unset_component_matches_anything() {
-        let policy = PatternPolicy::allow([
-            UrlPattern {
-                hostname: Some(String::from("api.example.com")),
-                ..Default::default()
-            },
-        ])
+        let policy = PatternPolicy::allow([UrlPattern {
+            hostname: Some(String::from("api.example.com")),
+            ..Default::default()
+        }])
         .expect("test policy builds");
 
         assert!(
@@ -170,7 +166,11 @@ mod tests {
                 .check_url(&url("http://api.example.com:8080/any"))
                 .is_ok()
         );
-        assert!(policy.check_url(&url("https://api.example.org/")).is_err());
+        assert!(
+            policy
+                .check_url(&url("https://api.example.org/"))
+                .is_err()
+        );
     }
 
     #[test]

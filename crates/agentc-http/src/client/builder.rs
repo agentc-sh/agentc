@@ -142,7 +142,8 @@ impl HttpClientBuilder {
 
     /// Adds headers sent with every request.
     pub fn headers(mut self, headers: impl Into<HeaderMap>) -> Self {
-        self.default_headers.extend(headers.into());
+        self.default_headers
+            .extend(headers.into());
         self
     }
 
@@ -178,7 +179,8 @@ impl HttpClientBuilder {
 
     /// Adds a middleware applied after the policy and tracing middleware.
     pub fn middleware(mut self, middleware: impl Middleware) -> Self {
-        self.middleware.push(Arc::new(middleware));
+        self.middleware
+            .push(Arc::new(middleware));
         self
     }
 
@@ -223,15 +225,13 @@ impl HttpClientBuilder {
             client = client.with_arc(middleware.clone());
         }
 
-        Ok(
-            HttpClient::from_inner(HttpClientInner::new(
-                client.build(),
-                Limits {
-                    request_timeout: self.request_timeout,
-                    max_response_bytes: self.max_response_bytes,
-                    concurrency: self.concurrency.clone(),
-                },
-            ))
-        )
+        Ok(HttpClient::from_inner(HttpClientInner::new(
+            client.build(),
+            Limits {
+                request_timeout: self.request_timeout,
+                max_response_bytes: self.max_response_bytes,
+                concurrency: self.concurrency.clone(),
+            },
+        )))
     }
 }
