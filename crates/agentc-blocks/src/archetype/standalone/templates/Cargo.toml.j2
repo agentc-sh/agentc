@@ -18,7 +18,7 @@ agentc-skills = { version = "{{ runtime_version }}" }
 agentc-tools = { version = "{{ runtime_version }}", default-features = false, features = [{{ extension("tools::features") }}] }
 
 {%- if ctx.http_server %}
-agentc-http = { version = "{{ runtime_version }}" features = ["server"] }
+agentc-http = { version = "{{ runtime_version }}", features = ["server"] }
 
 jobq = { git = "https://github.com/wizrds/jobq-rs.git", version = "0.3.1" }
 subway = { git = "https://github.com/wizrds/subway-rs.git", version = "0.1.0", features = ["redis"] }
