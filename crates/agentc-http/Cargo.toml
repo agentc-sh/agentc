@@ -8,13 +8,45 @@ license.workspace = true
 readme.workspace = true
 
 [features]
-default = ["tls"]
+default = ["client"]
 
-tls = ["dep:rustls"]
+client = [
+    "dep:bytes",
+    "dep:reqwest",
+    "dep:reqwest-middleware",
+    "dep:reqwest-tracing",
+    "dep:serde_urlencoded",
+    "dep:url",
+    "dep:urlpattern",
+    "dep:regex",
+]
+
+server = [
+    "dep:agentc-domain",
+    "dep:axum",
+    "dep:axum-server",
+    "dep:json-patch",
+    "dep:opentelemetry-instrumentation-tower",
+    "dep:sanitizer",
+    "dep:sentry",
+    "dep:serde_qs",
+    "dep:tower",
+    "dep:tower-http",
+    "dep:tower-layer",
+    "dep:utoipa",
+    "dep:utoipa-axum",
+    "dep:utoipa-scalar",
+    "dep:validator",
+]
+
+typescript = ["client", "dep:agentc-executor-typescript"]
+
+tls = ["server", "dep:rustls"]
 
 [dependencies]
-agentc-domain = { path = "../agentc-domain", version = "0.3.1" }
 agentc-telemetry = { path = "../agentc-telemetry", version = "0.3.1" }
+agentc-domain = { path = "../agentc-domain", version = "0.3.1", optional = true }
+agentc-executor-typescript = { path = "../agentc-executor-typescript", version = "0.3.1", optional = true }
 
 tokio = { workspace = true }
 tokio-util = { workspace = true }
@@ -26,25 +58,37 @@ thiserror = { workspace = true }
 
 serde = { workspace = true }
 serde_json = { workspace = true }
-serde_qs = { workspace = true }
-validator = { workspace = true }
-sanitizer = { workspace = true }
-json-patch = { workspace = true }
-utoipa = { workspace = true }
+serde_qs = { workspace = true, optional = true }
+serde_urlencoded = { version = "0.7", optional = true }
+validator = { workspace = true, optional = true }
+sanitizer = { workspace = true, optional = true }
+json-patch = { workspace = true, optional = true }
+utoipa = { workspace = true, optional = true }
+
+bytes = { workspace = true, optional = true }
+url = { workspace = true, optional = true }
+regex = { workspace = true, optional = true }
+urlpattern = { version = "0.6", optional = true }
+reqwest = { version = "0.13", features = ["json", "stream"], optional = true }
+reqwest-middleware = { version = "0.5", features = ["json"], optional = true }
+reqwest-tracing = { version = "0.7", features = ["opentelemetry_0_32"], optional = true }
 
 rustls = { workspace = true, optional = true }
-axum = { workspace = true }
-axum-server = { workspace = true }
-utoipa-axum = { workspace = true }
-utoipa-scalar = { workspace = true }
-tower-http = { workspace = true }
-tower-layer = { workspace = true }
-tower = { workspace = true }
+axum = { workspace = true, optional = true }
+axum-server = { workspace = true, optional = true }
+utoipa-axum = { workspace = true, optional = true }
+utoipa-scalar = { workspace = true, optional = true }
+tower-http = { workspace = true, optional = true }
+tower-layer = { workspace = true, optional = true }
+tower = { workspace = true, optional = true }
 http = { workspace = true }
 
 tracing = { workspace = true }
-sentry = { workspace = true }
-opentelemetry-instrumentation-tower = { git = "https://github.com/open-telemetry/opentelemetry-rust-contrib", rev = "c0a28d7", package = "opentelemetry-instrumentation-tower", features = ["axum"] }
+sentry = { workspace = true, optional = true }
+opentelemetry-instrumentation-tower = { git = "https://github.com/open-telemetry/opentelemetry-rust-contrib", rev = "c0a28d7", package = "opentelemetry-instrumentation-tower", features = ["axum"], optional = true }
 
 [dev-dependencies]
 tower = { workspace = true, features = ["util"] }
+tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }
+axum = { workspace = true }
+axum-server = { workspace = true }

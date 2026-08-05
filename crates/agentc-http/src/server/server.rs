@@ -28,7 +28,7 @@ use axum_server::tls_rustls::RustlsConfig;
 
 use agentc_telemetry::{Span, info};
 
-use crate::{dto::errors::ErrorResponseDTO, errors::ApiError};
+use crate::server::{dto::errors::ErrorResponseDTO, errors::ApiError};
 
 #[derive(Serialize, ToSchema)]
 struct PingResponse {

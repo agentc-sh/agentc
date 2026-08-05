@@ -12,7 +12,7 @@ use serde_json::to_value;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use validator::{ValidationError, ValidationErrors, ValidationErrorsKind};
 
-use crate::dto::errors::{
+use crate::server::dto::errors::{
     ErrorResponseDTO, ValidationErrorFieldDTO, ValidationErrorFieldDetailDTO,
 };
 
