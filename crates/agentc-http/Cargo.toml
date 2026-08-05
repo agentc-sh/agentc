@@ -17,6 +17,8 @@ client = [
     "dep:reqwest-tracing",
     "dep:serde_urlencoded",
     "dep:url",
+    "dep:urlpattern",
+    "dep:regex",
 ]
 
 server = [
@@ -65,6 +67,8 @@ utoipa = { workspace = true, optional = true }
 
 bytes = { workspace = true, optional = true }
 url = { workspace = true, optional = true }
+regex = { workspace = true, optional = true }
+urlpattern = { version = "0.6", optional = true }
 reqwest = { version = "0.13", features = ["json", "stream"], optional = true }
 reqwest-middleware = { version = "0.5", features = ["json"], optional = true }
 reqwest-tracing = { version = "0.7", features = ["opentelemetry_0_32"], optional = true }

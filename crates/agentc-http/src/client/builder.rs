@@ -48,6 +48,34 @@ impl Default for HttpClientBuilder {
 impl HttpClientBuilder {
     const DEFAULT_MAX_REDIRECTS: usize = 5;
 
+    fn redirect_policy(&self, policies: Arc<[Arc<dyn Policy>]>) -> redirect::Policy {
+        let max_redirects = self.max_redirects;
+
+        redirect::Policy::custom(move |attempt| {
+            let rejection = policies.iter().find_map(|policy| {
+                policy
+                    .check_redirect(&RedirectContext::new(
+                        attempt.status(),
+                        attempt.url(),
+                        attempt.previous(),
+                    ))
+                    .err()
+                    .map(|denial| RedirectRejection::Denied {
+                        policy: policy.name(),
+                        reason: denial.into_reason(),
+                    })
+            });
+
+            match rejection {
+                Some(rejection) => attempt.error(rejection),
+                None if attempt.previous().len() >= max_redirects => {
+                    attempt.error(RedirectRejection::LimitExceeded)
+                }
+                None => attempt.follow(),
+            }
+        })
+    }
+
     /// Creates a builder that permits everything and limits nothing.
     pub fn new() -> Self {
         Self {
@@ -213,33 +241,5 @@ impl HttpClientBuilder {
                 },
             ))
         )
-    }
-
-    fn redirect_policy(&self, policies: Arc<[Arc<dyn Policy>]>) -> redirect::Policy {
-        let max_redirects = self.max_redirects;
-
-        redirect::Policy::custom(move |attempt| {
-            let rejection = policies.iter().find_map(|policy| {
-                policy
-                    .check_redirect(&RedirectContext::new(
-                        attempt.status(),
-                        attempt.url(),
-                        attempt.previous(),
-                    ))
-                    .err()
-                    .map(|denial| RedirectRejection::Denied {
-                        policy: policy.name(),
-                        reason: denial.into_reason(),
-                    })
-            });
-
-            match rejection {
-                Some(rejection) => attempt.error(rejection),
-                None if attempt.previous().len() >= max_redirects => {
-                    attempt.error(RedirectRejection::LimitExceeded)
-                }
-                None => attempt.follow(),
-            }
-        })
     }
 }

@@ -91,6 +91,14 @@ pub struct HttpRequestBuilder {
 }
 
 impl HttpRequestBuilder {
+    fn map<F>(mut self, f: F) -> Self
+    where
+        F: FnOnce(HttpRequest) -> Result<HttpRequest, HttpClientError>,
+    {
+        self.request = self.request.and_then(f);
+        self
+    }
+
     pub(crate) fn new(client: Arc<HttpClientInner>, method: Method, url: &str) -> Self {
         Self {
             client,
@@ -189,13 +197,5 @@ impl HttpRequestBuilder {
     /// Sends the request.
     pub async fn send(self) -> Result<HttpResponse, HttpClientError> {
         self.client.execute(self.request?).await
-    }
-
-    fn map<F>(mut self, f: F) -> Self
-    where
-        F: FnOnce(HttpRequest) -> Result<HttpRequest, HttpClientError>,
-    {
-        self.request = self.request.and_then(f);
-        self
     }
 }

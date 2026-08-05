@@ -5,6 +5,7 @@
 pub mod builder;
 pub mod client;
 pub mod errors;
+pub mod policies;
 pub mod policy;
 pub mod request;
 pub mod response;

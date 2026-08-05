@@ -138,12 +138,15 @@ impl HttpClientInner {
 mod tests {
     use std::net::SocketAddr;
 
-    use axum::{Router, routing::get};
+    use axum::{Router, response::Redirect, routing::get};
     use tokio::net::TcpListener;
     use url::Url;
 
     use super::*;
-    use crate::client::policy::{Denied, Policy};
+    use crate::client::{
+        policies::pattern::{PatternPolicy, UrlPattern},
+        policy::{Denied, Policy},
+    };
 
     struct DenyAll;
 
@@ -170,7 +173,8 @@ mod tests {
                 listener,
                 Router::new()
                     .route("/ok", get(|| async { "hello" }))
-                    .route("/big", get(|| async { "x".repeat(64) })),
+                    .route("/big", get(|| async { "x".repeat(64) }))
+                    .route("/away", get(|| async { Redirect::to("https://denied.test/") })),
             )
             .await
         }));
@@ -232,6 +236,31 @@ mod tests {
                 .bytes()
                 .await,
             Err(HttpClientError::BodyTooLarge { limit: 8 }),
+        ));
+    }
+
+    #[tokio::test]
+    async fn denied_redirect_target_is_refused() {
+        let address = server().await;
+
+        assert!(matches!(
+            HttpClient::builder()
+                .policy(
+                    PatternPolicy::allow([
+                        UrlPattern::parse(format!("http://{address}/*"))
+                            .expect("test pattern parses"),
+                    ])
+                    .expect("test policy builds"),
+                )
+                .build()
+                .expect("client builds")
+                .get(format!("http://{address}/away"))
+                .send()
+                .await,
+            Err(HttpClientError::Denied {
+                policy: "url-pattern",
+                ..
+            }),
         ));
     }
 }
