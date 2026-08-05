@@ -428,21 +428,27 @@ name = "agentc-http"
 version = "0.3.1"
 dependencies = [
  "agentc-domain",
+ "agentc-executor-typescript",
  "agentc-telemetry",
  "anyhow",
  "async-trait",
  "axum",
  "axum-server",
+ "bytes",
  "futures",
  "http 1.4.2",
  "json-patch",
  "opentelemetry-instrumentation-tower",
+ "reqwest",
+ "reqwest-middleware",
+ "reqwest-tracing",
  "rustls",
  "sanitizer",
  "sentry",
  "serde",
  "serde_json",
  "serde_qs",
+ "serde_urlencoded",
  "thiserror 2.0.18",
  "tokio",
  "tokio-util",
@@ -450,6 +456,7 @@ dependencies = [
  "tower-http 0.7.0",
  "tower-layer",
  "tracing",
+ "url",
  "utoipa",
  "utoipa-axum",
  "utoipa-scalar",
@@ -2745,8 +2752,8 @@ dependencies = [
 
 [[package]]
 name = "guestjs"
-version = "0.1.5"
-source = "git+https://github.com/wizrds/guestjs.git?rev=0.1.5#5d031c3c76047d6e4ad1cf29bd9229f7724acb9b"
+version = "0.1.6"
+source = "git+https://github.com/wizrds/guestjs.git?rev=0.1.6#17113f6b6c1117a6a348c0a47073e25720699ac7"
 dependencies = [
  "async-trait",
  "guestjs-core",
@@ -2759,8 +2766,8 @@ dependencies = [
 
 [[package]]
 name = "guestjs-core"
-version = "0.1.5"
-source = "git+https://github.com/wizrds/guestjs.git?rev=0.1.5#5d031c3c76047d6e4ad1cf29bd9229f7724acb9b"
+version = "0.1.6"
+source = "git+https://github.com/wizrds/guestjs.git?rev=0.1.6#17113f6b6c1117a6a348c0a47073e25720699ac7"
 dependencies = [
  "async-trait",
  "bytes",
@@ -2776,18 +2783,21 @@ dependencies = [
 
 [[package]]
 name = "guestjs-llrt"
-version = "0.1.5"
-source = "git+https://github.com/wizrds/guestjs.git?rev=0.1.5#5d031c3c76047d6e4ad1cf29bd9229f7724acb9b"
+version = "0.1.6"
+source = "git+https://github.com/wizrds/guestjs.git?rev=0.1.6#17113f6b6c1117a6a348c0a47073e25720699ac7"
 dependencies = [
+ "bytes",
+ "futures",
  "guestjs-core",
+ "guestjs-macros",
  "llrt_modules",
  "rquickjs",
 ]
 
 [[package]]
 name = "guestjs-macros"
-version = "0.1.5"
-source = "git+https://github.com/wizrds/guestjs.git?rev=0.1.5#5d031c3c76047d6e4ad1cf29bd9229f7724acb9b"
+version = "0.1.6"
+source = "git+https://github.com/wizrds/guestjs.git?rev=0.1.6#17113f6b6c1117a6a348c0a47073e25720699ac7"
 dependencies = [
  "darling 0.23.0",
  "heck 0.5.0",

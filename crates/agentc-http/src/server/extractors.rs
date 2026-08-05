@@ -11,7 +11,7 @@ use serde::{Serialize, de::DeserializeOwned};
 use serde_qs::Config as QsConfig;
 use utoipa::ToSchema;
 
-use crate::{dto::errors::ErrorResponseDTO, errors::ApiError};
+use crate::server::{dto::errors::ErrorResponseDTO, errors::ApiError};
 
 #[derive(Debug, Clone, ToSchema)]
 pub struct TenantIdHeader(pub String);

@@ -19,12 +19,14 @@ thiserror = { workspace = true }
 
 [dependencies.guestjs]
 git = "https://github.com/wizrds/guestjs.git"
-rev = "0.1.5"
+rev = "0.1.6"
 features = [
     "tokio",
+    "bytes",
     "typescript",
     "llrt-buffer",
     "llrt-console",
+    "llrt-streams",
     "llrt-fetch",
     "llrt-fs",
     "llrt-os",

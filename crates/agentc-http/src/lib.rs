@@ -5,10 +5,8 @@
 #[allow(unused_extern_crates)]
 extern crate self as agentc_http;
 
-pub mod dto;
-pub mod errors;
-pub mod extractors;
-pub mod openapi;
+#[cfg(feature = "client")]
+pub mod client;
+
+#[cfg(feature = "server")]
 pub mod server;
-pub mod state;
-pub mod stream;
