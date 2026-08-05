@@ -12,7 +12,7 @@ use std::sync::Arc;
 use subway::Bus;
 use utoipa_axum::router::OpenApiRouter;
 
-use agentc_http::state::DefaultTenantId;
+use agentc_http::server::state::DefaultTenantId;
 
 use crate::{api::state::ReActApiState, service::ApplicationService};
 

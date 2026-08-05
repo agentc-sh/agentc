@@ -83,8 +83,8 @@ impl CodeGen<ResolvedContext> for ServerCodeGen {
             use subway::Bus;
             use utoipa::OpenApi;
 
-            use agentc_http::{
-                server::HttpServer,
+            use agentc_http::server::{
+                HttpServer,
                 state::DefaultTenantId,
             };
             use agentc_agent_react::{

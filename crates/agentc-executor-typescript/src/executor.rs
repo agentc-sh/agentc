@@ -153,6 +153,7 @@ impl ExecutorBuilder {
                     .url()
                     .os()
                     .process_env()
+                    .streams()
                     .build(),
             )
         })
