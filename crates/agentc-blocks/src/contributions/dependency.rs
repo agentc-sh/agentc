@@ -4,20 +4,18 @@
 
 use std::collections::BTreeSet;
 
-use crate::errors::BlocksError;
+use crate::{
+    contributions::set::{ContributionSet, Mergeable},
+    errors::BlocksError,
+};
 
 #[derive(Debug, Clone)]
 pub enum CargoDependencyContribution {
-    Raw(String),
     Runtime(RuntimeDependencyContribution),
     External(ExternalDependencyContribution),
 }
 
 impl CargoDependencyContribution {
-    pub fn raw(value: impl Into<String>) -> Self {
-        Self::Raw(value.into())
-    }
-
     pub fn runtime(dependency: impl Into<RuntimeDependencyContribution>) -> Self {
         Self::Runtime(dependency.into())
     }
@@ -25,47 +23,59 @@ impl CargoDependencyContribution {
     pub fn external(dependency: impl Into<ExternalDependencyContribution>) -> Self {
         Self::External(dependency.into())
     }
-}
 
-impl From<String> for CargoDependencyContribution {
-    fn from(value: String) -> Self {
-        Self::Raw(value)
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Runtime(dependency) => dependency.name,
+            Self::External(dependency) => dependency.name,
+        }
     }
 }
 
-impl From<&str> for CargoDependencyContribution {
-    fn from(value: &str) -> Self {
-        Self::Raw(value.to_string())
+impl Mergeable for CargoDependencyContribution {
+    type Key = &'static str;
+
+    fn key(&self) -> Self::Key {
+        self.name()
+    }
+
+    fn merge(&mut self, other: Self) -> Result<(), BlocksError> {
+        match (self, other) {
+            (Self::Runtime(left), Self::Runtime(right)) => left.merge(right),
+            (Self::External(left), Self::External(right)) => left.merge(right),
+            (left, _) => Err(BlocksError::invalid(format!(
+                "cannot merge dependency '{}' declared as both a runtime and an external crate",
+                left.name(),
+            ))),
+        }
     }
 }
 
 #[derive(Debug, Clone)]
-pub enum CargoPatchContribution {
-    Raw(String),
-    Runtime(RuntimeDependencyContribution),
+pub struct CargoPatchContribution {
+    pub dependency: RuntimeDependencyContribution,
 }
 
 impl CargoPatchContribution {
-    pub fn raw(value: impl Into<String>) -> Self {
-        Self::Raw(value.into())
-    }
-
     pub fn runtime(dependency: impl Into<RuntimeDependencyContribution>) -> Self {
-        Self::Runtime(dependency.into())
+        Self { dependency: dependency.into() }
     }
 }
 
-impl From<String> for CargoPatchContribution {
-    fn from(value: String) -> Self {
-        Self::Raw(value)
+impl Mergeable for CargoPatchContribution {
+    type Key = &'static str;
+
+    fn key(&self) -> Self::Key {
+        self.dependency.name
+    }
+
+    fn merge(&mut self, other: Self) -> Result<(), BlocksError> {
+        self.dependency.merge(other.dependency)
     }
 }
 
-impl From<&str> for CargoPatchContribution {
-    fn from(value: &str) -> Self {
-        Self::Raw(value.to_string())
-    }
-}
+pub type CargoDependencies = ContributionSet<CargoDependencyContribution>;
+pub type CargoPatches = ContributionSet<CargoPatchContribution>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeDependencyContribution {
@@ -303,6 +313,45 @@ mod tests {
         assert!(
             dependency
                 .merge(RuntimeDependencyContribution::new("other"))
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn external_merge_unions_features() {
+        let mut dependency = ExternalDependencyContribution::new("dep").feature("a");
+
+        dependency
+            .merge(ExternalDependencyContribution::new("dep").feature("b"))
+            .unwrap();
+
+        assert_eq!(
+            dependency
+                .features
+                .into_iter()
+                .collect::<Vec<_>>(),
+            vec!["a", "b"],
+        );
+    }
+
+    #[test]
+    fn external_merge_adopts_unset_fields() {
+        let mut dependency = ExternalDependencyContribution::new("dep");
+
+        dependency
+            .merge(ExternalDependencyContribution::new("dep").version("1.0"))
+            .unwrap();
+
+        assert_eq!(dependency.version, Some("1.0"));
+    }
+
+    #[test]
+    fn external_merge_rejects_conflicting_versions() {
+        let mut dependency = ExternalDependencyContribution::new("dep").version("1.0");
+
+        assert!(
+            dependency
+                .merge(ExternalDependencyContribution::new("dep").version("2.0"))
                 .is_err()
         );
     }

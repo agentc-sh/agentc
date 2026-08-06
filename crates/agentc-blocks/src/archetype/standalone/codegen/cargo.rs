@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::{collections::BTreeMap, path::PathBuf};
+use std::path::PathBuf;
 
 use agentc_compiler::generator::{
     blocks::template::TemplateFragment,
@@ -14,10 +14,9 @@ use agentc_compiler::generator::{
 use crate::{
     context::ResolvedContext,
     contributions::dependency::{
-        CargoDependencyContribution, CargoPatchContribution, ExternalDependencyContribution,
-        RuntimeDependencyContribution,
+        CargoDependencies, CargoDependencyContribution, CargoPatches, CargoPatchContribution,
+        RuntimeDependencyContribution, ExternalDependencyContribution,
     },
-    errors::BlocksError,
 };
 
 pub struct A2aClientCargoFragment;
@@ -29,16 +28,20 @@ impl TemplateFragment<ResolvedContext> for A2aClientCargoFragment {
         point: &str,
     ) -> Result<ErasedContributionValue, GeneratorError> {
         match point {
-            "cargo::dependencies" => {
-                Ok(ErasedContributionValue::new(CargoDependencyContribution::runtime(
+            "cargo::dependencies" => Ok(ErasedContributionValue::new(
+                CargoDependencies::from_entries([CargoDependencyContribution::runtime(
                     RuntimeDependencyContribution::new("agentc-protocol-a2a")
                         .default_features(false)
                         .feature("client"),
-                )))
-            }
-            "cargo::patches" => Ok(ErasedContributionValue::new(CargoPatchContribution::runtime(
-                RuntimeDependencyContribution::new("agentc-protocol-a2a"),
-            ))),
+                )])
+                .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
+            )),
+            "cargo::patches" => Ok(ErasedContributionValue::new(
+                CargoPatches::from_entries([CargoPatchContribution::runtime(
+                    RuntimeDependencyContribution::new("agentc-protocol-a2a"),
+                )])
+                .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
+            )),
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
     }
@@ -61,16 +64,20 @@ impl TemplateFragment<ResolvedContext> for HttpClientCargoFragment {
         point: &str,
     ) -> Result<ErasedContributionValue, GeneratorError> {
         match point {
-            "cargo::dependencies" => {
-                Ok(ErasedContributionValue::new(CargoDependencyContribution::runtime(
+            "cargo::dependencies" => Ok(ErasedContributionValue::new(
+                CargoDependencies::from_entries([CargoDependencyContribution::runtime(
                     RuntimeDependencyContribution::new("agentc-http")
                         .default_features(false)
                         .feature("client"),
-                )))
-            }
-            "cargo::patches" => Ok(ErasedContributionValue::new(CargoPatchContribution::runtime(
-                RuntimeDependencyContribution::new("agentc-http"),
-            ))),
+                )])
+                .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
+            )),
+            "cargo::patches" => Ok(ErasedContributionValue::new(
+                CargoPatches::from_entries([CargoPatchContribution::runtime(
+                    RuntimeDependencyContribution::new("agentc-http"),
+                )])
+                .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
+            )),
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
     }
@@ -93,46 +100,32 @@ impl TemplateFragment<ResolvedContext> for HttpServerCargoFragment {
         point: &str,
     ) -> Result<ErasedContributionValue, GeneratorError> {
         match point {
-            "cargo::dependencies" => {
-                Ok(ErasedContributionValue::new(CargoDependencyContribution::runtime(
-                    RuntimeDependencyContribution::new("agentc-http")
-                        .default_features(false)
-                        .feature("server"),
-                )))
-            }
-            _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
-        }
-    }
-
-    fn generate_files(
-        &self,
-        _ctx: &GenerationContext<ResolvedContext>,
-        _registry: &ExtensionRegistry,
-    ) -> Result<Vec<(PathBuf, String)>, GeneratorError> {
-        Ok(vec![])
-    }
-}
-
-pub struct ServerStackCargoFragment;
-
-impl ServerStackCargoFragment {
-    pub(crate) const DEPENDENCIES: &'static str = concat!(
-        "jobq = { git = \"https://github.com/wizrds/jobq-rs.git\", version = \"0.3.1\" }\n",
-        "subway = { git = \"https://github.com/wizrds/subway-rs.git\", version = \"0.1.0\", features = [\"redis\"] }\n",
-        "utoipa = { version = \"5.4\" }\n",
-        "utoipa-axum = { version = \"0.2\" }",
-    );
-}
-
-impl TemplateFragment<ResolvedContext> for ServerStackCargoFragment {
-    fn generate_contribution(
-        &self,
-        _ctx: &GenerationContext<ResolvedContext>,
-        point: &str,
-    ) -> Result<ErasedContributionValue, GeneratorError> {
-        match point {
             "cargo::dependencies" => Ok(ErasedContributionValue::new(
-                CargoDependencyContribution::raw(Self::DEPENDENCIES),
+                CargoDependencies::from_entries([
+                    CargoDependencyContribution::runtime(
+                        RuntimeDependencyContribution::new("agentc-http")
+                            .default_features(false)
+                            .feature("server"),
+                    ),
+                    CargoDependencyContribution::external(
+                        ExternalDependencyContribution::new("jobq")
+                            .git("https://github.com/wizrds/jobq-rs.git")
+                            .version("0.3.1"),
+                    ),
+                    CargoDependencyContribution::external(
+                        ExternalDependencyContribution::new("subway")
+                            .git("https://github.com/wizrds/subway-rs.git")
+                            .version("0.1.0")
+                            .feature("redis"),
+                    ),
+                    CargoDependencyContribution::external(
+                        ExternalDependencyContribution::new("utoipa").version("5.4"),
+                    ),
+                    CargoDependencyContribution::external(
+                        ExternalDependencyContribution::new("utoipa-axum").version("0.2"),
+                    ),
+                ])
+                .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
             )),
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
@@ -226,73 +219,34 @@ impl CargoDependenciesExtensionPoint {
         format!("{} = {{ {} }}", dependency.name, fields.join(", "))
     }
 
-    fn merge_runtime_dependency(
-        dependencies: &mut BTreeMap<&'static str, RuntimeDependencyContribution>,
-        dependency: RuntimeDependencyContribution,
-    ) -> Result<(), BlocksError> {
-        if let Some(existing) = dependencies.get_mut(dependency.name) {
-            existing.merge(dependency)?;
-        } else {
-            dependencies.insert(dependency.name, dependency);
+    fn render(&self, dependency: CargoDependencyContribution) -> String {
+        match dependency {
+            CargoDependencyContribution::Runtime(dependency) => {
+                self.render_runtime_dependency(dependency)
+            }
+            CargoDependencyContribution::External(dependency) => {
+                self.render_external_dependency(dependency)
+            }
         }
-
-        Ok(())
-    }
-
-    fn merge_external_dependency(
-        dependencies: &mut BTreeMap<&'static str, ExternalDependencyContribution>,
-        dependency: ExternalDependencyContribution,
-    ) -> Result<(), BlocksError> {
-        if let Some(existing) = dependencies.get_mut(dependency.name) {
-            existing.merge(dependency)?;
-        } else {
-            dependencies.insert(dependency.name, dependency);
-        }
-
-        Ok(())
     }
 }
 
 impl ExtensionPoint for CargoDependenciesExtensionPoint {
-    type Contribution = CargoDependencyContribution;
+    type Contribution = CargoDependencies;
 
     fn name(&self) -> &str {
         self.name
     }
 
     fn reduce(&self, contributions: Vec<Self::Contribution>) -> Result<String, GeneratorError> {
-        let mut raw = Vec::new();
-        let mut runtime = BTreeMap::new();
-        let mut external = BTreeMap::new();
-
-        for contribution in contributions {
-            match contribution {
-                CargoDependencyContribution::Raw(value) => raw.push(value),
-                CargoDependencyContribution::Runtime(dependency) => {
-                    Self::merge_runtime_dependency(&mut runtime, dependency)
-                        .map_err(|error| GeneratorError::unexpected(error.to_string()))?;
-                }
-                CargoDependencyContribution::External(dependency) => {
-                    Self::merge_external_dependency(&mut external, dependency)
-                        .map_err(|error| GeneratorError::unexpected(error.to_string()))?;
-                }
-            }
-        }
-
-        Ok(raw
-            .into_iter()
-            .chain(
-                runtime
-                    .into_values()
-                    .map(|dependency| self.render_runtime_dependency(dependency)),
-            )
-            .chain(
-                external
-                    .into_values()
-                    .map(|dependency| self.render_external_dependency(dependency)),
-            )
-            .collect::<Vec<_>>()
-            .join("\n"))
+        Ok(
+            CargoDependencies::merge_all(contributions)
+                .map_err(|error| GeneratorError::unexpected(error.to_string()))?
+                .into_values()
+                .map(|dependency| self.render(dependency))
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
     }
 }
 
@@ -310,50 +264,24 @@ impl CargoPatchesExtensionPoint {
         format!("{} = {{ path = \"../runtime/{}\" }}", dependency.name, dependency.name,)
     }
 
-    fn merge_runtime_patch(
-        patches: &mut BTreeMap<&'static str, RuntimeDependencyContribution>,
-        dependency: RuntimeDependencyContribution,
-    ) -> Result<(), BlocksError> {
-        if let Some(existing) = patches.get_mut(dependency.name) {
-            existing.merge(dependency)?;
-        } else {
-            patches.insert(dependency.name, dependency);
-        }
-
-        Ok(())
-    }
 }
 
 impl ExtensionPoint for CargoPatchesExtensionPoint {
-    type Contribution = CargoPatchContribution;
+    type Contribution = CargoPatches;
 
     fn name(&self) -> &str {
         self.name
     }
 
     fn reduce(&self, contributions: Vec<Self::Contribution>) -> Result<String, GeneratorError> {
-        let mut raw = Vec::new();
-        let mut runtime = BTreeMap::new();
-
-        for contribution in contributions {
-            match contribution {
-                CargoPatchContribution::Raw(value) => raw.push(value),
-                CargoPatchContribution::Runtime(dependency) => {
-                    Self::merge_runtime_patch(&mut runtime, dependency)
-                        .map_err(|error| GeneratorError::unexpected(error.to_string()))?;
-                }
-            }
-        }
-
-        Ok(raw
-            .into_iter()
-            .chain(
-                runtime
-                    .into_values()
-                    .map(|dependency| self.render_runtime_patch(dependency)),
-            )
-            .collect::<Vec<_>>()
-            .join("\n"))
+        Ok(
+            CargoPatches::merge_all(contributions)
+                .map_err(|error| GeneratorError::unexpected(error.to_string()))?
+                .into_values()
+                .map(|patch| self.render_runtime_patch(patch.dependency))
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
     }
 }
 
@@ -394,36 +322,23 @@ mod tests {
     }
 
     #[test]
-    fn raw_dependencies_render_in_input_order() {
-        assert_eq!(
-            ExtensionPoint::reduce(
-                &dependencies(),
-                vec![
-                    CargoDependencyContribution::raw("b = { version = \"1\" }"),
-                    CargoDependencyContribution::raw("a = { version = \"1\" }"),
-                ],
-            )
-            .unwrap(),
-            "b = { version = \"1\" }\na = { version = \"1\" }",
-        );
-    }
-
-    #[test]
     fn runtime_dependencies_with_same_name_merge_features() {
         assert_eq!(
             ExtensionPoint::reduce(
                 &dependencies(),
                 vec![
-                    CargoDependencyContribution::runtime(
+                    CargoDependencies::from_entries([CargoDependencyContribution::runtime(
                         RuntimeDependencyContribution::new("agentc-protocol-a2a")
                             .default_features(false)
                             .feature("server"),
-                    ),
-                    CargoDependencyContribution::runtime(
+                    )])
+                    .unwrap(),
+                    CargoDependencies::from_entries([CargoDependencyContribution::runtime(
                         RuntimeDependencyContribution::new("agentc-protocol-a2a")
                             .default_features(false)
                             .feature("client"),
-                    ),
+                    )])
+                    .unwrap(),
                 ],
             )
             .unwrap(),
@@ -437,32 +352,17 @@ mod tests {
             ExtensionPoint::reduce(
                 &dependencies(),
                 vec![
-                    CargoDependencyContribution::runtime(
+                    CargoDependencies::from_entries([CargoDependencyContribution::runtime(
                         RuntimeDependencyContribution::new("dep").default_features(true),
-                    ),
-                    CargoDependencyContribution::runtime(
+                    )])
+                    .unwrap(),
+                    CargoDependencies::from_entries([CargoDependencyContribution::runtime(
                         RuntimeDependencyContribution::new("dep").default_features(false),
-                    ),
+                    )])
+                    .unwrap(),
                 ],
             )
             .is_err()
-        );
-    }
-
-    #[test]
-    fn raw_and_runtime_dependencies_render_into_one_string() {
-        assert_eq!(
-            ExtensionPoint::reduce(
-                &dependencies(),
-                vec![
-                    CargoDependencyContribution::raw("serde = { version = \"1\" }"),
-                    CargoDependencyContribution::runtime(RuntimeDependencyContribution::new(
-                        "tokio",
-                    )),
-                ],
-            )
-            .unwrap(),
-            "serde = { version = \"1\" }\ntokio = { version = \"0.2.1\" }",
         );
     }
 
@@ -472,8 +372,15 @@ mod tests {
             ExtensionPoint::reduce(
                 &dependencies(),
                 vec![
-                    CargoDependencyContribution::runtime(RuntimeDependencyContribution::new("zzz")),
-                    CargoDependencyContribution::runtime(RuntimeDependencyContribution::new("aaa")),
+                    CargoDependencies::from_entries([
+                        CargoDependencyContribution::runtime(RuntimeDependencyContribution::new(
+                            "zzz",
+                        )),
+                        CargoDependencyContribution::runtime(RuntimeDependencyContribution::new(
+                            "aaa",
+                        )),
+                    ])
+                    .unwrap(),
                 ],
             )
             .unwrap(),
@@ -486,9 +393,12 @@ mod tests {
         assert_eq!(
             ExtensionPoint::reduce(
                 &dependencies(),
-                vec![CargoDependencyContribution::runtime(
-                    RuntimeDependencyContribution::new("dep"),
-                )],
+                vec![
+                    CargoDependencies::from_entries([CargoDependencyContribution::runtime(
+                        RuntimeDependencyContribution::new("dep"),
+                    )])
+                    .unwrap(),
+                ],
             )
             .unwrap(),
             "dep = { version = \"0.2.1\" }",
@@ -500,27 +410,15 @@ mod tests {
         assert_eq!(
             ExtensionPoint::reduce(
                 &dependencies(),
-                vec![CargoDependencyContribution::runtime(
-                    RuntimeDependencyContribution::new("dep").default_features(false),
-                )],
-            )
-            .unwrap(),
-            "dep = { version = \"0.2.1\", default-features = false }",
-        );
-    }
-
-    #[test]
-    fn raw_patches_render_in_input_order() {
-        assert_eq!(
-            ExtensionPoint::reduce(
-                &CargoPatchesExtensionPoint::new("cargo::patches"),
                 vec![
-                    CargoPatchContribution::raw("b = { path = \"../b\" }"),
-                    CargoPatchContribution::raw("a = { path = \"../a\" }"),
+                    CargoDependencies::from_entries([CargoDependencyContribution::runtime(
+                        RuntimeDependencyContribution::new("dep").default_features(false),
+                    )])
+                    .unwrap(),
                 ],
             )
             .unwrap(),
-            "b = { path = \"../b\" }\na = { path = \"../a\" }",
+            "dep = { version = \"0.2.1\", default-features = false }",
         );
     }
 
@@ -530,12 +428,14 @@ mod tests {
             ExtensionPoint::reduce(
                 &CargoPatchesExtensionPoint::new("cargo::patches"),
                 vec![
-                    CargoPatchContribution::runtime(
+                    CargoPatches::from_entries([CargoPatchContribution::runtime(
                         RuntimeDependencyContribution::new("agentc-protocol-a2a").feature("server"),
-                    ),
-                    CargoPatchContribution::runtime(
+                    )])
+                    .unwrap(),
+                    CargoPatches::from_entries([CargoPatchContribution::runtime(
                         RuntimeDependencyContribution::new("agentc-protocol-a2a").feature("client"),
-                    ),
+                    )])
+                    .unwrap(),
                 ],
             )
             .unwrap(),
@@ -544,18 +444,124 @@ mod tests {
     }
 
     #[test]
+    fn one_fragment_can_declare_several_dependencies() {
+        assert_eq!(
+            ExtensionPoint::reduce(
+                &dependencies(),
+                vec![
+                    HttpServerCargoFragment
+                        .generate_contribution(&context(), "cargo::dependencies")
+                        .unwrap()
+                        .downcast::<CargoDependencies>()
+                        .unwrap(),
+                ],
+            )
+            .unwrap(),
+            concat!(
+                "agentc-http = { version = \"0.2.1\", default-features = false, features = [\"server\"] }\n",
+                "jobq = { git = \"https://github.com/wizrds/jobq-rs.git\", version = \"0.3.1\" }\n",
+                "subway = { git = \"https://github.com/wizrds/subway-rs.git\", version = \"0.1.0\", features = [\"redis\"] }\n",
+                "utoipa = { version = \"5.4\" }\n",
+                "utoipa-axum = { version = \"0.2\" }",
+            ),
+        );
+    }
+
+    #[test]
+    fn dependencies_merge_the_same_way_within_and_across_fragments() {
+        let within = ExtensionPoint::reduce(
+            &dependencies(),
+            vec![
+                CargoDependencies::from_entries([
+                    CargoDependencyContribution::runtime(
+                        RuntimeDependencyContribution::new("dep").feature("server"),
+                    ),
+                    CargoDependencyContribution::runtime(
+                        RuntimeDependencyContribution::new("dep").feature("client"),
+                    ),
+                ])
+                .unwrap(),
+            ],
+        )
+        .unwrap();
+        let across = ExtensionPoint::reduce(
+            &dependencies(),
+            vec![
+                CargoDependencies::from_entries([CargoDependencyContribution::runtime(
+                    RuntimeDependencyContribution::new("dep").feature("server"),
+                )])
+                .unwrap(),
+                CargoDependencies::from_entries([CargoDependencyContribution::runtime(
+                    RuntimeDependencyContribution::new("dep").feature("client"),
+                )])
+                .unwrap(),
+            ],
+        )
+        .unwrap();
+
+        assert_eq!(within, across);
+        assert_eq!(within, "dep = { version = \"0.2.1\", features = [\"client\", \"server\"] }");
+    }
+
+    #[test]
+    fn external_dependencies_render_after_merging_features() {
+        assert_eq!(
+            ExtensionPoint::reduce(
+                &dependencies(),
+                vec![
+                    CargoDependencies::from_entries([CargoDependencyContribution::external(
+                        ExternalDependencyContribution::new("subway")
+                            .git("https://github.com/wizrds/subway-rs.git")
+                            .version("0.1.0")
+                            .feature("redis"),
+                    )])
+                    .unwrap(),
+                    CargoDependencies::from_entries([CargoDependencyContribution::external(
+                        ExternalDependencyContribution::new("subway").feature("tls"),
+                    )])
+                    .unwrap(),
+                ],
+            )
+            .unwrap(),
+            "subway = { git = \"https://github.com/wizrds/subway-rs.git\", version = \"0.1.0\", features = [\"redis\", \"tls\"] }",
+        );
+    }
+
+    #[test]
+    fn a_package_declared_as_both_runtime_and_external_is_an_error() {
+        assert!(
+            ExtensionPoint::reduce(
+                &dependencies(),
+                vec![
+                    CargoDependencies::from_entries([CargoDependencyContribution::runtime(
+                        RuntimeDependencyContribution::new("dep"),
+                    )])
+                    .unwrap(),
+                    CargoDependencies::from_entries([CargoDependencyContribution::external(
+                        ExternalDependencyContribution::new("dep").version("1"),
+                    )])
+                    .unwrap(),
+                ],
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
     fn a2a_client_fragment_contributes_client_runtime_dependency() {
-        let dependency = A2aClientCargoFragment
+        let dependencies = A2aClientCargoFragment
             .generate_contribution(&context(), "cargo::dependencies")
             .unwrap()
-            .downcast::<CargoDependencyContribution>()
+            .downcast::<CargoDependencies>()
             .unwrap();
 
+        assert_eq!(dependencies.len(), 1);
         assert!(matches!(
-            dependency,
+            dependencies
+                .get(&"agentc-protocol-a2a")
+                .unwrap(),
             CargoDependencyContribution::Runtime(dependency)
-                if dependency.name == "agentc-protocol-a2a"
-                    && dependency.default_features == Some(false)
+                if dependency.default_features == Some(false)
                     && dependency.features.len() == 1
                     && dependency.features.contains("client")
         ));
@@ -563,16 +569,17 @@ mod tests {
 
     #[test]
     fn a2a_client_fragment_contributes_runtime_patch() {
-        let patch = A2aClientCargoFragment
+        let patches = A2aClientCargoFragment
             .generate_contribution(&context(), "cargo::patches")
             .unwrap()
-            .downcast::<CargoPatchContribution>()
+            .downcast::<CargoPatches>()
             .unwrap();
 
-        assert!(matches!(
-            patch,
-            CargoPatchContribution::Runtime(dependency)
-                if dependency.name == "agentc-protocol-a2a"
-        ));
+        assert_eq!(patches.len(), 1);
+        assert!(
+            patches
+                .get(&"agentc-protocol-a2a")
+                .is_some()
+        );
     }
 }

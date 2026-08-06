@@ -14,7 +14,8 @@ use agentc_compiler::generator::{
 use crate::{
     context::ResolvedContext,
     contributions::dependency::{
-        CargoDependencyContribution, CargoPatchContribution, RuntimeDependencyContribution,
+        CargoDependencies, CargoDependencyContribution, CargoPatches, CargoPatchContribution,
+        RuntimeDependencyContribution,
     },
 };
 
@@ -27,15 +28,19 @@ impl TemplateFragment<ResolvedContext> for ReActCargoFragment {
         point: &str,
     ) -> Result<ErasedContributionValue, GeneratorError> {
         match point {
-            "cargo::dependencies" => {
-                Ok(ErasedContributionValue::new(CargoDependencyContribution::runtime(
+            "cargo::dependencies" => Ok(ErasedContributionValue::new(
+                CargoDependencies::from_entries([CargoDependencyContribution::runtime(
                     RuntimeDependencyContribution::new("agentc-agent-react")
                         .default_features(false),
-                )))
-            }
-            "cargo::patches" => Ok(ErasedContributionValue::new(CargoPatchContribution::runtime(
-                RuntimeDependencyContribution::new("agentc-agent-react"),
-            ))),
+                )])
+                .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
+            )),
+            "cargo::patches" => Ok(ErasedContributionValue::new(
+                CargoPatches::from_entries([CargoPatchContribution::runtime(
+                    RuntimeDependencyContribution::new("agentc-agent-react"),
+                )])
+                .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
+            )),
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
     }
@@ -68,13 +73,14 @@ impl TemplateFragment<ResolvedContext> for ReActFeatureCargoFragment {
         point: &str,
     ) -> Result<ErasedContributionValue, GeneratorError> {
         match point {
-            "cargo::dependencies" => {
-                Ok(ErasedContributionValue::new(CargoDependencyContribution::runtime(
+            "cargo::dependencies" => Ok(ErasedContributionValue::new(
+                CargoDependencies::from_entries([CargoDependencyContribution::runtime(
                     RuntimeDependencyContribution::new("agentc-agent-react")
                         .default_features(false)
                         .feature(self.feature),
-                )))
-            }
+                )])
+                .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
+            )),
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
     }

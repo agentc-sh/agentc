@@ -27,7 +27,6 @@ use crate::{
             cargo::{
                 A2aClientCargoFragment, CargoDependenciesExtensionPoint,
                 CargoPatchesExtensionPoint, HttpClientCargoFragment, HttpServerCargoFragment,
-                ServerStackCargoFragment,
             },
             cli::{
                 CliModCodeGen, config::CliConfigCodeGen, migrate::CliMigrateCodeGen,
@@ -43,7 +42,7 @@ use crate::{
     },
     composition::GenerationContribution,
     context::ResolvedContext,
-    contributions::dependency::{CargoDependencyContribution, CargoPatchContribution},
+    contributions::dependency::{CargoDependencies, CargoPatches},
     errors::BlocksError,
     feature::{ArchetypeStandalone, Cli, GenerationFeatureSet, HttpServer, LongLivedProcess},
     fields::FieldsSpec,
@@ -199,28 +198,22 @@ impl Archetype for StandaloneArchetype {
             .add(
                 TemplateFragmentBlock::builder()
                     .id("a2a_client_cargo")
-                    .contribute(Contribution::<CargoDependencyContribution>::strict(
-                        "cargo::dependencies",
-                    ))
-                    .contribute(Contribution::<CargoPatchContribution>::strict("cargo::patches"))
+                    .contribute(Contribution::<CargoDependencies>::strict("cargo::dependencies"))
+                    .contribute(Contribution::<CargoPatches>::strict("cargo::patches"))
                     .build(A2aClientCargoFragment),
             )
             .add(
                 TemplateFragmentBlock::builder()
                     .id("prompt_cargo")
-                    .contribute(Contribution::<CargoDependencyContribution>::strict(
-                        "cargo::dependencies",
-                    ))
-                    .contribute(Contribution::<CargoPatchContribution>::strict("cargo::patches"))
+                    .contribute(Contribution::<CargoDependencies>::strict("cargo::dependencies"))
+                    .contribute(Contribution::<CargoPatches>::strict("cargo::patches"))
                     .build(PromptCargoFragment),
             )
             .add(
                 TemplateFragmentBlock::builder()
                     .id("http_client_cargo")
-                    .contribute(Contribution::<CargoDependencyContribution>::strict(
-                        "cargo::dependencies",
-                    ))
-                    .contribute(Contribution::<CargoPatchContribution>::strict("cargo::patches"))
+                    .contribute(Contribution::<CargoDependencies>::strict("cargo::dependencies"))
+                    .contribute(Contribution::<CargoPatches>::strict("cargo::patches"))
                     .build(HttpClientCargoFragment),
             )
             .add(
@@ -271,23 +264,12 @@ impl Archetype for StandaloneArchetype {
             );
 
         if context.http_server.is_some() {
-            blocks = blocks
-                .add(
-                    TemplateFragmentBlock::builder()
-                        .id("http_server_cargo")
-                        .contribute(Contribution::<CargoDependencyContribution>::strict(
-                            "cargo::dependencies",
-                        ))
-                        .build(HttpServerCargoFragment),
-                )
-                .add(
-                    TemplateFragmentBlock::builder()
-                        .id("server_stack_cargo")
-                        .contribute(Contribution::<CargoDependencyContribution>::strict(
-                            "cargo::dependencies",
-                        ))
-                        .build(ServerStackCargoFragment),
-                );
+            blocks = blocks.add(
+                TemplateFragmentBlock::builder()
+                    .id("http_server_cargo")
+                    .contribute(Contribution::<CargoDependencies>::strict("cargo::dependencies"))
+                    .build(HttpServerCargoFragment),
+            );
         }
 
         Ok(ResolvedArchetype {
@@ -317,10 +299,13 @@ mod tests {
     use super::*;
     use crate::{
         context::{
-            ResolvedContextTool, ResolvedContextToolJavascript, ResolvedContextToolKind,
-            ResolvedContextToolPython, ResolvedContextToolPythonInterpreter,
+            ResolvedContextTool, ResolvedContextToolKind, ResolvedContextToolPython,
+            ResolvedContextToolPythonInterpreter,
         },
-        contributions::dependency::RuntimeDependencyContribution,
+        contributions::dependency::{
+            CargoDependencies, CargoDependencyContribution, CargoPatches, CargoPatchContribution,
+            RuntimeDependencyContribution,
+        },
         types::RuntimeValue,
     };
     use agentc_compiler::generator::{
@@ -368,27 +353,6 @@ mod tests {
                     site_packages_path: "/artifacts/adder/.venv/site-packages".to_string(),
                     module_name: "adder".to_string(),
                     interpreter: ResolvedContextToolPythonInterpreter::Static,
-                }),
-            },
-        );
-
-        ctx
-    }
-
-    fn javascript_context() -> ResolvedContext {
-        let mut ctx = context(None);
-
-        ctx.tools.insert(
-            "search".to_string(),
-            ResolvedContextTool {
-                name: "search".to_string(),
-                description: None,
-                enabled: RuntimeValue::constant(true),
-                capabilities: vec![],
-                config: HashMap::new(),
-                kind: ResolvedContextToolKind::Javascript(ResolvedContextToolJavascript {
-                    bundle_path: "/artifacts/search/dist/index.js".to_string(),
-                    export_name: "search".to_string(),
                 }),
             },
         );
@@ -501,7 +465,7 @@ mod tests {
             .resolve(context(None), StandaloneArchetypeConfig::default())
             .unwrap();
 
-        let dependency = resolved
+        let dependencies = resolved
             .contribution
             .blocks
             .iter()
@@ -510,14 +474,16 @@ mod tests {
             .render_contribution(&GenerationContext::new(context(None)), "cargo::dependencies")
             .await
             .unwrap()
-            .downcast::<CargoDependencyContribution>()
+            .downcast::<CargoDependencies>()
             .unwrap();
 
+        assert_eq!(dependencies.len(), 1);
         assert!(matches!(
-            dependency,
+            dependencies
+                .get(&"agentc-protocol-a2a")
+                .unwrap(),
             CargoDependencyContribution::Runtime(dependency)
-                if dependency.name == "agentc-protocol-a2a"
-                    && dependency.default_features == Some(false)
+                if dependency.default_features == Some(false)
                     && dependency.features.len() == 1
                     && dependency.features.contains("client")
         ));
@@ -548,19 +514,21 @@ mod tests {
                 (
                     "cargo::dependencies".to_string(),
                     vec![ErasedContributionValue::new(
-                        CargoDependencyContribution::runtime(
+                        CargoDependencies::from_entries([CargoDependencyContribution::runtime(
                             RuntimeDependencyContribution::new("agentc-protocol-a2a")
                                 .default_features(false)
                                 .feature("client"),
-                        ),
+                        )])
+                        .unwrap(),
                     )],
                 ),
                 (
                     "cargo::patches".to_string(),
                     vec![ErasedContributionValue::new(
-                        CargoPatchContribution::runtime(RuntimeDependencyContribution::new(
-                            "agentc-protocol-a2a",
-                        )),
+                        CargoPatches::from_entries([CargoPatchContribution::runtime(
+                            RuntimeDependencyContribution::new("agentc-protocol-a2a"),
+                        )])
+                        .unwrap(),
                     )],
                 ),
             ]),
@@ -620,87 +588,5 @@ mod tests {
             "agentc-tools = {{ version = \"{}\", default-features = false, features = [\"python-static\"] }}",
             env!("CARGO_PKG_VERSION"),
         )));
-    }
-
-    #[test]
-    fn registers_javascript_tool_cargo_fragment_with_javascript_tool() {
-        let resolved = StandaloneArchetype
-            .resolve(javascript_context(), StandaloneArchetypeConfig::default())
-            .unwrap();
-
-        assert!(
-            resolved
-                .contribution
-                .blocks
-                .iter()
-                .any(|block| block.id() == "javascript_tool_cargo")
-        );
-    }
-
-    #[test]
-    fn omits_javascript_tool_cargo_fragment_without_javascript_tool() {
-        let resolved = StandaloneArchetype
-            .resolve(context(None), StandaloneArchetypeConfig::default())
-            .unwrap();
-
-        assert!(
-            !resolved
-                .contribution
-                .blocks
-                .iter()
-                .any(|block| block.id() == "javascript_tool_cargo")
-        );
-    }
-
-    #[tokio::test]
-    async fn contributes_executor_dependency_when_javascript_tool_present() {
-        let ctx = javascript_context();
-        let resolved = StandaloneArchetype
-            .resolve(ctx.clone(), StandaloneArchetypeConfig::default())
-            .unwrap();
-
-        let dependency = resolved
-            .contribution
-            .blocks
-            .iter()
-            .find(|block| block.id() == "javascript_tool_cargo")
-            .expect("javascript tool cargo block is registered")
-            .render_contribution(&GenerationContext::new(ctx), "cargo::dependencies")
-            .await
-            .unwrap()
-            .downcast::<CargoDependencyContribution>()
-            .unwrap();
-
-        assert!(matches!(
-            dependency,
-            CargoDependencyContribution::Runtime(dependency)
-                if dependency.name == "agentc-executor-typescript"
-        ));
-    }
-
-    #[tokio::test]
-    async fn contributes_executor_patch_when_javascript_tool_present() {
-        let ctx = javascript_context();
-        let resolved = StandaloneArchetype
-            .resolve(ctx.clone(), StandaloneArchetypeConfig::default())
-            .unwrap();
-
-        let patch = resolved
-            .contribution
-            .blocks
-            .iter()
-            .find(|block| block.id() == "javascript_tool_cargo")
-            .expect("javascript tool cargo block is registered")
-            .render_contribution(&GenerationContext::new(ctx), "cargo::patches")
-            .await
-            .unwrap()
-            .downcast::<CargoPatchContribution>()
-            .unwrap();
-
-        assert!(matches!(
-            patch,
-            CargoPatchContribution::Runtime(dependency)
-                if dependency.name == "agentc-executor-typescript"
-        ));
     }
 }

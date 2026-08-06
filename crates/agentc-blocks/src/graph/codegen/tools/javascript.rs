@@ -20,7 +20,8 @@ use agentc_compiler::generator::{
 use crate::{
     context::{ResolvedContext, ResolvedContextToolJavascript, ResolvedContextToolKind},
     contributions::dependency::{
-        CargoDependencyContribution, CargoPatchContribution, RuntimeDependencyContribution,
+        CargoDependencies, CargoDependencyContribution, CargoPatches, CargoPatchContribution,
+        RuntimeDependencyContribution,
     },
     fields::FieldsSpec,
     graph::codegen::tools::ToolCodeGen,
@@ -170,14 +171,18 @@ impl TemplateFragment<ResolvedContext> for JavascriptToolCargoFragment {
         point: &str,
     ) -> Result<ErasedContributionValue, GeneratorError> {
         match point {
-            "cargo::dependencies" => {
-                Ok(ErasedContributionValue::new(CargoDependencyContribution::runtime(
+            "cargo::dependencies" => Ok(ErasedContributionValue::new(
+                CargoDependencies::from_entries([CargoDependencyContribution::runtime(
                     RuntimeDependencyContribution::new("agentc-executor-typescript"),
-                )))
-            }
-            "cargo::patches" => Ok(ErasedContributionValue::new(CargoPatchContribution::runtime(
-                RuntimeDependencyContribution::new("agentc-executor-typescript"),
-            ))),
+                )])
+                .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
+            )),
+            "cargo::patches" => Ok(ErasedContributionValue::new(
+                CargoPatches::from_entries([CargoPatchContribution::runtime(
+                    RuntimeDependencyContribution::new("agentc-executor-typescript"),
+                )])
+                .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
+            )),
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
     }
