@@ -6,7 +6,9 @@ use std::{borrow::Cow, sync::OnceLock};
 
 use agentc_executor_typescript::guestjs::{
     errors::Error,
-    host::{Exports, HostModule},
+    host::{Exports, HostClass, HostModule},
+    marshal::ToGuestBound,
+    runtime::Scope,
 };
 
 use crate::client::{
@@ -98,6 +100,17 @@ impl HostModule for HttpModule {
         self.specifier()
     }
 
+    fn initialize<'js>(&self, scope: &Scope<'js>) -> Result<(), Error> {
+        let module = scope.host_module(self.specifier())?;
+        let globals = scope.ctx().globals();
+
+        globals.set("fetch", module.function("fetch")?.to_guest_bound(scope)?)?;
+        globals.set(Headers::NAME, module.class(Headers::NAME)?.to_guest_bound(scope)?)?;
+        globals.set(Response::NAME, module.class(Response::NAME)?.to_guest_bound(scope)?)?;
+
+        Ok(())
+    }
+
     fn build(&self, exports: &mut Exports) {
         let client = self.client();
 
@@ -163,6 +176,28 @@ export async function denied(url) {
     } catch (error) {
         return error.message;
     }
+}
+"#;
+
+    const GLOBALS_SOURCE: &str = r#"
+import {
+    fetch as importedFetch,
+    Headers as ImportedHeaders,
+    Response as ImportedResponse,
+} from "agentc:http";
+
+export async function read(url) {
+    const response = await fetch(url);
+
+    return `${response.status}:${await response.text()}`;
+}
+
+export async function identical() {
+    return [
+        globalThis.fetch === importedFetch,
+        globalThis.Headers === ImportedHeaders,
+        globalThis.Response === ImportedResponse,
+    ].join(":");
 }
 "#;
 
@@ -263,6 +298,43 @@ export async function denied(url) {
             call(&executor, "denied", format!("http://{address}/ok"))
                 .await
                 .contains("agentc:http:")
+        );
+
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
+    }
+
+    #[tokio::test]
+    async fn the_exports_are_installed_as_globals() {
+        let address = server().await;
+        let executor = Executor::builder("globals.ts", GLOBALS_SOURCE)
+            .workers(1)
+            .standard_environment()
+            .configure(|guest| guest.bind(HttpModule::per_guest(HttpClient::builder())))
+            .build()
+            .await
+            .expect("executor builds");
+
+        assert_eq!(call(&executor, "read", format!("http://{address}/ok")).await, "200:hello",);
+
+        assert_eq!(
+            executor
+                .execute(|context| {
+                    Box::pin(async move {
+                        context
+                            .module()
+                            .function("identical")
+                            .await?
+                            .call::<_, Promise<String>>(())
+                            .await?
+                            .await
+                    })
+                })
+                .await
+                .expect("guest call succeeds"),
+            "true:true:true",
         );
 
         executor
