@@ -104,9 +104,24 @@ impl HostModule for HttpModule {
         let module = scope.host_module(self.specifier())?;
         let globals = scope.ctx().globals();
 
-        globals.set("fetch", module.function("fetch")?.to_guest_bound(scope)?)?;
-        globals.set(Headers::NAME, module.class(Headers::NAME)?.to_guest_bound(scope)?)?;
-        globals.set(Response::NAME, module.class(Response::NAME)?.to_guest_bound(scope)?)?;
+        globals.set(
+            "fetch",
+            module
+                .function("fetch")?
+                .to_guest_bound(scope)?,
+        )?;
+        globals.set(
+            Headers::NAME,
+            module
+                .class(Headers::NAME)?
+                .to_guest_bound(scope)?,
+        )?;
+        globals.set(
+            Response::NAME,
+            module
+                .class(Response::NAME)?
+                .to_guest_bound(scope)?,
+        )?;
 
         Ok(())
     }

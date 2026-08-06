@@ -18,12 +18,10 @@ impl ExecutorBuilderToolExt for ExecutorBuilder {
     where
         I: Into<CapabilitySet>,
     {
-        let filesystem = capabilities
-            .into()
-            .has_any(&[
-                Capability::from("filesystem::read"),
-                Capability::from("filesystem::write"),
-            ]);
+        let filesystem = capabilities.into().has_any(&[
+            Capability::from("filesystem::read"),
+            Capability::from("filesystem::write"),
+        ]);
 
         self.configure(move |builder| {
             builder.bind_native(match filesystem {
