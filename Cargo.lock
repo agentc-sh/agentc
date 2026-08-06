@@ -266,7 +266,6 @@ dependencies = [
  "url",
  "utoipa",
  "utoipa-axum",
- "utoipa-scalar",
  "uuid",
  "validator",
 ]

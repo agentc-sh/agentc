@@ -11,6 +11,7 @@ use agentc_domain::repository::{
     session::errors::SessionRepoError,
 };
 use agentc_domain_sql::scope::SqlScopeFactoryError;
+#[cfg(feature = "api")]
 use agentc_http::server::errors::ApiError;
 
 use crate::repository::message::errors::MessageRepoError;
@@ -101,6 +102,7 @@ impl ServiceError {
     }
 }
 
+#[cfg(feature = "api")]
 impl From<ServiceError> for ApiError {
     fn from(err: ServiceError) -> Self {
         match err {
