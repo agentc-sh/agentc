@@ -18,9 +18,9 @@ use agentc_compiler::generator::{
 };
 
 use crate::{
-    archetype::standalone::codegen::cargo::{CargoDependencyContribution, CargoPatchContribution},
     composition::GenerationContribution,
     context::{ResolvedContext, ResolvedContextHttpServerProtocolAgUi},
+    contributions::dependency::{CargoDependencyContribution, CargoPatchContribution},
     errors::BlocksError,
     feature::{GenerationFeatureSet, HttpServer, ProtocolAgUi, Streaming, SupportsAgUi},
     protocol::{traits::Protocol, types::ResolvedProtocol},

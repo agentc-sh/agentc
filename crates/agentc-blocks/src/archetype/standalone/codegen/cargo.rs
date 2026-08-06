@@ -12,65 +12,13 @@ use agentc_compiler::generator::{
 };
 
 use crate::{
-    context::ResolvedContext, contributions::dependency::RuntimeDependencyContribution,
+    context::ResolvedContext,
+    contributions::dependency::{
+        CargoDependencyContribution, CargoPatchContribution, ExternalDependencyContribution,
+        RuntimeDependencyContribution,
+    },
     errors::BlocksError,
 };
-
-#[derive(Debug, Clone)]
-pub enum CargoDependencyContribution {
-    Raw(String),
-    Runtime(RuntimeDependencyContribution),
-}
-
-impl CargoDependencyContribution {
-    pub fn raw(value: impl Into<String>) -> Self {
-        Self::Raw(value.into())
-    }
-
-    pub fn runtime(dependency: impl Into<RuntimeDependencyContribution>) -> Self {
-        Self::Runtime(dependency.into())
-    }
-}
-
-impl From<String> for CargoDependencyContribution {
-    fn from(value: String) -> Self {
-        Self::Raw(value)
-    }
-}
-
-impl From<&str> for CargoDependencyContribution {
-    fn from(value: &str) -> Self {
-        Self::Raw(value.to_string())
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum CargoPatchContribution {
-    Raw(String),
-    Runtime(RuntimeDependencyContribution),
-}
-
-impl CargoPatchContribution {
-    pub fn raw(value: impl Into<String>) -> Self {
-        Self::Raw(value.into())
-    }
-
-    pub fn runtime(dependency: impl Into<RuntimeDependencyContribution>) -> Self {
-        Self::Runtime(dependency.into())
-    }
-}
-
-impl From<String> for CargoPatchContribution {
-    fn from(value: String) -> Self {
-        Self::Raw(value)
-    }
-}
-
-impl From<&str> for CargoPatchContribution {
-    fn from(value: &str) -> Self {
-        Self::Raw(value.to_string())
-    }
-}
 
 pub struct A2aClientCargoFragment;
 
@@ -91,6 +39,101 @@ impl TemplateFragment<ResolvedContext> for A2aClientCargoFragment {
             "cargo::patches" => Ok(ErasedContributionValue::new(CargoPatchContribution::runtime(
                 RuntimeDependencyContribution::new("agentc-protocol-a2a"),
             ))),
+            _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
+        }
+    }
+
+    fn generate_files(
+        &self,
+        _ctx: &GenerationContext<ResolvedContext>,
+        _registry: &ExtensionRegistry,
+    ) -> Result<Vec<(PathBuf, String)>, GeneratorError> {
+        Ok(vec![])
+    }
+}
+
+pub struct HttpClientCargoFragment;
+
+impl TemplateFragment<ResolvedContext> for HttpClientCargoFragment {
+    fn generate_contribution(
+        &self,
+        _ctx: &GenerationContext<ResolvedContext>,
+        point: &str,
+    ) -> Result<ErasedContributionValue, GeneratorError> {
+        match point {
+            "cargo::dependencies" => {
+                Ok(ErasedContributionValue::new(CargoDependencyContribution::runtime(
+                    RuntimeDependencyContribution::new("agentc-http")
+                        .default_features(false)
+                        .feature("client"),
+                )))
+            }
+            "cargo::patches" => Ok(ErasedContributionValue::new(CargoPatchContribution::runtime(
+                RuntimeDependencyContribution::new("agentc-http"),
+            ))),
+            _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
+        }
+    }
+
+    fn generate_files(
+        &self,
+        _ctx: &GenerationContext<ResolvedContext>,
+        _registry: &ExtensionRegistry,
+    ) -> Result<Vec<(PathBuf, String)>, GeneratorError> {
+        Ok(vec![])
+    }
+}
+
+pub struct HttpServerCargoFragment;
+
+impl TemplateFragment<ResolvedContext> for HttpServerCargoFragment {
+    fn generate_contribution(
+        &self,
+        _ctx: &GenerationContext<ResolvedContext>,
+        point: &str,
+    ) -> Result<ErasedContributionValue, GeneratorError> {
+        match point {
+            "cargo::dependencies" => {
+                Ok(ErasedContributionValue::new(CargoDependencyContribution::runtime(
+                    RuntimeDependencyContribution::new("agentc-http")
+                        .default_features(false)
+                        .feature("server"),
+                )))
+            }
+            _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
+        }
+    }
+
+    fn generate_files(
+        &self,
+        _ctx: &GenerationContext<ResolvedContext>,
+        _registry: &ExtensionRegistry,
+    ) -> Result<Vec<(PathBuf, String)>, GeneratorError> {
+        Ok(vec![])
+    }
+}
+
+pub struct ServerStackCargoFragment;
+
+impl ServerStackCargoFragment {
+    pub(crate) const DEPENDENCIES: &'static str = concat!(
+        "jobq = { git = \"https://github.com/wizrds/jobq-rs.git\", version = \"0.3.1\" }\n",
+        "subway = { git = \"https://github.com/wizrds/subway-rs.git\", version = \"0.1.0\", features = [\"redis\"] }\n",
+        "utoipa = { version = \"5.4\" }\n",
+        "utoipa-axum = { version = \"0.2\" }",
+    );
+}
+
+impl TemplateFragment<ResolvedContext> for ServerStackCargoFragment {
+    fn generate_contribution(
+        &self,
+        _ctx: &GenerationContext<ResolvedContext>,
+        point: &str,
+    ) -> Result<ErasedContributionValue, GeneratorError> {
+        match point {
+            "cargo::dependencies" => Ok(ErasedContributionValue::new(
+                CargoDependencyContribution::raw(Self::DEPENDENCIES),
+            )),
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
     }
@@ -137,9 +180,68 @@ impl CargoDependenciesExtensionPoint {
         format!("{} = {{ {} }}", dependency.name, fields.join(", "))
     }
 
+    fn render_external_dependency(&self, dependency: ExternalDependencyContribution) -> String {
+        let mut fields = Vec::new();
+
+        if let Some(path) = dependency.path {
+            fields.push(format!("path = \"{path}\""));
+        }
+
+        if let Some(git) = dependency.git {
+            fields.push(format!("git = \"{git}\""));
+        }
+
+        if let Some(version) = dependency.version {
+            fields.push(format!("version = \"{version}\""));
+        }
+
+        if let Some(branch) = dependency.branch {
+            fields.push(format!("branch = \"{branch}\""));
+        }
+
+        if let Some(tag) = dependency.tag {
+            fields.push(format!("tag = \"{tag}\""));
+        }
+
+        if let Some(rev) = dependency.rev {
+            fields.push(format!("rev = \"{rev}\""));
+        }
+
+        if let Some(default_features) = dependency.default_features {
+            fields.push(format!("default-features = {default_features}"));
+        }
+
+        if !dependency.features.is_empty() {
+            fields.push(format!(
+                "features = [{}]",
+                dependency
+                    .features
+                    .into_iter()
+                    .map(|feature| format!("\"{feature}\""))
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            ));
+        }
+
+        format!("{} = {{ {} }}", dependency.name, fields.join(", "))
+    }
+
     fn merge_runtime_dependency(
         dependencies: &mut BTreeMap<&'static str, RuntimeDependencyContribution>,
         dependency: RuntimeDependencyContribution,
+    ) -> Result<(), BlocksError> {
+        if let Some(existing) = dependencies.get_mut(dependency.name) {
+            existing.merge(dependency)?;
+        } else {
+            dependencies.insert(dependency.name, dependency);
+        }
+
+        Ok(())
+    }
+
+    fn merge_external_dependency(
+        dependencies: &mut BTreeMap<&'static str, ExternalDependencyContribution>,
+        dependency: ExternalDependencyContribution,
     ) -> Result<(), BlocksError> {
         if let Some(existing) = dependencies.get_mut(dependency.name) {
             existing.merge(dependency)?;
@@ -161,12 +263,17 @@ impl ExtensionPoint for CargoDependenciesExtensionPoint {
     fn reduce(&self, contributions: Vec<Self::Contribution>) -> Result<String, GeneratorError> {
         let mut raw = Vec::new();
         let mut runtime = BTreeMap::new();
+        let mut external = BTreeMap::new();
 
         for contribution in contributions {
             match contribution {
                 CargoDependencyContribution::Raw(value) => raw.push(value),
                 CargoDependencyContribution::Runtime(dependency) => {
                     Self::merge_runtime_dependency(&mut runtime, dependency)
+                        .map_err(|error| GeneratorError::unexpected(error.to_string()))?;
+                }
+                CargoDependencyContribution::External(dependency) => {
+                    Self::merge_external_dependency(&mut external, dependency)
                         .map_err(|error| GeneratorError::unexpected(error.to_string()))?;
                 }
             }
@@ -178,6 +285,11 @@ impl ExtensionPoint for CargoDependenciesExtensionPoint {
                 runtime
                     .into_values()
                     .map(|dependency| self.render_runtime_dependency(dependency)),
+            )
+            .chain(
+                external
+                    .into_values()
+                    .map(|dependency| self.render_external_dependency(dependency)),
             )
             .collect::<Vec<_>>()
             .join("\n"))

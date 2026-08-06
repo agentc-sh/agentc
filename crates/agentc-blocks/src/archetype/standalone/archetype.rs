@@ -26,7 +26,8 @@ use crate::{
             build_script::BuildScriptCodeGen,
             cargo::{
                 A2aClientCargoFragment, CargoDependenciesExtensionPoint,
-                CargoDependencyContribution, CargoPatchContribution, CargoPatchesExtensionPoint,
+                CargoPatchesExtensionPoint, HttpClientCargoFragment, HttpServerCargoFragment,
+                ServerStackCargoFragment,
             },
             cli::{
                 CliModCodeGen, config::CliConfigCodeGen, migrate::CliMigrateCodeGen,
@@ -42,13 +43,11 @@ use crate::{
     },
     composition::GenerationContribution,
     context::ResolvedContext,
+    contributions::dependency::{CargoDependencyContribution, CargoPatchContribution},
     errors::BlocksError,
     feature::{ArchetypeStandalone, Cli, GenerationFeatureSet, HttpServer, LongLivedProcess},
     fields::FieldsSpec,
-    graph::codegen::{
-        prompt::PromptCargoFragment,
-        tools::javascript::{JavascriptToolCargoFragment, JavascriptTools},
-    },
+    graph::codegen::prompt::PromptCargoFragment,
     runtime::EMBEDDED_RUNTIME,
 };
 
@@ -216,6 +215,15 @@ impl Archetype for StandaloneArchetype {
                     .build(PromptCargoFragment),
             )
             .add(
+                TemplateFragmentBlock::builder()
+                    .id("http_client_cargo")
+                    .contribute(Contribution::<CargoDependencyContribution>::strict(
+                        "cargo::dependencies",
+                    ))
+                    .contribute(Contribution::<CargoPatchContribution>::strict("cargo::patches"))
+                    .build(HttpClientCargoFragment),
+            )
+            .add(
                 CodeGenBlock::builder()
                     .id("migrator_rs")
                     .extension_point("migrator::use", reducers::concat)
@@ -262,16 +270,24 @@ impl Archetype for StandaloneArchetype {
                     .build(EntrypointCodeGen),
             );
 
-        if JavascriptTools::is_present(&context) {
-            blocks = blocks.add(
-                TemplateFragmentBlock::builder()
-                    .id("javascript_tool_cargo")
-                    .contribute(Contribution::<CargoDependencyContribution>::strict(
-                        "cargo::dependencies",
-                    ))
-                    .contribute(Contribution::<CargoPatchContribution>::strict("cargo::patches"))
-                    .build(JavascriptToolCargoFragment),
-            );
+        if context.http_server.is_some() {
+            blocks = blocks
+                .add(
+                    TemplateFragmentBlock::builder()
+                        .id("http_server_cargo")
+                        .contribute(Contribution::<CargoDependencyContribution>::strict(
+                            "cargo::dependencies",
+                        ))
+                        .build(HttpServerCargoFragment),
+                )
+                .add(
+                    TemplateFragmentBlock::builder()
+                        .id("server_stack_cargo")
+                        .contribute(Contribution::<CargoDependencyContribution>::strict(
+                            "cargo::dependencies",
+                        ))
+                        .build(ServerStackCargoFragment),
+                );
         }
 
         Ok(ResolvedArchetype {

@@ -17,9 +17,9 @@ use agentc_compiler::generator::{
 };
 
 use crate::{
-    archetype::standalone::codegen::cargo::{CargoDependencyContribution, CargoPatchContribution},
     composition::{GenerationContribution, OptionalGenerationContribution},
     context::ResolvedContext,
+    contributions::dependency::{CargoDependencyContribution, CargoPatchContribution},
     errors::BlocksError,
     feature::{
         GenerationFeatureSet, GraphReAct, HttpServer, Streaming, SupportsA2a, SupportsAgUi,

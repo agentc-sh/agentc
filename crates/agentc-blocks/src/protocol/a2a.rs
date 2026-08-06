@@ -18,10 +18,11 @@ use agentc_compiler::generator::{
 };
 
 use crate::{
-    archetype::standalone::codegen::cargo::{CargoDependencyContribution, CargoPatchContribution},
     composition::GenerationContribution,
     context::{ResolvedContext, ResolvedContextHttpServerProtocolA2a},
-    contributions::dependency::RuntimeDependencyContribution,
+    contributions::dependency::{
+        CargoDependencyContribution, CargoPatchContribution, RuntimeDependencyContribution,
+    },
     errors::BlocksError,
     feature::{GenerationFeatureSet, HttpServer, ProtocolA2a, Streaming, SupportsA2a},
     protocol::{traits::Protocol, types::ResolvedProtocol},

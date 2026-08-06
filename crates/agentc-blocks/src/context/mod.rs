@@ -43,3 +43,67 @@ pub struct ResolvedContext {
     /// Optional HTTP server configuration.
     pub http_server: Option<ResolvedContextHttpServer>,
 }
+
+impl ResolvedContext {
+    /// Whether any component in this context is implemented in TypeScript.
+    pub fn has_typescript_components(&self) -> bool {
+        self.tools
+            .values()
+            .any(|tool| tool.kind.is_javascript())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+
+    fn context(tools: serde_json::Value) -> ResolvedContext {
+        serde_json::from_value(json!({
+            "slug": "assistant",
+            "agent_name": "assistant",
+            "runtime": { "default_tenant_id": "default" },
+            "providers": [],
+            "agent": {
+                "version": "0.1.0",
+                "description": null,
+                "prompt": null,
+                "capabilities": null,
+                "capability_policy": null,
+                "model": { "provider": "anthropic", "name": "claude" }
+            },
+            "blocks": {},
+            "tools": tools,
+            "skills": {},
+            "http_server": null
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn typescript_components_are_detected_from_javascript_tools() {
+        assert!(
+            context(json!({
+                "search": {
+                    "name": "search",
+                    "description": null,
+                    "enabled": true,
+                    "capabilities": [],
+                    "config": {},
+                    "kind": {
+                        "kind": "javascript",
+                        "bundle_path": "/artifacts/search/dist/index.js",
+                        "export_name": "search"
+                    }
+                }
+            }))
+            .has_typescript_components()
+        );
+    }
+
+    #[test]
+    fn no_typescript_components_without_a_javascript_tool() {
+        assert!(!context(json!({})).has_typescript_components());
+    }
+}

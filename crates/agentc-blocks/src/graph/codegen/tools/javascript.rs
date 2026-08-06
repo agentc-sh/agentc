@@ -18,9 +18,10 @@ use agentc_compiler::generator::{
 };
 
 use crate::{
-    archetype::standalone::codegen::cargo::{CargoDependencyContribution, CargoPatchContribution},
     context::{ResolvedContext, ResolvedContextToolJavascript, ResolvedContextToolKind},
-    contributions::dependency::RuntimeDependencyContribution,
+    contributions::dependency::{
+        CargoDependencyContribution, CargoPatchContribution, RuntimeDependencyContribution,
+    },
     fields::FieldsSpec,
     graph::codegen::tools::ToolCodeGen,
 };

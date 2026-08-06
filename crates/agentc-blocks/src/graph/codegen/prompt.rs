@@ -15,12 +15,13 @@ use agentc_compiler::generator::{
 };
 
 use crate::{
-    archetype::standalone::codegen::cargo::{CargoDependencyContribution, CargoPatchContribution},
     context::{
         ResolvedContext, ResolvedContextAgentPromptMessage, ResolvedContextAgentPromptMessageRole,
         ResolvedContextAgentPromptSource, ResolvedContextAgentPromptSourceLangfuse,
     },
-    contributions::dependency::RuntimeDependencyContribution,
+    contributions::dependency::{
+        CargoDependencyContribution, CargoPatchContribution, RuntimeDependencyContribution,
+    },
     fields::FieldsSpec,
 };
 
