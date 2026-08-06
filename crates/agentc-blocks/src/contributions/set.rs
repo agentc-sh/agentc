@@ -122,8 +122,8 @@ mod tests {
 
     #[test]
     fn entries_with_the_same_key_merge() {
-        let set =
-            ContributionSet::from_entries([Entry::new("a", "one"), Entry::new("a", "two")]).unwrap();
+        let set = ContributionSet::from_entries([Entry::new("a", "one"), Entry::new("a", "two")])
+            .unwrap();
 
         assert_eq!(set.len(), 1);
         assert_eq!(set.get(&"a").unwrap().values, vec!["one", "two"]);
@@ -140,12 +140,8 @@ mod tests {
         .unwrap();
 
         assert_eq!(
-            single
-                .into_values()
-                .collect::<Vec<_>>(),
-            merged
-                .into_values()
-                .collect::<Vec<_>>(),
+            single.into_values().collect::<Vec<_>>(),
+            merged.into_values().collect::<Vec<_>>(),
         );
     }
 

@@ -20,7 +20,7 @@ use agentc_compiler::generator::{
 use crate::{
     context::{ResolvedContext, ResolvedContextToolJavascript, ResolvedContextToolKind},
     contributions::dependency::{
-        CargoDependencies, CargoDependencyContribution, CargoPatches, CargoPatchContribution,
+        CargoDependencies, CargoDependencyContribution, CargoPatchContribution, CargoPatches,
         RuntimeDependencyContribution,
     },
     fields::FieldsSpec,
@@ -180,6 +180,36 @@ impl TemplateFragment<ResolvedContext> for JavascriptToolCargoFragment {
             "cargo::patches" => Ok(ErasedContributionValue::new(
                 CargoPatches::from_entries([CargoPatchContribution::runtime(
                     RuntimeDependencyContribution::new("agentc-executor-typescript"),
+                )])
+                .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
+            )),
+            _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
+        }
+    }
+
+    fn generate_files(
+        &self,
+        _ctx: &GenerationContext<ResolvedContext>,
+        _registry: &ExtensionRegistry,
+    ) -> Result<Vec<(PathBuf, String)>, GeneratorError> {
+        Ok(vec![])
+    }
+}
+
+pub struct HttpTypescriptCargoFragment;
+
+impl TemplateFragment<ResolvedContext> for HttpTypescriptCargoFragment {
+    fn generate_contribution(
+        &self,
+        _ctx: &GenerationContext<ResolvedContext>,
+        point: &str,
+    ) -> Result<ErasedContributionValue, GeneratorError> {
+        match point {
+            "cargo::dependencies" => Ok(ErasedContributionValue::new(
+                CargoDependencies::from_entries([CargoDependencyContribution::runtime(
+                    RuntimeDependencyContribution::new("agentc-http")
+                        .default_features(false)
+                        .feature("typescript"),
                 )])
                 .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
             )),

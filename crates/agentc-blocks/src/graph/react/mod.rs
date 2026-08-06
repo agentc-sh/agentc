@@ -22,13 +22,19 @@ use crate::{
     contributions::dependency::{CargoDependencies, CargoPatches},
     errors::BlocksError,
     feature::{
-        GenerationFeatureSet, GraphReAct, HttpServer, Streaming, SupportsA2a, SupportsAgUi,
+        GenerationFeatureSet, GraphReAct, HttpServer, ProtocolA2a, ProtocolAgUi, Streaming,
+        SupportsA2a, SupportsAgUi,
     },
     fields::FieldsSpec,
     graph::{
+        codegen::tools::javascript::{HttpTypescriptCargoFragment, JavascriptToolCargoFragment},
         react::{
-            agent::AgentCodeGen, cargo::ReActCargoFragment, cli_run::CliRunCodeGen,
-            cli_serve::CliServeCodeGen, migrations::ReActMigrationsCodeGen, server::ServerCodeGen,
+            agent::AgentCodeGen,
+            cargo::{ReActCargoFragment, ReActFeatureCargoFragment, ReActServerCargoFragment},
+            cli_run::CliRunCodeGen,
+            cli_serve::CliServeCodeGen,
+            migrations::ReActMigrationsCodeGen,
+            server::ServerCodeGen,
         },
         traits::AgentGraph,
         types::ResolvedGraph,
@@ -73,7 +79,7 @@ impl AgentGraph for ReActGraph {
     ) -> Result<ResolvedGraph, BlocksError> {
         let fields = FieldsSpec::collect_from(&context);
 
-        let core_blocks = BlockSet::new()
+        let mut core_blocks = BlockSet::new()
             .add(
                 CodeGenBlock::builder()
                     .id("agent_rs")
@@ -104,8 +110,30 @@ impl AgentGraph for ReActGraph {
                     .contribute(Contribution::<CargoDependencies>::strict("cargo::dependencies"))
                     .contribute(Contribution::<CargoPatches>::strict("cargo::patches"))
                     .build(ReActCargoFragment),
-            )
-            .into_inner();
+            );
+
+        if context.has_typescript_components() {
+            core_blocks = core_blocks
+                .add(
+                    TemplateFragmentBlock::builder()
+                        .id("javascript_tool_cargo")
+                        .contribute(Contribution::<CargoDependencies>::strict(
+                            "cargo::dependencies",
+                        ))
+                        .contribute(Contribution::<CargoPatches>::strict("cargo::patches"))
+                        .build(JavascriptToolCargoFragment),
+                )
+                .add(
+                    TemplateFragmentBlock::builder()
+                        .id("http_typescript_cargo")
+                        .contribute(Contribution::<CargoDependencies>::strict(
+                            "cargo::dependencies",
+                        ))
+                        .build(HttpTypescriptCargoFragment),
+                );
+        }
+
+        let core_blocks = core_blocks.into_inner();
 
         let server_integration = OptionalGenerationContribution::new(
             GenerationContribution::new()
@@ -127,9 +155,67 @@ impl AgentGraph for ReActGraph {
                                 .contribute(Contribution::<String>::strict("cli::mod::arms"))
                                 .build(CliServeCodeGen),
                         )
+                        .add(
+                            TemplateFragmentBlock::builder()
+                                .id("react_api_cargo")
+                                .contribute(Contribution::<CargoDependencies>::strict(
+                                    "cargo::dependencies",
+                                ))
+                                .build(ReActFeatureCargoFragment::new("api")),
+                        )
+                        .add(
+                            TemplateFragmentBlock::builder()
+                                .id("react_server_cargo")
+                                .contribute(Contribution::<CargoDependencies>::strict(
+                                    "cargo::dependencies",
+                                ))
+                                .build(ReActServerCargoFragment),
+                        )
                         .into_inner(),
                 )
                 .with_requires(GenerationFeatureSet::new().with::<HttpServer>()),
+        );
+
+        let ag_ui_integration = OptionalGenerationContribution::new(
+            GenerationContribution::new()
+                .with_blocks(
+                    BlockSet::new()
+                        .add(
+                            TemplateFragmentBlock::builder()
+                                .id("react_ag_ui_cargo")
+                                .contribute(Contribution::<CargoDependencies>::strict(
+                                    "cargo::dependencies",
+                                ))
+                                .build(ReActFeatureCargoFragment::new("ag-ui")),
+                        )
+                        .into_inner(),
+                )
+                .with_requires(
+                    GenerationFeatureSet::new()
+                        .with::<HttpServer>()
+                        .with::<ProtocolAgUi>(),
+                ),
+        );
+
+        let a2a_integration = OptionalGenerationContribution::new(
+            GenerationContribution::new()
+                .with_blocks(
+                    BlockSet::new()
+                        .add(
+                            TemplateFragmentBlock::builder()
+                                .id("react_a2a_cargo")
+                                .contribute(Contribution::<CargoDependencies>::strict(
+                                    "cargo::dependencies",
+                                ))
+                                .build(ReActFeatureCargoFragment::new("a2a")),
+                        )
+                        .into_inner(),
+                )
+                .with_requires(
+                    GenerationFeatureSet::new()
+                        .with::<HttpServer>()
+                        .with::<ProtocolA2a>(),
+                ),
         );
 
         Ok(ResolvedGraph {
@@ -143,7 +229,7 @@ impl AgentGraph for ReActGraph {
                         .with::<SupportsAgUi>()
                         .with::<SupportsA2a>(),
                 ),
-            integrations: vec![server_integration],
+            integrations: vec![server_integration, ag_ui_integration, a2a_integration],
         })
     }
 }
@@ -222,12 +308,99 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert_eq!(ids, vec!["agent_rs", "cli_run", "react_migrations", "react_cargo"]);
-        assert_eq!(resolved.integrations.len(), 1);
+        assert_eq!(resolved.integrations.len(), 3);
         assert!(
             resolved.integrations[0]
                 .contribution
                 .requires
                 .contains::<HttpServer>()
+        );
+        assert!(
+            resolved.integrations[1]
+                .contribution
+                .requires
+                .contains::<ProtocolAgUi>()
+        );
+        assert!(
+            resolved.integrations[2]
+                .contribution
+                .requires
+                .contains::<ProtocolA2a>()
+        );
+    }
+
+    #[test]
+    fn the_server_integration_carries_the_api_feature_and_the_task_queue() {
+        let resolved = ReActGraph
+            .resolve(context(None), ReActGraphConfig::default())
+            .unwrap();
+
+        let ids = resolved.integrations[0]
+            .contribution
+            .blocks
+            .iter()
+            .map(|block| block.id().to_string())
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            ids,
+            vec![
+                "server_rs",
+                "cli_serve",
+                "react_api_cargo",
+                "react_server_cargo"
+            ]
+        );
+    }
+
+    #[test]
+    fn registers_the_typescript_fragments_only_with_a_typescript_component() {
+        let without = ReActGraph
+            .resolve(context(None), ReActGraphConfig::default())
+            .unwrap();
+
+        assert!(
+            !without
+                .contribution
+                .blocks
+                .iter()
+                .any(|block| block.id() == "http_typescript_cargo")
+        );
+
+        let mut ctx = context(None);
+
+        ctx.tools.insert(
+            "search".to_string(),
+            serde_json::from_value(json!({
+                "name": "search",
+                "description": null,
+                "enabled": true,
+                "capabilities": [],
+                "config": {},
+                "kind": {
+                    "kind": "javascript",
+                    "bundle_path": "/artifacts/search/dist/index.js",
+                    "export_name": "search"
+                }
+            }))
+            .unwrap(),
+        );
+
+        let with = ReActGraph
+            .resolve(ctx, ReActGraphConfig::default())
+            .unwrap();
+
+        assert!(
+            with.contribution
+                .blocks
+                .iter()
+                .any(|block| block.id() == "javascript_tool_cargo")
+        );
+        assert!(
+            with.contribution
+                .blocks
+                .iter()
+                .any(|block| block.id() == "http_typescript_cargo")
         );
     }
 }

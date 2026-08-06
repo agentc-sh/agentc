@@ -303,8 +303,8 @@ mod tests {
             ResolvedContextToolPythonInterpreter,
         },
         contributions::dependency::{
-            CargoDependencies, CargoDependencyContribution, CargoPatches, CargoPatchContribution,
-            RuntimeDependencyContribution,
+            CargoDependencies, CargoDependencyContribution, CargoPatchContribution, CargoPatches,
+            ExternalDependencyContribution, RuntimeDependencyContribution,
         },
         types::RuntimeValue,
     };
@@ -586,6 +586,241 @@ mod tests {
 
         assert!(content.contains(&format!(
             "agentc-tools = {{ version = \"{}\", default-features = false, features = [\"python-static\"] }}",
+            env!("CARGO_PKG_VERSION"),
+        )));
+    }
+
+    #[tokio::test]
+    async fn contributes_the_http_client_dependency_unconditionally() {
+        let resolved = StandaloneArchetype
+            .resolve(context(None), StandaloneArchetypeConfig::default())
+            .unwrap();
+
+        let dependencies = resolved
+            .contribution
+            .blocks
+            .iter()
+            .find(|block| block.id() == "http_client_cargo")
+            .expect("http client cargo block is registered")
+            .render_contribution(&GenerationContext::new(context(None)), "cargo::dependencies")
+            .await
+            .unwrap()
+            .downcast::<CargoDependencies>()
+            .unwrap();
+
+        assert_eq!(dependencies.len(), 1);
+        assert!(matches!(
+            dependencies
+                .get(&"agentc-http")
+                .unwrap(),
+            CargoDependencyContribution::Runtime(dependency)
+                if dependency.default_features == Some(false)
+                    && dependency.features.len() == 1
+                    && dependency.features.contains("client")
+        ));
+    }
+
+    #[test]
+    fn registers_the_server_fragments_only_with_an_http_server() {
+        let without = StandaloneArchetype
+            .resolve(context(None), StandaloneArchetypeConfig::default())
+            .unwrap();
+        let with = StandaloneArchetype
+            .resolve(
+                context(Some(json!({ "host": "0.0.0.0", "port": 8080, "max_request_size": 2097152, "protocols": [] }))),
+                StandaloneArchetypeConfig::default(),
+            )
+            .unwrap();
+
+        assert!(
+            !without
+                .contribution
+                .blocks
+                .iter()
+                .any(|block| block.id() == "http_server_cargo")
+        );
+        assert!(
+            with.contribution
+                .blocks
+                .iter()
+                .any(|block| block.id() == "http_server_cargo")
+        );
+    }
+
+    async fn rendered_cargo_toml(
+        ctx: ResolvedContext,
+        dependencies: Vec<ErasedContributionValue>,
+        patches: Vec<ErasedContributionValue>,
+    ) -> String {
+        let resolved = StandaloneArchetype
+            .resolve(ctx.clone(), StandaloneArchetypeConfig::default())
+            .unwrap();
+        let registry = ExtensionRegistry::resolve(
+            vec![
+                Box::new(CargoDependenciesExtensionPoint::new(
+                    "cargo::dependencies",
+                    env!("CARGO_PKG_VERSION"),
+                )),
+                Box::new(CargoPatchesExtensionPoint::new("cargo::patches")),
+            ],
+            HashMap::from([
+                ("cargo::dependencies".to_string(), dependencies),
+                ("cargo::patches".to_string(), patches),
+            ]),
+        )
+        .unwrap();
+        let mut vfs = VirtualFileSystem::new();
+
+        resolved
+            .contribution
+            .blocks
+            .iter()
+            .find(|block| block.id() == "cargo_toml")
+            .expect("cargo_toml block is registered")
+            .render(&GenerationContext::new(ctx), &registry, &mut vfs)
+            .await
+            .unwrap();
+
+        vfs.get("Cargo.toml")
+            .expect("Cargo.toml is generated")
+            .to_string()
+    }
+
+    #[tokio::test]
+    async fn command_line_only_agent_gets_the_client_and_no_server() {
+        let content = rendered_cargo_toml(
+            context(None),
+            vec![
+                ErasedContributionValue::new(
+                    CargoDependencies::from_entries([CargoDependencyContribution::runtime(
+                        RuntimeDependencyContribution::new("agentc-http")
+                            .default_features(false)
+                            .feature("client"),
+                    )])
+                    .unwrap(),
+                ),
+                ErasedContributionValue::new(
+                    CargoDependencies::from_entries([CargoDependencyContribution::runtime(
+                        RuntimeDependencyContribution::new("agentc-agent-react")
+                            .default_features(false),
+                    )])
+                    .unwrap(),
+                ),
+            ],
+            vec![],
+        )
+        .await;
+
+        assert!(content.contains(&format!(
+            "agentc-agent-react = {{ version = \"{}\", default-features = false }}",
+            env!("CARGO_PKG_VERSION"),
+        )));
+        assert!(content.contains(&format!(
+            "agentc-http = {{ version = \"{}\", default-features = false, features = [\"client\"] }}",
+            env!("CARGO_PKG_VERSION"),
+        )));
+        assert!(!content.contains("jobq"));
+        assert!(!content.contains("utoipa"));
+
+        // Present, not absent: the generated `src/config.rs` names `subway` in every artifact.
+        assert!(content.contains("subway = { git = \"https://github.com/wizrds/subway-rs.git\""));
+    }
+
+    #[tokio::test]
+    async fn serving_agent_gets_the_client_and_the_server() {
+        let content = rendered_cargo_toml(
+            context(Some(json!({ "host": "0.0.0.0", "port": 8080, "max_request_size": 2097152, "protocols": [] }))),
+            vec![
+                ErasedContributionValue::new(
+                    CargoDependencies::from_entries([CargoDependencyContribution::runtime(
+                        RuntimeDependencyContribution::new("agentc-http")
+                            .default_features(false)
+                            .feature("client"),
+                    )])
+                    .unwrap(),
+                ),
+                ErasedContributionValue::new(
+                    CargoDependencies::from_entries([
+                        CargoDependencyContribution::runtime(
+                            RuntimeDependencyContribution::new("agentc-http")
+                                .default_features(false)
+                                .feature("server"),
+                        ),
+                        CargoDependencyContribution::external(
+                            ExternalDependencyContribution::new("utoipa").version("5.4"),
+                        ),
+                        CargoDependencyContribution::external(
+                            ExternalDependencyContribution::new("utoipa-axum").version("0.2"),
+                        ),
+                    ])
+                    .unwrap(),
+                ),
+                ErasedContributionValue::new(
+                    CargoDependencies::from_entries([CargoDependencyContribution::runtime(
+                        RuntimeDependencyContribution::new("agentc-agent-react")
+                            .default_features(false)
+                            .feature("api"),
+                    )])
+                    .unwrap(),
+                ),
+                ErasedContributionValue::new(
+                    CargoDependencies::from_entries([CargoDependencyContribution::external(
+                        ExternalDependencyContribution::new("jobq")
+                            .git("https://github.com/wizrds/jobq-rs.git")
+                            .version("0.3.1"),
+                    )])
+                    .unwrap(),
+                ),
+            ],
+            vec![ErasedContributionValue::new(
+                CargoPatches::from_entries([CargoPatchContribution::runtime(
+                    RuntimeDependencyContribution::new("agentc-http"),
+                )])
+                .unwrap(),
+            )],
+        )
+        .await;
+
+        assert!(content.contains(&format!(
+            "agentc-agent-react = {{ version = \"{}\", default-features = false, features = [\"api\"] }}",
+            env!("CARGO_PKG_VERSION"),
+        )));
+        assert!(content.contains(&format!(
+            "agentc-http = {{ version = \"{}\", default-features = false, features = [\"client\", \"server\"] }}",
+            env!("CARGO_PKG_VERSION"),
+        )));
+        assert!(content.contains("jobq = { git = \"https://github.com/wizrds/jobq-rs.git\""));
+        assert!(content.contains("agentc-http = { path = \"../runtime/agentc-http\" }"));
+    }
+
+    #[tokio::test]
+    async fn javascript_agent_gets_the_typescript_feature() {
+        let content = rendered_cargo_toml(
+            context(None),
+            vec![
+                ErasedContributionValue::new(
+                    CargoDependencies::from_entries([CargoDependencyContribution::runtime(
+                        RuntimeDependencyContribution::new("agentc-http")
+                            .default_features(false)
+                            .feature("client"),
+                    )])
+                    .unwrap(),
+                ),
+                ErasedContributionValue::new(
+                    CargoDependencies::from_entries([CargoDependencyContribution::runtime(
+                        RuntimeDependencyContribution::new("agentc-http")
+                            .default_features(false)
+                            .feature("typescript"),
+                    )])
+                    .unwrap(),
+                ),
+            ],
+            vec![],
+        )
+        .await;
+
+        assert!(content.contains(&format!(
+            "agentc-http = {{ version = \"{}\", default-features = false, features = [\"client\", \"typescript\"] }}",
             env!("CARGO_PKG_VERSION"),
         )));
     }

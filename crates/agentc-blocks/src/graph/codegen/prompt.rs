@@ -20,7 +20,7 @@ use crate::{
         ResolvedContextAgentPromptSource, ResolvedContextAgentPromptSourceLangfuse,
     },
     contributions::dependency::{
-        CargoDependencies, CargoDependencyContribution, CargoPatches, CargoPatchContribution,
+        CargoDependencies, CargoDependencyContribution, CargoPatchContribution, CargoPatches,
         RuntimeDependencyContribution,
     },
     fields::FieldsSpec,
@@ -408,10 +408,6 @@ mod tests {
             .expect("patch should have the expected type");
 
         assert_eq!(patches.len(), 1);
-        assert!(
-            patches
-                .get(&"agentc-prompt")
-                .is_some()
-        );
+        assert!(patches.get(&"agentc-prompt").is_some());
     }
 }

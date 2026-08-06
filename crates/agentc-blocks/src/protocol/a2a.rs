@@ -21,7 +21,7 @@ use crate::{
     composition::GenerationContribution,
     context::{ResolvedContext, ResolvedContextHttpServerProtocolA2a},
     contributions::dependency::{
-        CargoDependencies, CargoDependencyContribution, CargoPatches, CargoPatchContribution,
+        CargoDependencies, CargoDependencyContribution, CargoPatchContribution, CargoPatches,
         RuntimeDependencyContribution,
     },
     errors::BlocksError,

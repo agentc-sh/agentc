@@ -14,8 +14,8 @@ use agentc_compiler::generator::{
 use crate::{
     context::ResolvedContext,
     contributions::dependency::{
-        CargoDependencies, CargoDependencyContribution, CargoPatches, CargoPatchContribution,
-        RuntimeDependencyContribution, ExternalDependencyContribution,
+        CargoDependencies, CargoDependencyContribution, CargoPatchContribution, CargoPatches,
+        ExternalDependencyContribution, RuntimeDependencyContribution,
     },
 };
 
@@ -106,17 +106,6 @@ impl TemplateFragment<ResolvedContext> for HttpServerCargoFragment {
                         RuntimeDependencyContribution::new("agentc-http")
                             .default_features(false)
                             .feature("server"),
-                    ),
-                    CargoDependencyContribution::external(
-                        ExternalDependencyContribution::new("jobq")
-                            .git("https://github.com/wizrds/jobq-rs.git")
-                            .version("0.3.1"),
-                    ),
-                    CargoDependencyContribution::external(
-                        ExternalDependencyContribution::new("subway")
-                            .git("https://github.com/wizrds/subway-rs.git")
-                            .version("0.1.0")
-                            .feature("redis"),
                     ),
                     CargoDependencyContribution::external(
                         ExternalDependencyContribution::new("utoipa").version("5.4"),
@@ -239,14 +228,12 @@ impl ExtensionPoint for CargoDependenciesExtensionPoint {
     }
 
     fn reduce(&self, contributions: Vec<Self::Contribution>) -> Result<String, GeneratorError> {
-        Ok(
-            CargoDependencies::merge_all(contributions)
-                .map_err(|error| GeneratorError::unexpected(error.to_string()))?
-                .into_values()
-                .map(|dependency| self.render(dependency))
-                .collect::<Vec<_>>()
-                .join("\n")
-        )
+        Ok(CargoDependencies::merge_all(contributions)
+            .map_err(|error| GeneratorError::unexpected(error.to_string()))?
+            .into_values()
+            .map(|dependency| self.render(dependency))
+            .collect::<Vec<_>>()
+            .join("\n"))
     }
 }
 
@@ -263,7 +250,6 @@ impl CargoPatchesExtensionPoint {
     fn render_runtime_patch(&self, dependency: RuntimeDependencyContribution) -> String {
         format!("{} = {{ path = \"../runtime/{}\" }}", dependency.name, dependency.name,)
     }
-
 }
 
 impl ExtensionPoint for CargoPatchesExtensionPoint {
@@ -274,14 +260,12 @@ impl ExtensionPoint for CargoPatchesExtensionPoint {
     }
 
     fn reduce(&self, contributions: Vec<Self::Contribution>) -> Result<String, GeneratorError> {
-        Ok(
-            CargoPatches::merge_all(contributions)
-                .map_err(|error| GeneratorError::unexpected(error.to_string()))?
-                .into_values()
-                .map(|patch| self.render_runtime_patch(patch.dependency))
-                .collect::<Vec<_>>()
-                .join("\n")
-        )
+        Ok(CargoPatches::merge_all(contributions)
+            .map_err(|error| GeneratorError::unexpected(error.to_string()))?
+            .into_values()
+            .map(|patch| self.render_runtime_patch(patch.dependency))
+            .collect::<Vec<_>>()
+            .join("\n"))
     }
 }
 
@@ -459,8 +443,6 @@ mod tests {
             .unwrap(),
             concat!(
                 "agentc-http = { version = \"0.2.1\", default-features = false, features = [\"server\"] }\n",
-                "jobq = { git = \"https://github.com/wizrds/jobq-rs.git\", version = \"0.3.1\" }\n",
-                "subway = { git = \"https://github.com/wizrds/subway-rs.git\", version = \"0.1.0\", features = [\"redis\"] }\n",
                 "utoipa = { version = \"5.4\" }\n",
                 "utoipa-axum = { version = \"0.2\" }",
             ),
