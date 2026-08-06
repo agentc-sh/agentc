@@ -21,7 +21,9 @@ use crate::{
     composition::{GenerationContribution, OptionalGenerationContribution},
     context::ResolvedContext,
     errors::BlocksError,
-    feature::{GenerationFeatureSet, GraphReAct, HttpServer, Streaming},
+    feature::{
+        GenerationFeatureSet, GraphReAct, HttpServer, Streaming, SupportsA2a, SupportsAgUi,
+    },
     fields::FieldsSpec,
     graph::{
         react::{
@@ -158,7 +160,9 @@ impl AgentGraph for ReActGraph {
                 .with_provides(
                     GenerationFeatureSet::new()
                         .with::<GraphReAct>()
-                        .with::<Streaming>(),
+                        .with::<Streaming>()
+                        .with::<SupportsAgUi>()
+                        .with::<SupportsA2a>(),
                 ),
             integrations: vec![server_integration],
         })
@@ -211,6 +215,18 @@ mod tests {
                 .contribution
                 .provides
                 .contains::<Streaming>()
+        );
+        assert!(
+            resolved
+                .contribution
+                .provides
+                .contains::<SupportsAgUi>()
+        );
+        assert!(
+            resolved
+                .contribution
+                .provides
+                .contains::<SupportsA2a>()
         );
     }
 

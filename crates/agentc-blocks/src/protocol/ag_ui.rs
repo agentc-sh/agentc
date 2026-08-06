@@ -22,7 +22,7 @@ use crate::{
     composition::GenerationContribution,
     context::{ResolvedContext, ResolvedContextHttpServerProtocolAgUi},
     errors::BlocksError,
-    feature::{GenerationFeatureSet, HttpServer, ProtocolAgUi, Streaming},
+    feature::{GenerationFeatureSet, HttpServer, ProtocolAgUi, Streaming, SupportsAgUi},
     protocol::{traits::Protocol, types::ResolvedProtocol},
 };
 
@@ -90,8 +90,8 @@ impl TemplateFragment<ResolvedContext> for AgUiCargoFragment {
     }
 }
 
-/// The AG-UI protocol contribution. Requires an archetype-provided `HttpServer`
-/// and streaming support.
+/// The AG-UI protocol contribution. Requires an archetype-provided `HttpServer`, streaming
+/// support, and a graph that implements the AG-UI adapter.
 pub struct AgUiProtocol;
 
 impl Protocol for AgUiProtocol {
@@ -134,7 +134,8 @@ impl Protocol for AgUiProtocol {
                 .with_requires(
                     GenerationFeatureSet::new()
                         .with::<HttpServer>()
-                        .with::<Streaming>(),
+                        .with::<Streaming>()
+                        .with::<SupportsAgUi>(),
                 ),
         })
     }
@@ -195,6 +196,12 @@ mod tests {
                 .contribution
                 .requires
                 .contains::<Streaming>()
+        );
+        assert!(
+            resolved
+                .contribution
+                .requires
+                .contains::<SupportsAgUi>()
         );
     }
 

@@ -23,7 +23,7 @@ use crate::{
     context::{ResolvedContext, ResolvedContextHttpServerProtocolA2a},
     contributions::dependency::RuntimeDependencyContribution,
     errors::BlocksError,
-    feature::{GenerationFeatureSet, HttpServer, ProtocolA2a, Streaming},
+    feature::{GenerationFeatureSet, HttpServer, ProtocolA2a, Streaming, SupportsA2a},
     protocol::{traits::Protocol, types::ResolvedProtocol},
 };
 
@@ -96,8 +96,8 @@ impl TemplateFragment<ResolvedContext> for A2aCargoFragment {
     }
 }
 
-/// The A2A protocol contribution. Requires an archetype-provided `HttpServer`
-/// and streaming support.
+/// The A2A protocol contribution. Requires an archetype-provided `HttpServer`, streaming support,
+/// and a graph that implements the A2A adapter.
 pub struct A2aProtocol;
 
 impl Protocol for A2aProtocol {
@@ -140,7 +140,8 @@ impl Protocol for A2aProtocol {
                 .with_requires(
                     GenerationFeatureSet::new()
                         .with::<HttpServer>()
-                        .with::<Streaming>(),
+                        .with::<Streaming>()
+                        .with::<SupportsA2a>(),
                 ),
         })
     }
@@ -198,6 +199,12 @@ mod tests {
                 .contribution
                 .requires
                 .contains::<Streaming>()
+        );
+        assert!(
+            resolved
+                .contribution
+                .requires
+                .contains::<SupportsA2a>()
         );
     }
 
