@@ -44,6 +44,7 @@ impl ToolCodeGen for JavascriptTools<'_> {
         Self::is_present(self.0).then(|| {
             quote! {
                 use agentc_executor_typescript::executor::Executor;
+                use agentc_http::client::typescript::ExecutorBuilderHttpExt;
                 use agentc_tools::javascript::{ExecutorBuilderToolExt, JavascriptTool};
             }
         })
@@ -99,6 +100,7 @@ impl ToolCodeGen for JavascriptTools<'_> {
                     .workers(4)
                     .queue_capacity(32)
                     .standard_environment()
+                    .with_http(config.network.builder())
                     #caps_call
                     .cancellation(shutdown.clone())
                     .build()
@@ -378,6 +380,7 @@ mod tests {
         assert!(registrations.contains(". workers (4)"));
         assert!(registrations.contains(". queue_capacity (32)"));
         assert!(registrations.contains(". standard_environment ()"));
+        assert!(registrations.contains(". with_http (config . network . builder ())"));
         assert!(registrations.contains(". cancellation (shutdown . clone ())"));
     }
 
@@ -450,6 +453,7 @@ mod tests {
             .to_string();
 
         assert!(imports.contains("agentc_executor_typescript :: executor :: Executor"));
+        assert!(imports.contains("ExecutorBuilderHttpExt"));
         assert!(imports.contains("ExecutorBuilderToolExt"));
         assert!(imports.contains("JavascriptTool"));
     }
