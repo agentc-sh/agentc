@@ -122,6 +122,7 @@ impl JavascriptTransformer {
                     "--bundle",
                     "--platform=browser",
                     "--format=esm",
+                    "--external:agentc:*",
                     &format!("--outfile={}", output_path.to_str().unwrap()),
                 ])
                 .current_dir(dir),
@@ -148,6 +149,7 @@ impl JavascriptTransformer {
                 "--bundle",
                 "--platform=browser",
                 "--format=esm",
+                "--external:agentc:*",
                 &format!("--outfile={}", output_path.to_str().unwrap()),
             ]),
             sink,
