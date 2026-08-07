@@ -302,6 +302,7 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
                 database::DatabaseOptions,
                 errors::DatabaseError,
             };
+            use agentc_http::client::{HttpClient, HttpClientBuilder};
             use subway::{
                 Bus,
                 memory::InMemoryTransport,
@@ -446,6 +447,17 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
                 }
             }
 
+            #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+            #[serde(default)]
+            pub struct NetworkConfig {}
+
+            impl NetworkConfig {
+                /// Returns an unbuilt client so each consumer can build on its own runtime.
+                pub fn builder(&self) -> HttpClientBuilder {
+                    HttpClient::builder()
+                }
+            }
+
             #[derive(Debug, Clone, Serialize, Deserialize)]
             #[serde(tag = "kind", rename_all = "snake_case")]
             pub enum PubSubConfig {
@@ -496,6 +508,7 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
                 pub database: DatabaseConfig,
                 pub mcp: McpConfig,
                 pub a2a: A2aConfig,
+                pub network: NetworkConfig,
                 pub task_queue: TaskQueueConfig,
                 pub pubsub: PubSubConfig,
                 #(#config_generated_fields)*
@@ -589,6 +602,44 @@ mod tests {
         assert!(rendered.contains("struct A2aAgentConfig"));
         assert!(rendered.contains("enum A2aTenantConfig"));
         assert!(rendered.contains("pub a2a : A2aConfig"));
+    }
+
+    #[test]
+    fn network_config_exposes_an_unbuilt_client_builder() {
+        let context = GenerationContext::new(
+            serde_json::from_value(json!({
+                "slug": "assistant",
+                "agent_name": "assistant",
+                "runtime": { "default_tenant_id": "default" },
+                "providers": [],
+                "agent": {
+                    "version": "0.1.0",
+                    "description": null,
+                    "prompt": null,
+                    "capabilities": null,
+                    "capability_policy": null,
+                    "model": { "provider": "anthropic", "name": "claude" }
+                },
+                "blocks": {},
+                "tools": {},
+                "skills": {},
+                "http_server": null
+            }))
+            .unwrap(),
+        );
+
+        let rendered = ConfigCodeGen { fields: FieldsSpec::new(vec![]) }
+            .generate_files(&context, &ExtensionRegistry::empty())
+            .unwrap()
+            .into_iter()
+            .find(|(path, _)| path == &PathBuf::from("src/config.rs"))
+            .expect("config file should be generated")
+            .1
+            .to_string();
+
+        assert!(rendered.contains("pub struct NetworkConfig"));
+        assert!(rendered.contains("pub fn builder (& self) -> HttpClientBuilder"));
+        assert!(rendered.contains("pub network : NetworkConfig"));
     }
 
     #[test]

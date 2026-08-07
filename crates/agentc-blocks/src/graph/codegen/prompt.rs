@@ -15,12 +15,14 @@ use agentc_compiler::generator::{
 };
 
 use crate::{
-    archetype::standalone::codegen::cargo::{CargoDependencyContribution, CargoPatchContribution},
     context::{
         ResolvedContext, ResolvedContextAgentPromptMessage, ResolvedContextAgentPromptMessageRole,
         ResolvedContextAgentPromptSource, ResolvedContextAgentPromptSourceLangfuse,
     },
-    contributions::dependency::RuntimeDependencyContribution,
+    contributions::dependency::{
+        CargoDependencies, CargoDependencyContribution, CargoPatchContribution, CargoPatches,
+        RuntimeDependencyContribution,
+    },
     fields::FieldsSpec,
 };
 
@@ -203,11 +205,19 @@ impl TemplateFragment<ResolvedContext> for PromptCargoFragment {
                     dependency = dependency.feature("langfuse");
                 }
 
-                Ok(ErasedContributionValue::new(CargoDependencyContribution::runtime(dependency)))
+                Ok(ErasedContributionValue::new(
+                    CargoDependencies::from_entries([CargoDependencyContribution::runtime(
+                        dependency,
+                    )])
+                    .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
+                ))
             }
-            "cargo::patches" => Ok(ErasedContributionValue::new(CargoPatchContribution::runtime(
-                RuntimeDependencyContribution::new("agentc-prompt"),
-            ))),
+            "cargo::patches" => Ok(ErasedContributionValue::new(
+                CargoPatches::from_entries([CargoPatchContribution::runtime(
+                    RuntimeDependencyContribution::new("agentc-prompt"),
+                )])
+                .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
+            )),
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point,))),
         }
     }
@@ -346,17 +356,19 @@ mod tests {
         let context = GenerationContext::new(PromptCodeGenFixture::context(Some(
             PromptCodeGenFixture::langfuse(None, None),
         )));
-        let dependency = PromptCargoFragment
+        let dependencies = PromptCargoFragment
             .generate_contribution(&context, "cargo::dependencies")
             .expect("dependency should generate")
-            .downcast::<CargoDependencyContribution>()
+            .downcast::<CargoDependencies>()
             .expect("dependency should have the expected type");
 
+        assert_eq!(dependencies.len(), 1);
         assert!(matches!(
-            dependency,
+            dependencies
+                .get(&"agentc-prompt")
+                .unwrap(),
             CargoDependencyContribution::Runtime(dependency)
-                if dependency.name == "agentc-prompt"
-                    && dependency.features.len() == 2
+                if dependency.features.len() == 2
                     && dependency.features.contains("langfuse")
                     && dependency.features.contains("tiktoken")
         ));
@@ -364,39 +376,38 @@ mod tests {
 
     #[test]
     fn prompt_dependency_always_includes_tiktoken() {
-        let dependency = PromptCargoFragment
+        let dependencies = PromptCargoFragment
             .generate_contribution(
                 &GenerationContext::new(PromptCodeGenFixture::context(None)),
                 "cargo::dependencies",
             )
             .expect("dependency should generate")
-            .downcast::<CargoDependencyContribution>()
+            .downcast::<CargoDependencies>()
             .expect("dependency should have the expected type");
 
+        assert_eq!(dependencies.len(), 1);
         assert!(matches!(
-            dependency,
+            dependencies
+                .get(&"agentc-prompt")
+                .unwrap(),
             CargoDependencyContribution::Runtime(dependency)
-                if dependency.name == "agentc-prompt"
-                    && dependency.features.len() == 1
+                if dependency.features.len() == 1
                     && dependency.features.contains("tiktoken")
         ));
     }
 
     #[test]
     fn prompt_fragment_contributes_runtime_patch() {
-        let patch = PromptCargoFragment
+        let patches = PromptCargoFragment
             .generate_contribution(
                 &GenerationContext::new(PromptCodeGenFixture::context(None)),
                 "cargo::patches",
             )
             .expect("patch should generate")
-            .downcast::<CargoPatchContribution>()
+            .downcast::<CargoPatches>()
             .expect("patch should have the expected type");
 
-        assert!(matches!(
-            patch,
-            CargoPatchContribution::Runtime(dependency)
-                if dependency.name == "agentc-prompt"
-        ));
+        assert_eq!(patches.len(), 1);
+        assert!(patches.get(&"agentc-prompt").is_some());
     }
 }
