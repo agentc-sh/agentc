@@ -3,14 +3,15 @@
   "version": "0.1.0",
   "type": "module",
   "main": "src/index.ts",
+  "packageManager": "pnpm@11.1.2",
   "scripts": {
-    "build": "esbuild src/index.ts --bundle --platform=browser --format=esm --outfile=dist/index.js"
+    "build": "esbuild src/index.ts --bundle --platform=browser --format=esm --external:agentc:* --outfile=dist/index.js"
   },
   "devDependencies": {
-    "@types/node": "^25.6.0",
     "esbuild": "^0.28.0"
   },
   "dependencies": {
-    "@agentc-sh/tdk": "github:agentc-sh/typescript-tdk#0.1.0"
+    "@agentc-sh/tdk": "github:agentc-sh/typescript-tdk#0.1.0",
+    "@agentc-sh/runtime": "github:agentc-sh/agentc#{{ agentc_version }}&path:/packages/typescript/runtime"
   }
 }

@@ -17,6 +17,7 @@ const JS_PACKAGE: &str = include_str!("templates/javascript/package.json");
 const JS_TSCONFIG: &str = include_str!("templates/javascript/tsconfig.json");
 const JS_README: &str = include_str!("templates/javascript/README.md");
 const JS_INDEX: &str = include_str!("templates/javascript/src/index.ts");
+const JS_ENV_DTS: &str = include_str!("templates/javascript/src/agentc-env.d.ts");
 const JS_PNPM_WORKSPACE: &str = include_str!("templates/javascript/pnpm-workspace.yaml");
 
 pub enum ToolLanguage {
@@ -44,6 +45,7 @@ impl InitTool {
             name_kebab => params.name.to_case(Case::Kebab),
             name_snake => params.name.to_case(Case::Snake),
             name_pascal => params.name.to_case(Case::Pascal),
+            agentc_version => env!("CARGO_PKG_VERSION"),
         };
 
         let mut vfs = VirtualFileSystem::new();
@@ -72,6 +74,10 @@ impl InitTool {
                 );
                 vfs.insert("README.md", Self::render_template(JS_README, &ctx, "README.md")?);
                 vfs.insert("src/index.ts", Self::render_template(JS_INDEX, &ctx, "src/index.ts")?);
+                vfs.insert(
+                    "src/agentc-env.d.ts",
+                    Self::render_template(JS_ENV_DTS, &ctx, "src/agentc-env.d.ts")?,
+                );
                 vfs.insert(
                     "pnpm-workspace.yaml",
                     Self::render_template(JS_PNPM_WORKSPACE, &ctx, "pnpm-workspace.yaml")?,
@@ -152,6 +158,38 @@ mod tests {
         })
         .unwrap();
         assert!(vfs.get("tsconfig.json").is_some());
+    }
+
+    #[test]
+    fn javascript_package_json_depends_on_the_runtime_stubs_instead_of_node_types() {
+        let vfs = InitTool::scaffold(InitToolParams {
+            name: "my-tool".into(),
+            language: ToolLanguage::Javascript,
+        })
+        .unwrap();
+        let content = vfs.get("package.json").unwrap();
+        assert!(
+            content.contains("@agentc-sh/runtime"),
+            "package.json missing runtime stubs: {content}"
+        );
+        assert!(
+            !content.contains("@types/node"),
+            "package.json still depends on @types/node: {content}"
+        );
+    }
+
+    #[test]
+    fn javascript_package_json_declares_pnpm() {
+        let vfs = InitTool::scaffold(InitToolParams {
+            name: "my-tool".into(),
+            language: ToolLanguage::Javascript,
+        })
+        .unwrap();
+        let content = vfs.get("package.json").unwrap();
+        assert!(
+            content.contains("\"packageManager\": \"pnpm@"),
+            "package.json missing packageManager: {content}"
+        );
     }
 
     #[test]
