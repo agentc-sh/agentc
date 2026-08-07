@@ -26,7 +26,7 @@ use crate::{
             build_script::BuildScriptCodeGen,
             cargo::{
                 A2aClientCargoFragment, CargoDependenciesExtensionPoint,
-                CargoDependencyContribution, CargoPatchContribution, CargoPatchesExtensionPoint,
+                CargoPatchesExtensionPoint, HttpClientCargoFragment, HttpServerCargoFragment,
             },
             cli::{
                 CliModCodeGen, config::CliConfigCodeGen, migrate::CliMigrateCodeGen,
@@ -42,13 +42,11 @@ use crate::{
     },
     composition::GenerationContribution,
     context::ResolvedContext,
+    contributions::dependency::{CargoDependencies, CargoPatches},
     errors::BlocksError,
     feature::{ArchetypeStandalone, Cli, GenerationFeatureSet, HttpServer, LongLivedProcess},
     fields::FieldsSpec,
-    graph::codegen::{
-        prompt::PromptCargoFragment,
-        tools::javascript::{JavascriptToolCargoFragment, JavascriptTools},
-    },
+    graph::codegen::prompt::PromptCargoFragment,
     runtime::EMBEDDED_RUNTIME,
 };
 
@@ -200,20 +198,23 @@ impl Archetype for StandaloneArchetype {
             .add(
                 TemplateFragmentBlock::builder()
                     .id("a2a_client_cargo")
-                    .contribute(Contribution::<CargoDependencyContribution>::strict(
-                        "cargo::dependencies",
-                    ))
-                    .contribute(Contribution::<CargoPatchContribution>::strict("cargo::patches"))
+                    .contribute(Contribution::<CargoDependencies>::strict("cargo::dependencies"))
+                    .contribute(Contribution::<CargoPatches>::strict("cargo::patches"))
                     .build(A2aClientCargoFragment),
             )
             .add(
                 TemplateFragmentBlock::builder()
                     .id("prompt_cargo")
-                    .contribute(Contribution::<CargoDependencyContribution>::strict(
-                        "cargo::dependencies",
-                    ))
-                    .contribute(Contribution::<CargoPatchContribution>::strict("cargo::patches"))
+                    .contribute(Contribution::<CargoDependencies>::strict("cargo::dependencies"))
+                    .contribute(Contribution::<CargoPatches>::strict("cargo::patches"))
                     .build(PromptCargoFragment),
+            )
+            .add(
+                TemplateFragmentBlock::builder()
+                    .id("http_client_cargo")
+                    .contribute(Contribution::<CargoDependencies>::strict("cargo::dependencies"))
+                    .contribute(Contribution::<CargoPatches>::strict("cargo::patches"))
+                    .build(HttpClientCargoFragment),
             )
             .add(
                 CodeGenBlock::builder()
@@ -262,15 +263,12 @@ impl Archetype for StandaloneArchetype {
                     .build(EntrypointCodeGen),
             );
 
-        if JavascriptTools::is_present(&context) {
+        if context.http_server.is_some() {
             blocks = blocks.add(
                 TemplateFragmentBlock::builder()
-                    .id("javascript_tool_cargo")
-                    .contribute(Contribution::<CargoDependencyContribution>::strict(
-                        "cargo::dependencies",
-                    ))
-                    .contribute(Contribution::<CargoPatchContribution>::strict("cargo::patches"))
-                    .build(JavascriptToolCargoFragment),
+                    .id("http_server_cargo")
+                    .contribute(Contribution::<CargoDependencies>::strict("cargo::dependencies"))
+                    .build(HttpServerCargoFragment),
             );
         }
 
@@ -301,10 +299,13 @@ mod tests {
     use super::*;
     use crate::{
         context::{
-            ResolvedContextTool, ResolvedContextToolJavascript, ResolvedContextToolKind,
-            ResolvedContextToolPython, ResolvedContextToolPythonInterpreter,
+            ResolvedContextTool, ResolvedContextToolKind, ResolvedContextToolPython,
+            ResolvedContextToolPythonInterpreter,
         },
-        contributions::dependency::RuntimeDependencyContribution,
+        contributions::dependency::{
+            CargoDependencies, CargoDependencyContribution, CargoPatchContribution, CargoPatches,
+            ExternalDependencyContribution, RuntimeDependencyContribution,
+        },
         types::RuntimeValue,
     };
     use agentc_compiler::generator::{
@@ -352,27 +353,6 @@ mod tests {
                     site_packages_path: "/artifacts/adder/.venv/site-packages".to_string(),
                     module_name: "adder".to_string(),
                     interpreter: ResolvedContextToolPythonInterpreter::Static,
-                }),
-            },
-        );
-
-        ctx
-    }
-
-    fn javascript_context() -> ResolvedContext {
-        let mut ctx = context(None);
-
-        ctx.tools.insert(
-            "search".to_string(),
-            ResolvedContextTool {
-                name: "search".to_string(),
-                description: None,
-                enabled: RuntimeValue::constant(true),
-                capabilities: vec![],
-                config: HashMap::new(),
-                kind: ResolvedContextToolKind::Javascript(ResolvedContextToolJavascript {
-                    bundle_path: "/artifacts/search/dist/index.js".to_string(),
-                    export_name: "search".to_string(),
                 }),
             },
         );
@@ -485,7 +465,7 @@ mod tests {
             .resolve(context(None), StandaloneArchetypeConfig::default())
             .unwrap();
 
-        let dependency = resolved
+        let dependencies = resolved
             .contribution
             .blocks
             .iter()
@@ -494,14 +474,16 @@ mod tests {
             .render_contribution(&GenerationContext::new(context(None)), "cargo::dependencies")
             .await
             .unwrap()
-            .downcast::<CargoDependencyContribution>()
+            .downcast::<CargoDependencies>()
             .unwrap();
 
+        assert_eq!(dependencies.len(), 1);
         assert!(matches!(
-            dependency,
+            dependencies
+                .get(&"agentc-protocol-a2a")
+                .unwrap(),
             CargoDependencyContribution::Runtime(dependency)
-                if dependency.name == "agentc-protocol-a2a"
-                    && dependency.default_features == Some(false)
+                if dependency.default_features == Some(false)
                     && dependency.features.len() == 1
                     && dependency.features.contains("client")
         ));
@@ -532,19 +514,21 @@ mod tests {
                 (
                     "cargo::dependencies".to_string(),
                     vec![ErasedContributionValue::new(
-                        CargoDependencyContribution::runtime(
+                        CargoDependencies::from_entries([CargoDependencyContribution::runtime(
                             RuntimeDependencyContribution::new("agentc-protocol-a2a")
                                 .default_features(false)
                                 .feature("client"),
-                        ),
+                        )])
+                        .unwrap(),
                     )],
                 ),
                 (
                     "cargo::patches".to_string(),
                     vec![ErasedContributionValue::new(
-                        CargoPatchContribution::runtime(RuntimeDependencyContribution::new(
-                            "agentc-protocol-a2a",
-                        )),
+                        CargoPatches::from_entries([CargoPatchContribution::runtime(
+                            RuntimeDependencyContribution::new("agentc-protocol-a2a"),
+                        )])
+                        .unwrap(),
                     )],
                 ),
             ]),
@@ -606,85 +590,238 @@ mod tests {
         )));
     }
 
-    #[test]
-    fn registers_javascript_tool_cargo_fragment_with_javascript_tool() {
-        let resolved = StandaloneArchetype
-            .resolve(javascript_context(), StandaloneArchetypeConfig::default())
-            .unwrap();
-
-        assert!(
-            resolved
-                .contribution
-                .blocks
-                .iter()
-                .any(|block| block.id() == "javascript_tool_cargo")
-        );
-    }
-
-    #[test]
-    fn omits_javascript_tool_cargo_fragment_without_javascript_tool() {
+    #[tokio::test]
+    async fn contributes_the_http_client_dependency_unconditionally() {
         let resolved = StandaloneArchetype
             .resolve(context(None), StandaloneArchetypeConfig::default())
             .unwrap();
 
+        let dependencies = resolved
+            .contribution
+            .blocks
+            .iter()
+            .find(|block| block.id() == "http_client_cargo")
+            .expect("http client cargo block is registered")
+            .render_contribution(&GenerationContext::new(context(None)), "cargo::dependencies")
+            .await
+            .unwrap()
+            .downcast::<CargoDependencies>()
+            .unwrap();
+
+        assert_eq!(dependencies.len(), 1);
+        assert!(matches!(
+            dependencies
+                .get(&"agentc-http")
+                .unwrap(),
+            CargoDependencyContribution::Runtime(dependency)
+                if dependency.default_features == Some(false)
+                    && dependency.features.len() == 1
+                    && dependency.features.contains("client")
+        ));
+    }
+
+    #[test]
+    fn registers_the_server_fragments_only_with_an_http_server() {
+        let without = StandaloneArchetype
+            .resolve(context(None), StandaloneArchetypeConfig::default())
+            .unwrap();
+        let with = StandaloneArchetype
+            .resolve(
+                context(Some(json!({ "host": "0.0.0.0", "port": 8080, "max_request_size": 2097152, "protocols": [] }))),
+                StandaloneArchetypeConfig::default(),
+            )
+            .unwrap();
+
         assert!(
-            !resolved
+            !without
                 .contribution
                 .blocks
                 .iter()
-                .any(|block| block.id() == "javascript_tool_cargo")
+                .any(|block| block.id() == "http_server_cargo")
+        );
+        assert!(
+            with.contribution
+                .blocks
+                .iter()
+                .any(|block| block.id() == "http_server_cargo")
         );
     }
 
-    #[tokio::test]
-    async fn contributes_executor_dependency_when_javascript_tool_present() {
-        let ctx = javascript_context();
+    async fn rendered_cargo_toml(
+        ctx: ResolvedContext,
+        dependencies: Vec<ErasedContributionValue>,
+        patches: Vec<ErasedContributionValue>,
+    ) -> String {
         let resolved = StandaloneArchetype
             .resolve(ctx.clone(), StandaloneArchetypeConfig::default())
             .unwrap();
+        let registry = ExtensionRegistry::resolve(
+            vec![
+                Box::new(CargoDependenciesExtensionPoint::new(
+                    "cargo::dependencies",
+                    env!("CARGO_PKG_VERSION"),
+                )),
+                Box::new(CargoPatchesExtensionPoint::new("cargo::patches")),
+            ],
+            HashMap::from([
+                ("cargo::dependencies".to_string(), dependencies),
+                ("cargo::patches".to_string(), patches),
+            ]),
+        )
+        .unwrap();
+        let mut vfs = VirtualFileSystem::new();
 
-        let dependency = resolved
+        resolved
             .contribution
             .blocks
             .iter()
-            .find(|block| block.id() == "javascript_tool_cargo")
-            .expect("javascript tool cargo block is registered")
-            .render_contribution(&GenerationContext::new(ctx), "cargo::dependencies")
+            .find(|block| block.id() == "cargo_toml")
+            .expect("cargo_toml block is registered")
+            .render(&GenerationContext::new(ctx), &registry, &mut vfs)
             .await
-            .unwrap()
-            .downcast::<CargoDependencyContribution>()
             .unwrap();
 
-        assert!(matches!(
-            dependency,
-            CargoDependencyContribution::Runtime(dependency)
-                if dependency.name == "agentc-executor-typescript"
-        ));
+        vfs.get("Cargo.toml")
+            .expect("Cargo.toml is generated")
+            .to_string()
     }
 
     #[tokio::test]
-    async fn contributes_executor_patch_when_javascript_tool_present() {
-        let ctx = javascript_context();
-        let resolved = StandaloneArchetype
-            .resolve(ctx.clone(), StandaloneArchetypeConfig::default())
-            .unwrap();
+    async fn command_line_only_agent_gets_the_client_and_no_server() {
+        let content = rendered_cargo_toml(
+            context(None),
+            vec![
+                ErasedContributionValue::new(
+                    CargoDependencies::from_entries([CargoDependencyContribution::runtime(
+                        RuntimeDependencyContribution::new("agentc-http")
+                            .default_features(false)
+                            .feature("client"),
+                    )])
+                    .unwrap(),
+                ),
+                ErasedContributionValue::new(
+                    CargoDependencies::from_entries([CargoDependencyContribution::runtime(
+                        RuntimeDependencyContribution::new("agentc-agent-react")
+                            .default_features(false),
+                    )])
+                    .unwrap(),
+                ),
+            ],
+            vec![],
+        )
+        .await;
 
-        let patch = resolved
-            .contribution
-            .blocks
-            .iter()
-            .find(|block| block.id() == "javascript_tool_cargo")
-            .expect("javascript tool cargo block is registered")
-            .render_contribution(&GenerationContext::new(ctx), "cargo::patches")
-            .await
-            .unwrap()
-            .downcast::<CargoPatchContribution>()
-            .unwrap();
+        assert!(content.contains(&format!(
+            "agentc-agent-react = {{ version = \"{}\", default-features = false }}",
+            env!("CARGO_PKG_VERSION"),
+        )));
+        assert!(content.contains(&format!(
+            "agentc-http = {{ version = \"{}\", default-features = false, features = [\"client\"] }}",
+            env!("CARGO_PKG_VERSION"),
+        )));
+        assert!(!content.contains("jobq"));
+        assert!(!content.contains("utoipa"));
 
-        assert!(matches!(
-            patch,
-            CargoPatchContribution::Runtime(dependency)
-                if dependency.name == "agentc-executor-typescript"
-        ));
+        // Present, not absent: the generated `src/config.rs` names `subway` in every artifact.
+        assert!(content.contains("subway = { git = \"https://github.com/wizrds/subway-rs.git\""));
+    }
+
+    #[tokio::test]
+    async fn serving_agent_gets_the_client_and_the_server() {
+        let content = rendered_cargo_toml(
+            context(Some(json!({ "host": "0.0.0.0", "port": 8080, "max_request_size": 2097152, "protocols": [] }))),
+            vec![
+                ErasedContributionValue::new(
+                    CargoDependencies::from_entries([CargoDependencyContribution::runtime(
+                        RuntimeDependencyContribution::new("agentc-http")
+                            .default_features(false)
+                            .feature("client"),
+                    )])
+                    .unwrap(),
+                ),
+                ErasedContributionValue::new(
+                    CargoDependencies::from_entries([
+                        CargoDependencyContribution::runtime(
+                            RuntimeDependencyContribution::new("agentc-http")
+                                .default_features(false)
+                                .feature("server"),
+                        ),
+                        CargoDependencyContribution::external(
+                            ExternalDependencyContribution::new("utoipa").version("5.4"),
+                        ),
+                        CargoDependencyContribution::external(
+                            ExternalDependencyContribution::new("utoipa-axum").version("0.2"),
+                        ),
+                    ])
+                    .unwrap(),
+                ),
+                ErasedContributionValue::new(
+                    CargoDependencies::from_entries([CargoDependencyContribution::runtime(
+                        RuntimeDependencyContribution::new("agentc-agent-react")
+                            .default_features(false)
+                            .feature("api"),
+                    )])
+                    .unwrap(),
+                ),
+                ErasedContributionValue::new(
+                    CargoDependencies::from_entries([CargoDependencyContribution::external(
+                        ExternalDependencyContribution::new("jobq")
+                            .git("https://github.com/wizrds/jobq-rs.git")
+                            .version("0.3.1"),
+                    )])
+                    .unwrap(),
+                ),
+            ],
+            vec![ErasedContributionValue::new(
+                CargoPatches::from_entries([CargoPatchContribution::runtime(
+                    RuntimeDependencyContribution::new("agentc-http"),
+                )])
+                .unwrap(),
+            )],
+        )
+        .await;
+
+        assert!(content.contains(&format!(
+            "agentc-agent-react = {{ version = \"{}\", default-features = false, features = [\"api\"] }}",
+            env!("CARGO_PKG_VERSION"),
+        )));
+        assert!(content.contains(&format!(
+            "agentc-http = {{ version = \"{}\", default-features = false, features = [\"client\", \"server\"] }}",
+            env!("CARGO_PKG_VERSION"),
+        )));
+        assert!(content.contains("jobq = { git = \"https://github.com/wizrds/jobq-rs.git\""));
+        assert!(content.contains("agentc-http = { path = \"../runtime/agentc-http\" }"));
+    }
+
+    #[tokio::test]
+    async fn javascript_agent_gets_the_typescript_feature() {
+        let content = rendered_cargo_toml(
+            context(None),
+            vec![
+                ErasedContributionValue::new(
+                    CargoDependencies::from_entries([CargoDependencyContribution::runtime(
+                        RuntimeDependencyContribution::new("agentc-http")
+                            .default_features(false)
+                            .feature("client"),
+                    )])
+                    .unwrap(),
+                ),
+                ErasedContributionValue::new(
+                    CargoDependencies::from_entries([CargoDependencyContribution::runtime(
+                        RuntimeDependencyContribution::new("agentc-http")
+                            .default_features(false)
+                            .feature("typescript"),
+                    )])
+                    .unwrap(),
+                ),
+            ],
+            vec![],
+        )
+        .await;
+
+        assert!(content.contains(&format!(
+            "agentc-http = {{ version = \"{}\", default-features = false, features = [\"client\", \"typescript\"] }}",
+            env!("CARGO_PKG_VERSION"),
+        )));
     }
 }

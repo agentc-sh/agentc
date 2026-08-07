@@ -126,6 +126,18 @@ impl Composer {
             &mut provided,
         )?;
 
+        for protocol in &mut input.protocols {
+            Self::apply_required_contribution(
+                "protocol",
+                &protocol.name,
+                &mut protocol.contribution,
+                &mut blocks,
+                &mut embedded_assets,
+                &mut embedded_asset_names,
+                &mut provided,
+            )?;
+        }
+
         for integration in &mut input.graph.integrations {
             if integration
                 .contribution
@@ -141,18 +153,6 @@ impl Composer {
                     &mut provided,
                 )?;
             }
-        }
-
-        for protocol in &mut input.protocols {
-            Self::apply_required_contribution(
-                "protocol",
-                &protocol.name,
-                &mut protocol.contribution,
-                &mut blocks,
-                &mut embedded_assets,
-                &mut embedded_asset_names,
-                &mut provided,
-            )?;
         }
 
         blocks.extend(input.blocks);
@@ -239,7 +239,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        feature::{Cli, GraphReAct, HttpServer, Streaming},
+        feature::{Cli, GraphReAct, HttpServer, ProtocolAgUi, Streaming},
         runtime::ExtractionMode,
     };
     use agentc_compiler::{
@@ -415,7 +415,37 @@ mod tests {
             .map(|block| block.id().to_string())
             .collect::<Vec<_>>();
 
-        assert_eq!(ids, vec!["archetype", "graph", "integration", "protocol", "custom"],);
+        assert_eq!(ids, vec!["archetype", "graph", "protocol", "integration", "custom"],);
+    }
+
+    #[test]
+    fn composer_applies_integrations_after_protocols() {
+        let composed = Composer::new()
+            .compose(CompositionInput {
+                archetype: archetype(GenerationContribution::new(), true),
+                graph: graph(
+                    GenerationContribution::new().with_blocks(vec![block("graph")]),
+                    vec![OptionalGenerationContribution::new(
+                        GenerationContribution::new()
+                            .with_blocks(vec![block("integration")])
+                            .with_requires(provides::<ProtocolAgUi>()),
+                    )],
+                ),
+                protocols: vec![protocol(
+                    GenerationContribution::new().with_provides(provides::<ProtocolAgUi>()),
+                )],
+                blocks: Vec::new(),
+            })
+            .unwrap();
+
+        assert_eq!(
+            composed
+                .blocks
+                .iter()
+                .map(|block| block.id().to_string())
+                .collect::<Vec<_>>(),
+            vec!["graph", "integration"],
+        );
     }
 
     #[test]

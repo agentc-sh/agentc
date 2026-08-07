@@ -18,11 +18,14 @@ use agentc_compiler::generator::{
 };
 
 use crate::{
-    archetype::standalone::codegen::cargo::{CargoDependencyContribution, CargoPatchContribution},
     composition::GenerationContribution,
     context::{ResolvedContext, ResolvedContextHttpServerProtocolAgUi},
+    contributions::dependency::{
+        CargoDependencies, CargoDependencyContribution, CargoPatchContribution, CargoPatches,
+        RuntimeDependencyContribution,
+    },
     errors::BlocksError,
-    feature::{GenerationFeatureSet, HttpServer, ProtocolAgUi, Streaming},
+    feature::{GenerationFeatureSet, HttpServer, ProtocolAgUi, Streaming, SupportsAgUi},
     protocol::{traits::Protocol, types::ResolvedProtocol},
 };
 
@@ -76,22 +79,25 @@ impl TemplateFragment<ResolvedContext> for AgUiCargoFragment {
         point: &str,
     ) -> Result<ErasedContributionValue, GeneratorError> {
         match point {
-            "cargo::dependencies" => {
-                Ok(ErasedContributionValue::new(CargoDependencyContribution::raw(format!(
-                    "agentc-protocol-ag-ui = {{ version = \"{}\" }}",
-                    env!("CARGO_PKG_VERSION"),
-                ))))
-            }
-            "cargo::patches" => Ok(ErasedContributionValue::new(CargoPatchContribution::raw(
-                "agentc-protocol-ag-ui = { path = \"../runtime/agentc-protocol-ag-ui\" }",
-            ))),
+            "cargo::dependencies" => Ok(ErasedContributionValue::new(
+                CargoDependencies::from_entries([CargoDependencyContribution::runtime(
+                    RuntimeDependencyContribution::new("agentc-protocol-ag-ui"),
+                )])
+                .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
+            )),
+            "cargo::patches" => Ok(ErasedContributionValue::new(
+                CargoPatches::from_entries([CargoPatchContribution::runtime(
+                    RuntimeDependencyContribution::new("agentc-protocol-ag-ui"),
+                )])
+                .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
+            )),
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
     }
 }
 
-/// The AG-UI protocol contribution. Requires an archetype-provided `HttpServer`
-/// and streaming support.
+/// The AG-UI protocol contribution. Requires an archetype-provided `HttpServer`, streaming
+/// support, and a graph that implements the AG-UI adapter.
 pub struct AgUiProtocol;
 
 impl Protocol for AgUiProtocol {
@@ -120,12 +126,10 @@ impl Protocol for AgUiProtocol {
                         .add(
                             TemplateFragmentBlock::builder()
                                 .id("protocol_ag_ui_cargo")
-                                .contribute(Contribution::<CargoDependencyContribution>::strict(
+                                .contribute(Contribution::<CargoDependencies>::strict(
                                     "cargo::dependencies",
                                 ))
-                                .contribute(Contribution::<CargoPatchContribution>::strict(
-                                    "cargo::patches",
-                                ))
+                                .contribute(Contribution::<CargoPatches>::strict("cargo::patches"))
                                 .build(AgUiCargoFragment),
                         )
                         .into_inner(),
@@ -134,7 +138,8 @@ impl Protocol for AgUiProtocol {
                 .with_requires(
                     GenerationFeatureSet::new()
                         .with::<HttpServer>()
-                        .with::<Streaming>(),
+                        .with::<Streaming>()
+                        .with::<SupportsAgUi>(),
                 ),
         })
     }
@@ -195,6 +200,12 @@ mod tests {
                 .contribution
                 .requires
                 .contains::<Streaming>()
+        );
+        assert!(
+            resolved
+                .contribution
+                .requires
+                .contains::<SupportsAgUi>()
         );
     }
 
