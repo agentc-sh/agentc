@@ -10,9 +10,9 @@ use agentc_compiler::{
         blocks::{
             BlockSet,
             codegen::CodeGenBlock,
+            fragment::FragmentBlock,
             template::{
                 ExtensionPointSpec, FileSpec, Reducer, TemplateBlock, TemplateBlockManifest,
-                TemplateFragmentBlock,
             },
         },
         extension::{Contribution, reducers},
@@ -25,27 +25,26 @@ use crate::{
         standalone::codegen::{
             build_script::BuildScriptCodeGen,
             cargo::{
-                A2aClientCargoFragment, CargoDependenciesExtensionPoint,
-                CargoPatchesExtensionPoint, HttpClientCargoFragment, HttpServerCargoFragment,
+                CargoDependenciesExtensionPoint, CargoPatchesExtensionPoint,
+                HttpServerCargoFragment,
             },
-            cli::{
-                CliModCodeGen, config::CliConfigCodeGen, migrate::CliMigrateCodeGen,
-                shutdown::CliShutdownCodeGen,
-            },
+            cli::{CliModCodeGen, config::CliConfigCodeGen, shutdown::CliShutdownCodeGen},
             config::ConfigCodeGen,
             entrypoint::EntrypointCodeGen,
-            migrator::MigratorCodeGen,
         },
         standalone::toolchain::StandaloneToolchain,
         traits::Archetype,
         types::ResolvedArchetype,
     },
     composition::GenerationContribution,
+    config::{
+        fields::FieldsSpec,
+        sections::{contribution::ConfigSectionSlot, point::ConfigSectionsExtensionPoint},
+    },
     context::ResolvedContext,
     contributions::dependency::{CargoDependencies, CargoPatches},
     errors::BlocksError,
     feature::{ArchetypeStandalone, Cli, GenerationFeatureSet, HttpServer, LongLivedProcess},
-    fields::FieldsSpec,
     graph::codegen::prompt::PromptCargoFragment,
     runtime::EMBEDDED_RUNTIME,
 };
@@ -196,32 +195,11 @@ impl Archetype for StandaloneArchetype {
                     .build(BuildScriptCodeGen),
             )
             .add(
-                TemplateFragmentBlock::builder()
-                    .id("a2a_client_cargo")
-                    .contribute(Contribution::<CargoDependencies>::strict("cargo::dependencies"))
-                    .contribute(Contribution::<CargoPatches>::strict("cargo::patches"))
-                    .build(A2aClientCargoFragment),
-            )
-            .add(
-                TemplateFragmentBlock::builder()
+                FragmentBlock::builder()
                     .id("prompt_cargo")
                     .contribute(Contribution::<CargoDependencies>::strict("cargo::dependencies"))
                     .contribute(Contribution::<CargoPatches>::strict("cargo::patches"))
                     .build(PromptCargoFragment),
-            )
-            .add(
-                TemplateFragmentBlock::builder()
-                    .id("http_client_cargo")
-                    .contribute(Contribution::<CargoDependencies>::strict("cargo::dependencies"))
-                    .contribute(Contribution::<CargoPatches>::strict("cargo::patches"))
-                    .build(HttpClientCargoFragment),
-            )
-            .add(
-                CodeGenBlock::builder()
-                    .id("migrator_rs")
-                    .extension_point("migrator::use", reducers::concat)
-                    .extension_point("migrator::migrations", reducers::concat)
-                    .build(MigratorCodeGen),
             )
             .add(
                 CodeGenBlock::builder()
@@ -231,6 +209,26 @@ impl Archetype for StandaloneArchetype {
                     .extension_point("config::impls", reducers::concat)
                     .extension_point("config::loader", reducers::concat)
                     .extension_point("config::mapper", reducers::concat)
+                    .typed_extension_point(ConfigSectionsExtensionPoint::new(
+                        "config::sections::use",
+                        ConfigSectionSlot::Use,
+                    ))
+                    .typed_extension_point(ConfigSectionsExtensionPoint::new(
+                        "config::sections::types",
+                        ConfigSectionSlot::Types,
+                    ))
+                    .typed_extension_point(ConfigSectionsExtensionPoint::new(
+                        "config::sections::fields",
+                        ConfigSectionSlot::Fields,
+                    ))
+                    .typed_extension_point(ConfigSectionsExtensionPoint::new(
+                        "config::sections::loader",
+                        ConfigSectionSlot::Loader,
+                    ))
+                    .typed_extension_point(ConfigSectionsExtensionPoint::new(
+                        "config::sections::mapper",
+                        ConfigSectionSlot::Mapper,
+                    ))
                     .build(ConfigCodeGen { fields: fields.clone() }),
             )
             .add(
@@ -253,11 +251,6 @@ impl Archetype for StandaloneArchetype {
             )
             .add(
                 CodeGenBlock::builder()
-                    .id("cli_migrate")
-                    .build(CliMigrateCodeGen),
-            )
-            .add(
-                CodeGenBlock::builder()
                     .id("main_rs")
                     .extension_point("main::modules", reducers::concat)
                     .build(EntrypointCodeGen),
@@ -265,7 +258,7 @@ impl Archetype for StandaloneArchetype {
 
         if context.http_server.is_some() {
             blocks = blocks.add(
-                TemplateFragmentBlock::builder()
+                FragmentBlock::builder()
                     .id("http_server_cargo")
                     .contribute(Contribution::<CargoDependencies>::strict("cargo::dependencies"))
                     .build(HttpServerCargoFragment),
@@ -309,6 +302,7 @@ mod tests {
         types::RuntimeValue,
     };
     use agentc_compiler::generator::{
+        blocks::codegen::CodeGen,
         context::GenerationContext,
         extension::{ErasedContributionValue, ExtensionRegistry},
         vfs::VirtualFileSystem,
@@ -424,6 +418,26 @@ mod tests {
         );
     }
 
+    #[test]
+    fn the_archetype_names_no_database_or_migrations() {
+        let cli_mod = CliModCodeGen
+            .generate_files(&GenerationContext::new(context(None)), &ExtensionRegistry::empty())
+            .unwrap()[0]
+            .1
+            .to_string();
+        let main = EntrypointCodeGen
+            .generate_files(&GenerationContext::new(context(None)), &ExtensionRegistry::empty())
+            .unwrap()[0]
+            .1
+            .to_string();
+
+        assert!(!cli_mod.contains("mod migrate ;"));
+        assert!(!cli_mod.contains("Migrate"));
+        assert!(!main.contains("mod migrator ;"));
+        assert!(cli_mod.contains("mod run ;"));
+        assert!(main.contains("mod agent ;"));
+    }
+
     #[tokio::test]
     async fn generated_cargo_toml_has_no_react_or_ag_ui_references() {
         let resolved = StandaloneArchetype
@@ -457,36 +471,9 @@ mod tests {
         assert!(!content.contains("agentc-agent-react"));
         assert!(!content.contains("agentc-protocol-ag-ui"));
         assert!(!content.contains("has_ag_ui_protocol"));
-    }
-
-    #[tokio::test]
-    async fn contributes_a2a_client_dependency_without_declared_a2a_tool() {
-        let resolved = StandaloneArchetype
-            .resolve(context(None), StandaloneArchetypeConfig::default())
-            .unwrap();
-
-        let dependencies = resolved
-            .contribution
-            .blocks
-            .iter()
-            .find(|block| block.id() == "a2a_client_cargo")
-            .expect("a2a client cargo block is registered")
-            .render_contribution(&GenerationContext::new(context(None)), "cargo::dependencies")
-            .await
-            .unwrap()
-            .downcast::<CargoDependencies>()
-            .unwrap();
-
-        assert_eq!(dependencies.len(), 1);
-        assert!(matches!(
-            dependencies
-                .get(&"agentc-protocol-a2a")
-                .unwrap(),
-            CargoDependencyContribution::Runtime(dependency)
-                if dependency.default_features == Some(false)
-                    && dependency.features.len() == 1
-                    && dependency.features.contains("client")
-        ));
+        assert!(!content.contains("agentc-database"));
+        assert!(!content.contains("agentc-domain-sql"));
+        assert!(!content.contains("sea-orm-migration"));
     }
 
     #[tokio::test]
@@ -590,36 +577,6 @@ mod tests {
         )));
     }
 
-    #[tokio::test]
-    async fn contributes_the_http_client_dependency_unconditionally() {
-        let resolved = StandaloneArchetype
-            .resolve(context(None), StandaloneArchetypeConfig::default())
-            .unwrap();
-
-        let dependencies = resolved
-            .contribution
-            .blocks
-            .iter()
-            .find(|block| block.id() == "http_client_cargo")
-            .expect("http client cargo block is registered")
-            .render_contribution(&GenerationContext::new(context(None)), "cargo::dependencies")
-            .await
-            .unwrap()
-            .downcast::<CargoDependencies>()
-            .unwrap();
-
-        assert_eq!(dependencies.len(), 1);
-        assert!(matches!(
-            dependencies
-                .get(&"agentc-http")
-                .unwrap(),
-            CargoDependencyContribution::Runtime(dependency)
-                if dependency.default_features == Some(false)
-                    && dependency.features.len() == 1
-                    && dependency.features.contains("client")
-        ));
-    }
-
     #[test]
     fn registers_the_server_fragments_only_with_an_http_server() {
         let without = StandaloneArchetype
@@ -720,10 +677,8 @@ mod tests {
             env!("CARGO_PKG_VERSION"),
         )));
         assert!(!content.contains("jobq"));
+        assert!(!content.contains("subway"));
         assert!(!content.contains("utoipa"));
-
-        // Present, not absent: the generated `src/config.rs` names `subway` in every artifact.
-        assert!(content.contains("subway = { git = \"https://github.com/wizrds/subway-rs.git\""));
     }
 
     #[tokio::test]
@@ -791,6 +746,34 @@ mod tests {
         )));
         assert!(content.contains("jobq = { git = \"https://github.com/wizrds/jobq-rs.git\""));
         assert!(content.contains("agentc-http = { path = \"../runtime/agentc-http\" }"));
+    }
+
+    #[tokio::test]
+    async fn serving_agent_gets_the_task_queue_and_the_pubsub() {
+        let content = rendered_cargo_toml(
+            context(Some(json!({ "host": "0.0.0.0", "port": 8080, "max_request_size": 2097152, "protocols": [] }))),
+            vec![ErasedContributionValue::new(
+                CargoDependencies::from_entries([
+                    CargoDependencyContribution::external(
+                        ExternalDependencyContribution::new("jobq")
+                            .git("https://github.com/wizrds/jobq-rs.git")
+                            .version("0.3.1"),
+                    ),
+                    CargoDependencyContribution::external(
+                        ExternalDependencyContribution::new("subway")
+                            .git("https://github.com/wizrds/subway-rs.git")
+                            .version("0.1.0")
+                            .feature("redis"),
+                    ),
+                ])
+                .unwrap(),
+            )],
+            vec![],
+        )
+        .await;
+
+        assert!(content.contains("jobq = { git = \"https://github.com/wizrds/jobq-rs.git\""));
+        assert!(content.contains("subway = { git = \"https://github.com/wizrds/subway-rs.git\""));
     }
 
     #[tokio::test]

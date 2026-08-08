@@ -2,13 +2,9 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::path::PathBuf;
-
 use agentc_compiler::generator::{
-    blocks::template::TemplateFragment,
-    context::GenerationContext,
-    errors::GeneratorError,
-    extension::{ErasedContributionValue, ExtensionRegistry},
+    blocks::fragment::Fragment, context::GenerationContext, errors::GeneratorError,
+    extension::ErasedContributionValue,
 };
 
 use crate::{
@@ -21,7 +17,7 @@ use crate::{
 
 pub struct ReActCargoFragment;
 
-impl TemplateFragment<ResolvedContext> for ReActCargoFragment {
+impl Fragment<ResolvedContext> for ReActCargoFragment {
     fn generate_contribution(
         &self,
         _ctx: &GenerationContext<ResolvedContext>,
@@ -44,13 +40,36 @@ impl TemplateFragment<ResolvedContext> for ReActCargoFragment {
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
     }
+}
 
-    fn generate_files(
+pub struct ReActDatabaseCargoFragment;
+
+impl Fragment<ResolvedContext> for ReActDatabaseCargoFragment {
+    fn generate_contribution(
         &self,
         _ctx: &GenerationContext<ResolvedContext>,
-        _registry: &ExtensionRegistry,
-    ) -> Result<Vec<(PathBuf, String)>, GeneratorError> {
-        Ok(vec![])
+        point: &str,
+    ) -> Result<ErasedContributionValue, GeneratorError> {
+        match point {
+            "cargo::dependencies" => Ok(ErasedContributionValue::new(
+                CargoDependencies::from_entries([
+                    CargoDependencyContribution::runtime(RuntimeDependencyContribution::new(
+                        "agentc-domain-sql",
+                    )),
+                    CargoDependencyContribution::external(
+                        ExternalDependencyContribution::new("sea-orm-migration").version("1"),
+                    ),
+                ])
+                .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
+            )),
+            "cargo::patches" => Ok(ErasedContributionValue::new(
+                CargoPatches::from_entries([CargoPatchContribution::runtime(
+                    RuntimeDependencyContribution::new("agentc-domain-sql"),
+                )])
+                .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
+            )),
+            _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
+        }
     }
 }
 
@@ -66,7 +85,7 @@ impl ReActFeatureCargoFragment {
     }
 }
 
-impl TemplateFragment<ResolvedContext> for ReActFeatureCargoFragment {
+impl Fragment<ResolvedContext> for ReActFeatureCargoFragment {
     fn generate_contribution(
         &self,
         _ctx: &GenerationContext<ResolvedContext>,
@@ -84,43 +103,55 @@ impl TemplateFragment<ResolvedContext> for ReActFeatureCargoFragment {
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
     }
-
-    fn generate_files(
-        &self,
-        _ctx: &GenerationContext<ResolvedContext>,
-        _registry: &ExtensionRegistry,
-    ) -> Result<Vec<(PathBuf, String)>, GeneratorError> {
-        Ok(vec![])
-    }
 }
 
-/// The third-party crates the generated react server code names directly.
-pub struct ReActServerCargoFragment;
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-impl TemplateFragment<ResolvedContext> for ReActServerCargoFragment {
-    fn generate_contribution(
-        &self,
-        _ctx: &GenerationContext<ResolvedContext>,
-        point: &str,
-    ) -> Result<ErasedContributionValue, GeneratorError> {
-        match point {
-            "cargo::dependencies" => Ok(ErasedContributionValue::new(
-                CargoDependencies::from_entries([CargoDependencyContribution::external(
-                    ExternalDependencyContribution::new("jobq")
-                        .git("https://github.com/wizrds/jobq-rs.git")
-                        .version("0.3.1"),
-                )])
-                .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
-            )),
-            _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
-        }
+    use serde_json::json;
+
+    fn context() -> GenerationContext<ResolvedContext> {
+        GenerationContext::new(
+            serde_json::from_value(json!({
+                "slug": "assistant",
+                "agent_name": "assistant",
+                "runtime": { "default_tenant_id": "default" },
+                "providers": [],
+                "agent": {
+                    "version": "0.1.0",
+                    "description": null,
+                    "prompt": null,
+                    "capabilities": null,
+                    "capability_policy": null,
+                    "model": { "provider": "anthropic", "name": "claude" }
+                },
+                "blocks": {},
+                "tools": {},
+                "skills": {},
+                "http_server": null
+            }))
+            .unwrap(),
+        )
     }
 
-    fn generate_files(
-        &self,
-        _ctx: &GenerationContext<ResolvedContext>,
-        _registry: &ExtensionRegistry,
-    ) -> Result<Vec<(PathBuf, String)>, GeneratorError> {
-        Ok(vec![])
+    #[test]
+    fn database_fragment_contributes_sql_dependencies() {
+        let dependencies = ReActDatabaseCargoFragment
+            .generate_contribution(&context(), "cargo::dependencies")
+            .unwrap()
+            .downcast::<CargoDependencies>()
+            .unwrap();
+
+        assert!(
+            dependencies
+                .get(&"agentc-domain-sql")
+                .is_some()
+        );
+        assert!(
+            dependencies
+                .get(&"sea-orm-migration")
+                .is_some()
+        );
     }
 }

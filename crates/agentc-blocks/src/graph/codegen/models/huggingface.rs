@@ -8,8 +8,8 @@ use quote::quote;
 use agentc_compiler::generator::blocks::codegen::ToIdent;
 
 use crate::{
+    config::fields::FieldsSpec,
     context::ResolvedContextProviderHuggingFace,
-    fields::FieldsSpec,
     graph::codegen::models::{ModelCodeGen, params::InferenceParamsFields},
 };
 

@@ -5,8 +5,8 @@
 use convert_case::{Case, Casing};
 
 use crate::{
+    config::fields::spec::{FieldsSpec, IntoFieldSpecs},
     context::{ResolvedContextTool, ResolvedContextToolKind},
-    fields::spec::{FieldsSpec, IntoFieldSpecs},
 };
 
 /// Pairs a tool name with its resolved context for use with [`IntoFieldSpecs`].

@@ -8,11 +8,11 @@ use quote::quote;
 use agentc_compiler::generator::errors::GeneratorError;
 
 use crate::{
+    config::fields::FieldsSpec,
     context::{
         ResolvedContext, ResolvedContextToolBashEnv, ResolvedContextToolBashFsKind,
         ResolvedContextToolKind,
     },
-    fields::FieldsSpec,
     graph::codegen::tools::ToolCodeGen,
 };
 

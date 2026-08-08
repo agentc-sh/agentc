@@ -12,8 +12,8 @@ use quote::quote;
 use agentc_compiler::generator::errors::GeneratorError;
 
 use crate::{
+    config::fields::FieldsSpec,
     context::ResolvedContext,
-    fields::FieldsSpec,
     graph::codegen::tools::{
         bash::BashTools,
         javascript::JavascriptTools,

@@ -7,7 +7,7 @@ use quote::quote;
 use std::ops::Deref;
 
 use crate::{
-    fields::types::{FieldValue, IntoTypeTokens},
+    config::fields::types::{FieldValue, IntoTypeTokens},
     types::RuntimeValue,
 };
 

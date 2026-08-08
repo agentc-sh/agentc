@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 pub mod codegen;
+pub mod fragment;
 pub mod graph;
 pub mod set;
 pub mod template;

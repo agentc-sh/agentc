@@ -12,13 +12,12 @@ use agentc_compiler::generator::{
 };
 
 use crate::{
+    config::fields::FieldsSpec,
     context::ResolvedContext,
-    fields::FieldsSpec,
     graph::{
         codegen::{
-            a2a::A2aCodeGen, identity::IdentityCodeGen, mcp::McpCodeGen,
-            models::ModelRegistryCodeGen, prompt::PromptSourceCodeGen, skills::SkillsCodeGen,
-            tools::ToolsCodeGen,
+            identity::IdentityCodeGen, models::ModelRegistryCodeGen, prompt::PromptSourceCodeGen,
+            skills::SkillsCodeGen, tools::ToolsCodeGen,
         },
         react::ReActGraphConfig,
     },
@@ -195,15 +194,6 @@ impl CodeGen<ResolvedContext> for AgentCodeGen {
                     capability::{CapabilitySet, CapabilityPolicy},
                 },
             };
-            use agentc_mcp::{
-                builder::AgentBuilderMcpExt,
-                config::{McpServerConfig, McpTransport},
-                registry::McpRegistry,
-            };
-            use agentc_protocol_a2a::{
-                client::{A2aClient, A2aClientConfig},
-                tools::{A2aTenantPolicy, A2aToolTarget},
-            };
             use agentc_agent_react::{
                 cancel::SqlReActCanceller,
                 checkpoint::handle::SqlReActCheckpointStoreHandle,
@@ -215,7 +205,7 @@ impl CodeGen<ResolvedContext> for AgentCodeGen {
                 },
             };
 
-            use crate::config::{A2aTenantConfig, Config, McpTransportConfig};
+            use crate::config::Config;
 
             #prompt_imports
             #(#model_imports)*
@@ -269,68 +259,6 @@ impl CodeGen<ResolvedContext> for AgentCodeGen {
 
                 #extra_tools
 
-                if !config.mcp.servers.is_empty() {
-                    let mut mcp_builder = McpRegistry::builder();
-
-                    for (name, transport) in &config.mcp.servers {
-                        mcp_builder = mcp_builder.with_server(
-                            McpServerConfig::new(name.clone(), match transport {
-                                McpTransportConfig::Stdio { command, args, env } => McpTransport::Stdio {
-                                    command: command.clone(),
-                                    args: args.clone(),
-                                    env: env.clone(),
-                                },
-                                McpTransportConfig::Http { url, auth_token, headers } => McpTransport::StreamableHttp {
-                                    url: url.clone(),
-                                    auth_token: auth_token.clone(),
-                                    headers: headers.clone(),
-                                },
-                            })
-                        );
-                    }
-
-                    builder = builder.with_mcp_registry(&mcp_builder.build().await?).await;
-                }
-
-                for (name, agent) in &config.a2a.agents {
-                    if !agent.enabled {
-                        continue;
-                    }
-
-                    let mut client_config = A2aClientConfig::new(agent.url.clone())
-                        .timeout(std::time::Duration::from_secs(agent.timeout_secs));
-
-                    if let Some(token) = &agent.auth_token {
-                        client_config = client_config.try_header(
-                            "Authorization",
-                            format!("Bearer {token}"),
-                        )?;
-                    }
-
-                    for (key, value) in &agent.headers {
-                        client_config = client_config.try_header(key, value)?;
-                    }
-
-                    let target = A2aToolTarget::builder()
-                        .id(name)
-                        .name(agent.description.as_deref().unwrap_or(name))
-                        .client(A2aClient::new(client_config)?)
-                        .tenant_policy(match &agent.tenant {
-                            A2aTenantConfig::Inherit => A2aTenantPolicy::Inherit,
-                            A2aTenantConfig::None => A2aTenantPolicy::None,
-                            A2aTenantConfig::Fixed { id } => A2aTenantPolicy::Fixed(id.clone()),
-                        })
-                        .capabilities(agent.capabilities.clone())
-                        .default_accepted_output_modes(agent.default_accepted_output_modes.clone())
-                        .build()?;
-
-                    builder = builder
-                        .with_typed_tool(target.send_task_tool())
-                        .with_typed_tool(target.stream_task_tool())
-                        .with_typed_tool(target.get_task_tool())
-                        .with_typed_tool(target.cancel_task_tool());
-                }
-
                 Ok(
                     builder
                         .with_identity(#agent_identity)
@@ -349,51 +277,31 @@ impl CodeGen<ResolvedContext> for AgentCodeGen {
     ) -> Result<TokenStream, GeneratorError> {
         match point {
             "config::fields" => Ok(quote! {
-                pub react: ReActConfig,
+                pub react: ConfigReAct,
             }),
             "config::impls" => Ok(quote! {
                 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default)]
                 #[serde(default)]
-                pub struct ReActConfig {
-                    pub model: ReActModelConfig,
+                pub struct ConfigReAct {
+                    pub model: ConfigReActModel,
                 }
 
                 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default)]
                 #[serde(default)]
-                pub struct ReActModelConfig {
+                pub struct ConfigReActModel {
                     pub timeout: Option<u64>,
-                    pub retry: Option<ReActModelRetryConfig>,
+                    pub retry: Option<ConfigReActModelRetry>,
                 }
 
                 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-                pub struct ReActModelRetryConfig {
+                pub struct ConfigReActModelRetry {
                     pub max_attempts: u32,
                     pub initial_backoff: u64,
                     pub max_backoff: u64,
                 }
             }),
-            "config::loader" => {
-                let mcp = McpCodeGen::loader_calls(ctx);
-                let a2a = A2aCodeGen::loader_calls(ctx);
-                let react = self.config_loader_calls();
-
-                Ok(quote! {
-                    #mcp
-                    #a2a
-                    #react
-                })
-            }
-            "config::mapper" => {
-                let mcp = McpCodeGen::mapper_fields(ctx);
-                let a2a = A2aCodeGen::mapper_fields(ctx);
-                let react = self.config_mapper_fields();
-
-                Ok(quote! {
-                    #mcp
-                    #a2a
-                    #react
-                })
-            }
+            "config::loader" => Ok(self.config_loader_calls()),
+            "config::mapper" => Ok(self.config_mapper_fields()),
             "tools::features" => Ok(ToolsCodeGen::features(ctx)),
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
@@ -496,18 +404,13 @@ mod tests {
     }
 
     #[test]
-    fn generated_agent_registers_startup_configured_a2a_agents() {
+    fn generated_agent_names_no_mcp_or_a2a_wiring() {
         let rendered = AgentCodeGenFixture::generated_agent();
 
-        assert!(rendered.contains("config . a2a . agents"));
-        assert!(rendered.contains("A2aClientConfig :: new"));
-        assert!(rendered.contains("client_config . try_header"));
-        assert!(rendered.contains("target . send_task_tool"));
-        assert!(rendered.contains("target . stream_task_tool"));
-        assert!(rendered.contains("target . get_task_tool"));
-        assert!(rendered.contains("target . cancel_task_tool"));
-        assert!(!rendered.contains("build_a2a_headers"));
-        assert!(!rendered.contains("reqwest :: header"));
+        assert!(!rendered.contains("config . a2a . agents"));
+        assert!(!rendered.contains("config . mcp . servers"));
+        assert!(!rendered.contains("agentc_protocol_a2a"));
+        assert!(!rendered.contains("agentc_mcp"));
     }
 
     #[test]
@@ -571,10 +474,10 @@ mod tests {
                 .generate_contribution(&context, "config::fields")
                 .unwrap()
                 .to_string()
-                .contains("react : ReActConfig")
+                .contains("react : ConfigReAct")
         );
-        assert!(impls.contains("struct ReActModelConfig"));
-        assert!(impls.contains("struct ReActModelRetryConfig"));
+        assert!(impls.contains("struct ConfigReActModel"));
+        assert!(impls.contains("struct ConfigReActModelRetry"));
         assert!(loader.contains("\"react\" , \"model\" , \"timeout\""));
         assert!(loader.contains("\"max_attempts\""));
         assert!(loader.contains("\"initial_backoff\""));

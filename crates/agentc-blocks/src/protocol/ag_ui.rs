@@ -10,7 +10,7 @@ use agentc_compiler::generator::{
     blocks::{
         BlockSet,
         codegen::{CodeGen, CodeGenBlock},
-        template::{TemplateFragment, TemplateFragmentBlock},
+        fragment::{Fragment, FragmentBlock},
     },
     context::GenerationContext,
     errors::GeneratorError,
@@ -19,6 +19,7 @@ use agentc_compiler::generator::{
 
 use crate::{
     composition::GenerationContribution,
+    config::sections::task_queue::TaskQueueSection,
     context::{ResolvedContext, ResolvedContextHttpServerProtocolAgUi},
     contributions::dependency::{
         CargoDependencies, CargoDependencyContribution, CargoPatchContribution, CargoPatches,
@@ -72,7 +73,7 @@ impl CodeGen<ResolvedContext> for AgUiCodeGen {
     }
 }
 
-impl TemplateFragment<ResolvedContext> for AgUiCargoFragment {
+impl Fragment<ResolvedContext> for AgUiCargoFragment {
     fn generate_contribution(
         &self,
         _ctx: &GenerationContext<ResolvedContext>,
@@ -124,7 +125,7 @@ impl Protocol for AgUiProtocol {
                                 .build(AgUiCodeGen { config }),
                         )
                         .add(
-                            TemplateFragmentBlock::builder()
+                            FragmentBlock::builder()
                                 .id("protocol_ag_ui_cargo")
                                 .contribute(Contribution::<CargoDependencies>::strict(
                                     "cargo::dependencies",
@@ -132,6 +133,7 @@ impl Protocol for AgUiProtocol {
                                 .contribute(Contribution::<CargoPatches>::strict("cargo::patches"))
                                 .build(AgUiCargoFragment),
                         )
+                        .add(TaskQueueSection::block("protocol_ag_ui_task_queue_section"))
                         .into_inner(),
                 )
                 .with_provides(GenerationFeatureSet::new().with::<ProtocolAgUi>())

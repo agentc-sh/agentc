@@ -2,19 +2,16 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::path::PathBuf;
-
 use proc_macro2::TokenStream;
 use quote::quote;
 
 use agentc_compiler::generator::{
-    blocks::template::TemplateFragment,
-    context::GenerationContext,
-    errors::GeneratorError,
-    extension::{ErasedContributionValue, ExtensionRegistry},
+    blocks::fragment::Fragment, context::GenerationContext, errors::GeneratorError,
+    extension::ErasedContributionValue,
 };
 
 use crate::{
+    config::fields::FieldsSpec,
     context::{
         ResolvedContext, ResolvedContextAgentPromptMessage, ResolvedContextAgentPromptMessageRole,
         ResolvedContextAgentPromptSource, ResolvedContextAgentPromptSourceLangfuse,
@@ -23,7 +20,6 @@ use crate::{
         CargoDependencies, CargoDependencyContribution, CargoPatchContribution, CargoPatches,
         RuntimeDependencyContribution,
     },
-    fields::FieldsSpec,
 };
 
 /// Generates the `PromptSource` argument wired into `with_prompt_source`.
@@ -189,7 +185,7 @@ impl PromptSourceCodeGen {
 
 pub struct PromptCargoFragment;
 
-impl TemplateFragment<ResolvedContext> for PromptCargoFragment {
+impl Fragment<ResolvedContext> for PromptCargoFragment {
     fn generate_contribution(
         &self,
         ctx: &GenerationContext<ResolvedContext>,
@@ -220,14 +216,6 @@ impl TemplateFragment<ResolvedContext> for PromptCargoFragment {
             )),
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point,))),
         }
-    }
-
-    fn generate_files(
-        &self,
-        _ctx: &GenerationContext<ResolvedContext>,
-        _registry: &ExtensionRegistry,
-    ) -> Result<Vec<(PathBuf, String)>, GeneratorError> {
-        Ok(vec![])
     }
 }
 

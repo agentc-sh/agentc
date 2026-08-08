@@ -3,11 +3,11 @@
 // SPDX-License-Identifier: MIT
 
 use crate::{
-    context::{ResolvedContext, ResolvedContextProvider},
-    fields::{
+    config::fields::{
         spec::{FieldsSpec, IntoFieldSpecs},
         tools::NamedTool,
     },
+    context::{ResolvedContext, ResolvedContextProvider},
 };
 
 impl IntoFieldSpecs for ResolvedContext {
