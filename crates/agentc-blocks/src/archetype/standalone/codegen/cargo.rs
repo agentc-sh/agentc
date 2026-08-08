@@ -2,13 +2,11 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::path::PathBuf;
-
 use agentc_compiler::generator::{
-    blocks::template::TemplateFragment,
+    blocks::fragment::Fragment,
     context::GenerationContext,
     errors::GeneratorError,
-    extension::{ErasedContributionValue, ExtensionPoint, ExtensionRegistry},
+    extension::{ErasedContributionValue, ExtensionPoint},
 };
 
 use crate::{
@@ -21,7 +19,7 @@ use crate::{
 
 pub struct A2aClientCargoFragment;
 
-impl TemplateFragment<ResolvedContext> for A2aClientCargoFragment {
+impl Fragment<ResolvedContext> for A2aClientCargoFragment {
     fn generate_contribution(
         &self,
         _ctx: &GenerationContext<ResolvedContext>,
@@ -45,19 +43,11 @@ impl TemplateFragment<ResolvedContext> for A2aClientCargoFragment {
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
     }
-
-    fn generate_files(
-        &self,
-        _ctx: &GenerationContext<ResolvedContext>,
-        _registry: &ExtensionRegistry,
-    ) -> Result<Vec<(PathBuf, String)>, GeneratorError> {
-        Ok(vec![])
-    }
 }
 
 pub struct HttpClientCargoFragment;
 
-impl TemplateFragment<ResolvedContext> for HttpClientCargoFragment {
+impl Fragment<ResolvedContext> for HttpClientCargoFragment {
     fn generate_contribution(
         &self,
         _ctx: &GenerationContext<ResolvedContext>,
@@ -81,19 +71,11 @@ impl TemplateFragment<ResolvedContext> for HttpClientCargoFragment {
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
     }
-
-    fn generate_files(
-        &self,
-        _ctx: &GenerationContext<ResolvedContext>,
-        _registry: &ExtensionRegistry,
-    ) -> Result<Vec<(PathBuf, String)>, GeneratorError> {
-        Ok(vec![])
-    }
 }
 
 pub struct HttpServerCargoFragment;
 
-impl TemplateFragment<ResolvedContext> for HttpServerCargoFragment {
+impl Fragment<ResolvedContext> for HttpServerCargoFragment {
     fn generate_contribution(
         &self,
         _ctx: &GenerationContext<ResolvedContext>,
@@ -118,14 +100,6 @@ impl TemplateFragment<ResolvedContext> for HttpServerCargoFragment {
             )),
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
-    }
-
-    fn generate_files(
-        &self,
-        _ctx: &GenerationContext<ResolvedContext>,
-        _registry: &ExtensionRegistry,
-    ) -> Result<Vec<(PathBuf, String)>, GeneratorError> {
-        Ok(vec![])
     }
 }
 

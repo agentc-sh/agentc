@@ -10,7 +10,7 @@ use agentc_compiler::generator::{
     blocks::{
         BlockSet,
         codegen::{CodeGen, CodeGenBlock},
-        template::{TemplateFragment, TemplateFragmentBlock},
+        fragment::{Fragment, FragmentBlock},
     },
     context::GenerationContext,
     errors::GeneratorError,
@@ -72,7 +72,7 @@ impl CodeGen<ResolvedContext> for AgUiCodeGen {
     }
 }
 
-impl TemplateFragment<ResolvedContext> for AgUiCargoFragment {
+impl Fragment<ResolvedContext> for AgUiCargoFragment {
     fn generate_contribution(
         &self,
         _ctx: &GenerationContext<ResolvedContext>,
@@ -124,7 +124,7 @@ impl Protocol for AgUiProtocol {
                                 .build(AgUiCodeGen { config }),
                         )
                         .add(
-                            TemplateFragmentBlock::builder()
+                            FragmentBlock::builder()
                                 .id("protocol_ag_ui_cargo")
                                 .contribute(Contribution::<CargoDependencies>::strict(
                                     "cargo::dependencies",

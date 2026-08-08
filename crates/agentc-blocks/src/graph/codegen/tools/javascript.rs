@@ -5,13 +5,13 @@
 use convert_case::{Case, Casing};
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
-use std::{collections::HashMap, path::PathBuf};
+use std::collections::HashMap;
 
 use agentc_compiler::generator::{
-    blocks::{codegen::ToIdent, template::TemplateFragment},
+    blocks::{codegen::ToIdent, fragment::Fragment},
     context::GenerationContext,
     errors::GeneratorError,
-    extension::{ErasedContributionValue, ExtensionRegistry},
+    extension::ErasedContributionValue,
 };
 
 use crate::{
@@ -143,7 +143,7 @@ impl ToolCodeGen for JavascriptTools<'_> {
 
 pub struct JavascriptToolCargoFragment;
 
-impl TemplateFragment<ResolvedContext> for JavascriptToolCargoFragment {
+impl Fragment<ResolvedContext> for JavascriptToolCargoFragment {
     fn generate_contribution(
         &self,
         _ctx: &GenerationContext<ResolvedContext>,
@@ -165,19 +165,11 @@ impl TemplateFragment<ResolvedContext> for JavascriptToolCargoFragment {
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
     }
-
-    fn generate_files(
-        &self,
-        _ctx: &GenerationContext<ResolvedContext>,
-        _registry: &ExtensionRegistry,
-    ) -> Result<Vec<(PathBuf, String)>, GeneratorError> {
-        Ok(vec![])
-    }
 }
 
 pub struct HttpTypescriptCargoFragment;
 
-impl TemplateFragment<ResolvedContext> for HttpTypescriptCargoFragment {
+impl Fragment<ResolvedContext> for HttpTypescriptCargoFragment {
     fn generate_contribution(
         &self,
         _ctx: &GenerationContext<ResolvedContext>,
@@ -194,14 +186,6 @@ impl TemplateFragment<ResolvedContext> for HttpTypescriptCargoFragment {
             )),
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
-    }
-
-    fn generate_files(
-        &self,
-        _ctx: &GenerationContext<ResolvedContext>,
-        _registry: &ExtensionRegistry,
-    ) -> Result<Vec<(PathBuf, String)>, GeneratorError> {
-        Ok(vec![])
     }
 }
 

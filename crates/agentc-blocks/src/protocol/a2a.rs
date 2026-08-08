@@ -10,7 +10,7 @@ use agentc_compiler::generator::{
     blocks::{
         BlockSet,
         codegen::{CodeGen, CodeGenBlock},
-        template::{TemplateFragment, TemplateFragmentBlock},
+        fragment::{Fragment, FragmentBlock},
     },
     context::GenerationContext,
     errors::GeneratorError,
@@ -76,7 +76,7 @@ impl CodeGen<ResolvedContext> for A2aCodeGen {
     }
 }
 
-impl TemplateFragment<ResolvedContext> for A2aCargoFragment {
+impl Fragment<ResolvedContext> for A2aCargoFragment {
     fn generate_contribution(
         &self,
         _ctx: &GenerationContext<ResolvedContext>,
@@ -130,7 +130,7 @@ impl Protocol for A2aProtocol {
                                 .build(A2aCodeGen { config }),
                         )
                         .add(
-                            TemplateFragmentBlock::builder()
+                            FragmentBlock::builder()
                                 .id("protocol_a2a_cargo")
                                 .contribute(Contribution::<CargoDependencies>::strict(
                                     "cargo::dependencies",

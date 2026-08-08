@@ -12,7 +12,7 @@ pub mod server;
 use serde::{Deserialize, Serialize};
 
 use agentc_compiler::generator::{
-    blocks::{BlockSet, codegen::CodeGenBlock, template::TemplateFragmentBlock},
+    blocks::{BlockSet, codegen::CodeGenBlock, fragment::FragmentBlock},
     extension::{Contribution, reducers},
 };
 
@@ -105,7 +105,7 @@ impl AgentGraph for ReActGraph {
                     .build(ReActMigrationsCodeGen),
             )
             .add(
-                TemplateFragmentBlock::builder()
+                FragmentBlock::builder()
                     .id("react_cargo")
                     .contribute(Contribution::<CargoDependencies>::strict("cargo::dependencies"))
                     .contribute(Contribution::<CargoPatches>::strict("cargo::patches"))
@@ -115,7 +115,7 @@ impl AgentGraph for ReActGraph {
         if context.has_typescript_components() {
             core_blocks = core_blocks
                 .add(
-                    TemplateFragmentBlock::builder()
+                    FragmentBlock::builder()
                         .id("javascript_tool_cargo")
                         .contribute(Contribution::<CargoDependencies>::strict(
                             "cargo::dependencies",
@@ -124,7 +124,7 @@ impl AgentGraph for ReActGraph {
                         .build(JavascriptToolCargoFragment),
                 )
                 .add(
-                    TemplateFragmentBlock::builder()
+                    FragmentBlock::builder()
                         .id("http_typescript_cargo")
                         .contribute(Contribution::<CargoDependencies>::strict(
                             "cargo::dependencies",
@@ -156,7 +156,7 @@ impl AgentGraph for ReActGraph {
                                 .build(CliServeCodeGen),
                         )
                         .add(
-                            TemplateFragmentBlock::builder()
+                            FragmentBlock::builder()
                                 .id("react_api_cargo")
                                 .contribute(Contribution::<CargoDependencies>::strict(
                                     "cargo::dependencies",
@@ -164,7 +164,7 @@ impl AgentGraph for ReActGraph {
                                 .build(ReActFeatureCargoFragment::new("api")),
                         )
                         .add(
-                            TemplateFragmentBlock::builder()
+                            FragmentBlock::builder()
                                 .id("react_server_cargo")
                                 .contribute(Contribution::<CargoDependencies>::strict(
                                     "cargo::dependencies",
@@ -181,7 +181,7 @@ impl AgentGraph for ReActGraph {
                 .with_blocks(
                     BlockSet::new()
                         .add(
-                            TemplateFragmentBlock::builder()
+                            FragmentBlock::builder()
                                 .id("react_ag_ui_cargo")
                                 .contribute(Contribution::<CargoDependencies>::strict(
                                     "cargo::dependencies",
@@ -202,7 +202,7 @@ impl AgentGraph for ReActGraph {
                 .with_blocks(
                     BlockSet::new()
                         .add(
-                            TemplateFragmentBlock::builder()
+                            FragmentBlock::builder()
                                 .id("react_a2a_cargo")
                                 .contribute(Contribution::<CargoDependencies>::strict(
                                     "cargo::dependencies",

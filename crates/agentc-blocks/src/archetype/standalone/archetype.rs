@@ -10,10 +10,8 @@ use agentc_compiler::{
         blocks::{
             BlockSet,
             codegen::CodeGenBlock,
-            template::{
-                ExtensionPointSpec, FileSpec, Reducer, TemplateBlock, TemplateBlockManifest,
-                TemplateFragmentBlock,
-            },
+            fragment::FragmentBlock,
+            template::{ExtensionPointSpec, FileSpec, Reducer, TemplateBlock, TemplateBlockManifest},
         },
         extension::{Contribution, reducers},
     },
@@ -196,21 +194,21 @@ impl Archetype for StandaloneArchetype {
                     .build(BuildScriptCodeGen),
             )
             .add(
-                TemplateFragmentBlock::builder()
+                FragmentBlock::builder()
                     .id("a2a_client_cargo")
                     .contribute(Contribution::<CargoDependencies>::strict("cargo::dependencies"))
                     .contribute(Contribution::<CargoPatches>::strict("cargo::patches"))
                     .build(A2aClientCargoFragment),
             )
             .add(
-                TemplateFragmentBlock::builder()
+                FragmentBlock::builder()
                     .id("prompt_cargo")
                     .contribute(Contribution::<CargoDependencies>::strict("cargo::dependencies"))
                     .contribute(Contribution::<CargoPatches>::strict("cargo::patches"))
                     .build(PromptCargoFragment),
             )
             .add(
-                TemplateFragmentBlock::builder()
+                FragmentBlock::builder()
                     .id("http_client_cargo")
                     .contribute(Contribution::<CargoDependencies>::strict("cargo::dependencies"))
                     .contribute(Contribution::<CargoPatches>::strict("cargo::patches"))
@@ -265,7 +263,7 @@ impl Archetype for StandaloneArchetype {
 
         if context.http_server.is_some() {
             blocks = blocks.add(
-                TemplateFragmentBlock::builder()
+                FragmentBlock::builder()
                     .id("http_server_cargo")
                     .contribute(Contribution::<CargoDependencies>::strict("cargo::dependencies"))
                     .build(HttpServerCargoFragment),

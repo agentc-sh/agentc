@@ -8,6 +8,8 @@ use std::{
     marker::PhantomData,
 };
 
+use proc_macro2::TokenStream;
+
 use crate::generator::errors::GeneratorError;
 
 /// A named coordination point between blocks.
@@ -112,6 +114,39 @@ impl From<String> for ErasedContributionValue {
 impl From<&str> for ErasedContributionValue {
     fn from(value: &str) -> Self {
         Self::new(value.to_string())
+    }
+}
+
+/// Rust source that has already been rendered to text.
+///
+/// Carries token output across the `Send + Sync + 'static` bound on
+/// [`ExtensionPoint::Contribution`], which `proc_macro2::TokenStream` does not satisfy.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RenderedTokenStream(String);
+
+impl RenderedTokenStream {
+    pub fn tokens(&self) -> Result<TokenStream, GeneratorError> {
+        self.0
+            .parse()
+            .map_err(|error| {
+                GeneratorError::unexpected(format!(
+                    "rendered token stream is not valid Rust: {error}",
+                ))
+            })
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl From<TokenStream> for RenderedTokenStream {
+    fn from(tokens: TokenStream) -> Self {
+        Self(tokens.to_string())
     }
 }
 
@@ -456,5 +491,17 @@ mod tests {
         .unwrap();
 
         assert_eq!(registry.get("empty_point"), Some(""));
+    }
+
+    #[test]
+    fn rendered_token_stream_round_trips_through_text() {
+        let rendered = RenderedTokenStream::from(quote::quote! { pub struct A; });
+
+        assert_eq!(rendered.tokens().unwrap().to_string(), "pub struct A ;");
+    }
+
+    #[test]
+    fn rendered_token_stream_is_empty_when_default() {
+        assert!(RenderedTokenStream::default().is_empty());
     }
 }

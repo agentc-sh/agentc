@@ -2,13 +2,9 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::path::PathBuf;
-
 use agentc_compiler::generator::{
-    blocks::template::TemplateFragment,
-    context::GenerationContext,
-    errors::GeneratorError,
-    extension::{ErasedContributionValue, ExtensionRegistry},
+    blocks::fragment::Fragment, context::GenerationContext, errors::GeneratorError,
+    extension::ErasedContributionValue,
 };
 
 use crate::{
@@ -21,7 +17,7 @@ use crate::{
 
 pub struct ReActCargoFragment;
 
-impl TemplateFragment<ResolvedContext> for ReActCargoFragment {
+impl Fragment<ResolvedContext> for ReActCargoFragment {
     fn generate_contribution(
         &self,
         _ctx: &GenerationContext<ResolvedContext>,
@@ -44,14 +40,6 @@ impl TemplateFragment<ResolvedContext> for ReActCargoFragment {
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
     }
-
-    fn generate_files(
-        &self,
-        _ctx: &GenerationContext<ResolvedContext>,
-        _registry: &ExtensionRegistry,
-    ) -> Result<Vec<(PathBuf, String)>, GeneratorError> {
-        Ok(vec![])
-    }
 }
 
 /// Enables one cargo feature on the react runtime dependency.
@@ -66,7 +54,7 @@ impl ReActFeatureCargoFragment {
     }
 }
 
-impl TemplateFragment<ResolvedContext> for ReActFeatureCargoFragment {
+impl Fragment<ResolvedContext> for ReActFeatureCargoFragment {
     fn generate_contribution(
         &self,
         _ctx: &GenerationContext<ResolvedContext>,
@@ -84,20 +72,12 @@ impl TemplateFragment<ResolvedContext> for ReActFeatureCargoFragment {
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
     }
-
-    fn generate_files(
-        &self,
-        _ctx: &GenerationContext<ResolvedContext>,
-        _registry: &ExtensionRegistry,
-    ) -> Result<Vec<(PathBuf, String)>, GeneratorError> {
-        Ok(vec![])
-    }
 }
 
 /// The third-party crates the generated react server code names directly.
 pub struct ReActServerCargoFragment;
 
-impl TemplateFragment<ResolvedContext> for ReActServerCargoFragment {
+impl Fragment<ResolvedContext> for ReActServerCargoFragment {
     fn generate_contribution(
         &self,
         _ctx: &GenerationContext<ResolvedContext>,
@@ -114,13 +94,5 @@ impl TemplateFragment<ResolvedContext> for ReActServerCargoFragment {
             )),
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
-    }
-
-    fn generate_files(
-        &self,
-        _ctx: &GenerationContext<ResolvedContext>,
-        _registry: &ExtensionRegistry,
-    ) -> Result<Vec<(PathBuf, String)>, GeneratorError> {
-        Ok(vec![])
     }
 }
