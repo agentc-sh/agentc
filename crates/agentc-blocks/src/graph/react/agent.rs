@@ -277,24 +277,24 @@ impl CodeGen<ResolvedContext> for AgentCodeGen {
     ) -> Result<TokenStream, GeneratorError> {
         match point {
             "config::fields" => Ok(quote! {
-                pub react: ReActConfig,
+                pub react: ConfigReAct,
             }),
             "config::impls" => Ok(quote! {
                 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default)]
                 #[serde(default)]
-                pub struct ReActConfig {
-                    pub model: ReActModelConfig,
+                pub struct ConfigReAct {
+                    pub model: ConfigReActModel,
                 }
 
                 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default)]
                 #[serde(default)]
-                pub struct ReActModelConfig {
+                pub struct ConfigReActModel {
                     pub timeout: Option<u64>,
-                    pub retry: Option<ReActModelRetryConfig>,
+                    pub retry: Option<ConfigReActModelRetry>,
                 }
 
                 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-                pub struct ReActModelRetryConfig {
+                pub struct ConfigReActModelRetry {
                     pub max_attempts: u32,
                     pub initial_backoff: u64,
                     pub max_backoff: u64,
