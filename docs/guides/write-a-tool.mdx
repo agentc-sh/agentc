@@ -147,9 +147,9 @@ exports, so the import is optional for those three.
 const response = await fetch("https://example.com");
 ```
 
-Alongside these, the host binds a set of Node-compatible modules, `node:buffer`, `node:console`,
-`node:timers`, `node:url`, `node:os`, and `node:stream/web`, plus `node:fs` and `node:fs/promises` when
-a tool in the same bundle declares a `filesystem::read` or `filesystem::write` capability.
+Alongside these, the host binds a set of Node-compatible modules: `node:buffer`, `node:console`,
+`node:timers`, `node:url`, `node:os`, `node:stream/web`, `node:fs`, and `node:fs/promises`. Each is a
+subset of its Node counterpart rather than a full implementation.
 
 The shapes of all of it come from `@agentc-sh/runtime`, which the scaffold installs and references for
 you, so your editor reports what the host actually provides rather than guessing.
