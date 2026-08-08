@@ -4,7 +4,7 @@
 
 use std::collections::HashMap;
 
-use agentc_compiler::{compiler::traits::Compiler, generator::blocks::Block};
+use agentc_compiler::{generator::blocks::Block, toolchain::traits::ErasedToolchain};
 
 use crate::{
     archetype::types::ResolvedArchetype, context::ResolvedContext, errors::BlocksError,
@@ -77,8 +77,7 @@ pub struct ComposedGeneration {
     pub archetype_name: String,
     pub graph_name: String,
     pub protocol_names: Vec<String>,
-    pub compiler: Box<dyn Compiler>,
-    pub target: Option<String>,
+    pub toolchain: Box<dyn ErasedToolchain>,
     pub blocks: Vec<Box<dyn Block<ResolvedContext>>>,
     pub embedded_assets: Vec<&'static EmbeddedAsset>,
 }
@@ -98,8 +97,7 @@ impl Composer {
             .iter()
             .map(|protocol| protocol.name.clone())
             .collect::<Vec<_>>();
-        let compiler = input.archetype.compiler;
-        let target = input.archetype.target;
+        let toolchain = input.archetype.toolchain;
         let mut archetype_contribution = input.archetype.contribution;
         let mut graph_contribution = input.graph.contribution;
 
@@ -128,6 +126,18 @@ impl Composer {
             &mut provided,
         )?;
 
+        for protocol in &mut input.protocols {
+            Self::apply_required_contribution(
+                "protocol",
+                &protocol.name,
+                &mut protocol.contribution,
+                &mut blocks,
+                &mut embedded_assets,
+                &mut embedded_asset_names,
+                &mut provided,
+            )?;
+        }
+
         for integration in &mut input.graph.integrations {
             if integration
                 .contribution
@@ -145,26 +155,13 @@ impl Composer {
             }
         }
 
-        for protocol in &mut input.protocols {
-            Self::apply_required_contribution(
-                "protocol",
-                &protocol.name,
-                &mut protocol.contribution,
-                &mut blocks,
-                &mut embedded_assets,
-                &mut embedded_asset_names,
-                &mut provided,
-            )?;
-        }
-
         blocks.extend(input.blocks);
 
         Ok(ComposedGeneration {
             archetype_name,
             graph_name,
             protocol_names,
-            compiler,
-            target,
+            toolchain,
             blocks,
             embedded_assets,
         })
@@ -242,31 +239,82 @@ mod tests {
 
     use super::*;
     use crate::{
-        feature::{Cli, GraphReAct, HttpServer, Streaming},
+        feature::{Cli, GraphReAct, HttpServer, ProtocolAgUi, Streaming},
         runtime::ExtractionMode,
     };
     use agentc_compiler::{
         compiler::{
             errors::CompilerError,
             traits::{Compiler, OutputSink},
-            types::{Artifact, CompileParams},
+            types::CompileParams,
         },
         generator::{
             blocks::traits::Block, context::GenerationContext, errors::GeneratorError,
             extension::ExtensionRegistry, vfs::VirtualFileSystem,
         },
+        runner::{
+            errors::RunnerError,
+            traits::Runner,
+            types::{RunOutcome, RunParams},
+        },
+        toolchain::traits::{ErasedToolchainCell, Toolchain},
     };
 
     struct StubCompiler;
 
     #[async_trait]
     impl Compiler for StubCompiler {
+        type Artifact = ();
+
         async fn compile(
             &self,
             _params: CompileParams,
             _output_sink: &dyn OutputSink,
-        ) -> Result<Artifact, CompilerError> {
+        ) -> Result<Self::Artifact, CompilerError> {
             Err(CompilerError::compilation_failed("not used in composition tests"))
+        }
+    }
+
+    struct StubRunner;
+
+    #[async_trait]
+    impl Runner for StubRunner {
+        type Artifact = ();
+
+        async fn run(
+            &self,
+            _artifact: &Self::Artifact,
+            _params: RunParams,
+        ) -> Result<RunOutcome, RunnerError> {
+            Err(RunnerError::invocation_failed("not used in composition tests"))
+        }
+    }
+
+    struct StubToolchain {
+        compiler: StubCompiler,
+        runner: Option<StubRunner>,
+    }
+
+    impl StubToolchain {
+        fn new(runnable: bool) -> Self {
+            Self {
+                compiler: StubCompiler,
+                runner: runnable.then_some(StubRunner),
+            }
+        }
+    }
+
+    impl Toolchain for StubToolchain {
+        type Artifact = ();
+
+        fn compiler(&self) -> &dyn Compiler<Artifact = Self::Artifact> {
+            &self.compiler
+        }
+
+        fn runner(&self) -> Option<&dyn Runner<Artifact = Self::Artifact>> {
+            self.runner
+                .as_ref()
+                .map(|runner| runner as &dyn Runner<Artifact = Self::Artifact>)
         }
     }
 
@@ -306,11 +354,10 @@ mod tests {
         Box::new(StubBlock { id })
     }
 
-    fn archetype(contribution: GenerationContribution, target: Option<&str>) -> ResolvedArchetype {
+    fn archetype(contribution: GenerationContribution, runnable: bool) -> ResolvedArchetype {
         ResolvedArchetype {
             name: "standalone".to_string(),
-            compiler: Box::new(StubCompiler),
-            target: target.map(ToString::to_string),
+            toolchain: ErasedToolchainCell::erase(StubToolchain::new(runnable)),
             contribution,
         }
     }
@@ -347,7 +394,7 @@ mod tests {
             .compose(CompositionInput {
                 archetype: archetype(
                     GenerationContribution::new().with_blocks(vec![block("archetype")]),
-                    Some("x86_64-unknown-linux-gnu"),
+                    true,
                 ),
                 graph: graph(
                     GenerationContribution::new().with_blocks(vec![block("graph")]),
@@ -368,13 +415,43 @@ mod tests {
             .map(|block| block.id().to_string())
             .collect::<Vec<_>>();
 
-        assert_eq!(ids, vec!["archetype", "graph", "integration", "protocol", "custom"],);
+        assert_eq!(ids, vec!["archetype", "graph", "protocol", "integration", "custom"],);
+    }
+
+    #[test]
+    fn composer_applies_integrations_after_protocols() {
+        let composed = Composer::new()
+            .compose(CompositionInput {
+                archetype: archetype(GenerationContribution::new(), true),
+                graph: graph(
+                    GenerationContribution::new().with_blocks(vec![block("graph")]),
+                    vec![OptionalGenerationContribution::new(
+                        GenerationContribution::new()
+                            .with_blocks(vec![block("integration")])
+                            .with_requires(provides::<ProtocolAgUi>()),
+                    )],
+                ),
+                protocols: vec![protocol(
+                    GenerationContribution::new().with_provides(provides::<ProtocolAgUi>()),
+                )],
+                blocks: Vec::new(),
+            })
+            .unwrap();
+
+        assert_eq!(
+            composed
+                .blocks
+                .iter()
+                .map(|block| block.id().to_string())
+                .collect::<Vec<_>>(),
+            vec!["graph", "integration"],
+        );
     }
 
     #[test]
     fn composer_rejects_missing_required_features() {
         let result = Composer::new().compose(CompositionInput {
-            archetype: archetype(GenerationContribution::new(), None),
+            archetype: archetype(GenerationContribution::new(), true),
             graph: graph(
                 GenerationContribution::new().with_requires(provides::<Cli>()),
                 Vec::new(),
@@ -390,7 +467,7 @@ mod tests {
     fn composer_skips_optional_integrations_with_missing_features() {
         let composed = Composer::new()
             .compose(CompositionInput {
-                archetype: archetype(GenerationContribution::new(), None),
+                archetype: archetype(GenerationContribution::new(), true),
                 graph: graph(
                     GenerationContribution::new().with_blocks(vec![block("graph")]),
                     vec![OptionalGenerationContribution::new(
@@ -418,7 +495,7 @@ mod tests {
         let result = Composer::new().compose(CompositionInput {
             archetype: archetype(
                 GenerationContribution::new().with_provides(provides::<HttpServer>()),
-                None,
+                true,
             ),
             graph: graph(
                 GenerationContribution::new().with_provides(provides::<Streaming>()),
@@ -442,7 +519,7 @@ mod tests {
             .compose(CompositionInput {
                 archetype: archetype(
                     GenerationContribution::new().with_embedded_assets(vec![&SHARED_ASSET]),
-                    None,
+                    true,
                 ),
                 graph: graph(
                     GenerationContribution::new().with_embedded_assets(vec![&SHARED_ASSET]),
@@ -462,7 +539,7 @@ mod tests {
         let result = Composer::new().compose(CompositionInput {
             archetype: archetype(
                 GenerationContribution::new().with_embedded_assets(vec![&SHARED_ASSET]),
-                None,
+                true,
             ),
             graph: graph(
                 GenerationContribution::new().with_embedded_assets(vec![&CONFLICTING_SHARED_ASSET]),
@@ -476,10 +553,10 @@ mod tests {
     }
 
     #[test]
-    fn composer_preserves_archetype_compiler_and_target() {
+    fn composer_preserves_archetype_toolchain() {
         let composed = Composer::new()
             .compose(CompositionInput {
-                archetype: archetype(GenerationContribution::new(), Some("target-triple")),
+                archetype: archetype(GenerationContribution::new(), true),
                 graph: graph(GenerationContribution::new(), Vec::new()),
                 protocols: Vec::new(),
                 blocks: Vec::new(),
@@ -489,6 +566,19 @@ mod tests {
         assert_eq!(composed.archetype_name, "standalone");
         assert_eq!(composed.graph_name, "react");
         assert_eq!(composed.protocol_names, Vec::<String>::new());
-        assert_eq!(composed.target.as_deref(), Some("target-triple"));
+        assert!(composed.toolchain.supports_run());
+
+        assert!(
+            !Composer::new()
+                .compose(CompositionInput {
+                    archetype: archetype(GenerationContribution::new(), false),
+                    graph: graph(GenerationContribution::new(), Vec::new()),
+                    protocols: Vec::new(),
+                    blocks: Vec::new(),
+                })
+                .unwrap()
+                .toolchain
+                .supports_run()
+        );
     }
 }

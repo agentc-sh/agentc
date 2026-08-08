@@ -11,21 +11,14 @@ agentc-telemetry = { version = "{{ runtime_version }}" }
 agentc-config = { version = "{{ runtime_version }}" }
 agentc-database = { version = "{{ runtime_version }}" }
 agentc-domain-sql = { version = "{{ runtime_version }}" }
-agentc-prompt = { version = "{{ runtime_version }}", features = ["tiktoken"] }
 agentc-model = { version = "{{ runtime_version }}" }
 agentc-agent = { version = "{{ runtime_version }}" }
 agentc-mcp = { version = "{{ runtime_version }}" }
 agentc-skills = { version = "{{ runtime_version }}" }
 agentc-tools = { version = "{{ runtime_version }}", default-features = false, features = [{{ extension("tools::features") }}] }
 
-{%- if ctx.http_server %}
-agentc-http = { version = "{{ runtime_version }}" }
-
-jobq = { git = "https://github.com/wizrds/jobq-rs.git", version = "0.3.1" }
+{# Unconditional because the generated `src/config.rs` names `subway` in every artifact #}
 subway = { git = "https://github.com/wizrds/subway-rs.git", version = "0.1.0", features = ["redis"] }
-utoipa = { version = "5.4" }
-utoipa-axum = { version = "0.2" }
-{%- endif %}
 
 tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7" }
@@ -49,12 +42,8 @@ agentc-domain = { path = "../runtime/agentc-domain" }
 agentc-domain-sql = { path = "../runtime/agentc-domain-sql" }
 agentc-mcp = { path = "../runtime/agentc-mcp" }
 agentc-model = { path = "../runtime/agentc-model" }
-agentc-prompt = { path = "../runtime/agentc-prompt" }
 agentc-skills = { path = "../runtime/agentc-skills" }
 agentc-telemetry = { path = "../runtime/agentc-telemetry" }
 agentc-tools = { path = "../runtime/agentc-tools" }
-{%- if ctx.http_server %}
-agentc-http = { path = "../runtime/agentc-http" }
-{%- endif %}
 
 {{ extension("cargo::patches") }}

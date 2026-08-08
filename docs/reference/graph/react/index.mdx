@@ -28,6 +28,11 @@ or detached mode, where the server returns the run and session IDs and keeps exe
 background. Active runs can also be observed through a live reattach stream. Reattachment does not
 replay earlier events; persisted run and message history remain available through the read endpoints.
 
+Because every step is checkpointed, a run can also be started from an earlier checkpoint instead of the
+session's latest state. Doing so creates a new run whose history descends from the chosen checkpoint,
+so the original run's history is left unchanged. List a session's checkpoints with the
+[checkpoints endpoint](/reference/graph/react/http/checkpoints) to find one to start from.
+
 ## Reference in this section
 
 - [HTTP reference](/reference/graph/react/http): the native `/v1` endpoints for sessions, messages, runs, and live run event streams.

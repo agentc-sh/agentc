@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
+use async_trait::async_trait;
 use flate2::read::GzDecoder;
 use std::{
     collections::HashMap,
@@ -98,17 +99,26 @@ impl EmbeddedAsset {
     }
 }
 
-/// Extract all assets into `into`, returning a map of asset name to extracted path.
-pub async fn extract_all(
-    assets: &[&'static EmbeddedAsset],
-    into: PathBuf,
-) -> Result<HashMap<String, PathBuf>, RuntimeError> {
-    let mut map = HashMap::with_capacity(assets.len());
-    for asset in assets {
-        let path = asset.extract(into.clone()).await?;
-        map.insert(asset.name.to_string(), path);
+/// Extraction behavior for a collection of embedded assets.
+#[async_trait]
+pub trait ExtractAll {
+    /// Extract every asset into `into`, returning a map of asset name to extracted path.
+    async fn extract_all(&self, into: PathBuf) -> Result<HashMap<String, PathBuf>, RuntimeError>;
+}
+
+#[async_trait]
+impl ExtractAll for [&'static EmbeddedAsset] {
+    async fn extract_all(&self, into: PathBuf) -> Result<HashMap<String, PathBuf>, RuntimeError> {
+        let mut map = HashMap::with_capacity(self.len());
+
+        for asset in self {
+            let path = asset.extract(into.clone()).await?;
+
+            map.insert(asset.name.to_string(), path);
+        }
+
+        Ok(map)
     }
-    Ok(map)
 }
 
 /// All runtime crates embedded into the compiler binary.
@@ -150,6 +160,11 @@ pub static EMBEDDED_RUNTIME: &[EmbeddedAsset] = &[
     EmbeddedAsset {
         name: "agentc-domain-sql",
         bytes: include_bytes!("../../embedded/agentc-domain-sql.crate"),
+        mode: ExtractionMode::TarGz,
+    },
+    EmbeddedAsset {
+        name: "agentc-executor-typescript",
+        bytes: include_bytes!("../../embedded/agentc-executor-typescript.crate"),
         mode: ExtractionMode::TarGz,
     },
     EmbeddedAsset {

@@ -6,9 +6,13 @@ use thiserror::Error;
 use uuid::Uuid;
 
 use agentc_agent::errors::AgentError;
-use agentc_domain::repository::{run::errors::RunRepoError, session::errors::SessionRepoError};
+use agentc_domain::repository::{
+    checkpoint_record::errors::CheckpointRecordRepoError, run::errors::RunRepoError,
+    session::errors::SessionRepoError,
+};
 use agentc_domain_sql::scope::SqlScopeFactoryError;
-use agentc_http::errors::ApiError;
+#[cfg(feature = "api")]
+use agentc_http::server::errors::ApiError;
 
 use crate::repository::message::errors::MessageRepoError;
 
@@ -40,6 +44,9 @@ pub enum ServiceError {
 
     #[error("message repo error: {0}")]
     MessageRepo(#[from] MessageRepoError),
+
+    #[error("checkpoint record repo error: {0}")]
+    CheckpointRecordRepo(#[from] CheckpointRecordRepoError),
 
     #[error("scope error: {0}")]
     Scope(#[from] SqlScopeFactoryError),
@@ -95,6 +102,7 @@ impl ServiceError {
     }
 }
 
+#[cfg(feature = "api")]
 impl From<ServiceError> for ApiError {
     fn from(err: ServiceError) -> Self {
         match err {

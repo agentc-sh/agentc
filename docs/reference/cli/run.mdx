@@ -1,0 +1,127 @@
+---
+title: agentc run
+description: Compile a manifest and immediately invoke the result.
+---
+
+`agentc run` runs the same compilation pipeline as `agentc build`, then invokes what it built,
+wired straight to your terminal. Everything after `--` is passed to the built agent verbatim, and
+`agentc` exits with the agent's own exit status.
+
+```bash
+agentc run [CONTEXT] [OPTIONS] [-- <ARGS>...]
+```
+
+## Arguments
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `CONTEXT` | `.` | Path to the directory containing `agent.acl`. |
+
+## Options
+
+| Flag | Short | Default | Description |
+|------|-------|---------|-------------|
+| `--release` | | `false` | Compile in release mode (optimized, slower to build). |
+| `--verbose` | `-v` | `false` | Print detailed output from each pipeline stage, including compiler output and transformer subprocess output. |
+| `--format <FORMAT>` | | `auto` | Output format. `auto` selects TTY or plain based on the terminal. `plain` disables colors and progress indicators. |
+| `--build-arg=<ARG>` | | | One argument forwarded to the compiler rather than to the agent. Always written with `=`. Repeat the flag to pass more than one. |
+| `--cache-dir <DIR>` | | `<CONTEXT>/artifacts/cache` | Directory used to cache compiler artifacts between runs. This is the same default `agentc build` uses, so the two commands share a warm cache. |
+| `--no-cache` | | `false` | Disable the build cache. The compiler will not read from or write to the cache directory. |
+| `--no-cleanup` | | `false` | Skip deletion of ephemeral build artifacts (for example, temporary virtual environments created during tool transforms). |
+| `-- <ARGS>...` | | | Arguments forwarded verbatim to the built agent. |
+
+There is no `--output` flag. The artifact is written to `<CONTEXT>/artifacts/build`, the same
+location `agentc build` uses.
+
+## Examples
+
+Run the agent in the current directory, passing a message to its own run command:
+
+```bash
+agentc run -- run "What is the weather?"
+```
+
+Reach any other command the built agent exposes:
+
+```bash
+agentc run -- serve
+agentc run -- config --format json
+```
+
+## Passing arguments to the compiler
+
+`--build-arg=<ARG>` carries one argument through to the compiler. Always join the flag and its
+value with `=`.
+
+A single flag:
+
+```bash
+agentc run --build-arg=--locked -- run "hello"
+```
+
+Several flags, one `--build-arg` each. There is no comma-separated or space-separated list form:
+
+```bash
+agentc run --build-arg=--locked --build-arg=--offline -- run "hello"
+```
+
+A flag that carries its own `=`. Only the first `=` is consumed by `agentc`, so the rest of the
+value arrives at the compiler untouched, and nothing needs escaping:
+
+```bash
+agentc run --build-arg=--jobs=4 -- run "hello"
+agentc run --build-arg=--config=net.git-fetch-with-cli=true -- run "hello"
+```
+
+A compiler flag that takes its value as a separate argument. Pass each piece as its own
+`--build-arg`, in order, exactly as the compiler expects to receive them:
+
+```bash
+agentc run --build-arg=-j --build-arg=4 -- run "hello"
+```
+
+A value containing spaces. Quote it in your shell so it arrives as one argument:
+
+```bash
+agentc run --build-arg="--config=build.rustflags = [\"-C\", \"target-cpu=native\"]" -- run "hello"
+```
+
+Compiler arguments and agent arguments never mix. Everything given through `--build-arg` goes to
+the compiler, everything after `--` goes to the agent, and neither list is reordered:
+
+```bash
+agentc run --release --build-arg=--locked -- run "hello" --format json
+```
+
+Here `--release` configures `agentc`, `--locked` reaches the compiler, and
+`run "hello" --format json` reaches the agent.
+
+## Output
+
+The resolve and compile progress indicators behave exactly as they do for `agentc build`. Once
+compilation finishes, `agentc` prints a blank line and hands the terminal to the agent. From that
+point the output you see is the agent's own, unbuffered and interactive.
+
+Everything after `--` is passed to the built agent exactly as written. `agentc run` adds no
+arguments of its own, removes none, and reorders none. The built `standalone` agent exposes its own
+subcommands, which is why `agentc run -- run "hello"` names `run` twice: the first is `agentc`'s,
+the second is the agent's. To see what the agent accepts, ask it directly with
+`agentc run -- --help`.
+
+The command exits with the agent's own exit status, so it composes with shell conditionals and CI
+steps. If the agent is killed by a signal it has no status of its own, and `agentc` reports `1`.
+When the pipeline itself fails before the agent starts, `agentc` also exits `1`.
+
+## Troubleshooting
+
+`archetype "<name>" does not support run` means the manifest selected an archetype whose output
+cannot be invoked here. This check runs immediately after the manifest is resolved, before any
+compilation, so it fails before performing any heavy work.
+
+The common cause is a `standalone` build configured for an operating system or architecture other
+than the host. A binary built for a foreign target cannot be started on this machine, so no runner
+is available for it. Build it with `agentc build` and run it on a matching machine, or remove the
+`os` and `arch` fields from the build block to compile for the host.
+
+If compilation fails before the agent starts, the guidance in
+[`agentc build`](/reference/cli/build) applies unchanged, since the two commands share a pipeline.

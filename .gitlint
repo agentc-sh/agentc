@@ -3,7 +3,7 @@
 min-length=3
 
 [title-max-length]
-line-length=120
+line-length=130
 
 [general]
 ignore=B6, title-trailing-punctuation

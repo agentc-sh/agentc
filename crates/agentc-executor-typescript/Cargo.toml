@@ -1,0 +1,39 @@
+[package]
+name = "agentc-executor-typescript"
+version.workspace = true
+edition.workspace = true
+description.workspace = true
+repository.workspace = true
+license.workspace = true
+readme.workspace = true
+
+[features]
+default = []
+
+[dependencies]
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+futures = { workspace = true }
+
+thiserror = { workspace = true }
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dependencies.guestjs]
+git = "https://github.com/wizrds/guestjs.git"
+rev = "a83a835"
+features = [
+    "tokio",
+    "bytes",
+    "typescript",
+    "llrt-buffer",
+    "llrt-console",
+    "llrt-streams",
+    "llrt-fetch",
+    "llrt-fs",
+    "llrt-os",
+    "llrt-process-env",
+    "llrt-timers",
+    "llrt-url",
+]

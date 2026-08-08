@@ -4,6 +4,7 @@
     "init",
     "tool-init",
     "build",
+    "run",
     "generate",
     "inspect"
   ]

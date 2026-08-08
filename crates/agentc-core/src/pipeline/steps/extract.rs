@@ -6,11 +6,11 @@ use async_trait::async_trait;
 use std::path::PathBuf;
 use thiserror::Error;
 
-use agentc_blocks::runtime::{EmbeddedAsset, RuntimeError};
+use agentc_blocks::runtime::{EmbeddedAsset, ExtractAll, RuntimeError};
 use agentc_compiler::{
     asset::types::AssetOrigin,
-    compiler::Compiler,
     generator::vfs::VirtualFileSystem,
+    toolchain::traits::ErasedToolchain,
     transformer::types::{AssetArtifact, TransformedAsset},
 };
 
@@ -39,7 +39,7 @@ pub struct ExtractStepInput {
     pub archetype_name: String,
     pub graph_name: String,
     pub vfs: VirtualFileSystem,
-    pub compiler: Box<dyn Compiler>,
+    pub toolchain: Box<dyn ErasedToolchain>,
     pub assets: Vec<TransformedAsset>,
     pub embedded_assets: Vec<&'static EmbeddedAsset>,
 }
@@ -51,7 +51,7 @@ impl From<GenerateStepOutput> for ExtractStepInput {
             archetype_name: output.archetype_name,
             graph_name: output.graph_name,
             vfs: output.vfs,
-            compiler: output.compiler,
+            toolchain: output.toolchain,
             assets: output.assets,
             embedded_assets: output.embedded_assets,
         }
@@ -63,7 +63,7 @@ pub struct ExtractStepOutput {
     pub archetype_name: String,
     pub graph_name: String,
     pub vfs: VirtualFileSystem,
-    pub compiler: Box<dyn Compiler>,
+    pub toolchain: Box<dyn ErasedToolchain>,
     pub assets: Vec<TransformedAsset>,
 }
 
@@ -102,7 +102,9 @@ impl Step for ExtractStep {
             .await
             .map_err(|_| ExtractStepError::EventChannelClosed)?;
 
-        agentc_blocks::runtime::extract_all(&input.embedded_assets, self.runtime_dir.clone())
+        input
+            .embedded_assets
+            .extract_all(self.runtime_dir.clone())
             .await?;
 
         tx.send(ExtractStepEvent::Extracted { runtime_dir: self.runtime_dir.clone() })
@@ -125,7 +127,7 @@ impl Step for ExtractStep {
             archetype_name: input.archetype_name,
             graph_name: input.graph_name,
             vfs: input.vfs,
-            compiler: input.compiler,
+            toolchain: input.toolchain,
             assets: input.assets,
         })
     }

@@ -2,9 +2,9 @@
 //
 // SPDX-License-Identifier: MIT
 
-pub mod runtime;
+mod input;
+mod types;
+
 pub mod tool;
 
 pub use tool::JavascriptTool;
-
-pub use runtime::quickjs::QuickJsRuntime;

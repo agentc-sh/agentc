@@ -332,8 +332,11 @@ impl ReActNode {
             }
         }
 
-        let rendered_prompt = identity
-            .prompt
+        let rendered_prompt = ctx
+            .prompt_source
+            .load()
+            .await
+            .map_err(GraphError::execution_error)?
             .render(&ctx.prompt_env, &prompt_ctx, ctx.token_counter.as_ref())
             .map_err(GraphError::execution_error)?;
 
@@ -469,7 +472,9 @@ impl ReActNode {
                     });
                 }
                 CompletionStreamEvent::ToolCall(tool_call) => tool_calls.push(tool_call),
-                CompletionStreamEvent::Done(usage) => token_usage = Some(usage),
+                CompletionStreamEvent::Done(final_response) => {
+                    token_usage = Some(final_response.usage)
+                }
                 _ => {}
             }
         }
@@ -807,9 +812,13 @@ mod tests {
         },
     };
     use agentc_prompt::{
-        compaction::NoCompaction, counter::CharApproxCounter, env::PromptEnv,
+        compaction::NoCompaction,
+        counter::CharApproxCounter,
+        env::{PromptContext, PromptEnv},
+        source::{ConstantPromptSource, PromptSource},
         template::PromptTemplate,
     };
+    use serde_json::json;
 
     use crate::{graph::state::ReActStateInput, types::model::ModelConfigRetry};
 
@@ -882,7 +891,6 @@ mod tests {
                 name: "test-agent".to_string(),
                 provider: "stub".to_string(),
                 model: "test-model".to_string(),
-                prompt: PromptTemplate::system("test"),
                 capabilities: CapabilitySet::default(),
                 capability_policy: CapabilityPolicy::default(),
             }
@@ -895,6 +903,7 @@ mod tests {
                 tool_registry: ToolRegistry::empty(),
                 identity,
                 prompt_env: PromptEnv::default(),
+                prompt_source: Arc::new(ConstantPromptSource::new(PromptTemplate::system("test"))),
                 token_counter: Arc::new(CharApproxCounter),
                 compaction_strategy: Arc::new(NoCompaction),
                 session_id: Uuid::new_v4(),
@@ -978,5 +987,24 @@ mod tests {
 
         assert!(result.is_err());
         assert_eq!(model.calls.load(Ordering::SeqCst), 2);
+    }
+
+    #[tokio::test]
+    async fn renders_prompt_from_source() {
+        let source =
+            ConstantPromptSource::new(PromptTemplate::system("from-source {{ agent_name }}"));
+
+        let rendered = source
+            .load()
+            .await
+            .unwrap()
+            .render(
+                &PromptEnv::default(),
+                &PromptContext::from_json(json!({ "agent_name": "test-agent" })),
+                &CharApproxCounter,
+            )
+            .unwrap();
+
+        assert_eq!(rendered.messages()[0].content, "from-source test-agent");
     }
 }

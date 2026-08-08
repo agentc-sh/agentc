@@ -7,10 +7,7 @@ use quote::quote;
 
 use agentc_compiler::generator::errors::GeneratorError;
 
-use crate::{
-    context::{ResolvedContext, ResolvedContextAgentPromptMessageRole},
-    fields::FieldsSpec,
-};
+use crate::{context::ResolvedContext, fields::FieldsSpec};
 
 /// Generates the `AgentIdentity { ... }` literal wired into the agent builder.
 pub struct IdentityCodeGen;
@@ -50,29 +47,6 @@ impl IdentityCodeGen {
                 quote! { #v.to_string() }
             });
 
-        let prompt = match &ctx.agent.prompt {
-            None => quote! { PromptTemplate::default() },
-            Some(messages) => {
-                let parts = messages.iter().map(|message| {
-                    let role = match message.role {
-                        ResolvedContextAgentPromptMessageRole::System => quote! { Role::System },
-                        ResolvedContextAgentPromptMessageRole::User => quote! { Role::User },
-                        ResolvedContextAgentPromptMessageRole::Assistant => {
-                            quote! { Role::Assistant }
-                        }
-                    };
-                    let content = &message.content;
-
-                    quote! { .with_part(#role, #content) }
-                });
-
-                quote! {
-                    PromptTemplate::new()
-                        #(#parts)*
-                }
-            }
-        };
-
         let capabilities = fields
             .config_accessor(&["agent", "capabilities"])
             .map(|path| quote! { CapabilitySet::from(#path.clone()) })
@@ -95,7 +69,6 @@ impl IdentityCodeGen {
                 name: #name.into(),
                 provider: #provider.into(),
                 model: #model.into(),
-                prompt: #prompt,
                 capabilities: #capabilities,
                 capability_policy: #capability_policy,
             }
