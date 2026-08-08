@@ -318,58 +318,14 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
 
             use agentc_config::traits::{OsEnvSource, PrefixMapper};
             use agentc_config::macros::path;
-            use agentc_database::{
-                Database,
-                database::DatabaseOptions,
-                errors::DatabaseError,
-            };
             use subway::{
                 Bus,
                 memory::InMemoryTransport,
                 redis::RedisTransport,
             };
 
-            use crate::migrator::Migrator;
-
             #extra_use
             #section_use
-
-            #[derive(Debug, Clone, Serialize, Deserialize)]
-            #[serde(default)]
-            pub struct DatabaseConfig {
-                pub primary: String,
-                pub replicas: Vec<String>,
-                pub options: DatabaseOptions,
-                pub auto_migrate: bool,
-            }
-
-            impl DatabaseConfig {
-                pub async fn build(&self, run_migrations: bool) -> Result<Database, DatabaseError> {
-                    let db = Database::builder()
-                        .with_primary(self.primary.clone())
-                        .with_replicas(self.replicas.clone())
-                        .with_options(self.options.clone())
-                        .build()
-                        .await?;
-
-                    if run_migrations {
-                        db.run_migrations::<Migrator>().await?;
-                    }
-
-                    Ok(db)
-                }
-            }
-
-            impl Default for DatabaseConfig {
-                fn default() -> Self {
-                    DatabaseConfig {
-                        primary: "sqlite://database.db?mode=rwc".to_string(),
-                        replicas: vec![],
-                        options: DatabaseOptions::default(),
-                        auto_migrate: true,
-                    }
-                }
-            }
 
             #[derive(Debug, Clone, Serialize, Deserialize)]
             #[serde(default)]
@@ -440,7 +396,6 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
             #[derive(Debug, Clone, Serialize, Deserialize, Default)]
             #[serde(default)]
             pub struct Config {
-                pub database: DatabaseConfig,
                 pub task_queue: TaskQueueConfig,
                 pub pubsub: PubSubConfig,
                 #section_fields
@@ -535,18 +490,10 @@ mod tests {
     }
 
     #[test]
-    fn database_config_defaults_auto_migrate_to_true() {
+    fn config_has_no_database_section_when_no_sections_are_contributed() {
         let rendered = rendered();
 
-        assert!(rendered.contains("pub auto_migrate : bool"));
-        assert!(rendered.contains("auto_migrate : true"));
-    }
-
-    #[test]
-    fn config_is_unchanged_when_no_sections_are_contributed() {
-        let rendered = rendered();
-
-        assert!(rendered.contains("struct DatabaseConfig"));
+        assert!(!rendered.contains("struct DatabaseConfig"));
         assert!(rendered.contains("enum PubSubConfig"));
     }
 }

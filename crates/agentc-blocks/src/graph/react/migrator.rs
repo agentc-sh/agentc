@@ -16,25 +16,29 @@ use crate::context::ResolvedContext;
 pub struct MigratorCodeGen;
 
 impl CodeGen<ResolvedContext> for MigratorCodeGen {
+    fn generate_contribution(
+        &self,
+        _ctx: &GenerationContext<ResolvedContext>,
+        point: &str,
+    ) -> Result<TokenStream, GeneratorError> {
+        match point {
+            "main::modules" => Ok(quote! {
+                mod migrator;
+            }),
+            _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
+        }
+    }
+
     fn generate_files(
         &self,
         _ctx: &GenerationContext<ResolvedContext>,
-        registry: &ExtensionRegistry,
+        _registry: &ExtensionRegistry,
     ) -> Result<Vec<(PathBuf, TokenStream)>, GeneratorError> {
-        let extra_use = registry
-            .get("migrator::use")
-            .and_then(|s| s.parse::<TokenStream>().ok());
-
-        let extra_migrations = registry
-            .get("migrator::migrations")
-            .and_then(|s| s.parse::<TokenStream>().ok());
-
         let source = quote! {
             use sea_orm_migration::prelude::*;
 
+            use agentc_agent_react::migrations::all as react_migrations;
             use agentc_domain_sql::migrations::all as domain_migrations;
-
-            #extra_use
 
             pub struct Migrator;
 
@@ -43,7 +47,7 @@ impl CodeGen<ResolvedContext> for MigratorCodeGen {
                 fn migrations() -> Vec<Box<dyn MigrationTrait>> {
                     [
                         domain_migrations(),
-                        #extra_migrations
+                        react_migrations(),
                     ]
                     .into_iter()
                     .flatten()
@@ -58,12 +62,7 @@ impl CodeGen<ResolvedContext> for MigratorCodeGen {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
     use super::*;
-    use agentc_compiler::generator::extension::{
-        ErasedContributionValue, StringExtensionPoint, reducers,
-    };
     use serde_json::json;
 
     fn context() -> GenerationContext<ResolvedContext> {
@@ -91,39 +90,23 @@ mod tests {
     }
 
     #[test]
-    fn generic_migrator_has_no_react_references() {
+    fn migrator_includes_domain_and_react_migrations() {
         let files = MigratorCodeGen
             .generate_files(&context(), &ExtensionRegistry::empty())
             .unwrap();
         let source = files[0].1.to_string();
 
         assert!(source.contains("domain_migrations"));
-        assert!(!source.contains("react"));
-        assert!(!source.contains("agentc_agent_react"));
+        assert!(source.contains("react_migrations"));
     }
 
     #[test]
-    fn extra_migrations_extension_point_is_still_honored() {
-        let files = MigratorCodeGen
-            .generate_files(
-                &context(),
-                &ExtensionRegistry::resolve(
-                    vec![Box::new(StringExtensionPoint::new(
-                        "migrator::migrations",
-                        reducers::concat,
-                    ))],
-                    HashMap::from([(
-                        "migrator::migrations".to_string(),
-                        vec![ErasedContributionValue::new(
-                            "fake_migrations(),".to_string(),
-                        )],
-                    )]),
-                )
-                .unwrap(),
-            )
-            .unwrap();
-        let source = files[0].1.to_string();
+    fn contributes_the_main_migrator_module() {
+        let source = MigratorCodeGen
+            .generate_contribution(&context(), "main::modules")
+            .unwrap()
+            .to_string();
 
-        assert!(source.contains("fake_migrations"));
+        assert!(source.contains("mod migrator ;"));
     }
 }

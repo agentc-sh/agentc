@@ -9,8 +9,6 @@ description = "{{ ctx.agent.description }}"
 [dependencies]
 agentc-telemetry = { version = "{{ runtime_version }}" }
 agentc-config = { version = "{{ runtime_version }}" }
-agentc-database = { version = "{{ runtime_version }}" }
-agentc-domain-sql = { version = "{{ runtime_version }}" }
 agentc-model = { version = "{{ runtime_version }}" }
 agentc-agent = { version = "{{ runtime_version }}" }
 agentc-skills = { version = "{{ runtime_version }}" }
@@ -28,7 +26,6 @@ serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1" }
 uuid = { version = "1", features = ["v4", "serde"] }
 anyhow = { version = "1.0" }
-sea-orm-migration = { version = "1" }
 
 {{ extension("cargo::dependencies") }}
 
@@ -36,9 +33,7 @@ sea-orm-migration = { version = "1" }
 agentc-agent = { path = "../runtime/agentc-agent" }
 agentc-agent-macros = { path = "../runtime/agentc-agent-macros" }
 agentc-config = { path = "../runtime/agentc-config" }
-agentc-database = { path = "../runtime/agentc-database" }
 agentc-domain = { path = "../runtime/agentc-domain" }
-agentc-domain-sql = { path = "../runtime/agentc-domain-sql" }
 agentc-model = { path = "../runtime/agentc-model" }
 agentc-skills = { path = "../runtime/agentc-skills" }
 agentc-telemetry = { path = "../runtime/agentc-telemetry" }

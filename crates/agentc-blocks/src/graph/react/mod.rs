@@ -4,9 +4,10 @@
 
 pub mod agent;
 pub mod cargo;
+pub mod cli_migrate;
 pub mod cli_run;
 pub mod cli_serve;
-pub mod migrations;
+pub mod migrator;
 pub mod server;
 
 use serde::{Deserialize, Serialize};
@@ -18,7 +19,7 @@ use agentc_compiler::generator::{
 
 use crate::{
     composition::GenerationContribution,
-    config::fields::FieldsSpec,
+    config::{fields::FieldsSpec, sections::database::DatabaseSection},
     context::ResolvedContext,
     contributions::dependency::{CargoDependencies, CargoPatches},
     errors::BlocksError,
@@ -30,10 +31,14 @@ use crate::{
         codegen::tools::javascript::{HttpTypescriptCargoFragment, JavascriptToolCargoFragment},
         react::{
             agent::AgentCodeGen,
-            cargo::{ReActCargoFragment, ReActFeatureCargoFragment, ReActServerCargoFragment},
+            cargo::{
+                ReActCargoFragment, ReActDatabaseCargoFragment, ReActFeatureCargoFragment,
+                ReActServerCargoFragment,
+            },
+            cli_migrate::CliMigrateCodeGen,
             cli_run::CliRunCodeGen,
             cli_serve::CliServeCodeGen,
-            migrations::ReActMigrationsCodeGen,
+            migrator::MigratorCodeGen,
             server::ServerCodeGen,
         },
         traits::AgentGraph,
@@ -97,12 +102,20 @@ impl AgentGraph for ReActGraph {
                     .id("cli_run")
                     .build(CliRunCodeGen),
             )
+            .add(DatabaseSection::block("react_database_section"))
             .add(
                 CodeGenBlock::builder()
-                    .id("react_migrations")
-                    .contribute(Contribution::<String>::strict("migrator::use"))
-                    .contribute(Contribution::<String>::strict("migrator::migrations"))
-                    .build(ReActMigrationsCodeGen),
+                    .id("migrator_rs")
+                    .contribute(Contribution::<String>::strict("main::modules"))
+                    .build(MigratorCodeGen),
+            )
+            .add(
+                CodeGenBlock::builder()
+                    .id("cli_migrate")
+                    .contribute(Contribution::<String>::strict("cli::mod::use"))
+                    .contribute(Contribution::<String>::strict("cli::mod::variants"))
+                    .contribute(Contribution::<String>::strict("cli::mod::arms"))
+                    .build(CliMigrateCodeGen),
             )
             .add(
                 FragmentBlock::builder()
@@ -110,6 +123,15 @@ impl AgentGraph for ReActGraph {
                     .contribute(Contribution::<CargoDependencies>::strict("cargo::dependencies"))
                     .contribute(Contribution::<CargoPatches>::strict("cargo::patches"))
                     .build(ReActCargoFragment),
+            )
+            .add(
+                FragmentBlock::builder()
+                    .id("react_database_cargo")
+                    .contribute(Contribution::<CargoDependencies>::strict(
+                        "cargo::dependencies",
+                    ))
+                    .contribute(Contribution::<CargoPatches>::strict("cargo::patches"))
+                    .build(ReActDatabaseCargoFragment),
             );
 
         if context.has_typescript_components() {
@@ -301,7 +323,18 @@ mod tests {
             .map(|block| block.id().to_string())
             .collect::<Vec<_>>();
 
-        assert_eq!(ids, vec!["agent_rs", "cli_run", "react_migrations", "react_cargo"]);
+        assert_eq!(
+            ids,
+            vec![
+                "agent_rs",
+                "cli_run",
+                "react_database_section",
+                "migrator_rs",
+                "cli_migrate",
+                "react_cargo",
+                "react_database_cargo"
+            ]
+        );
         assert_eq!(resolved.integrations.len(), 3);
         assert!(
             resolved.integrations[0]

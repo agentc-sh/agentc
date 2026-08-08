@@ -27,12 +27,10 @@ use crate::{
                 HttpServerCargoFragment,
             },
             cli::{
-                CliModCodeGen, config::CliConfigCodeGen, migrate::CliMigrateCodeGen,
-                shutdown::CliShutdownCodeGen,
+                CliModCodeGen, config::CliConfigCodeGen, shutdown::CliShutdownCodeGen,
             },
             config::ConfigCodeGen,
             entrypoint::EntrypointCodeGen,
-            migrator::MigratorCodeGen,
         },
         standalone::toolchain::StandaloneToolchain,
         traits::Archetype,
@@ -205,13 +203,6 @@ impl Archetype for StandaloneArchetype {
             )
             .add(
                 CodeGenBlock::builder()
-                    .id("migrator_rs")
-                    .extension_point("migrator::use", reducers::concat)
-                    .extension_point("migrator::migrations", reducers::concat)
-                    .build(MigratorCodeGen),
-            )
-            .add(
-                CodeGenBlock::builder()
                     .id("config_rs")
                     .extension_point("config::use", reducers::concat)
                     .extension_point("config::fields", reducers::concat)
@@ -257,11 +248,6 @@ impl Archetype for StandaloneArchetype {
                 CodeGenBlock::builder()
                     .id("cli_config")
                     .build(CliConfigCodeGen),
-            )
-            .add(
-                CodeGenBlock::builder()
-                    .id("cli_migrate")
-                    .build(CliMigrateCodeGen),
             )
             .add(
                 CodeGenBlock::builder()
@@ -316,6 +302,7 @@ mod tests {
         types::RuntimeValue,
     };
     use agentc_compiler::generator::{
+        blocks::codegen::CodeGen,
         context::GenerationContext,
         extension::{ErasedContributionValue, ExtensionRegistry},
         vfs::VirtualFileSystem,
@@ -431,6 +418,26 @@ mod tests {
         );
     }
 
+    #[test]
+    fn the_archetype_names_no_database_or_migrations() {
+        let cli_mod = CliModCodeGen
+            .generate_files(&GenerationContext::new(context(None)), &ExtensionRegistry::empty())
+            .unwrap()[0]
+            .1
+            .to_string();
+        let main = EntrypointCodeGen
+            .generate_files(&GenerationContext::new(context(None)), &ExtensionRegistry::empty())
+            .unwrap()[0]
+            .1
+            .to_string();
+
+        assert!(!cli_mod.contains("mod migrate ;"));
+        assert!(!cli_mod.contains("Migrate"));
+        assert!(!main.contains("mod migrator ;"));
+        assert!(cli_mod.contains("mod run ;"));
+        assert!(main.contains("mod agent ;"));
+    }
+
     #[tokio::test]
     async fn generated_cargo_toml_has_no_react_or_ag_ui_references() {
         let resolved = StandaloneArchetype
@@ -464,6 +471,9 @@ mod tests {
         assert!(!content.contains("agentc-agent-react"));
         assert!(!content.contains("agentc-protocol-ag-ui"));
         assert!(!content.contains("has_ag_ui_protocol"));
+        assert!(!content.contains("agentc-database"));
+        assert!(!content.contains("agentc-domain-sql"));
+        assert!(!content.contains("sea-orm-migration"));
     }
 
     #[tokio::test]
