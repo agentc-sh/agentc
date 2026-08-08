@@ -19,6 +19,7 @@ use agentc_compiler::generator::{
 
 use crate::{
     composition::GenerationContribution,
+    config::sections::{pubsub::PubSubSection, task_queue::TaskQueueSection},
     context::{ResolvedContext, ResolvedContextHttpServerProtocolA2a},
     contributions::dependency::{
         CargoDependencies, CargoDependencyContribution, CargoPatchContribution, CargoPatches,
@@ -138,6 +139,8 @@ impl Protocol for A2aProtocol {
                                 .contribute(Contribution::<CargoPatches>::strict("cargo::patches"))
                                 .build(A2aCargoFragment),
                         )
+                        .add(TaskQueueSection::block("protocol_a2a_task_queue_section"))
+                        .add(PubSubSection::block("protocol_a2a_pubsub_section"))
                         .into_inner(),
                 )
                 .with_provides(GenerationFeatureSet::new().with::<ProtocolA2a>())

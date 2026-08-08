@@ -105,29 +105,6 @@ impl Fragment<ResolvedContext> for ReActFeatureCargoFragment {
     }
 }
 
-/// The third-party crates the generated react server code names directly.
-pub struct ReActServerCargoFragment;
-
-impl Fragment<ResolvedContext> for ReActServerCargoFragment {
-    fn generate_contribution(
-        &self,
-        _ctx: &GenerationContext<ResolvedContext>,
-        point: &str,
-    ) -> Result<ErasedContributionValue, GeneratorError> {
-        match point {
-            "cargo::dependencies" => Ok(ErasedContributionValue::new(
-                CargoDependencies::from_entries([CargoDependencyContribution::external(
-                    ExternalDependencyContribution::new("jobq")
-                        .git("https://github.com/wizrds/jobq-rs.git")
-                        .version("0.3.1"),
-                )])
-                .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
-            )),
-            _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

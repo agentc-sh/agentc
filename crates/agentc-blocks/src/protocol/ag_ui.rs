@@ -19,6 +19,7 @@ use agentc_compiler::generator::{
 
 use crate::{
     composition::GenerationContribution,
+    config::sections::task_queue::TaskQueueSection,
     context::{ResolvedContext, ResolvedContextHttpServerProtocolAgUi},
     contributions::dependency::{
         CargoDependencies, CargoDependencyContribution, CargoPatchContribution, CargoPatches,
@@ -132,6 +133,7 @@ impl Protocol for AgUiProtocol {
                                 .contribute(Contribution::<CargoPatches>::strict("cargo::patches"))
                                 .build(AgUiCargoFragment),
                         )
+                        .add(TaskQueueSection::block("protocol_ag_ui_task_queue_section"))
                         .into_inner(),
                 )
                 .with_provides(GenerationFeatureSet::new().with::<ProtocolAgUi>())

@@ -677,10 +677,8 @@ mod tests {
             env!("CARGO_PKG_VERSION"),
         )));
         assert!(!content.contains("jobq"));
+        assert!(!content.contains("subway"));
         assert!(!content.contains("utoipa"));
-
-        // Present, not absent: the generated `src/config.rs` names `subway` in every artifact.
-        assert!(content.contains("subway = { git = \"https://github.com/wizrds/subway-rs.git\""));
     }
 
     #[tokio::test]
@@ -748,6 +746,34 @@ mod tests {
         )));
         assert!(content.contains("jobq = { git = \"https://github.com/wizrds/jobq-rs.git\""));
         assert!(content.contains("agentc-http = { path = \"../runtime/agentc-http\" }"));
+    }
+
+    #[tokio::test]
+    async fn serving_agent_gets_the_task_queue_and_the_pubsub() {
+        let content = rendered_cargo_toml(
+            context(Some(json!({ "host": "0.0.0.0", "port": 8080, "max_request_size": 2097152, "protocols": [] }))),
+            vec![ErasedContributionValue::new(
+                CargoDependencies::from_entries([
+                    CargoDependencyContribution::external(
+                        ExternalDependencyContribution::new("jobq")
+                            .git("https://github.com/wizrds/jobq-rs.git")
+                            .version("0.3.1"),
+                    ),
+                    CargoDependencyContribution::external(
+                        ExternalDependencyContribution::new("subway")
+                            .git("https://github.com/wizrds/subway-rs.git")
+                            .version("0.1.0")
+                            .feature("redis"),
+                    ),
+                ])
+                .unwrap(),
+            )],
+            vec![],
+        )
+        .await;
+
+        assert!(content.contains("jobq = { git = \"https://github.com/wizrds/jobq-rs.git\""));
+        assert!(content.contains("subway = { git = \"https://github.com/wizrds/subway-rs.git\""));
     }
 
     #[tokio::test]

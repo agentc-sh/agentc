@@ -9,3 +9,5 @@ pub mod database;
 pub mod mcp;
 pub mod network;
 pub mod point;
+pub mod pubsub;
+pub mod task_queue;

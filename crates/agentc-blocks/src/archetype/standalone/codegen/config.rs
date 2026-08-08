@@ -318,76 +318,9 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
 
             use agentc_config::traits::{OsEnvSource, PrefixMapper};
             use agentc_config::macros::path;
-            use subway::{
-                Bus,
-                memory::InMemoryTransport,
-                redis::RedisTransport,
-            };
 
             #extra_use
             #section_use
-
-            #[derive(Debug, Clone, Serialize, Deserialize)]
-            #[serde(default)]
-            pub struct TaskQueueConfig {
-                pub worker_count: usize,
-                pub max_queue_capacity: usize,
-                pub batch_size: usize,
-                pub batch_timeout_ms: usize,
-            }
-
-            impl Default for TaskQueueConfig {
-                fn default() -> Self {
-                    TaskQueueConfig {
-                        worker_count: 4,
-                        max_queue_capacity: 256,
-                        batch_size: 16,
-                        batch_timeout_ms: 10,
-                    }
-                }
-            }
-
-            #[derive(Debug, Clone, Serialize, Deserialize)]
-            #[serde(tag = "kind", rename_all = "snake_case")]
-            pub enum PubSubConfig {
-                Memory {
-                    capacity: usize,
-                },
-                Redis {
-                    url: String,
-                },
-            }
-
-            impl PubSubConfig {
-                pub fn kind(&self) -> &str {
-                    match self {
-                        PubSubConfig::Memory { .. } => "memory",
-                        PubSubConfig::Redis { .. } => "redis",
-                    }
-                }
-
-                pub async fn build(&self) -> Result<Bus, subway::Error> {
-                    match self {
-                        PubSubConfig::Memory { capacity } => Ok(Bus::new(
-                            InMemoryTransport::with_capacity(*capacity),
-                        )),
-                        PubSubConfig::Redis { url } => Ok(Bus::new(
-                            RedisTransport::builder()
-                                .url(url.clone())
-                                .build()
-                                .await?,
-                        )),
-                    }
-                }
-            }
-
-            impl Default for PubSubConfig {
-                fn default() -> Self {
-                    PubSubConfig::Memory {
-                        capacity: 4096,
-                    }
-                }
-            }
 
             #section_types
 
@@ -396,8 +329,6 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
             #[derive(Debug, Clone, Serialize, Deserialize, Default)]
             #[serde(default)]
             pub struct Config {
-                pub task_queue: TaskQueueConfig,
-                pub pubsub: PubSubConfig,
                 #section_fields
                 #(#config_generated_fields)*
                 #extra_fields
@@ -494,6 +425,7 @@ mod tests {
         let rendered = rendered();
 
         assert!(!rendered.contains("struct DatabaseConfig"));
-        assert!(rendered.contains("enum PubSubConfig"));
+        assert!(!rendered.contains("struct TaskQueueConfig"));
+        assert!(!rendered.contains("enum PubSubConfig"));
     }
 }

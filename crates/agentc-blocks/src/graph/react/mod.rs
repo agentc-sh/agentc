@@ -19,7 +19,12 @@ use agentc_compiler::generator::{
 
 use crate::{
     composition::GenerationContribution,
-    config::{fields::FieldsSpec, sections::database::DatabaseSection},
+    config::{
+        fields::FieldsSpec,
+        sections::{
+            database::DatabaseSection, pubsub::PubSubSection, task_queue::TaskQueueSection,
+        },
+    },
     context::ResolvedContext,
     contributions::dependency::{CargoDependencies, CargoPatches},
     errors::BlocksError,
@@ -33,7 +38,6 @@ use crate::{
             agent::AgentCodeGen,
             cargo::{
                 ReActCargoFragment, ReActDatabaseCargoFragment, ReActFeatureCargoFragment,
-                ReActServerCargoFragment,
             },
             cli_migrate::CliMigrateCodeGen,
             cli_run::CliRunCodeGen,
@@ -184,14 +188,8 @@ impl AgentGraph for ReActGraph {
                             ))
                             .build(ReActFeatureCargoFragment::new("api")),
                     )
-                    .add(
-                        FragmentBlock::builder()
-                            .id("react_server_cargo")
-                            .contribute(Contribution::<CargoDependencies>::strict(
-                                "cargo::dependencies",
-                            ))
-                            .build(ReActServerCargoFragment),
-                    )
+                    .add(TaskQueueSection::block("react_task_queue_section"))
+                    .add(PubSubSection::block("react_pubsub_section"))
                     .into_inner(),
             )
             .with_requires(GenerationFeatureSet::new().with::<HttpServer>());
@@ -371,7 +369,8 @@ mod tests {
                 "server_rs",
                 "cli_serve",
                 "react_api_cargo",
-                "react_server_cargo"
+                "react_task_queue_section",
+                "react_pubsub_section"
             ]
         );
     }
