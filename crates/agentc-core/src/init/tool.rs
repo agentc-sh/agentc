@@ -17,7 +17,7 @@ const JS_PACKAGE: &str = include_str!("templates/javascript/package.json");
 const JS_TSCONFIG: &str = include_str!("templates/javascript/tsconfig.json");
 const JS_README: &str = include_str!("templates/javascript/README.md");
 const JS_INDEX: &str = include_str!("templates/javascript/src/index.ts");
-const JS_ENV_DTS: &str = include_str!("templates/javascript/src/agentc-env.d.ts");
+const JS_AGENTC_DTS: &str = include_str!("templates/javascript/agentc.d.ts");
 const JS_PNPM_WORKSPACE: &str = include_str!("templates/javascript/pnpm-workspace.yaml");
 
 pub enum ToolLanguage {
@@ -75,8 +75,8 @@ impl InitTool {
                 vfs.insert("README.md", Self::render_template(JS_README, &ctx, "README.md")?);
                 vfs.insert("src/index.ts", Self::render_template(JS_INDEX, &ctx, "src/index.ts")?);
                 vfs.insert(
-                    "src/agentc-env.d.ts",
-                    Self::render_template(JS_ENV_DTS, &ctx, "src/agentc-env.d.ts")?,
+                    "agentc.d.ts",
+                    Self::render_template(JS_AGENTC_DTS, &ctx, "agentc.d.ts")?,
                 );
                 vfs.insert(
                     "pnpm-workspace.yaml",
