@@ -7,9 +7,9 @@ use std::collections::HashMap;
 use agentc_compiler::{generator::blocks::Block, toolchain::traits::ErasedToolchain};
 
 use crate::{
-    archetype::types::ResolvedArchetype, context::ResolvedContext, errors::BlocksError,
-    feature::GenerationFeatureSet, graph::types::ResolvedGraph, protocol::types::ResolvedProtocol,
-    runtime::EmbeddedAsset,
+    archetype::types::ResolvedArchetype, baseline::Baseline, context::ResolvedContext,
+    errors::BlocksError, feature::GenerationFeatureSet, graph::types::ResolvedGraph,
+    protocol::types::ResolvedProtocol, runtime::EmbeddedAsset,
 };
 
 pub struct GenerationContribution {
@@ -56,16 +56,6 @@ impl Default for GenerationContribution {
     }
 }
 
-pub struct OptionalGenerationContribution {
-    pub contribution: GenerationContribution,
-}
-
-impl OptionalGenerationContribution {
-    pub fn new(contribution: GenerationContribution) -> Self {
-        Self { contribution }
-    }
-}
-
 pub struct CompositionInput {
     pub archetype: ResolvedArchetype,
     pub graph: ResolvedGraph,
@@ -99,6 +89,7 @@ impl Composer {
             .collect::<Vec<_>>();
         let toolchain = input.archetype.toolchain;
         let mut archetype_contribution = input.archetype.contribution;
+        let mut baseline = Baseline::resolve()?;
         let mut graph_contribution = input.graph.contribution;
 
         let mut blocks = Vec::new();
@@ -115,6 +106,26 @@ impl Composer {
             &mut embedded_asset_names,
             &mut provided,
         )?;
+
+        Self::apply_required_contribution(
+            "baseline",
+            "baseline",
+            &mut baseline.contribution,
+            &mut blocks,
+            &mut embedded_assets,
+            &mut embedded_asset_names,
+            &mut provided,
+        )?;
+
+        for integration in &mut baseline.integrations {
+            Self::apply_optional_contribution(
+                integration,
+                &mut blocks,
+                &mut embedded_assets,
+                &mut embedded_asset_names,
+                &mut provided,
+            )?;
+        }
 
         Self::apply_required_contribution(
             "graph",
@@ -139,20 +150,13 @@ impl Composer {
         }
 
         for integration in &mut input.graph.integrations {
-            if integration
-                .contribution
-                .requires
-                .missing_requirements(&provided)
-                .is_empty()
-            {
-                Self::apply_contribution(
-                    &mut integration.contribution,
-                    &mut blocks,
-                    &mut embedded_assets,
-                    &mut embedded_asset_names,
-                    &mut provided,
-                )?;
-            }
+            Self::apply_optional_contribution(
+                integration,
+                &mut blocks,
+                &mut embedded_assets,
+                &mut embedded_asset_names,
+                &mut provided,
+            )?;
         }
 
         blocks.extend(input.blocks);
@@ -185,6 +189,32 @@ impl Composer {
                 "{component} {name:?} requires missing generation features: {}",
                 missing.join(", "),
             )));
+        }
+
+        Self::apply_contribution(
+            contribution,
+            blocks,
+            embedded_assets,
+            embedded_asset_names,
+            provided,
+        )
+    }
+
+    /// Applies the contribution if its requirements are already provided, and silently
+    /// skips it if they are not.
+    fn apply_optional_contribution(
+        contribution: &mut GenerationContribution,
+        blocks: &mut Vec<Box<dyn Block<ResolvedContext>>>,
+        embedded_assets: &mut Vec<&'static EmbeddedAsset>,
+        embedded_asset_names: &mut HashMap<&'static str, &'static EmbeddedAsset>,
+        provided: &mut GenerationFeatureSet,
+    ) -> Result<(), BlocksError> {
+        if !contribution
+            .requires
+            .missing_requirements(provided)
+            .is_empty()
+        {
+            return Ok(());
         }
 
         Self::apply_contribution(
@@ -239,7 +269,17 @@ mod tests {
 
     use super::*;
     use crate::{
+        archetype::{
+            standalone::{StandaloneArchetype, StandaloneArchetypeConfig},
+            traits::Archetype,
+        },
+        context::{ResolvedContextHttpServerProtocolA2a, ResolvedContextHttpServerProtocolAgUi},
         feature::{Cli, GraphReAct, HttpServer, ProtocolAgUi, Streaming},
+        graph::{
+            react::{ReActGraph, ReActGraphConfig},
+            traits::AgentGraph,
+        },
+        protocol::{a2a::A2aProtocol, ag_ui::AgUiProtocol, traits::Protocol},
         runtime::ExtractionMode,
     };
     use agentc_compiler::{
@@ -250,7 +290,7 @@ mod tests {
         },
         generator::{
             blocks::traits::Block, context::GenerationContext, errors::GeneratorError,
-            extension::ExtensionRegistry, vfs::VirtualFileSystem,
+            extension::ExtensionRegistry, pipeline::Generator, vfs::VirtualFileSystem,
         },
         runner::{
             errors::RunnerError,
@@ -364,7 +404,7 @@ mod tests {
 
     fn graph(
         contribution: GenerationContribution,
-        integrations: Vec<OptionalGenerationContribution>,
+        integrations: Vec<GenerationContribution>,
     ) -> ResolvedGraph {
         ResolvedGraph {
             name: "react".to_string(),
@@ -375,6 +415,65 @@ mod tests {
 
     fn protocol(contribution: GenerationContribution) -> ResolvedProtocol {
         ResolvedProtocol { name: "ag_ui".to_string(), contribution }
+    }
+
+    fn context(http_server: Option<serde_json::Value>) -> ResolvedContext {
+        serde_json::from_value(serde_json::json!({
+            "slug": "assistant",
+            "agent_name": "assistant",
+            "runtime": { "default_tenant_id": "default" },
+            "providers": [],
+            "agent": {
+                "version": "0.1.0",
+                "description": null,
+                "prompt": null,
+                "capabilities": null,
+                "capability_policy": null,
+                "model": { "provider": "anthropic", "name": "claude" }
+            },
+            "blocks": {},
+            "tools": {},
+            "skills": {},
+            "http_server": http_server
+        }))
+        .unwrap()
+    }
+
+    async fn generated_vfs(
+        ctx: ResolvedContext,
+        protocols: Vec<ResolvedProtocol>,
+    ) -> VirtualFileSystem {
+        let composed = Composer::new()
+            .compose(CompositionInput {
+                archetype: StandaloneArchetype
+                    .resolve(ctx.clone(), StandaloneArchetypeConfig::default())
+                    .unwrap(),
+                graph: ReActGraph
+                    .resolve(ctx.clone(), ReActGraphConfig::default())
+                    .unwrap(),
+                protocols,
+                blocks: Vec::new(),
+            })
+            .unwrap();
+
+        Generator::builder()
+            .with_context(ctx)
+            .with_blocks(composed.blocks)
+            .build()
+            .generate()
+            .await
+            .unwrap()
+    }
+
+    /// The composed block ids with the unconditional baseline blocks removed, so that a test
+    /// about graph and protocol ordering does not restate the baseline's contents.
+    fn ids_without_baseline(composed: &ComposedGeneration) -> Vec<String> {
+        composed
+            .blocks
+            .iter()
+            .map(|block| block.id().to_string())
+            .filter(|id| !id.starts_with("baseline_"))
+            .collect()
     }
 
     fn provides<T>() -> GenerationFeatureSet
@@ -388,6 +487,79 @@ mod tests {
         features
     }
 
+    #[tokio::test]
+    async fn a_command_line_only_react_agent_has_no_server_machinery() {
+        let vfs = generated_vfs(context(None), Vec::new()).await;
+        let cargo_toml = vfs
+            .get("Cargo.toml")
+            .expect("Cargo.toml is generated");
+        let config_rs = vfs
+            .get("src/config.rs")
+            .expect("src/config.rs is generated");
+
+        assert!(!cargo_toml.contains("jobq"));
+        assert!(!cargo_toml.contains("subway"));
+        assert!(!cargo_toml.contains("utoipa"));
+        assert!(!config_rs.contains("ConfigTaskQueue"));
+        assert!(!config_rs.contains("ConfigPubSub"));
+        assert!(config_rs.contains("ConfigDatabase"));
+        assert!(config_rs.contains("ConfigMcp"));
+        assert!(config_rs.contains("ConfigA2a"));
+        assert!(config_rs.contains("ConfigNetwork"));
+    }
+
+    #[tokio::test]
+    async fn a_serving_react_agent_with_both_protocols_has_every_section_once() {
+        let ctx = context(Some(serde_json::json!({
+            "host": "0.0.0.0",
+            "port": 8080,
+            "max_request_size": 2097152,
+            "protocols": [
+                {
+                    "type": "ag_ui",
+                    "config": { "path": "/ag-ui" }
+                },
+                {
+                    "type": "a2a",
+                    "config": { "path": "/a2a" }
+                }
+            ]
+        })));
+        let vfs = generated_vfs(
+            ctx.clone(),
+            vec![
+                AgUiProtocol
+                    .resolve(ctx.clone(), ResolvedContextHttpServerProtocolAgUi::default())
+                    .unwrap(),
+                A2aProtocol
+                    .resolve(ctx, ResolvedContextHttpServerProtocolA2a::default())
+                    .unwrap(),
+            ],
+        )
+        .await;
+        let cargo_toml = vfs
+            .get("Cargo.toml")
+            .expect("Cargo.toml is generated");
+        let config_rs = vfs
+            .get("src/config.rs")
+            .expect("src/config.rs is generated");
+
+        assert_eq!(
+            config_rs
+                .matches("struct ConfigTaskQueue")
+                .count(),
+            1
+        );
+        assert_eq!(
+            config_rs
+                .matches("enum ConfigPubSub")
+                .count(),
+            1
+        );
+        assert_eq!(cargo_toml.matches("jobq = ").count(), 1);
+        assert_eq!(cargo_toml.matches("subway = ").count(), 1);
+    }
+
     #[test]
     fn composer_preserves_deterministic_order() {
         let composed = Composer::new()
@@ -398,9 +570,7 @@ mod tests {
                 ),
                 graph: graph(
                     GenerationContribution::new().with_blocks(vec![block("graph")]),
-                    vec![OptionalGenerationContribution::new(
-                        GenerationContribution::new().with_blocks(vec![block("integration")]),
-                    )],
+                    vec![GenerationContribution::new().with_blocks(vec![block("integration")])],
                 ),
                 protocols: vec![protocol(
                     GenerationContribution::new().with_blocks(vec![block("protocol")]),
@@ -415,7 +585,52 @@ mod tests {
             .map(|block| block.id().to_string())
             .collect::<Vec<_>>();
 
-        assert_eq!(ids, vec!["archetype", "graph", "protocol", "integration", "custom"],);
+        assert_eq!(
+            ids,
+            vec![
+                "archetype",
+                "baseline_network_section",
+                "baseline_mcp_section",
+                "baseline_a2a_section",
+                "baseline_mcp_agent",
+                "baseline_a2a_agent",
+                "graph",
+                "protocol",
+                "integration",
+                "custom",
+            ],
+        );
+    }
+
+    #[test]
+    fn baseline_blocks_are_composed_after_the_archetype() {
+        let ids = Composer::new()
+            .compose(CompositionInput {
+                archetype: archetype(
+                    GenerationContribution::new().with_blocks(vec![block("config_rs")]),
+                    true,
+                ),
+                graph: graph(
+                    GenerationContribution::new().with_blocks(vec![block("agent_rs")]),
+                    Vec::new(),
+                ),
+                protocols: Vec::new(),
+                blocks: Vec::new(),
+            })
+            .unwrap()
+            .blocks
+            .iter()
+            .map(|block| block.id().to_string())
+            .collect::<Vec<_>>();
+
+        let position = |id: &str| {
+            ids.iter()
+                .position(|candidate| candidate == id)
+                .unwrap_or_else(|| panic!("{id} is composed"))
+        };
+
+        assert!(position("config_rs") < position("baseline_network_section"));
+        assert!(position("baseline_network_section") < position("agent_rs"));
     }
 
     #[test]
@@ -425,11 +640,11 @@ mod tests {
                 archetype: archetype(GenerationContribution::new(), true),
                 graph: graph(
                     GenerationContribution::new().with_blocks(vec![block("graph")]),
-                    vec![OptionalGenerationContribution::new(
+                    vec![
                         GenerationContribution::new()
                             .with_blocks(vec![block("integration")])
                             .with_requires(provides::<ProtocolAgUi>()),
-                    )],
+                    ],
                 ),
                 protocols: vec![protocol(
                     GenerationContribution::new().with_provides(provides::<ProtocolAgUi>()),
@@ -438,14 +653,7 @@ mod tests {
             })
             .unwrap();
 
-        assert_eq!(
-            composed
-                .blocks
-                .iter()
-                .map(|block| block.id().to_string())
-                .collect::<Vec<_>>(),
-            vec!["graph", "integration"],
-        );
+        assert_eq!(ids_without_baseline(&composed), vec!["graph", "integration"]);
     }
 
     #[test]
@@ -470,24 +678,18 @@ mod tests {
                 archetype: archetype(GenerationContribution::new(), true),
                 graph: graph(
                     GenerationContribution::new().with_blocks(vec![block("graph")]),
-                    vec![OptionalGenerationContribution::new(
+                    vec![
                         GenerationContribution::new()
                             .with_blocks(vec![block("integration")])
                             .with_requires(provides::<HttpServer>()),
-                    )],
+                    ],
                 ),
                 protocols: Vec::new(),
                 blocks: Vec::new(),
             })
             .unwrap();
 
-        let ids = composed
-            .blocks
-            .iter()
-            .map(|block| block.id().to_string())
-            .collect::<Vec<_>>();
-
-        assert_eq!(ids, vec!["graph"]);
+        assert_eq!(ids_without_baseline(&composed), vec!["graph"]);
     }
 
     #[test]

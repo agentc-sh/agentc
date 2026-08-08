@@ -11,7 +11,7 @@ use agentc_compiler::generator::{
     extension::ExtensionRegistry,
 };
 
-use crate::{context::ResolvedContext, fields::FieldsSpec};
+use crate::{config::fields::FieldsSpec, context::ResolvedContext};
 
 pub struct ServerCodeGen {
     pub fields: FieldsSpec,

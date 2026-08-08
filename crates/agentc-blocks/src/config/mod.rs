@@ -2,8 +2,5 @@
 //
 // SPDX-License-Identifier: MIT
 
-pub mod identity;
-pub mod models;
-pub mod prompt;
-pub mod skills;
-pub mod tools;
+pub mod fields;
+pub mod sections;

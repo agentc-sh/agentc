@@ -10,7 +10,7 @@ use agentc_compiler::generator::{
     blocks::{
         BlockSet,
         codegen::{CodeGen, CodeGenBlock},
-        template::{TemplateFragment, TemplateFragmentBlock},
+        fragment::{Fragment, FragmentBlock},
     },
     context::GenerationContext,
     errors::GeneratorError,
@@ -19,6 +19,7 @@ use agentc_compiler::generator::{
 
 use crate::{
     composition::GenerationContribution,
+    config::sections::{pubsub::PubSubSection, task_queue::TaskQueueSection},
     context::{ResolvedContext, ResolvedContextHttpServerProtocolA2a},
     contributions::dependency::{
         CargoDependencies, CargoDependencyContribution, CargoPatchContribution, CargoPatches,
@@ -76,7 +77,7 @@ impl CodeGen<ResolvedContext> for A2aCodeGen {
     }
 }
 
-impl TemplateFragment<ResolvedContext> for A2aCargoFragment {
+impl Fragment<ResolvedContext> for A2aCargoFragment {
     fn generate_contribution(
         &self,
         _ctx: &GenerationContext<ResolvedContext>,
@@ -130,7 +131,7 @@ impl Protocol for A2aProtocol {
                                 .build(A2aCodeGen { config }),
                         )
                         .add(
-                            TemplateFragmentBlock::builder()
+                            FragmentBlock::builder()
                                 .id("protocol_a2a_cargo")
                                 .contribute(Contribution::<CargoDependencies>::strict(
                                     "cargo::dependencies",
@@ -138,6 +139,8 @@ impl Protocol for A2aProtocol {
                                 .contribute(Contribution::<CargoPatches>::strict("cargo::patches"))
                                 .build(A2aCargoFragment),
                         )
+                        .add(TaskQueueSection::block("protocol_a2a_task_queue_section"))
+                        .add(PubSubSection::block("protocol_a2a_pubsub_section"))
                         .into_inner(),
                 )
                 .with_provides(GenerationFeatureSet::new().with::<ProtocolA2a>())

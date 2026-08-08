@@ -5,15 +5,98 @@
 use proc_macro2::TokenStream;
 use quote::quote;
 
+use agentc_compiler::generator::{
+    blocks::fragment::{Fragment, FragmentBlock},
+    context::GenerationContext,
+    errors::GeneratorError,
+    extension::ErasedContributionValue,
+};
+
 use crate::{
+    config::sections::{
+        block::ConfigSectionBlockBuilderExt,
+        contribution::{ConfigSectionContribution, ConfigSections},
+    },
     context::{ResolvedContext, ResolvedContextToolA2aTenant, ResolvedContextToolKind},
     types::RuntimeValue,
 };
 
-pub struct A2aCodeGen;
+pub struct A2aSection;
 
-impl A2aCodeGen {
-    pub fn loader_calls(ctx: &ResolvedContext) -> TokenStream {
+impl A2aSection {
+    pub const NAME: &'static str = "a2a";
+
+    pub fn block(id: &'static str) -> FragmentBlock<ResolvedContext> {
+        FragmentBlock::<ResolvedContext>::builder()
+            .id(id)
+            .contribute_config_sections()
+            .build(Self)
+    }
+
+    fn section(&self, ctx: &ResolvedContext) -> Result<ConfigSections, GeneratorError> {
+        ConfigSections::from_entries([ConfigSectionContribution::new(Self::NAME)
+            .types(quote! {
+                #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+                #[serde(default)]
+                pub struct ConfigA2a {
+                    pub agents: HashMap<String, ConfigA2aAgent>,
+                }
+
+                #[derive(Debug, Clone, Serialize, Deserialize)]
+                #[serde(default)]
+                pub struct ConfigA2aAgent {
+                    pub url: String,
+                    pub auth_token: Option<String>,
+                    pub headers: HashMap<String, String>,
+                    pub tenant: ConfigA2aAgentTenant,
+                    pub timeout_secs: u64,
+                    pub default_accepted_output_modes: Vec<String>,
+                    pub description: Option<String>,
+                    pub capabilities: Vec<String>,
+                    pub enabled: bool,
+                }
+
+                impl Default for ConfigA2aAgent {
+                    fn default() -> Self {
+                        ConfigA2aAgent {
+                            url: String::new(),
+                            auth_token: None,
+                            headers: HashMap::new(),
+                            tenant: ConfigA2aAgentTenant::default(),
+                            timeout_secs: 60,
+                            default_accepted_output_modes: Vec::new(),
+                            description: None,
+                            capabilities: Vec::new(),
+                            enabled: true,
+                        }
+                    }
+                }
+
+                #[derive(Debug, Clone, Serialize, Deserialize)]
+                #[serde(tag = "policy", rename_all = "snake_case")]
+                pub enum ConfigA2aAgentTenant {
+                    Inherit,
+                    None,
+                    Fixed {
+                        id: String,
+                    },
+                }
+
+                impl Default for ConfigA2aAgentTenant {
+                    fn default() -> Self {
+                        ConfigA2aAgentTenant::Inherit
+                    }
+                }
+            })
+            .fields(quote! {
+                pub a2a: ConfigA2a,
+            })
+            .loader(Self::loader_calls(ctx))
+            .mapper(Self::mapper_fields(ctx))])
+        .map_err(|error| GeneratorError::unexpected(error.to_string()))
+    }
+
+    fn loader_calls(ctx: &ResolvedContext) -> TokenStream {
         let mut calls = Vec::<TokenStream>::new();
 
         for (name, tool) in &ctx.tools {
@@ -79,7 +162,7 @@ impl A2aCodeGen {
         quote! { #(#calls)* }
     }
 
-    pub fn mapper_fields(ctx: &ResolvedContext) -> TokenStream {
+    fn mapper_fields(ctx: &ResolvedContext) -> TokenStream {
         let mut fields = Vec::<TokenStream>::new();
 
         for (name, tool) in &ctx.tools {
@@ -226,6 +309,25 @@ impl A2aCodeGen {
     }
 }
 
+impl Fragment<ResolvedContext> for A2aSection {
+    fn generate_contribution(
+        &self,
+        ctx: &GenerationContext<ResolvedContext>,
+        point: &str,
+    ) -> Result<ErasedContributionValue, GeneratorError> {
+        match point {
+            "config::sections::use"
+            | "config::sections::types"
+            | "config::sections::fields"
+            | "config::sections::loader"
+            | "config::sections::mapper" => {
+                Ok(ErasedContributionValue::new(self.section(ctx.as_inner())?))
+            }
+            _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
@@ -236,9 +338,9 @@ mod tests {
         ResolvedContextTool, ResolvedContextToolA2a,
     };
 
-    struct A2aCodeGenFixture;
+    struct A2aSectionFixture;
 
-    impl A2aCodeGenFixture {
+    impl A2aSectionFixture {
         fn context() -> ResolvedContext {
             ResolvedContext {
                 slug: "assistant".to_string(),
@@ -315,7 +417,7 @@ mod tests {
     #[test]
     fn loader_calls_lift_a2a_tool_into_a2a_agents_config() {
         let rendered =
-            A2aCodeGenFixture::compact(A2aCodeGen::loader_calls(&A2aCodeGenFixture::context()));
+            A2aSectionFixture::compact(A2aSection::loader_calls(&A2aSectionFixture::context()));
 
         assert!(rendered.contains("path ! [\"a2a\" , \"agents\" , \"planner\" , \"url\"]"));
         assert!(rendered.contains("serde_json :: json ! (\"https://planner.example.com\")"));
@@ -339,7 +441,7 @@ mod tests {
     #[test]
     fn mapper_fields_lift_runtime_a2a_values_into_a2a_agents_config() {
         let rendered =
-            A2aCodeGenFixture::compact(A2aCodeGen::mapper_fields(&A2aCodeGenFixture::context()));
+            A2aSectionFixture::compact(A2aSection::mapper_fields(&A2aSectionFixture::context()));
 
         assert!(rendered.contains(
             "path ! [\"a2a\" , \"agents\" , \"planner\" , \"url\"] , \"PLANNER_A2A_URL\""
@@ -354,5 +456,39 @@ mod tests {
             "path ! [\"a2a\" , \"agents\" , \"planner\" , \"enabled\"] , \"PLANNER_A2A_ENABLED\""
         ));
         assert!(!rendered.contains("\"tool\" , \"planner\""));
+    }
+
+    #[test]
+    fn the_section_defines_the_a2a_config_types_and_its_field() {
+        let sections = A2aSection
+            .generate_contribution(
+                &GenerationContext::new(A2aSectionFixture::context()),
+                "config::sections::types",
+            )
+            .unwrap()
+            .downcast::<ConfigSections>()
+            .unwrap();
+        let section = sections
+            .get(&A2aSection::NAME)
+            .expect("a2a section is contributed");
+
+        assert!(
+            section
+                .types
+                .as_str()
+                .contains("pub struct ConfigA2a")
+        );
+        assert!(
+            section
+                .types
+                .as_str()
+                .contains("pub enum ConfigA2aAgentTenant")
+        );
+        assert!(
+            section
+                .fields
+                .as_str()
+                .contains("pub a2a : ConfigA2a")
+        );
     }
 }

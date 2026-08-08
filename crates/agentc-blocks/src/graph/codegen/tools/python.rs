@@ -10,11 +10,11 @@ use std::collections::HashMap;
 use agentc_compiler::generator::{blocks::codegen::ToIdent, errors::GeneratorError};
 
 use crate::{
+    config::fields::FieldsSpec,
     context::{
         ResolvedContext, ResolvedContextToolKind, ResolvedContextToolPython,
         ResolvedContextToolPythonInterpreter,
     },
-    fields::FieldsSpec,
     graph::codegen::tools::ToolCodeGen,
 };
 
