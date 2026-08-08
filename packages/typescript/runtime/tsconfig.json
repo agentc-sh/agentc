@@ -5,12 +5,8 @@
     "module": "esnext",
     "moduleResolution": "bundler",
     "strict": true,
-    "outDir": "dist",
-    "rootDir": "src",
-    "types": [],
-    "paths": {
-      "@/*": ["./src/*"]
-    }
+    "noEmit": true,
+    "types": []
   },
-  "include": ["src", "agentc.d.ts"],
+  "files": ["src/index.d.ts"]
 }

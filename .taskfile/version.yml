@@ -64,6 +64,30 @@ tasks:
           echo $VERSION_FILE
         fi
 
+  update:packages:typescript:
+    desc: Update the version in multiple TypeScript packages
+    cmds:
+      - |
+        NEXT_VERSION="{{.NEXT_VERSION}}"
+        PACKAGES=({{.PACKAGES}})
+
+        if [ ${#PACKAGES[@]} -eq 0 ]; then
+          echo "PACKAGES are required"
+          exit 1
+        fi
+
+        for pkg in "${PACKAGES[@]}"; do
+          vfile="$pkg/package.json"
+
+          if [ ! -f "$vfile" ]; then
+            echo "Missing version file: $vfile"
+            exit 1
+          fi
+
+          sed -i -E "0,/\"version\": \"[^\"]+\"/s||\"version\": \"$NEXT_VERSION\"|" "$vfile"
+          echo $vfile
+        done
+
   changelog:
     desc: Generate the changelog
     deps: [devtools:install]
@@ -95,6 +119,10 @@ tasks:
         PACKAGES=($(find crates -type f -name Cargo.toml -exec dirname {} \;))
 
         task version:update:crates VERSION_FILE=Cargo.toml PACKAGES="${PACKAGES[*]}" >> .modified_files
+
+        TS_PACKAGES=($(find packages/typescript -type f -name package.json -not -path '*/node_modules/*' -exec dirname {} \;))
+
+        task version:update:packages:typescript NEXT_VERSION=$NEXT_VERSION PACKAGES="${TS_PACKAGES[*]}" >> .modified_files
 
         while read -r file; do
           [ -f "$file" ] && echo "Adding $file to git staging" && git add "$file"
