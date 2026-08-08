@@ -269,7 +269,21 @@ mod tests {
 
     use super::*;
     use crate::{
+        archetype::{
+            standalone::{StandaloneArchetype, StandaloneArchetypeConfig},
+            traits::Archetype,
+        },
+        context::{ResolvedContextHttpServerProtocolA2a, ResolvedContextHttpServerProtocolAgUi},
         feature::{Cli, GraphReAct, HttpServer, ProtocolAgUi, Streaming},
+        graph::{
+            react::{ReActGraph, ReActGraphConfig},
+            traits::AgentGraph,
+        },
+        protocol::{
+            a2a::A2aProtocol,
+            ag_ui::AgUiProtocol,
+            traits::Protocol,
+        },
         runtime::ExtractionMode,
     };
     use agentc_compiler::{
@@ -280,7 +294,7 @@ mod tests {
         },
         generator::{
             blocks::traits::Block, context::GenerationContext, errors::GeneratorError,
-            extension::ExtensionRegistry, vfs::VirtualFileSystem,
+            extension::ExtensionRegistry, pipeline::Generator, vfs::VirtualFileSystem,
         },
         runner::{
             errors::RunnerError,
@@ -407,6 +421,54 @@ mod tests {
         ResolvedProtocol { name: "ag_ui".to_string(), contribution }
     }
 
+    fn context(http_server: Option<serde_json::Value>) -> ResolvedContext {
+        serde_json::from_value(serde_json::json!({
+            "slug": "assistant",
+            "agent_name": "assistant",
+            "runtime": { "default_tenant_id": "default" },
+            "providers": [],
+            "agent": {
+                "version": "0.1.0",
+                "description": null,
+                "prompt": null,
+                "capabilities": null,
+                "capability_policy": null,
+                "model": { "provider": "anthropic", "name": "claude" }
+            },
+            "blocks": {},
+            "tools": {},
+            "skills": {},
+            "http_server": http_server
+        }))
+        .unwrap()
+    }
+
+    async fn generated_vfs(
+        ctx: ResolvedContext,
+        protocols: Vec<ResolvedProtocol>,
+    ) -> VirtualFileSystem {
+        let composed = Composer::new()
+            .compose(CompositionInput {
+                archetype: StandaloneArchetype
+                    .resolve(ctx.clone(), StandaloneArchetypeConfig::default())
+                    .unwrap(),
+                graph: ReActGraph
+                    .resolve(ctx.clone(), ReActGraphConfig::default())
+                    .unwrap(),
+                protocols,
+                blocks: Vec::new(),
+            })
+            .unwrap();
+
+        Generator::builder()
+            .with_context(ctx)
+            .with_blocks(composed.blocks)
+            .build()
+            .generate()
+            .await
+            .unwrap()
+    }
+
     /// The composed block ids with the unconditional baseline blocks removed, so that a test
     /// about graph and protocol ordering does not restate the baseline's contents.
     fn ids_without_baseline(composed: &ComposedGeneration) -> Vec<String> {
@@ -427,6 +489,75 @@ mod tests {
         features.insert::<T>();
 
         features
+    }
+
+    #[tokio::test]
+    async fn a_command_line_only_react_agent_has_no_server_machinery() {
+        let vfs = generated_vfs(context(None), Vec::new()).await;
+        let cargo_toml = vfs
+            .get("Cargo.toml")
+            .expect("Cargo.toml is generated");
+        let config_rs = vfs
+            .get("src/config.rs")
+            .expect("src/config.rs is generated");
+
+        assert!(!cargo_toml.contains("jobq"));
+        assert!(!cargo_toml.contains("subway"));
+        assert!(!cargo_toml.contains("utoipa"));
+        assert!(!config_rs.contains("TaskQueueConfig"));
+        assert!(!config_rs.contains("PubSubConfig"));
+        assert!(config_rs.contains("DatabaseConfig"));
+        assert!(config_rs.contains("McpConfig"));
+        assert!(config_rs.contains("A2aConfig"));
+        assert!(config_rs.contains("NetworkConfig"));
+    }
+
+    #[tokio::test]
+    async fn a_serving_react_agent_with_both_protocols_has_every_section_once() {
+        let ctx = context(Some(serde_json::json!({
+            "host": "0.0.0.0",
+            "port": 8080,
+            "max_request_size": 2097152,
+            "protocols": [
+                {
+                    "type": "ag_ui",
+                    "config": { "path": "/ag-ui" }
+                },
+                {
+                    "type": "a2a",
+                    "config": { "path": "/a2a" }
+                }
+            ]
+        })));
+        let vfs = generated_vfs(
+            ctx.clone(),
+            vec![
+                AgUiProtocol
+                    .resolve(
+                        ctx.clone(),
+                        ResolvedContextHttpServerProtocolAgUi::default(),
+                    )
+                    .unwrap(),
+                A2aProtocol
+                    .resolve(
+                        ctx,
+                        ResolvedContextHttpServerProtocolA2a::default(),
+                    )
+                    .unwrap(),
+            ],
+        )
+        .await;
+        let cargo_toml = vfs
+            .get("Cargo.toml")
+            .expect("Cargo.toml is generated");
+        let config_rs = vfs
+            .get("src/config.rs")
+            .expect("src/config.rs is generated");
+
+        assert_eq!(config_rs.matches("struct TaskQueueConfig").count(), 1);
+        assert_eq!(config_rs.matches("enum PubSubConfig").count(), 1);
+        assert_eq!(cargo_toml.matches("jobq = ").count(), 1);
+        assert_eq!(cargo_toml.matches("subway = ").count(), 1);
     }
 
     #[test]
