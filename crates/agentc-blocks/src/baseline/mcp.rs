@@ -34,7 +34,7 @@ impl Fragment<ResolvedContext> for McpAgentFragment {
                         registry::McpRegistry,
                     };
 
-                    use crate::config::McpTransportConfig;
+                    use crate::config::ConfigMcpTransport;
                 }
                 .to_string(),
             )),
@@ -46,12 +46,12 @@ impl Fragment<ResolvedContext> for McpAgentFragment {
                         for (name, transport) in &config.mcp.servers {
                             mcp_builder = mcp_builder.with_server(
                                 McpServerConfig::new(name.clone(), match transport {
-                                    McpTransportConfig::Stdio { command, args, env } => McpTransport::Stdio {
+                                    ConfigMcpTransport::Stdio { command, args, env } => McpTransport::Stdio {
                                         command: command.clone(),
                                         args: args.clone(),
                                         env: env.clone(),
                                     },
-                                    McpTransportConfig::Http { url, auth_token, headers } => McpTransport::StreamableHttp {
+                                    ConfigMcpTransport::Http { url, auth_token, headers } => McpTransport::StreamableHttp {
                                         url: url.clone(),
                                         auth_token: auth_token.clone(),
                                         headers: headers.clone(),

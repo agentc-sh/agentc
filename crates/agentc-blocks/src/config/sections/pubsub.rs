@@ -47,7 +47,7 @@ impl PubSubSection {
             .types(quote! {
                 #[derive(Debug, Clone, Serialize, Deserialize)]
                 #[serde(tag = "kind", rename_all = "snake_case")]
-                pub enum PubSubConfig {
+                pub enum ConfigPubSub {
                     Memory {
                         capacity: usize,
                     },
@@ -56,20 +56,20 @@ impl PubSubSection {
                     },
                 }
 
-                impl PubSubConfig {
+                impl ConfigPubSub {
                     pub fn kind(&self) -> &str {
                         match self {
-                            PubSubConfig::Memory { .. } => "memory",
-                            PubSubConfig::Redis { .. } => "redis",
+                            ConfigPubSub::Memory { .. } => "memory",
+                            ConfigPubSub::Redis { .. } => "redis",
                         }
                     }
 
                     pub async fn build(&self) -> Result<Bus, subway::Error> {
                         match self {
-                            PubSubConfig::Memory { capacity } => Ok(Bus::new(
+                            ConfigPubSub::Memory { capacity } => Ok(Bus::new(
                                 InMemoryTransport::with_capacity(*capacity),
                             )),
-                            PubSubConfig::Redis { url } => Ok(Bus::new(
+                            ConfigPubSub::Redis { url } => Ok(Bus::new(
                                 RedisTransport::builder()
                                     .url(url.clone())
                                     .build()
@@ -79,16 +79,16 @@ impl PubSubSection {
                     }
                 }
 
-                impl Default for PubSubConfig {
+                impl Default for ConfigPubSub {
                     fn default() -> Self {
-                        PubSubConfig::Memory {
+                        ConfigPubSub::Memory {
                             capacity: 4096,
                         }
                     }
                 }
             })
             .fields(quote! {
-                pub pubsub: PubSubConfig,
+                pub pubsub: ConfigPubSub,
             })])
         .map_err(|error| GeneratorError::unexpected(error.to_string()))
     }
@@ -165,13 +165,13 @@ mod tests {
             section
                 .types
                 .as_str()
-                .contains("pub enum PubSubConfig")
+                .contains("pub enum ConfigPubSub")
         );
         assert!(
             section
                 .fields
                 .as_str()
-                .contains("pub pubsub : PubSubConfig")
+                .contains("pub pubsub : ConfigPubSub")
         );
     }
 

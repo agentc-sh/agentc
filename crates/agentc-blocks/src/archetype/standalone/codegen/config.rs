@@ -424,8 +424,8 @@ mod tests {
     fn config_has_no_database_section_when_no_sections_are_contributed() {
         let rendered = rendered();
 
-        assert!(!rendered.contains("struct DatabaseConfig"));
-        assert!(!rendered.contains("struct TaskQueueConfig"));
-        assert!(!rendered.contains("enum PubSubConfig"));
+        assert!(!rendered.contains("struct ConfigDatabase"));
+        assert!(!rendered.contains("struct ConfigTaskQueue"));
+        assert!(!rendered.contains("enum ConfigPubSub"));
     }
 }

@@ -38,7 +38,7 @@ impl McpSection {
             .types(quote! {
                 #[derive(Debug, Clone, Serialize, Deserialize)]
                 #[serde(tag = "type", rename_all = "snake_case")]
-                pub enum McpTransportConfig {
+                pub enum ConfigMcpTransport {
                     Stdio {
                         command: String,
                         #[serde(default)]
@@ -57,12 +57,12 @@ impl McpSection {
 
                 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
                 #[serde(default)]
-                pub struct McpConfig {
-                    pub servers: HashMap<String, McpTransportConfig>,
+                pub struct ConfigMcp {
+                    pub servers: HashMap<String, ConfigMcpTransport>,
                 }
             })
             .fields(quote! {
-                pub mcp: McpConfig,
+                pub mcp: ConfigMcp,
             })
             .loader(Self::loader_calls(ctx))
             .mapper(Self::mapper_fields(ctx))])

@@ -33,7 +33,7 @@ impl Fragment<ResolvedContext> for A2aAgentFragment {
                         tools::{A2aTenantPolicy, A2aToolTarget},
                     };
 
-                    use crate::config::A2aTenantConfig;
+                    use crate::config::ConfigA2aAgentTenant;
                 }
                 .to_string(),
             )),
@@ -63,9 +63,9 @@ impl Fragment<ResolvedContext> for A2aAgentFragment {
                             .name(agent.description.as_deref().unwrap_or(name))
                             .client(A2aClient::new(client_config)?)
                             .tenant_policy(match &agent.tenant {
-                                A2aTenantConfig::Inherit => A2aTenantPolicy::Inherit,
-                                A2aTenantConfig::None => A2aTenantPolicy::None,
-                                A2aTenantConfig::Fixed { id } => A2aTenantPolicy::Fixed(id.clone()),
+                                ConfigA2aAgentTenant::Inherit => A2aTenantPolicy::Inherit,
+                                ConfigA2aAgentTenant::None => A2aTenantPolicy::None,
+                                ConfigA2aAgentTenant::Fixed { id } => A2aTenantPolicy::Fixed(id.clone()),
                             })
                             .capabilities(agent.capabilities.clone())
                             .default_accepted_output_modes(agent.default_accepted_output_modes.clone())

@@ -51,14 +51,14 @@ impl DatabaseSection {
             .types(quote! {
                 #[derive(Debug, Clone, Serialize, Deserialize)]
                 #[serde(default)]
-                pub struct DatabaseConfig {
+                pub struct ConfigDatabase {
                     pub primary: String,
                     pub replicas: Vec<String>,
                     pub options: DatabaseOptions,
                     pub auto_migrate: bool,
                 }
 
-                impl DatabaseConfig {
+                impl ConfigDatabase {
                     pub async fn build(
                         &self,
                         run_migrations: bool,
@@ -78,9 +78,9 @@ impl DatabaseSection {
                     }
                 }
 
-                impl Default for DatabaseConfig {
+                impl Default for ConfigDatabase {
                     fn default() -> Self {
-                        DatabaseConfig {
+                        ConfigDatabase {
                             primary: "sqlite://database.db?mode=rwc".to_string(),
                             replicas: vec![],
                             options: DatabaseOptions::default(),
@@ -90,7 +90,7 @@ impl DatabaseSection {
                 }
             })
             .fields(quote! {
-                pub database: DatabaseConfig,
+                pub database: ConfigDatabase,
             })])
         .map_err(|error| GeneratorError::unexpected(error.to_string()))
     }
@@ -170,7 +170,7 @@ mod tests {
             section
                 .types
                 .as_str()
-                .contains("pub struct DatabaseConfig")
+                .contains("pub struct ConfigDatabase")
         );
         assert!(
             section
@@ -182,7 +182,7 @@ mod tests {
             section
                 .fields
                 .as_str()
-                .contains("pub database : DatabaseConfig")
+                .contains("pub database : ConfigDatabase")
         );
     }
 

@@ -500,12 +500,12 @@ mod tests {
         assert!(!cargo_toml.contains("jobq"));
         assert!(!cargo_toml.contains("subway"));
         assert!(!cargo_toml.contains("utoipa"));
-        assert!(!config_rs.contains("TaskQueueConfig"));
-        assert!(!config_rs.contains("PubSubConfig"));
-        assert!(config_rs.contains("DatabaseConfig"));
-        assert!(config_rs.contains("McpConfig"));
-        assert!(config_rs.contains("A2aConfig"));
-        assert!(config_rs.contains("NetworkConfig"));
+        assert!(!config_rs.contains("ConfigTaskQueue"));
+        assert!(!config_rs.contains("ConfigPubSub"));
+        assert!(config_rs.contains("ConfigDatabase"));
+        assert!(config_rs.contains("ConfigMcp"));
+        assert!(config_rs.contains("ConfigA2a"));
+        assert!(config_rs.contains("ConfigNetwork"));
     }
 
     #[tokio::test]
@@ -546,13 +546,13 @@ mod tests {
 
         assert_eq!(
             config_rs
-                .matches("struct TaskQueueConfig")
+                .matches("struct ConfigTaskQueue")
                 .count(),
             1
         );
         assert_eq!(
             config_rs
-                .matches("enum PubSubConfig")
+                .matches("enum ConfigPubSub")
                 .count(),
             1
         );

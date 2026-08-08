@@ -40,16 +40,16 @@ impl TaskQueueSection {
             .types(quote! {
                 #[derive(Debug, Clone, Serialize, Deserialize)]
                 #[serde(default)]
-                pub struct TaskQueueConfig {
+                pub struct ConfigTaskQueue {
                     pub worker_count: usize,
                     pub max_queue_capacity: usize,
                     pub batch_size: usize,
                     pub batch_timeout_ms: usize,
                 }
 
-                impl Default for TaskQueueConfig {
+                impl Default for ConfigTaskQueue {
                     fn default() -> Self {
-                        TaskQueueConfig {
+                        ConfigTaskQueue {
                             worker_count: 4,
                             max_queue_capacity: 256,
                             batch_size: 16,
@@ -59,7 +59,7 @@ impl TaskQueueSection {
                 }
             })
             .fields(quote! {
-                pub task_queue: TaskQueueConfig,
+                pub task_queue: ConfigTaskQueue,
             })])
         .map_err(|error| GeneratorError::unexpected(error.to_string()))
     }
@@ -135,13 +135,13 @@ mod tests {
             section
                 .types
                 .as_str()
-                .contains("pub struct TaskQueueConfig")
+                .contains("pub struct ConfigTaskQueue")
         );
         assert!(
             section
                 .fields
                 .as_str()
-                .contains("pub task_queue : TaskQueueConfig")
+                .contains("pub task_queue : ConfigTaskQueue")
         );
     }
 

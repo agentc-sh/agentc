@@ -45,9 +45,9 @@ impl NetworkSection {
             .types(quote! {
                 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
                 #[serde(default)]
-                pub struct NetworkConfig {}
+                pub struct ConfigNetwork {}
 
-                impl NetworkConfig {
+                impl ConfigNetwork {
                     /// Returns an unbuilt client so each consumer can build on its own runtime.
                     pub fn builder(&self) -> HttpClientBuilder {
                         HttpClient::builder()
@@ -55,7 +55,7 @@ impl NetworkSection {
                 }
             })
             .fields(quote! {
-                pub network: NetworkConfig,
+                pub network: ConfigNetwork,
             })])
         .map_err(|error| GeneratorError::unexpected(error.to_string()))
     }
@@ -157,13 +157,13 @@ mod tests {
             section
                 .types
                 .as_str()
-                .contains("pub struct NetworkConfig")
+                .contains("pub struct ConfigNetwork")
         );
         assert!(
             section
                 .fields
                 .as_str()
-                .contains("pub network : NetworkConfig")
+                .contains("pub network : ConfigNetwork")
         );
     }
 }

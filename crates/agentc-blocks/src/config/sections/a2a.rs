@@ -38,17 +38,17 @@ impl A2aSection {
             .types(quote! {
                 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
                 #[serde(default)]
-                pub struct A2aConfig {
-                    pub agents: HashMap<String, A2aAgentConfig>,
+                pub struct ConfigA2a {
+                    pub agents: HashMap<String, ConfigA2aAgent>,
                 }
 
                 #[derive(Debug, Clone, Serialize, Deserialize)]
                 #[serde(default)]
-                pub struct A2aAgentConfig {
+                pub struct ConfigA2aAgent {
                     pub url: String,
                     pub auth_token: Option<String>,
                     pub headers: HashMap<String, String>,
-                    pub tenant: A2aTenantConfig,
+                    pub tenant: ConfigA2aAgentTenant,
                     pub timeout_secs: u64,
                     pub default_accepted_output_modes: Vec<String>,
                     pub description: Option<String>,
@@ -56,13 +56,13 @@ impl A2aSection {
                     pub enabled: bool,
                 }
 
-                impl Default for A2aAgentConfig {
+                impl Default for ConfigA2aAgent {
                     fn default() -> Self {
-                        A2aAgentConfig {
+                        ConfigA2aAgent {
                             url: String::new(),
                             auth_token: None,
                             headers: HashMap::new(),
-                            tenant: A2aTenantConfig::default(),
+                            tenant: ConfigA2aAgentTenant::default(),
                             timeout_secs: 60,
                             default_accepted_output_modes: Vec::new(),
                             description: None,
@@ -74,7 +74,7 @@ impl A2aSection {
 
                 #[derive(Debug, Clone, Serialize, Deserialize)]
                 #[serde(tag = "policy", rename_all = "snake_case")]
-                pub enum A2aTenantConfig {
+                pub enum ConfigA2aAgentTenant {
                     Inherit,
                     None,
                     Fixed {
@@ -82,14 +82,14 @@ impl A2aSection {
                     },
                 }
 
-                impl Default for A2aTenantConfig {
+                impl Default for ConfigA2aAgentTenant {
                     fn default() -> Self {
-                        A2aTenantConfig::Inherit
+                        ConfigA2aAgentTenant::Inherit
                     }
                 }
             })
             .fields(quote! {
-                pub a2a: A2aConfig,
+                pub a2a: ConfigA2a,
             })
             .loader(Self::loader_calls(ctx))
             .mapper(Self::mapper_fields(ctx))])
@@ -476,19 +476,19 @@ mod tests {
             section
                 .types
                 .as_str()
-                .contains("pub struct A2aConfig")
+                .contains("pub struct ConfigA2a")
         );
         assert!(
             section
                 .types
                 .as_str()
-                .contains("pub enum A2aTenantConfig")
+                .contains("pub enum ConfigA2aAgentTenant")
         );
         assert!(
             section
                 .fields
                 .as_str()
-                .contains("pub a2a : A2aConfig")
+                .contains("pub a2a : ConfigA2a")
         );
     }
 }
