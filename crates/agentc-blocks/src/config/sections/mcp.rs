@@ -34,40 +34,38 @@ impl McpSection {
     }
 
     fn section(&self, ctx: &ResolvedContext) -> Result<ConfigSections, GeneratorError> {
-        ConfigSections::from_entries([
-            ConfigSectionContribution::new(Self::NAME)
-                .types(quote! {
-                    #[derive(Debug, Clone, Serialize, Deserialize)]
-                    #[serde(tag = "type", rename_all = "snake_case")]
-                    pub enum McpTransportConfig {
-                        Stdio {
-                            command: String,
-                            #[serde(default)]
-                            args: Vec<String>,
-                            #[serde(default)]
-                            env: HashMap<String, String>,
-                        },
-                        Http {
-                            url: String,
-                            #[serde(default)]
-                            auth_token: Option<String>,
-                            #[serde(default)]
-                            headers: HashMap<String, String>,
-                        },
-                    }
+        ConfigSections::from_entries([ConfigSectionContribution::new(Self::NAME)
+            .types(quote! {
+                #[derive(Debug, Clone, Serialize, Deserialize)]
+                #[serde(tag = "type", rename_all = "snake_case")]
+                pub enum McpTransportConfig {
+                    Stdio {
+                        command: String,
+                        #[serde(default)]
+                        args: Vec<String>,
+                        #[serde(default)]
+                        env: HashMap<String, String>,
+                    },
+                    Http {
+                        url: String,
+                        #[serde(default)]
+                        auth_token: Option<String>,
+                        #[serde(default)]
+                        headers: HashMap<String, String>,
+                    },
+                }
 
-                    #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-                    #[serde(default)]
-                    pub struct McpConfig {
-                        pub servers: HashMap<String, McpTransportConfig>,
-                    }
-                })
-                .fields(quote! {
-                    pub mcp: McpConfig,
-                })
-                .loader(Self::loader_calls(ctx))
-                .mapper(Self::mapper_fields(ctx)),
-        ])
+                #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+                #[serde(default)]
+                pub struct McpConfig {
+                    pub servers: HashMap<String, McpTransportConfig>,
+                }
+            })
+            .fields(quote! {
+                pub mcp: McpConfig,
+            })
+            .loader(Self::loader_calls(ctx))
+            .mapper(Self::mapper_fields(ctx))])
         .map_err(|error| GeneratorError::unexpected(error.to_string()))
     }
 

@@ -36,62 +36,60 @@ impl PubSubSection {
     }
 
     fn section(&self) -> Result<ConfigSections, GeneratorError> {
-        ConfigSections::from_entries([
-            ConfigSectionContribution::new(Self::NAME)
-                .uses(quote! {
-                    use subway::{
-                        Bus,
-                        memory::InMemoryTransport,
-                        redis::RedisTransport,
-                    };
-                })
-                .types(quote! {
-                    #[derive(Debug, Clone, Serialize, Deserialize)]
-                    #[serde(tag = "kind", rename_all = "snake_case")]
-                    pub enum PubSubConfig {
-                        Memory {
-                            capacity: usize,
-                        },
-                        Redis {
-                            url: String,
-                        },
-                    }
+        ConfigSections::from_entries([ConfigSectionContribution::new(Self::NAME)
+            .uses(quote! {
+                use subway::{
+                    Bus,
+                    memory::InMemoryTransport,
+                    redis::RedisTransport,
+                };
+            })
+            .types(quote! {
+                #[derive(Debug, Clone, Serialize, Deserialize)]
+                #[serde(tag = "kind", rename_all = "snake_case")]
+                pub enum PubSubConfig {
+                    Memory {
+                        capacity: usize,
+                    },
+                    Redis {
+                        url: String,
+                    },
+                }
 
-                    impl PubSubConfig {
-                        pub fn kind(&self) -> &str {
-                            match self {
-                                PubSubConfig::Memory { .. } => "memory",
-                                PubSubConfig::Redis { .. } => "redis",
-                            }
-                        }
-
-                        pub async fn build(&self) -> Result<Bus, subway::Error> {
-                            match self {
-                                PubSubConfig::Memory { capacity } => Ok(Bus::new(
-                                    InMemoryTransport::with_capacity(*capacity),
-                                )),
-                                PubSubConfig::Redis { url } => Ok(Bus::new(
-                                    RedisTransport::builder()
-                                        .url(url.clone())
-                                        .build()
-                                        .await?,
-                                )),
-                            }
+                impl PubSubConfig {
+                    pub fn kind(&self) -> &str {
+                        match self {
+                            PubSubConfig::Memory { .. } => "memory",
+                            PubSubConfig::Redis { .. } => "redis",
                         }
                     }
 
-                    impl Default for PubSubConfig {
-                        fn default() -> Self {
-                            PubSubConfig::Memory {
-                                capacity: 4096,
-                            }
+                    pub async fn build(&self) -> Result<Bus, subway::Error> {
+                        match self {
+                            PubSubConfig::Memory { capacity } => Ok(Bus::new(
+                                InMemoryTransport::with_capacity(*capacity),
+                            )),
+                            PubSubConfig::Redis { url } => Ok(Bus::new(
+                                RedisTransport::builder()
+                                    .url(url.clone())
+                                    .build()
+                                    .await?,
+                            )),
                         }
                     }
-                })
-                .fields(quote! {
-                    pub pubsub: PubSubConfig,
-                }),
-        ])
+                }
+
+                impl Default for PubSubConfig {
+                    fn default() -> Self {
+                        PubSubConfig::Memory {
+                            capacity: 4096,
+                        }
+                    }
+                }
+            })
+            .fields(quote! {
+                pub pubsub: PubSubConfig,
+            })])
         .map_err(|error| GeneratorError::unexpected(error.to_string()))
     }
 }
@@ -107,9 +105,7 @@ impl Fragment<ResolvedContext> for PubSubSection {
             | "config::sections::types"
             | "config::sections::fields"
             | "config::sections::loader"
-            | "config::sections::mapper" => {
-                Ok(ErasedContributionValue::new(self.section()?))
-            }
+            | "config::sections::mapper" => Ok(ErasedContributionValue::new(self.section()?)),
             "cargo::dependencies" => Ok(ErasedContributionValue::new(
                 CargoDependencies::from_entries([CargoDependencyContribution::external(
                     ExternalDependencyContribution::new("subway")
@@ -165,7 +161,12 @@ mod tests {
             .get(&PubSubSection::NAME)
             .expect("pubsub section is contributed");
 
-        assert!(section.types.as_str().contains("pub enum PubSubConfig"));
+        assert!(
+            section
+                .types
+                .as_str()
+                .contains("pub enum PubSubConfig")
+        );
         assert!(
             section
                 .fields
@@ -182,10 +183,6 @@ mod tests {
             .downcast::<CargoDependencies>()
             .unwrap();
 
-        assert!(
-            dependencies
-                .get(&"subway")
-                .is_some()
-        );
+        assert!(dependencies.get(&"subway").is_some());
     }
 }

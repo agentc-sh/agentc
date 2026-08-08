@@ -11,7 +11,9 @@ use agentc_compiler::{
             BlockSet,
             codegen::CodeGenBlock,
             fragment::FragmentBlock,
-            template::{ExtensionPointSpec, FileSpec, Reducer, TemplateBlock, TemplateBlockManifest},
+            template::{
+                ExtensionPointSpec, FileSpec, Reducer, TemplateBlock, TemplateBlockManifest,
+            },
         },
         extension::{Contribution, reducers},
     },
@@ -26,9 +28,7 @@ use crate::{
                 CargoDependenciesExtensionPoint, CargoPatchesExtensionPoint,
                 HttpServerCargoFragment,
             },
-            cli::{
-                CliModCodeGen, config::CliConfigCodeGen, shutdown::CliShutdownCodeGen,
-            },
+            cli::{CliModCodeGen, config::CliConfigCodeGen, shutdown::CliShutdownCodeGen},
             config::ConfigCodeGen,
             entrypoint::EntrypointCodeGen,
         },

@@ -36,9 +36,7 @@ use crate::{
         codegen::tools::javascript::{HttpTypescriptCargoFragment, JavascriptToolCargoFragment},
         react::{
             agent::AgentCodeGen,
-            cargo::{
-                ReActCargoFragment, ReActDatabaseCargoFragment, ReActFeatureCargoFragment,
-            },
+            cargo::{ReActCargoFragment, ReActDatabaseCargoFragment, ReActFeatureCargoFragment},
             cli_migrate::CliMigrateCodeGen,
             cli_run::CliRunCodeGen,
             cli_serve::CliServeCodeGen,
@@ -131,9 +129,7 @@ impl AgentGraph for ReActGraph {
             .add(
                 FragmentBlock::builder()
                     .id("react_database_cargo")
-                    .contribute(Contribution::<CargoDependencies>::strict(
-                        "cargo::dependencies",
-                    ))
+                    .contribute(Contribution::<CargoDependencies>::strict("cargo::dependencies"))
                     .contribute(Contribution::<CargoPatches>::strict("cargo::patches"))
                     .build(ReActDatabaseCargoFragment),
             );

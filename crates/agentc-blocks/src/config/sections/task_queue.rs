@@ -36,33 +36,31 @@ impl TaskQueueSection {
     }
 
     fn section(&self) -> Result<ConfigSections, GeneratorError> {
-        ConfigSections::from_entries([
-            ConfigSectionContribution::new(Self::NAME)
-                .types(quote! {
-                    #[derive(Debug, Clone, Serialize, Deserialize)]
-                    #[serde(default)]
-                    pub struct TaskQueueConfig {
-                        pub worker_count: usize,
-                        pub max_queue_capacity: usize,
-                        pub batch_size: usize,
-                        pub batch_timeout_ms: usize,
-                    }
+        ConfigSections::from_entries([ConfigSectionContribution::new(Self::NAME)
+            .types(quote! {
+                #[derive(Debug, Clone, Serialize, Deserialize)]
+                #[serde(default)]
+                pub struct TaskQueueConfig {
+                    pub worker_count: usize,
+                    pub max_queue_capacity: usize,
+                    pub batch_size: usize,
+                    pub batch_timeout_ms: usize,
+                }
 
-                    impl Default for TaskQueueConfig {
-                        fn default() -> Self {
-                            TaskQueueConfig {
-                                worker_count: 4,
-                                max_queue_capacity: 256,
-                                batch_size: 16,
-                                batch_timeout_ms: 10,
-                            }
+                impl Default for TaskQueueConfig {
+                    fn default() -> Self {
+                        TaskQueueConfig {
+                            worker_count: 4,
+                            max_queue_capacity: 256,
+                            batch_size: 16,
+                            batch_timeout_ms: 10,
                         }
                     }
-                })
-                .fields(quote! {
-                    pub task_queue: TaskQueueConfig,
-                }),
-        ])
+                }
+            })
+            .fields(quote! {
+                pub task_queue: TaskQueueConfig,
+            })])
         .map_err(|error| GeneratorError::unexpected(error.to_string()))
     }
 }
@@ -78,9 +76,7 @@ impl Fragment<ResolvedContext> for TaskQueueSection {
             | "config::sections::types"
             | "config::sections::fields"
             | "config::sections::loader"
-            | "config::sections::mapper" => {
-                Ok(ErasedContributionValue::new(self.section()?))
-            }
+            | "config::sections::mapper" => Ok(ErasedContributionValue::new(self.section()?)),
             "cargo::dependencies" => Ok(ErasedContributionValue::new(
                 CargoDependencies::from_entries([CargoDependencyContribution::external(
                     ExternalDependencyContribution::new("jobq")
@@ -135,7 +131,12 @@ mod tests {
             .get(&TaskQueueSection::NAME)
             .expect("task queue section is contributed");
 
-        assert!(section.types.as_str().contains("pub struct TaskQueueConfig"));
+        assert!(
+            section
+                .types
+                .as_str()
+                .contains("pub struct TaskQueueConfig")
+        );
         assert!(
             section
                 .fields
@@ -152,10 +153,6 @@ mod tests {
             .downcast::<CargoDependencies>()
             .unwrap();
 
-        assert!(
-            dependencies
-                .get(&"jobq")
-                .is_some()
-        );
+        assert!(dependencies.get(&"jobq").is_some());
     }
 }

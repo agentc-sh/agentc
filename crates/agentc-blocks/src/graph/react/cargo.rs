@@ -53,9 +53,9 @@ impl Fragment<ResolvedContext> for ReActDatabaseCargoFragment {
         match point {
             "cargo::dependencies" => Ok(ErasedContributionValue::new(
                 CargoDependencies::from_entries([
-                    CargoDependencyContribution::runtime(
-                        RuntimeDependencyContribution::new("agentc-domain-sql"),
-                    ),
+                    CargoDependencyContribution::runtime(RuntimeDependencyContribution::new(
+                        "agentc-domain-sql",
+                    )),
                     CargoDependencyContribution::external(
                         ExternalDependencyContribution::new("sea-orm-migration").version("1"),
                     ),

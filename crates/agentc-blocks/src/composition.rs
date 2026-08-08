@@ -279,11 +279,7 @@ mod tests {
             react::{ReActGraph, ReActGraphConfig},
             traits::AgentGraph,
         },
-        protocol::{
-            a2a::A2aProtocol,
-            ag_ui::AgUiProtocol,
-            traits::Protocol,
-        },
+        protocol::{a2a::A2aProtocol, ag_ui::AgUiProtocol, traits::Protocol},
         runtime::ExtractionMode,
     };
     use agentc_compiler::{
@@ -533,16 +529,10 @@ mod tests {
             ctx.clone(),
             vec![
                 AgUiProtocol
-                    .resolve(
-                        ctx.clone(),
-                        ResolvedContextHttpServerProtocolAgUi::default(),
-                    )
+                    .resolve(ctx.clone(), ResolvedContextHttpServerProtocolAgUi::default())
                     .unwrap(),
                 A2aProtocol
-                    .resolve(
-                        ctx,
-                        ResolvedContextHttpServerProtocolA2a::default(),
-                    )
+                    .resolve(ctx, ResolvedContextHttpServerProtocolA2a::default())
                     .unwrap(),
             ],
         )
@@ -554,8 +544,18 @@ mod tests {
             .get("src/config.rs")
             .expect("src/config.rs is generated");
 
-        assert_eq!(config_rs.matches("struct TaskQueueConfig").count(), 1);
-        assert_eq!(config_rs.matches("enum PubSubConfig").count(), 1);
+        assert_eq!(
+            config_rs
+                .matches("struct TaskQueueConfig")
+                .count(),
+            1
+        );
+        assert_eq!(
+            config_rs
+                .matches("enum PubSubConfig")
+                .count(),
+            1
+        );
         assert_eq!(cargo_toml.matches("jobq = ").count(), 1);
         assert_eq!(cargo_toml.matches("subway = ").count(), 1);
     }

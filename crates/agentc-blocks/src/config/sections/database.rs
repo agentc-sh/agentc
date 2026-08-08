@@ -38,62 +38,60 @@ impl DatabaseSection {
     }
 
     fn section(&self) -> Result<ConfigSections, GeneratorError> {
-        ConfigSections::from_entries([
-            ConfigSectionContribution::new(Self::NAME)
-                .uses(quote! {
-                    use agentc_database::{
-                        Database,
-                        database::DatabaseOptions,
-                        errors::DatabaseError,
-                    };
+        ConfigSections::from_entries([ConfigSectionContribution::new(Self::NAME)
+            .uses(quote! {
+                use agentc_database::{
+                    Database,
+                    database::DatabaseOptions,
+                    errors::DatabaseError,
+                };
 
-                    use crate::migrator::Migrator;
-                })
-                .types(quote! {
-                    #[derive(Debug, Clone, Serialize, Deserialize)]
-                    #[serde(default)]
-                    pub struct DatabaseConfig {
-                        pub primary: String,
-                        pub replicas: Vec<String>,
-                        pub options: DatabaseOptions,
-                        pub auto_migrate: bool,
+                use crate::migrator::Migrator;
+            })
+            .types(quote! {
+                #[derive(Debug, Clone, Serialize, Deserialize)]
+                #[serde(default)]
+                pub struct DatabaseConfig {
+                    pub primary: String,
+                    pub replicas: Vec<String>,
+                    pub options: DatabaseOptions,
+                    pub auto_migrate: bool,
+                }
+
+                impl DatabaseConfig {
+                    pub async fn build(
+                        &self,
+                        run_migrations: bool,
+                    ) -> Result<Database, DatabaseError> {
+                        let db = Database::builder()
+                            .with_primary(self.primary.clone())
+                            .with_replicas(self.replicas.clone())
+                            .with_options(self.options.clone())
+                            .build()
+                            .await?;
+
+                        if run_migrations {
+                            db.run_migrations::<Migrator>().await?;
+                        }
+
+                        Ok(db)
                     }
+                }
 
-                    impl DatabaseConfig {
-                        pub async fn build(
-                            &self,
-                            run_migrations: bool,
-                        ) -> Result<Database, DatabaseError> {
-                            let db = Database::builder()
-                                .with_primary(self.primary.clone())
-                                .with_replicas(self.replicas.clone())
-                                .with_options(self.options.clone())
-                                .build()
-                                .await?;
-
-                            if run_migrations {
-                                db.run_migrations::<Migrator>().await?;
-                            }
-
-                            Ok(db)
+                impl Default for DatabaseConfig {
+                    fn default() -> Self {
+                        DatabaseConfig {
+                            primary: "sqlite://database.db?mode=rwc".to_string(),
+                            replicas: vec![],
+                            options: DatabaseOptions::default(),
+                            auto_migrate: true,
                         }
                     }
-
-                    impl Default for DatabaseConfig {
-                        fn default() -> Self {
-                            DatabaseConfig {
-                                primary: "sqlite://database.db?mode=rwc".to_string(),
-                                replicas: vec![],
-                                options: DatabaseOptions::default(),
-                                auto_migrate: true,
-                            }
-                        }
-                    }
-                })
-                .fields(quote! {
-                    pub database: DatabaseConfig,
-                }),
-        ])
+                }
+            })
+            .fields(quote! {
+                pub database: DatabaseConfig,
+            })])
         .map_err(|error| GeneratorError::unexpected(error.to_string()))
     }
 }
@@ -109,9 +107,7 @@ impl Fragment<ResolvedContext> for DatabaseSection {
             | "config::sections::types"
             | "config::sections::fields"
             | "config::sections::loader"
-            | "config::sections::mapper" => {
-                Ok(ErasedContributionValue::new(self.section()?))
-            }
+            | "config::sections::mapper" => Ok(ErasedContributionValue::new(self.section()?)),
             "cargo::dependencies" => Ok(ErasedContributionValue::new(
                 CargoDependencies::from_entries([CargoDependencyContribution::runtime(
                     RuntimeDependencyContribution::new("agentc-database"),
@@ -170,8 +166,18 @@ mod tests {
             .get(&DatabaseSection::NAME)
             .expect("database section is contributed");
 
-        assert!(section.types.as_str().contains("pub struct DatabaseConfig"));
-        assert!(section.types.as_str().contains("auto_migrate : true"));
+        assert!(
+            section
+                .types
+                .as_str()
+                .contains("pub struct DatabaseConfig")
+        );
+        assert!(
+            section
+                .types
+                .as_str()
+                .contains("auto_migrate : true")
+        );
         assert!(
             section
                 .fields

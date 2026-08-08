@@ -38,27 +38,25 @@ impl NetworkSection {
     }
 
     fn section(&self) -> Result<ConfigSections, GeneratorError> {
-        ConfigSections::from_entries([
-            ConfigSectionContribution::new(Self::NAME)
-                .uses(quote! {
-                    use agentc_http::client::{HttpClient, HttpClientBuilder};
-                })
-                .types(quote! {
-                    #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-                    #[serde(default)]
-                    pub struct NetworkConfig {}
+        ConfigSections::from_entries([ConfigSectionContribution::new(Self::NAME)
+            .uses(quote! {
+                use agentc_http::client::{HttpClient, HttpClientBuilder};
+            })
+            .types(quote! {
+                #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+                #[serde(default)]
+                pub struct NetworkConfig {}
 
-                    impl NetworkConfig {
-                        /// Returns an unbuilt client so each consumer can build on its own runtime.
-                        pub fn builder(&self) -> HttpClientBuilder {
-                            HttpClient::builder()
-                        }
+                impl NetworkConfig {
+                    /// Returns an unbuilt client so each consumer can build on its own runtime.
+                    pub fn builder(&self) -> HttpClientBuilder {
+                        HttpClient::builder()
                     }
-                })
-                .fields(quote! {
-                    pub network: NetworkConfig,
-                }),
-        ])
+                }
+            })
+            .fields(quote! {
+                pub network: NetworkConfig,
+            })])
         .map_err(|error| GeneratorError::unexpected(error.to_string()))
     }
 }
@@ -74,9 +72,7 @@ impl Fragment<ResolvedContext> for NetworkSection {
             | "config::sections::types"
             | "config::sections::fields"
             | "config::sections::loader"
-            | "config::sections::mapper" => {
-                Ok(ErasedContributionValue::new(self.section()?))
-            }
+            | "config::sections::mapper" => Ok(ErasedContributionValue::new(self.section()?)),
             "cargo::dependencies" => Ok(ErasedContributionValue::new(
                 CargoDependencies::from_entries([CargoDependencyContribution::runtime(
                     RuntimeDependencyContribution::new("agentc-http")

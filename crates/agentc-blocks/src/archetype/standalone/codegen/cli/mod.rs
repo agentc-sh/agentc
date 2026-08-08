@@ -126,5 +126,4 @@ mod tests {
         assert!(source.contains("Config (config :: ConfigArgs)"));
         assert!(source.contains("Command :: Config (args) => config :: config (args)"));
     }
-
 }

@@ -126,13 +126,9 @@ pub struct RenderedTokenStream(String);
 
 impl RenderedTokenStream {
     pub fn tokens(&self) -> Result<TokenStream, GeneratorError> {
-        self.0
-            .parse()
-            .map_err(|error| {
-                GeneratorError::unexpected(format!(
-                    "rendered token stream is not valid Rust: {error}",
-                ))
-            })
+        self.0.parse().map_err(|error| {
+            GeneratorError::unexpected(format!("rendered token stream is not valid Rust: {error}",))
+        })
     }
 
     pub fn as_str(&self) -> &str {
