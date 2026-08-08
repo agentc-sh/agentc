@@ -26,14 +26,20 @@ You should see:
  ✓ Created math
 ```
 
-This creates a `math/` directory with a `package.json`, a `tsconfig.json`, and a `src/index.ts` entry
-point, with the tool development kit already configured. Install its dependencies:
+This creates a `math/` directory with a `package.json`, a `tsconfig.json`, a `src/index.ts` entry
+point, and a `src/agentc-env.d.ts`, with the tool development kit and the runtime type declarations
+already configured. That last file is one line, and it is what tells your editor the shape of
+everything the host provides to tool code. Install the dependencies:
 
 ```bash
 cd math
 pnpm install
 cd ..
 ```
+
+We use pnpm rather than npm, because the scaffolded `package.json` declares the packageManager should use `pnpm`.
+The compiler installs with whichever manager that field names, so the two stay in step.
+See [Write a tool](/guides/write-a-tool) if you would rather use npm.
 
 ## Write the tool
 

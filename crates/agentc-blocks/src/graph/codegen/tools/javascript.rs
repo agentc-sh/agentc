@@ -5,10 +5,7 @@
 use convert_case::{Case, Casing};
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
-use std::{
-    collections::{HashMap, HashSet},
-    path::PathBuf,
-};
+use std::{collections::HashMap, path::PathBuf};
 
 use agentc_compiler::generator::{
     blocks::{codegen::ToIdent, template::TemplateFragment},
@@ -45,7 +42,7 @@ impl ToolCodeGen for JavascriptTools<'_> {
             quote! {
                 use agentc_executor_typescript::executor::Executor;
                 use agentc_http::client::typescript::ExecutorBuilderHttpExt;
-                use agentc_tools::javascript::{ExecutorBuilderToolExt, JavascriptTool};
+                use agentc_tools::javascript::JavascriptTool;
             }
         })
     }
@@ -75,25 +72,6 @@ impl ToolCodeGen for JavascriptTools<'_> {
             let executor_ident =
                 Ident::new(&format!("js_executor_{}", bundle_path.to_ident()), Span::call_site());
 
-            // Union of capability strings across all tools sharing this bundle.
-            let caps = {
-                let mut seen = HashSet::new();
-                ctx.tools
-                    .iter()
-                    .filter(|(_, t)| {
-                        matches!(&t.kind, ResolvedContextToolKind::Javascript(js) if js.bundle_path == *bundle_path)
-                    })
-                    .flat_map(|(_, t)| t.capabilities.iter().map(String::as_str))
-                    .filter(|c| seen.insert(*c))
-                    .collect::<Vec<_>>()
-            };
-
-            let caps_call = if caps.is_empty() {
-                quote! {}
-            } else {
-                quote! { .with_tool_capabilities([#(#caps),*]) }
-            };
-
             registrations.push(quote! {
                 #[allow(non_snake_case, nonstandard_style)]
                 let #executor_ident = Executor::builder(#bundle_path, include_str!(#bundle_path))
@@ -101,7 +79,6 @@ impl ToolCodeGen for JavascriptTools<'_> {
                     .queue_capacity(32)
                     .standard_environment()
                     .with_http(config.network.builder())
-                    #caps_call
                     .cancellation(shutdown.clone())
                     .build()
                     .await?;
@@ -385,34 +362,6 @@ mod tests {
     }
 
     #[test]
-    fn package_capabilities_are_unioned_across_shared_exports() {
-        let ctx = JavascriptToolsFixture::context([
-            JavascriptToolsFixture::tool(
-                "search",
-                "/artifacts/pkg/dist/index.js",
-                "search",
-                ["network"],
-            ),
-            JavascriptToolsFixture::tool(
-                "read",
-                "/artifacts/pkg/dist/index.js",
-                "read",
-                ["filesystem::read"],
-            ),
-        ]);
-        let registrations = JavascriptToolsFixture::registrations(&ctx);
-
-        assert_eq!(
-            registrations
-                .matches(". with_tool_capabilities (")
-                .count(),
-            1
-        );
-        assert!(registrations.contains("\"network\""));
-        assert!(registrations.contains("\"filesystem::read\""));
-    }
-
-    #[test]
     fn each_tool_reports_only_its_own_capabilities() {
         let ctx = JavascriptToolsFixture::context([JavascriptToolsFixture::tool(
             "search",
@@ -454,7 +403,6 @@ mod tests {
 
         assert!(imports.contains("agentc_executor_typescript :: executor :: Executor"));
         assert!(imports.contains("ExecutorBuilderHttpExt"));
-        assert!(imports.contains("ExecutorBuilderToolExt"));
         assert!(imports.contains("JavascriptTool"));
     }
 
