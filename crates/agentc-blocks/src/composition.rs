@@ -7,9 +7,9 @@ use std::collections::HashMap;
 use agentc_compiler::{generator::blocks::Block, toolchain::traits::ErasedToolchain};
 
 use crate::{
-    archetype::types::ResolvedArchetype, context::ResolvedContext, errors::BlocksError,
-    feature::GenerationFeatureSet, graph::types::ResolvedGraph, protocol::types::ResolvedProtocol,
-    runtime::EmbeddedAsset,
+    archetype::types::ResolvedArchetype, baseline::Baseline, context::ResolvedContext,
+    errors::BlocksError, feature::GenerationFeatureSet, graph::types::ResolvedGraph,
+    protocol::types::ResolvedProtocol, runtime::EmbeddedAsset,
 };
 
 pub struct GenerationContribution {
@@ -56,16 +56,6 @@ impl Default for GenerationContribution {
     }
 }
 
-pub struct OptionalGenerationContribution {
-    pub contribution: GenerationContribution,
-}
-
-impl OptionalGenerationContribution {
-    pub fn new(contribution: GenerationContribution) -> Self {
-        Self { contribution }
-    }
-}
-
 pub struct CompositionInput {
     pub archetype: ResolvedArchetype,
     pub graph: ResolvedGraph,
@@ -99,6 +89,7 @@ impl Composer {
             .collect::<Vec<_>>();
         let toolchain = input.archetype.toolchain;
         let mut archetype_contribution = input.archetype.contribution;
+        let mut baseline = Baseline::resolve()?;
         let mut graph_contribution = input.graph.contribution;
 
         let mut blocks = Vec::new();
@@ -115,6 +106,26 @@ impl Composer {
             &mut embedded_asset_names,
             &mut provided,
         )?;
+
+        Self::apply_required_contribution(
+            "baseline",
+            "baseline",
+            &mut baseline.contribution,
+            &mut blocks,
+            &mut embedded_assets,
+            &mut embedded_asset_names,
+            &mut provided,
+        )?;
+
+        for integration in &mut baseline.integrations {
+            Self::apply_optional_contribution(
+                integration,
+                &mut blocks,
+                &mut embedded_assets,
+                &mut embedded_asset_names,
+                &mut provided,
+            )?;
+        }
 
         Self::apply_required_contribution(
             "graph",
@@ -139,20 +150,13 @@ impl Composer {
         }
 
         for integration in &mut input.graph.integrations {
-            if integration
-                .contribution
-                .requires
-                .missing_requirements(&provided)
-                .is_empty()
-            {
-                Self::apply_contribution(
-                    &mut integration.contribution,
-                    &mut blocks,
-                    &mut embedded_assets,
-                    &mut embedded_asset_names,
-                    &mut provided,
-                )?;
-            }
+            Self::apply_optional_contribution(
+                integration,
+                &mut blocks,
+                &mut embedded_assets,
+                &mut embedded_asset_names,
+                &mut provided,
+            )?;
         }
 
         blocks.extend(input.blocks);
@@ -185,6 +189,32 @@ impl Composer {
                 "{component} {name:?} requires missing generation features: {}",
                 missing.join(", "),
             )));
+        }
+
+        Self::apply_contribution(
+            contribution,
+            blocks,
+            embedded_assets,
+            embedded_asset_names,
+            provided,
+        )
+    }
+
+    /// Applies the contribution if its requirements are already provided, and silently
+    /// skips it if they are not.
+    fn apply_optional_contribution(
+        contribution: &mut GenerationContribution,
+        blocks: &mut Vec<Box<dyn Block<ResolvedContext>>>,
+        embedded_assets: &mut Vec<&'static EmbeddedAsset>,
+        embedded_asset_names: &mut HashMap<&'static str, &'static EmbeddedAsset>,
+        provided: &mut GenerationFeatureSet,
+    ) -> Result<(), BlocksError> {
+        if !contribution
+            .requires
+            .missing_requirements(provided)
+            .is_empty()
+        {
+            return Ok(());
         }
 
         Self::apply_contribution(
@@ -364,7 +394,7 @@ mod tests {
 
     fn graph(
         contribution: GenerationContribution,
-        integrations: Vec<OptionalGenerationContribution>,
+        integrations: Vec<GenerationContribution>,
     ) -> ResolvedGraph {
         ResolvedGraph {
             name: "react".to_string(),
@@ -375,6 +405,17 @@ mod tests {
 
     fn protocol(contribution: GenerationContribution) -> ResolvedProtocol {
         ResolvedProtocol { name: "ag_ui".to_string(), contribution }
+    }
+
+    /// The composed block ids with the unconditional baseline blocks removed, so that a test
+    /// about graph and protocol ordering does not restate the baseline's contents.
+    fn ids_without_baseline(composed: &ComposedGeneration) -> Vec<String> {
+        composed
+            .blocks
+            .iter()
+            .map(|block| block.id().to_string())
+            .filter(|id| !id.starts_with("baseline_"))
+            .collect()
     }
 
     fn provides<T>() -> GenerationFeatureSet
@@ -398,9 +439,7 @@ mod tests {
                 ),
                 graph: graph(
                     GenerationContribution::new().with_blocks(vec![block("graph")]),
-                    vec![OptionalGenerationContribution::new(
-                        GenerationContribution::new().with_blocks(vec![block("integration")]),
-                    )],
+                    vec![GenerationContribution::new().with_blocks(vec![block("integration")])],
                 ),
                 protocols: vec![protocol(
                     GenerationContribution::new().with_blocks(vec![block("protocol")]),
@@ -415,7 +454,52 @@ mod tests {
             .map(|block| block.id().to_string())
             .collect::<Vec<_>>();
 
-        assert_eq!(ids, vec!["archetype", "graph", "protocol", "integration", "custom"],);
+        assert_eq!(
+            ids,
+            vec![
+                "archetype",
+                "baseline_network_section",
+                "baseline_mcp_section",
+                "baseline_a2a_section",
+                "baseline_mcp_agent",
+                "baseline_a2a_agent",
+                "graph",
+                "protocol",
+                "integration",
+                "custom",
+            ],
+        );
+    }
+
+    #[test]
+    fn baseline_blocks_are_composed_after_the_archetype() {
+        let ids = Composer::new()
+            .compose(CompositionInput {
+                archetype: archetype(
+                    GenerationContribution::new().with_blocks(vec![block("config_rs")]),
+                    true,
+                ),
+                graph: graph(
+                    GenerationContribution::new().with_blocks(vec![block("agent_rs")]),
+                    Vec::new(),
+                ),
+                protocols: Vec::new(),
+                blocks: Vec::new(),
+            })
+            .unwrap()
+            .blocks
+            .iter()
+            .map(|block| block.id().to_string())
+            .collect::<Vec<_>>();
+
+        let position = |id: &str| {
+            ids.iter()
+                .position(|candidate| candidate == id)
+                .unwrap_or_else(|| panic!("{id} is composed"))
+        };
+
+        assert!(position("config_rs") < position("baseline_network_section"));
+        assert!(position("baseline_network_section") < position("agent_rs"));
     }
 
     #[test]
@@ -425,11 +509,11 @@ mod tests {
                 archetype: archetype(GenerationContribution::new(), true),
                 graph: graph(
                     GenerationContribution::new().with_blocks(vec![block("graph")]),
-                    vec![OptionalGenerationContribution::new(
+                    vec![
                         GenerationContribution::new()
                             .with_blocks(vec![block("integration")])
                             .with_requires(provides::<ProtocolAgUi>()),
-                    )],
+                    ],
                 ),
                 protocols: vec![protocol(
                     GenerationContribution::new().with_provides(provides::<ProtocolAgUi>()),
@@ -438,14 +522,7 @@ mod tests {
             })
             .unwrap();
 
-        assert_eq!(
-            composed
-                .blocks
-                .iter()
-                .map(|block| block.id().to_string())
-                .collect::<Vec<_>>(),
-            vec!["graph", "integration"],
-        );
+        assert_eq!(ids_without_baseline(&composed), vec!["graph", "integration"]);
     }
 
     #[test]
@@ -470,24 +547,18 @@ mod tests {
                 archetype: archetype(GenerationContribution::new(), true),
                 graph: graph(
                     GenerationContribution::new().with_blocks(vec![block("graph")]),
-                    vec![OptionalGenerationContribution::new(
+                    vec![
                         GenerationContribution::new()
                             .with_blocks(vec![block("integration")])
                             .with_requires(provides::<HttpServer>()),
-                    )],
+                    ],
                 ),
                 protocols: Vec::new(),
                 blocks: Vec::new(),
             })
             .unwrap();
 
-        let ids = composed
-            .blocks
-            .iter()
-            .map(|block| block.id().to_string())
-            .collect::<Vec<_>>();
-
-        assert_eq!(ids, vec!["graph"]);
+        assert_eq!(ids_without_baseline(&composed), vec!["graph"]);
     }
 
     #[test]

@@ -15,12 +15,12 @@ use agentc_compiler::generator::{
 };
 
 use crate::{
+    config::fields::FieldsSpec,
     context::{ResolvedContext, ResolvedContextToolJavascript, ResolvedContextToolKind},
     contributions::dependency::{
         CargoDependencies, CargoDependencyContribution, CargoPatchContribution, CargoPatches,
         RuntimeDependencyContribution,
     },
-    fields::FieldsSpec,
     graph::codegen::tools::ToolCodeGen,
 };
 

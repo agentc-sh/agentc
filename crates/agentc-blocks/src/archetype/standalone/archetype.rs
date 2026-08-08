@@ -23,8 +23,8 @@ use crate::{
         standalone::codegen::{
             build_script::BuildScriptCodeGen,
             cargo::{
-                A2aClientCargoFragment, CargoDependenciesExtensionPoint,
-                CargoPatchesExtensionPoint, HttpClientCargoFragment, HttpServerCargoFragment,
+                CargoDependenciesExtensionPoint, CargoPatchesExtensionPoint,
+                HttpServerCargoFragment,
             },
             cli::{
                 CliModCodeGen, config::CliConfigCodeGen, migrate::CliMigrateCodeGen,
@@ -39,11 +39,14 @@ use crate::{
         types::ResolvedArchetype,
     },
     composition::GenerationContribution,
+    config::{
+        fields::FieldsSpec,
+        sections::{contribution::ConfigSectionSlot, point::ConfigSectionsExtensionPoint},
+    },
     context::ResolvedContext,
     contributions::dependency::{CargoDependencies, CargoPatches},
     errors::BlocksError,
     feature::{ArchetypeStandalone, Cli, GenerationFeatureSet, HttpServer, LongLivedProcess},
-    fields::FieldsSpec,
     graph::codegen::prompt::PromptCargoFragment,
     runtime::EMBEDDED_RUNTIME,
 };
@@ -195,24 +198,10 @@ impl Archetype for StandaloneArchetype {
             )
             .add(
                 FragmentBlock::builder()
-                    .id("a2a_client_cargo")
-                    .contribute(Contribution::<CargoDependencies>::strict("cargo::dependencies"))
-                    .contribute(Contribution::<CargoPatches>::strict("cargo::patches"))
-                    .build(A2aClientCargoFragment),
-            )
-            .add(
-                FragmentBlock::builder()
                     .id("prompt_cargo")
                     .contribute(Contribution::<CargoDependencies>::strict("cargo::dependencies"))
                     .contribute(Contribution::<CargoPatches>::strict("cargo::patches"))
                     .build(PromptCargoFragment),
-            )
-            .add(
-                FragmentBlock::builder()
-                    .id("http_client_cargo")
-                    .contribute(Contribution::<CargoDependencies>::strict("cargo::dependencies"))
-                    .contribute(Contribution::<CargoPatches>::strict("cargo::patches"))
-                    .build(HttpClientCargoFragment),
             )
             .add(
                 CodeGenBlock::builder()
@@ -229,6 +218,26 @@ impl Archetype for StandaloneArchetype {
                     .extension_point("config::impls", reducers::concat)
                     .extension_point("config::loader", reducers::concat)
                     .extension_point("config::mapper", reducers::concat)
+                    .typed_extension_point(ConfigSectionsExtensionPoint::new(
+                        "config::sections::use",
+                        ConfigSectionSlot::Use,
+                    ))
+                    .typed_extension_point(ConfigSectionsExtensionPoint::new(
+                        "config::sections::types",
+                        ConfigSectionSlot::Types,
+                    ))
+                    .typed_extension_point(ConfigSectionsExtensionPoint::new(
+                        "config::sections::fields",
+                        ConfigSectionSlot::Fields,
+                    ))
+                    .typed_extension_point(ConfigSectionsExtensionPoint::new(
+                        "config::sections::loader",
+                        ConfigSectionSlot::Loader,
+                    ))
+                    .typed_extension_point(ConfigSectionsExtensionPoint::new(
+                        "config::sections::mapper",
+                        ConfigSectionSlot::Mapper,
+                    ))
                     .build(ConfigCodeGen { fields: fields.clone() }),
             )
             .add(
@@ -458,36 +467,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn contributes_a2a_client_dependency_without_declared_a2a_tool() {
-        let resolved = StandaloneArchetype
-            .resolve(context(None), StandaloneArchetypeConfig::default())
-            .unwrap();
-
-        let dependencies = resolved
-            .contribution
-            .blocks
-            .iter()
-            .find(|block| block.id() == "a2a_client_cargo")
-            .expect("a2a client cargo block is registered")
-            .render_contribution(&GenerationContext::new(context(None)), "cargo::dependencies")
-            .await
-            .unwrap()
-            .downcast::<CargoDependencies>()
-            .unwrap();
-
-        assert_eq!(dependencies.len(), 1);
-        assert!(matches!(
-            dependencies
-                .get(&"agentc-protocol-a2a")
-                .unwrap(),
-            CargoDependencyContribution::Runtime(dependency)
-                if dependency.default_features == Some(false)
-                    && dependency.features.len() == 1
-                    && dependency.features.contains("client")
-        ));
-    }
-
-    #[tokio::test]
     async fn generated_cargo_toml_includes_a2a_client_dependency() {
         let resolved = StandaloneArchetype
             .resolve(context(None), StandaloneArchetypeConfig::default())
@@ -586,36 +565,6 @@ mod tests {
             "agentc-tools = {{ version = \"{}\", default-features = false, features = [\"python-static\"] }}",
             env!("CARGO_PKG_VERSION"),
         )));
-    }
-
-    #[tokio::test]
-    async fn contributes_the_http_client_dependency_unconditionally() {
-        let resolved = StandaloneArchetype
-            .resolve(context(None), StandaloneArchetypeConfig::default())
-            .unwrap();
-
-        let dependencies = resolved
-            .contribution
-            .blocks
-            .iter()
-            .find(|block| block.id() == "http_client_cargo")
-            .expect("http client cargo block is registered")
-            .render_contribution(&GenerationContext::new(context(None)), "cargo::dependencies")
-            .await
-            .unwrap()
-            .downcast::<CargoDependencies>()
-            .unwrap();
-
-        assert_eq!(dependencies.len(), 1);
-        assert!(matches!(
-            dependencies
-                .get(&"agentc-http")
-                .unwrap(),
-            CargoDependencyContribution::Runtime(dependency)
-                if dependency.default_features == Some(false)
-                    && dependency.features.len() == 1
-                    && dependency.features.contains("client")
-        ));
     }
 
     #[test]

@@ -11,6 +11,7 @@ use agentc_compiler::generator::{
 };
 
 use crate::{
+    config::fields::FieldsSpec,
     context::{
         ResolvedContext, ResolvedContextAgentPromptMessage, ResolvedContextAgentPromptMessageRole,
         ResolvedContextAgentPromptSource, ResolvedContextAgentPromptSourceLangfuse,
@@ -19,7 +20,6 @@ use crate::{
         CargoDependencies, CargoDependencyContribution, CargoPatchContribution, CargoPatches,
         RuntimeDependencyContribution,
     },
-    fields::FieldsSpec,
 };
 
 /// Generates the `PromptSource` argument wired into `with_prompt_source`.

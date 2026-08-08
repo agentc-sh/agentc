@@ -5,16 +5,73 @@
 use proc_macro2::TokenStream;
 use quote::quote;
 
+use agentc_compiler::generator::{
+    blocks::fragment::{Fragment, FragmentBlock},
+    context::GenerationContext,
+    errors::GeneratorError,
+    extension::ErasedContributionValue,
+};
+
 use crate::{
+    config::sections::{
+        block::ConfigSectionBlockBuilderExt,
+        contribution::{ConfigSectionContribution, ConfigSections},
+    },
     context::{ResolvedContext, ResolvedContextToolKind, ResolvedContextToolMcpTransport},
     types::RuntimeValue,
 };
 
-/// Generates the config loader calls and mapper fields for MCP server tools.
-pub struct McpCodeGen;
+pub struct McpSection;
 
-impl McpCodeGen {
-    pub fn loader_calls(ctx: &ResolvedContext) -> TokenStream {
+impl McpSection {
+    pub const NAME: &'static str = "mcp";
+
+    pub fn block(id: &'static str) -> FragmentBlock<ResolvedContext> {
+        FragmentBlock::<ResolvedContext>::builder()
+            .id(id)
+            .contribute_config_sections()
+            .build(Self)
+    }
+
+    fn section(&self, ctx: &ResolvedContext) -> Result<ConfigSections, GeneratorError> {
+        ConfigSections::from_entries([
+            ConfigSectionContribution::new(Self::NAME)
+                .types(quote! {
+                    #[derive(Debug, Clone, Serialize, Deserialize)]
+                    #[serde(tag = "type", rename_all = "snake_case")]
+                    pub enum McpTransportConfig {
+                        Stdio {
+                            command: String,
+                            #[serde(default)]
+                            args: Vec<String>,
+                            #[serde(default)]
+                            env: HashMap<String, String>,
+                        },
+                        Http {
+                            url: String,
+                            #[serde(default)]
+                            auth_token: Option<String>,
+                            #[serde(default)]
+                            headers: HashMap<String, String>,
+                        },
+                    }
+
+                    #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+                    #[serde(default)]
+                    pub struct McpConfig {
+                        pub servers: HashMap<String, McpTransportConfig>,
+                    }
+                })
+                .fields(quote! {
+                    pub mcp: McpConfig,
+                })
+                .loader(Self::loader_calls(ctx))
+                .mapper(Self::mapper_fields(ctx)),
+        ])
+        .map_err(|error| GeneratorError::unexpected(error.to_string()))
+    }
+
+    fn loader_calls(ctx: &ResolvedContext) -> TokenStream {
         let mut calls = Vec::<TokenStream>::new();
 
         for (name, tool) in &ctx.tools {
@@ -83,7 +140,7 @@ impl McpCodeGen {
         quote! { #(#calls)* }
     }
 
-    pub fn mapper_fields(ctx: &ResolvedContext) -> TokenStream {
+    fn mapper_fields(ctx: &ResolvedContext) -> TokenStream {
         let mut fields = Vec::<TokenStream>::new();
 
         for (name, tool) in &ctx.tools {
@@ -219,6 +276,25 @@ impl McpCodeGen {
             fields.push(quote! {
                 .field(path![#(#base_segments),*, #index], #env)
             });
+        }
+    }
+}
+
+impl Fragment<ResolvedContext> for McpSection {
+    fn generate_contribution(
+        &self,
+        ctx: &GenerationContext<ResolvedContext>,
+        point: &str,
+    ) -> Result<ErasedContributionValue, GeneratorError> {
+        match point {
+            "config::sections::use"
+            | "config::sections::types"
+            | "config::sections::fields"
+            | "config::sections::loader"
+            | "config::sections::mapper" => {
+                Ok(ErasedContributionValue::new(self.section(ctx.as_inner())?))
+            }
+            _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
     }
 }

@@ -17,7 +17,8 @@ use agentc_compiler::generator::{
 };
 
 use crate::{
-    composition::{GenerationContribution, OptionalGenerationContribution},
+    composition::GenerationContribution,
+    config::fields::FieldsSpec,
     context::ResolvedContext,
     contributions::dependency::{CargoDependencies, CargoPatches},
     errors::BlocksError,
@@ -25,7 +26,6 @@ use crate::{
         GenerationFeatureSet, GraphReAct, HttpServer, ProtocolA2a, ProtocolAgUi, Streaming,
         SupportsA2a, SupportsAgUi,
     },
-    fields::FieldsSpec,
     graph::{
         codegen::tools::javascript::{HttpTypescriptCargoFragment, JavascriptToolCargoFragment},
         react::{
@@ -135,88 +135,82 @@ impl AgentGraph for ReActGraph {
 
         let core_blocks = core_blocks.into_inner();
 
-        let server_integration = OptionalGenerationContribution::new(
-            GenerationContribution::new()
-                .with_blocks(
-                    BlockSet::new()
-                        .add(
-                            CodeGenBlock::builder()
-                                .id("server_rs")
-                                .extension_point("server::use", reducers::concat)
-                                .extension_point("server::routers", reducers::concat)
-                                .contribute(Contribution::<String>::strict("main::modules"))
-                                .build(ServerCodeGen { fields: fields.clone() }),
-                        )
-                        .add(
-                            CodeGenBlock::builder()
-                                .id("cli_serve")
-                                .contribute(Contribution::<String>::strict("cli::mod::use"))
-                                .contribute(Contribution::<String>::strict("cli::mod::variants"))
-                                .contribute(Contribution::<String>::strict("cli::mod::arms"))
-                                .build(CliServeCodeGen),
-                        )
-                        .add(
-                            FragmentBlock::builder()
-                                .id("react_api_cargo")
-                                .contribute(Contribution::<CargoDependencies>::strict(
-                                    "cargo::dependencies",
-                                ))
-                                .build(ReActFeatureCargoFragment::new("api")),
-                        )
-                        .add(
-                            FragmentBlock::builder()
-                                .id("react_server_cargo")
-                                .contribute(Contribution::<CargoDependencies>::strict(
-                                    "cargo::dependencies",
-                                ))
-                                .build(ReActServerCargoFragment),
-                        )
-                        .into_inner(),
-                )
-                .with_requires(GenerationFeatureSet::new().with::<HttpServer>()),
-        );
+        let server_integration = GenerationContribution::new()
+            .with_blocks(
+                BlockSet::new()
+                    .add(
+                        CodeGenBlock::builder()
+                            .id("server_rs")
+                            .extension_point("server::use", reducers::concat)
+                            .extension_point("server::routers", reducers::concat)
+                            .contribute(Contribution::<String>::strict("main::modules"))
+                            .build(ServerCodeGen { fields: fields.clone() }),
+                    )
+                    .add(
+                        CodeGenBlock::builder()
+                            .id("cli_serve")
+                            .contribute(Contribution::<String>::strict("cli::mod::use"))
+                            .contribute(Contribution::<String>::strict("cli::mod::variants"))
+                            .contribute(Contribution::<String>::strict("cli::mod::arms"))
+                            .build(CliServeCodeGen),
+                    )
+                    .add(
+                        FragmentBlock::builder()
+                            .id("react_api_cargo")
+                            .contribute(Contribution::<CargoDependencies>::strict(
+                                "cargo::dependencies",
+                            ))
+                            .build(ReActFeatureCargoFragment::new("api")),
+                    )
+                    .add(
+                        FragmentBlock::builder()
+                            .id("react_server_cargo")
+                            .contribute(Contribution::<CargoDependencies>::strict(
+                                "cargo::dependencies",
+                            ))
+                            .build(ReActServerCargoFragment),
+                    )
+                    .into_inner(),
+            )
+            .with_requires(GenerationFeatureSet::new().with::<HttpServer>());
 
-        let ag_ui_integration = OptionalGenerationContribution::new(
-            GenerationContribution::new()
-                .with_blocks(
-                    BlockSet::new()
-                        .add(
-                            FragmentBlock::builder()
-                                .id("react_ag_ui_cargo")
-                                .contribute(Contribution::<CargoDependencies>::strict(
-                                    "cargo::dependencies",
-                                ))
-                                .build(ReActFeatureCargoFragment::new("ag-ui")),
-                        )
-                        .into_inner(),
-                )
-                .with_requires(
-                    GenerationFeatureSet::new()
-                        .with::<HttpServer>()
-                        .with::<ProtocolAgUi>(),
-                ),
-        );
+        let ag_ui_integration = GenerationContribution::new()
+            .with_blocks(
+                BlockSet::new()
+                    .add(
+                        FragmentBlock::builder()
+                            .id("react_ag_ui_cargo")
+                            .contribute(Contribution::<CargoDependencies>::strict(
+                                "cargo::dependencies",
+                            ))
+                            .build(ReActFeatureCargoFragment::new("ag-ui")),
+                    )
+                    .into_inner(),
+            )
+            .with_requires(
+                GenerationFeatureSet::new()
+                    .with::<HttpServer>()
+                    .with::<ProtocolAgUi>(),
+            );
 
-        let a2a_integration = OptionalGenerationContribution::new(
-            GenerationContribution::new()
-                .with_blocks(
-                    BlockSet::new()
-                        .add(
-                            FragmentBlock::builder()
-                                .id("react_a2a_cargo")
-                                .contribute(Contribution::<CargoDependencies>::strict(
-                                    "cargo::dependencies",
-                                ))
-                                .build(ReActFeatureCargoFragment::new("a2a")),
-                        )
-                        .into_inner(),
-                )
-                .with_requires(
-                    GenerationFeatureSet::new()
-                        .with::<HttpServer>()
-                        .with::<ProtocolA2a>(),
-                ),
-        );
+        let a2a_integration = GenerationContribution::new()
+            .with_blocks(
+                BlockSet::new()
+                    .add(
+                        FragmentBlock::builder()
+                            .id("react_a2a_cargo")
+                            .contribute(Contribution::<CargoDependencies>::strict(
+                                "cargo::dependencies",
+                            ))
+                            .build(ReActFeatureCargoFragment::new("a2a")),
+                    )
+                    .into_inner(),
+            )
+            .with_requires(
+                GenerationFeatureSet::new()
+                    .with::<HttpServer>()
+                    .with::<ProtocolA2a>(),
+            );
 
         Ok(ResolvedGraph {
             name: self.name().to_string(),
@@ -311,19 +305,16 @@ mod tests {
         assert_eq!(resolved.integrations.len(), 3);
         assert!(
             resolved.integrations[0]
-                .contribution
                 .requires
                 .contains::<HttpServer>()
         );
         assert!(
             resolved.integrations[1]
-                .contribution
                 .requires
                 .contains::<ProtocolAgUi>()
         );
         assert!(
             resolved.integrations[2]
-                .contribution
                 .requires
                 .contains::<ProtocolA2a>()
         );
@@ -336,7 +327,6 @@ mod tests {
             .unwrap();
 
         let ids = resolved.integrations[0]
-            .contribution
             .blocks
             .iter()
             .map(|block| block.id().to_string())

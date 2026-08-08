@@ -12,66 +12,10 @@ use agentc_compiler::generator::{
 use crate::{
     context::ResolvedContext,
     contributions::dependency::{
-        CargoDependencies, CargoDependencyContribution, CargoPatchContribution, CargoPatches,
+        CargoDependencies, CargoDependencyContribution, CargoPatches,
         ExternalDependencyContribution, RuntimeDependencyContribution,
     },
 };
-
-pub struct A2aClientCargoFragment;
-
-impl Fragment<ResolvedContext> for A2aClientCargoFragment {
-    fn generate_contribution(
-        &self,
-        _ctx: &GenerationContext<ResolvedContext>,
-        point: &str,
-    ) -> Result<ErasedContributionValue, GeneratorError> {
-        match point {
-            "cargo::dependencies" => Ok(ErasedContributionValue::new(
-                CargoDependencies::from_entries([CargoDependencyContribution::runtime(
-                    RuntimeDependencyContribution::new("agentc-protocol-a2a")
-                        .default_features(false)
-                        .feature("client"),
-                )])
-                .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
-            )),
-            "cargo::patches" => Ok(ErasedContributionValue::new(
-                CargoPatches::from_entries([CargoPatchContribution::runtime(
-                    RuntimeDependencyContribution::new("agentc-protocol-a2a"),
-                )])
-                .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
-            )),
-            _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
-        }
-    }
-}
-
-pub struct HttpClientCargoFragment;
-
-impl Fragment<ResolvedContext> for HttpClientCargoFragment {
-    fn generate_contribution(
-        &self,
-        _ctx: &GenerationContext<ResolvedContext>,
-        point: &str,
-    ) -> Result<ErasedContributionValue, GeneratorError> {
-        match point {
-            "cargo::dependencies" => Ok(ErasedContributionValue::new(
-                CargoDependencies::from_entries([CargoDependencyContribution::runtime(
-                    RuntimeDependencyContribution::new("agentc-http")
-                        .default_features(false)
-                        .feature("client"),
-                )])
-                .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
-            )),
-            "cargo::patches" => Ok(ErasedContributionValue::new(
-                CargoPatches::from_entries([CargoPatchContribution::runtime(
-                    RuntimeDependencyContribution::new("agentc-http"),
-                )])
-                .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
-            )),
-            _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
-        }
-    }
-}
 
 pub struct HttpServerCargoFragment;
 
@@ -249,7 +193,7 @@ mod tests {
 
     use serde_json::json;
 
-    use crate::context::ResolvedContext;
+    use crate::{context::ResolvedContext, contributions::dependency::CargoPatchContribution};
 
     fn dependencies() -> CargoDependenciesExtensionPoint {
         CargoDependenciesExtensionPoint::new("cargo::dependencies", "0.2.1")
@@ -286,13 +230,13 @@ mod tests {
                 &dependencies(),
                 vec![
                     CargoDependencies::from_entries([CargoDependencyContribution::runtime(
-                        RuntimeDependencyContribution::new("agentc-protocol-a2a")
+                        RuntimeDependencyContribution::new("dep")
                             .default_features(false)
                             .feature("server"),
                     )])
                     .unwrap(),
                     CargoDependencies::from_entries([CargoDependencyContribution::runtime(
-                        RuntimeDependencyContribution::new("agentc-protocol-a2a")
+                        RuntimeDependencyContribution::new("dep")
                             .default_features(false)
                             .feature("client"),
                     )])
@@ -300,7 +244,7 @@ mod tests {
                 ],
             )
             .unwrap(),
-            "agentc-protocol-a2a = { version = \"0.2.1\", default-features = false, features = [\"client\", \"server\"] }",
+            "dep = { version = \"0.2.1\", default-features = false, features = [\"client\", \"server\"] }",
         );
     }
 
@@ -387,17 +331,17 @@ mod tests {
                 &CargoPatchesExtensionPoint::new("cargo::patches"),
                 vec![
                     CargoPatches::from_entries([CargoPatchContribution::runtime(
-                        RuntimeDependencyContribution::new("agentc-protocol-a2a").feature("server"),
+                        RuntimeDependencyContribution::new("dep").feature("server"),
                     )])
                     .unwrap(),
                     CargoPatches::from_entries([CargoPatchContribution::runtime(
-                        RuntimeDependencyContribution::new("agentc-protocol-a2a").feature("client"),
+                        RuntimeDependencyContribution::new("dep").feature("client"),
                     )])
                     .unwrap(),
                 ],
             )
             .unwrap(),
-            "agentc-protocol-a2a = { path = \"../runtime/agentc-protocol-a2a\" }",
+            "dep = { path = \"../runtime/dep\" }",
         );
     }
 
@@ -466,20 +410,20 @@ mod tests {
                 &dependencies(),
                 vec![
                     CargoDependencies::from_entries([CargoDependencyContribution::external(
-                        ExternalDependencyContribution::new("subway")
-                            .git("https://github.com/wizrds/subway-rs.git")
+                        ExternalDependencyContribution::new("dep")
+                            .git("https://example.com/dep.git")
                             .version("0.1.0")
                             .feature("redis"),
                     )])
                     .unwrap(),
                     CargoDependencies::from_entries([CargoDependencyContribution::external(
-                        ExternalDependencyContribution::new("subway").feature("tls"),
+                        ExternalDependencyContribution::new("dep").feature("tls"),
                     )])
                     .unwrap(),
                 ],
             )
             .unwrap(),
-            "subway = { git = \"https://github.com/wizrds/subway-rs.git\", version = \"0.1.0\", features = [\"redis\", \"tls\"] }",
+            "dep = { git = \"https://example.com/dep.git\", version = \"0.1.0\", features = [\"redis\", \"tls\"] }",
         );
     }
 
@@ -500,42 +444,6 @@ mod tests {
                 ],
             )
             .is_err()
-        );
-    }
-
-    #[test]
-    fn a2a_client_fragment_contributes_client_runtime_dependency() {
-        let dependencies = A2aClientCargoFragment
-            .generate_contribution(&context(), "cargo::dependencies")
-            .unwrap()
-            .downcast::<CargoDependencies>()
-            .unwrap();
-
-        assert_eq!(dependencies.len(), 1);
-        assert!(matches!(
-            dependencies
-                .get(&"agentc-protocol-a2a")
-                .unwrap(),
-            CargoDependencyContribution::Runtime(dependency)
-                if dependency.default_features == Some(false)
-                    && dependency.features.len() == 1
-                    && dependency.features.contains("client")
-        ));
-    }
-
-    #[test]
-    fn a2a_client_fragment_contributes_runtime_patch() {
-        let patches = A2aClientCargoFragment
-            .generate_contribution(&context(), "cargo::patches")
-            .unwrap()
-            .downcast::<CargoPatches>()
-            .unwrap();
-
-        assert_eq!(patches.len(), 1);
-        assert!(
-            patches
-                .get(&"agentc-protocol-a2a")
-                .is_some()
         );
     }
 }

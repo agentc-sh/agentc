@@ -13,8 +13,8 @@ use agentc_compiler::generator::{
 };
 
 use crate::{
+    config::fields::{FieldSpec, FieldValue, FieldsSpec},
     context::ResolvedContext,
-    fields::{FieldSpec, FieldValue, FieldsSpec},
 };
 
 enum StructNode {
@@ -247,6 +247,26 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
             .get("config::mapper")
             .and_then(|s| s.parse::<TokenStream>().ok());
 
+        let section_use = registry
+            .get("config::sections::use")
+            .and_then(|s| s.parse::<TokenStream>().ok());
+
+        let section_types = registry
+            .get("config::sections::types")
+            .and_then(|s| s.parse::<TokenStream>().ok());
+
+        let section_fields = registry
+            .get("config::sections::fields")
+            .and_then(|s| s.parse::<TokenStream>().ok());
+
+        let section_loader = registry
+            .get("config::sections::loader")
+            .and_then(|s| s.parse::<TokenStream>().ok());
+
+        let section_mapper = registry
+            .get("config::sections::mapper")
+            .and_then(|s| s.parse::<TokenStream>().ok());
+
         let tree = self
             .fields
             .iter()
@@ -287,6 +307,7 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
                 PrefixMapper::new("AGENT", "__")
                     #(#field_mappings)*
                     #extra_mapper
+                    #section_mapper
             )
         };
 
@@ -302,7 +323,6 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
                 database::DatabaseOptions,
                 errors::DatabaseError,
             };
-            use agentc_http::client::{HttpClient, HttpClientBuilder};
             use subway::{
                 Bus,
                 memory::InMemoryTransport,
@@ -312,6 +332,7 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
             use crate::migrator::Migrator;
 
             #extra_use
+            #section_use
 
             #[derive(Debug, Clone, Serialize, Deserialize)]
             #[serde(default)]
@@ -351,83 +372,6 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
             }
 
             #[derive(Debug, Clone, Serialize, Deserialize)]
-            #[serde(tag = "type", rename_all = "snake_case")]
-            pub enum McpTransportConfig {
-                Stdio {
-                    command: String,
-                    #[serde(default)]
-                    args: Vec<String>,
-                    #[serde(default)]
-                    env: HashMap<String, String>,
-                },
-                Http {
-                    url: String,
-                    #[serde(default)]
-                    auth_token: Option<String>,
-                    #[serde(default)]
-                    headers: HashMap<String, String>,
-                },
-            }
-
-            #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-            #[serde(default)]
-            pub struct McpConfig {
-                pub servers: HashMap<String, McpTransportConfig>,
-            }
-
-            #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-            #[serde(default)]
-            pub struct A2aConfig {
-                pub agents: HashMap<String, A2aAgentConfig>,
-            }
-
-            #[derive(Debug, Clone, Serialize, Deserialize)]
-            #[serde(default)]
-            pub struct A2aAgentConfig {
-                pub url: String,
-                pub auth_token: Option<String>,
-                pub headers: HashMap<String, String>,
-                pub tenant: A2aTenantConfig,
-                pub timeout_secs: u64,
-                pub default_accepted_output_modes: Vec<String>,
-                pub description: Option<String>,
-                pub capabilities: Vec<String>,
-                pub enabled: bool,
-            }
-
-            impl Default for A2aAgentConfig {
-                fn default() -> Self {
-                    A2aAgentConfig {
-                        url: String::new(),
-                        auth_token: None,
-                        headers: HashMap::new(),
-                        tenant: A2aTenantConfig::default(),
-                        timeout_secs: 60,
-                        default_accepted_output_modes: Vec::new(),
-                        description: None,
-                        capabilities: Vec::new(),
-                        enabled: true,
-                    }
-                }
-            }
-
-            #[derive(Debug, Clone, Serialize, Deserialize)]
-            #[serde(tag = "policy", rename_all = "snake_case")]
-            pub enum A2aTenantConfig {
-                Inherit,
-                None,
-                Fixed {
-                    id: String,
-                },
-            }
-
-            impl Default for A2aTenantConfig {
-                fn default() -> Self {
-                    A2aTenantConfig::Inherit
-                }
-            }
-
-            #[derive(Debug, Clone, Serialize, Deserialize)]
             #[serde(default)]
             pub struct TaskQueueConfig {
                 pub worker_count: usize,
@@ -444,17 +388,6 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
                         batch_size: 16,
                         batch_timeout_ms: 10,
                     }
-                }
-            }
-
-            #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-            #[serde(default)]
-            pub struct NetworkConfig {}
-
-            impl NetworkConfig {
-                /// Returns an unbuilt client so each consumer can build on its own runtime.
-                pub fn builder(&self) -> HttpClientBuilder {
-                    HttpClient::builder()
                 }
             }
 
@@ -500,17 +433,17 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
                 }
             }
 
+            #section_types
+
             #(#generated_structs)*
 
             #[derive(Debug, Clone, Serialize, Deserialize, Default)]
             #[serde(default)]
             pub struct Config {
                 pub database: DatabaseConfig,
-                pub mcp: McpConfig,
-                pub a2a: A2aConfig,
-                pub network: NetworkConfig,
                 pub task_queue: TaskQueueConfig,
                 pub pubsub: PubSubConfig,
+                #section_fields
                 #(#config_generated_fields)*
                 #extra_fields
             }
@@ -523,6 +456,7 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
                             #(#constants)*
                             #(#defaults)*
                             #extra_loader
+                            #section_loader
                             #mapper
                             .build()
                             .await?
@@ -543,6 +477,41 @@ mod tests {
     use super::*;
     use crate::types::RuntimeValue;
     use serde_json::json;
+
+    fn context() -> GenerationContext<ResolvedContext> {
+        GenerationContext::new(
+            serde_json::from_value(json!({
+                "slug": "assistant",
+                "agent_name": "assistant",
+                "runtime": { "default_tenant_id": "default" },
+                "providers": [],
+                "agent": {
+                    "version": "0.1.0",
+                    "description": null,
+                    "prompt": null,
+                    "capabilities": null,
+                    "capability_policy": null,
+                    "model": { "provider": "anthropic", "name": "claude" }
+                },
+                "blocks": {},
+                "tools": {},
+                "skills": {},
+                "http_server": null
+            }))
+            .unwrap(),
+        )
+    }
+
+    fn rendered() -> String {
+        ConfigCodeGen { fields: FieldsSpec::new(vec![]) }
+            .generate_files(&context(), &ExtensionRegistry::empty())
+            .unwrap()
+            .into_iter()
+            .find(|(path, _)| path == &PathBuf::from("src/config.rs"))
+            .expect("config file should be generated")
+            .1
+            .to_string()
+    }
 
     #[test]
     fn nested_field_references_a_pascal_cased_struct_name() {
@@ -566,116 +535,18 @@ mod tests {
     }
 
     #[test]
-    fn generated_config_contains_a2a_config_types() {
-        let context = GenerationContext::new(
-            serde_json::from_value(json!({
-                "slug": "assistant",
-                "agent_name": "assistant",
-                "runtime": { "default_tenant_id": "default" },
-                "providers": [],
-                "agent": {
-                    "version": "0.1.0",
-                    "description": null,
-                    "prompt": null,
-                    "capabilities": null,
-                    "capability_policy": null,
-                    "model": { "provider": "anthropic", "name": "claude" }
-                },
-                "blocks": {},
-                "tools": {},
-                "skills": {},
-                "http_server": null
-            }))
-            .unwrap(),
-        );
-
-        let rendered = ConfigCodeGen { fields: FieldsSpec::new(vec![]) }
-            .generate_files(&context, &ExtensionRegistry::empty())
-            .unwrap()
-            .into_iter()
-            .find(|(path, _)| path == &PathBuf::from("src/config.rs"))
-            .expect("config file should be generated")
-            .1
-            .to_string();
-
-        assert!(rendered.contains("struct A2aConfig"));
-        assert!(rendered.contains("struct A2aAgentConfig"));
-        assert!(rendered.contains("enum A2aTenantConfig"));
-        assert!(rendered.contains("pub a2a : A2aConfig"));
-    }
-
-    #[test]
-    fn network_config_exposes_an_unbuilt_client_builder() {
-        let context = GenerationContext::new(
-            serde_json::from_value(json!({
-                "slug": "assistant",
-                "agent_name": "assistant",
-                "runtime": { "default_tenant_id": "default" },
-                "providers": [],
-                "agent": {
-                    "version": "0.1.0",
-                    "description": null,
-                    "prompt": null,
-                    "capabilities": null,
-                    "capability_policy": null,
-                    "model": { "provider": "anthropic", "name": "claude" }
-                },
-                "blocks": {},
-                "tools": {},
-                "skills": {},
-                "http_server": null
-            }))
-            .unwrap(),
-        );
-
-        let rendered = ConfigCodeGen { fields: FieldsSpec::new(vec![]) }
-            .generate_files(&context, &ExtensionRegistry::empty())
-            .unwrap()
-            .into_iter()
-            .find(|(path, _)| path == &PathBuf::from("src/config.rs"))
-            .expect("config file should be generated")
-            .1
-            .to_string();
-
-        assert!(rendered.contains("pub struct NetworkConfig"));
-        assert!(rendered.contains("pub fn builder (& self) -> HttpClientBuilder"));
-        assert!(rendered.contains("pub network : NetworkConfig"));
-    }
-
-    #[test]
     fn database_config_defaults_auto_migrate_to_true() {
-        let context = GenerationContext::new(
-            serde_json::from_value(json!({
-                "slug": "assistant",
-                "agent_name": "assistant",
-                "runtime": { "default_tenant_id": "default" },
-                "providers": [],
-                "agent": {
-                    "version": "0.1.0",
-                    "description": null,
-                    "prompt": null,
-                    "capabilities": null,
-                    "capability_policy": null,
-                    "model": { "provider": "anthropic", "name": "claude" }
-                },
-                "blocks": {},
-                "tools": {},
-                "skills": {},
-                "http_server": null
-            }))
-            .unwrap(),
-        );
-
-        let rendered = ConfigCodeGen { fields: FieldsSpec::new(vec![]) }
-            .generate_files(&context, &ExtensionRegistry::empty())
-            .unwrap()
-            .into_iter()
-            .find(|(path, _)| path == &PathBuf::from("src/config.rs"))
-            .expect("config file should be generated")
-            .1
-            .to_string();
+        let rendered = rendered();
 
         assert!(rendered.contains("pub auto_migrate : bool"));
         assert!(rendered.contains("auto_migrate : true"));
+    }
+
+    #[test]
+    fn config_is_unchanged_when_no_sections_are_contributed() {
+        let rendered = rendered();
+
+        assert!(rendered.contains("struct DatabaseConfig"));
+        assert!(rendered.contains("enum PubSubConfig"));
     }
 }
