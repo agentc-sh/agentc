@@ -474,10 +474,10 @@ mod tests {
                 .generate_contribution(&context, "config::fields")
                 .unwrap()
                 .to_string()
-                .contains("react : ReActConfig")
+                .contains("react : ConfigReAct")
         );
-        assert!(impls.contains("struct ReActModelConfig"));
-        assert!(impls.contains("struct ReActModelRetryConfig"));
+        assert!(impls.contains("struct ConfigReActModel"));
+        assert!(impls.contains("struct ConfigReActModelRetry"));
         assert!(loader.contains("\"react\" , \"model\" , \"timeout\""));
         assert!(loader.contains("\"max_attempts\""));
         assert!(loader.contains("\"initial_backoff\""));
