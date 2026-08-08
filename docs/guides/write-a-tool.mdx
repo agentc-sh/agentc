@@ -28,8 +28,13 @@ cd math
 pnpm install
 ```
 
-This creates a `package.json`, a `tsconfig.json`, and `src/index.ts`, with the TDK and esbuild already
-configured.
+This creates a `package.json`, a `tsconfig.json`, `src/index.ts`, and `src/agentc-env.d.ts`, with the
+TDK, esbuild, and the runtime type declarations already configured.
+
+The scaffolded `package.json` declares `"packageManager": "pnpm@11.1.2"`, and the compiler installs
+your dependencies with whichever manager that field names. If you change it to npm, also change the
+`@agentc-sh/runtime` specifier's `&` separator to `::`, because the two managers spell a git
+subdirectory differently. Both forms are given in that package's README.
   </TabsContent>
   <TabsContent value="python">
 ```bash
@@ -122,6 +127,38 @@ class GetWeatherTool(Tool[GetWeatherParams, GetWeatherResult, None]):
 A single package can define as many tool classes as you need.
   </TabsContent>
 </Tabs>
+
+## What the TypeScript runtime provides
+
+TypeScript tools do not run in Node. They run in an embedded JavaScript engine, and the environment
+they see is assembled by the host, so it is neither Node's nor a browser's. The runtime libraries the
+host does provide live under the `agentc:` prefix and are imported like any other module.
+
+```typescript title="math/src/index.ts"
+import { fetch } from "agentc:http";
+
+const response = await fetch("https://example.com");
+```
+
+`agentc:http` also installs `fetch`, `Headers`, and `Response` as globals, as the same values it
+exports, so the import is optional for those three.
+
+```typescript title="math/src/index.ts"
+const response = await fetch("https://example.com");
+```
+
+Alongside these, the host binds a set of Node-compatible modules, `node:buffer`, `node:console`,
+`node:timers`, `node:url`, `node:os`, and `node:stream/web`, plus `node:fs` and `node:fs/promises` when
+a tool in the same bundle declares a `filesystem::read` or `filesystem::write` capability.
+
+The shapes of all of it come from `@agentc-sh/runtime`, which the scaffold installs and references for
+you, so your editor reports what the host actually provides rather than guessing.
+
+<Callout type="note" title="`@types/node` is deliberately absent">
+The scaffold does not depend on `@types/node`, and its `tsconfig.json` sets `types` to an empty array
+so nothing pulls it in. The guest is not a Node process, and `@types/node` describes a great deal that
+the host never binds.
+</Callout>
 
 ## Declare the tool in the manifest
 
