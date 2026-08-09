@@ -1,0 +1,161 @@
+// SPDX-FileCopyrightText: 2026 agentc Authors
+//
+// SPDX-License-Identifier: MIT
+
+use std::sync::Arc;
+
+use async_trait::async_trait;
+
+use crate::{
+    backend::{Backend, DirectoryCursor, ErasedBackend, FileHandle},
+    errors::Error,
+    fs::{
+        Capabilities, CreateDirOptions, Metadata, MetadataOptions, OpenOptions, Permissions,
+        RemoveDirOptions,
+    },
+    path::{Path, PathBuf},
+};
+
+pub struct ReadOnlyFs {
+    inner: Arc<dyn ErasedBackend>,
+}
+
+impl ReadOnlyFs {
+    pub fn new(backend: impl Backend) -> Self {
+        ReadOnlyFs { inner: Arc::new(backend) }
+    }
+
+    fn rejects_open(options: &OpenOptions) -> bool {
+        options.is_write()
+            || options.is_append()
+            || options.is_truncate()
+            || options.is_create()
+            || options.is_create_new()
+    }
+}
+
+#[async_trait]
+impl Backend for ReadOnlyFs {
+    type File = Box<dyn FileHandle>;
+    type DirEntries = Box<dyn DirectoryCursor>;
+
+    fn capabilities(&self) -> Capabilities {
+        self.inner.capabilities()
+    }
+
+    async fn open(&self, path: &Path, options: &OpenOptions) -> Result<Self::File, Error> {
+        if Self::rejects_open(options) {
+            return Err(Error::permission_denied(path));
+        }
+
+        self.inner.open(path, options).await
+    }
+
+    async fn entries(&self, path: &Path) -> Result<Self::DirEntries, Error> {
+        self.inner.entries(path).await
+    }
+
+    async fn metadata(&self, path: &Path, options: &MetadataOptions) -> Result<Metadata, Error> {
+        self.inner.metadata(path, options).await
+    }
+
+    async fn create_dir(&self, path: &Path, _options: &CreateDirOptions) -> Result<(), Error> {
+        Err(Error::permission_denied(path))
+    }
+
+    async fn remove_file(&self, path: &Path) -> Result<(), Error> {
+        Err(Error::permission_denied(path))
+    }
+
+    async fn remove_dir(&self, path: &Path, _options: &RemoveDirOptions) -> Result<(), Error> {
+        Err(Error::permission_denied(path))
+    }
+
+    async fn rename(&self, from: &Path, _to: &Path) -> Result<(), Error> {
+        Err(Error::permission_denied(from))
+    }
+
+    async fn symlink(&self, _target: &Path, link: &Path) -> Result<(), Error> {
+        Err(Error::permission_denied(link))
+    }
+
+    async fn read_link(&self, path: &Path) -> Result<PathBuf, Error> {
+        self.inner.read_link(path).await
+    }
+
+    async fn set_permissions(&self, path: &Path, _permissions: Permissions) -> Result<(), Error> {
+        Err(Error::permission_denied(path))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use tokio::io::AsyncWriteExt;
+
+    use crate::{
+        backend::Backend,
+        errors::Error,
+        fs::{Fs, OpenOptions},
+        memory::MemoryFs,
+        path::PathBuf,
+        readonly::ReadOnlyFs,
+    };
+
+    struct MemorySource;
+
+    impl MemorySource {
+        async fn with_file(path: &str, content: &[u8]) -> MemoryFs {
+            let fs = MemoryFs::new();
+            let path = PathBuf::parse(path).unwrap();
+            let mut file = Backend::open(
+                &fs,
+                path.as_path(),
+                &OpenOptions::new()
+                    .write(true)
+                    .create(true),
+            )
+            .await
+            .unwrap();
+
+            file.write_all(content).await.unwrap();
+            fs
+        }
+    }
+
+    #[tokio::test]
+    async fn allows_read_operations() {
+        let mut file =
+            Fs::new(ReadOnlyFs::new(MemorySource::with_file("/notes.txt", b"readonly").await))
+                .root()
+                .open_file("/notes.txt")
+                .await
+                .unwrap();
+
+        assert_eq!(file.read_to_string().await.unwrap(), "readonly");
+    }
+
+    #[tokio::test]
+    async fn denies_open_mutation() {
+        assert!(matches!(
+            Fs::new(ReadOnlyFs::new(MemoryFs::new()))
+                .root()
+                .options()
+                .write(true)
+                .create(true)
+                .open("/notes.txt")
+                .await,
+            Err(Error::PermissionDenied(path)) if path.to_string_lossy() == "/notes.txt"
+        ));
+    }
+
+    #[tokio::test]
+    async fn denies_mutating_operations() {
+        assert!(matches!(
+            Fs::new(ReadOnlyFs::new(MemoryFs::new()))
+                .root()
+                .create_dir("/workspace")
+                .await,
+            Err(Error::PermissionDenied(path)) if path.to_string_lossy() == "/workspace"
+        ));
+    }
+}

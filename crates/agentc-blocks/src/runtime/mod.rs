@@ -173,6 +173,11 @@ pub static EMBEDDED_RUNTIME: &[EmbeddedAsset] = &[
         mode: ExtractionMode::TarGz,
     },
     EmbeddedAsset {
+        name: "agentc-fs",
+        bytes: include_bytes!("../../embedded/agentc-fs.crate"),
+        mode: ExtractionMode::TarGz,
+    },
+    EmbeddedAsset {
         name: "agentc-mcp",
         bytes: include_bytes!("../../embedded/agentc-mcp.crate"),
         mode: ExtractionMode::TarGz,

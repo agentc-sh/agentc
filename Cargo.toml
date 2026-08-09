@@ -13,6 +13,7 @@ members = [
     "crates/agentc-domain",
     "crates/agentc-domain-sql",
     "crates/agentc-database",
+    "crates/agentc-fs",
     "crates/agentc-http",
     "crates/agentc-protocol-ag-ui",
     "crates/agentc-protocol-a2a",

@@ -1,0 +1,30 @@
+[package]
+name = "agentc-fs"
+version.workspace = true
+edition.workspace = true
+description.workspace = true
+repository.workspace = true
+license.workspace = true
+readme.workspace = true
+
+[features]
+default = ["embedded"]
+embedded = ["dep:include_dir"]
+typescript = []
+
+[dependencies]
+async-trait = { workspace = true }
+futures = { workspace = true }
+tokio = { workspace = true }
+
+thiserror = { workspace = true }
+
+bytes = { workspace = true }
+
+bstr = "1"
+typed-path = "0.12"
+
+include_dir = { version = "0.7", optional = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+rustix = { version = "1", features = ["fs"] }
