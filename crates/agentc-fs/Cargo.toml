@@ -1,0 +1,13 @@
+[package]
+name = "agentc-fs"
+version.workspace = true
+edition.workspace = true
+description.workspace = true
+repository.workspace = true
+license.workspace = true
+readme.workspace = true
+
+[features]
+default = []
+
+[dependencies]
