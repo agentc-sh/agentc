@@ -1,0 +1,703 @@
+// SPDX-FileCopyrightText: 2026 agentc Authors
+//
+// SPDX-License-Identifier: MIT
+
+use std::{error::Error as StdError, sync::Arc, vec::IntoIter};
+
+use async_trait::async_trait;
+use futures::{
+    future::BoxFuture,
+    stream::{self, Iter},
+};
+use tokio::sync::RwLock;
+
+use crate::{
+    backend::Backend,
+    errors::Error,
+    fs::{
+        Capabilities, CreateDirOptions, DirEntry, Metadata, MetadataOptions, OpenOptions,
+        PermissionCapability, Permissions, RemoveDirOptions,
+    },
+    memory::{
+        file::MemoryFile,
+        node::{Node, NodeRef},
+    },
+    path::{Component, Path, PathBuf},
+};
+
+pub struct MemoryFs {
+    root: NodeRef,
+}
+
+impl MemoryFs {
+    pub fn new() -> Self {
+        MemoryFs {
+            root: Arc::new(RwLock::new(Node::directory())),
+        }
+    }
+
+    fn node<'a>(
+        &'a self,
+        path: &'a Path,
+        follow_final_symlink: bool,
+    ) -> BoxFuture<'a, Result<NodeRef, Error>> {
+        Box::pin(async move {
+            let mut current = self.root.clone();
+            let components = self.components(path);
+
+            for (index, component) in components.iter().enumerate() {
+                let next = match &*current.read().await {
+                    Node::Directory(directory) => directory
+                        .entries()
+                        .get(component.as_bytes())
+                        .cloned()
+                        .ok_or_else(|| Error::not_found(path))?,
+                    _ => return Err(Error::not_directory(path)),
+                };
+
+                if follow_final_symlink || index + 1 < components.len() {
+                    if let Some(target) = {
+                        match &*next.read().await {
+                            Node::Symlink(symlink) => Some(symlink.target()),
+                            _ => None,
+                        }
+                    } {
+                        current = self
+                            .node(target.as_path(), true)
+                            .await?;
+
+                        continue;
+                    }
+                }
+
+                current = next;
+            }
+
+            Ok(current)
+        })
+    }
+
+    async fn parent(&self, path: &Path) -> Result<(NodeRef, Component), Error> {
+        Ok((
+            self.node(
+                path.parent()
+                    .ok_or_else(|| Error::invalid_path("path does not have a parent"))?,
+                true,
+            )
+            .await?,
+            path.file_name()
+                .ok_or_else(|| Error::invalid_path("path does not have a file name"))?,
+        ))
+    }
+
+    async fn child(
+        &self,
+        parent: &NodeRef,
+        path: &Path,
+        file_name: &Component,
+    ) -> Result<NodeRef, Error> {
+        match &*parent.read().await {
+            Node::Directory(directory) => directory
+                .entries()
+                .get(file_name.as_bytes())
+                .cloned()
+                .ok_or_else(|| Error::not_found(path)),
+            _ => Err(Error::not_directory(path)),
+        }
+    }
+
+    fn components(&self, path: &Path) -> Vec<Component> {
+        path.components()
+            .filter(|component| !matches!(component.as_bytes(), b"/" | b"."))
+            .collect()
+    }
+
+    fn child_path(&self, parent: &Path, file_name: &Component) -> Result<PathBuf, Error> {
+        PathBuf::parse(parent.as_bytes())?.join(file_name.as_bytes())
+    }
+}
+
+impl Default for MemoryFs {
+    fn default() -> Self {
+        MemoryFs::new()
+    }
+}
+
+#[async_trait]
+impl Backend for MemoryFs {
+    type File = MemoryFile;
+    type DirEntries = Iter<IntoIter<Result<DirEntry, Error>>>;
+
+    fn capabilities(&self) -> Capabilities {
+        Capabilities::new()
+            .symlink(true)
+            .atomic_rename(true)
+            .permissions(PermissionCapability::PosixMode)
+            .timestamps(true)
+    }
+
+    async fn open(&self, path: &Path, options: &OpenOptions) -> Result<Self::File, Error> {
+        match self
+            .node(path, options.follows_symlinks())
+            .await
+        {
+            Ok(node) => {
+                let content = match &mut *node.write().await {
+                    Node::File(file) if options.is_create_new() => {
+                        return Err(Error::already_exists(path));
+                    }
+                    Node::File(file) => {
+                        let content = file.content();
+
+                        if options.is_truncate() {
+                            content
+                                .lock()
+                                .map_err(|_| {
+                                    Error::unexpected(
+                                        "memory file lock is poisoned",
+                                        None::<Box<dyn StdError + Send + Sync>>,
+                                    )
+                                })?
+                                .clear();
+                        }
+
+                        content
+                    }
+                    Node::Directory(_) => return Err(Error::is_directory(path)),
+                    Node::Symlink(_) => {
+                        return Err(Error::unsupported(
+                            "opening symlinks without following them is unsupported",
+                        ));
+                    }
+                };
+
+                let position = if options.is_append() {
+                    content
+                        .lock()
+                        .map_err(|_| {
+                            Error::unexpected(
+                                "memory file lock is poisoned",
+                                None::<Box<dyn StdError + Send + Sync>>,
+                            )
+                        })?
+                        .len() as u64
+                } else {
+                    0
+                };
+
+                Ok(MemoryFile::new(content, position))
+            }
+            Err(Error::NotFound(_)) if options.is_create() || options.is_create_new() => {
+                let (parent, file_name) = self.parent(path).await?;
+
+                match &mut *parent.write().await {
+                    Node::Directory(directory) => {
+                        if directory
+                            .entries()
+                            .contains_key(file_name.as_bytes())
+                        {
+                            return Err(Error::already_exists(path));
+                        }
+
+                        let node = Node::file();
+                        let content = match &node {
+                            Node::File(file) => file.content(),
+                            _ => unreachable!(),
+                        };
+
+                        directory
+                            .entries_mut()
+                            .insert(file_name.as_bytes().to_vec(), Arc::new(RwLock::new(node)));
+
+                        Ok(MemoryFile::new(content, 0))
+                    }
+                    _ => Err(Error::not_directory(path)),
+                }
+            }
+            Err(error) => Err(error),
+        }
+    }
+
+    async fn entries(&self, path: &Path) -> Result<Self::DirEntries, Error> {
+        let mut entries = Vec::new();
+
+        for (file_name, child) in match &*self
+            .node(path, true)
+            .await?
+            .read()
+            .await
+        {
+            Node::Directory(directory) => directory
+                .entries()
+                .iter()
+                .map(|(file_name, child)| (file_name.clone(), child.clone()))
+                .collect::<Vec<_>>(),
+            _ => return Err(Error::not_directory(path)),
+        } {
+            let child = child.read().await;
+            let file_name = Component::new(file_name);
+
+            entries.push(Ok(DirEntry::new(
+                self.child_path(path, &file_name)?,
+                file_name,
+                child.file_type(),
+                child.metadata(),
+            )));
+        }
+
+        Ok(stream::iter(entries))
+    }
+
+    async fn metadata(&self, path: &Path, options: &MetadataOptions) -> Result<Metadata, Error> {
+        Ok(self
+            .node(path, options.follows_symlinks())
+            .await?
+            .read()
+            .await
+            .metadata())
+    }
+
+    async fn create_dir(&self, path: &Path, options: &CreateDirOptions) -> Result<(), Error> {
+        if path.as_bytes() == b"/" {
+            return Err(Error::already_exists(path));
+        }
+
+        if !options.is_recursive() {
+            let (parent, file_name) = self.parent(path).await?;
+
+            return match &mut *parent.write().await {
+                Node::Directory(directory) => {
+                    if directory
+                        .entries()
+                        .contains_key(file_name.as_bytes())
+                    {
+                        return Err(Error::already_exists(path));
+                    }
+
+                    directory.entries_mut().insert(
+                        file_name.as_bytes().to_vec(),
+                        Arc::new(RwLock::new(Node::directory())),
+                    );
+                    Ok(())
+                }
+                _ => Err(Error::not_directory(path)),
+            };
+        }
+
+        let mut current = self.root.clone();
+
+        for component in self.components(path) {
+            current = {
+                match &mut *current.write().await {
+                    Node::Directory(directory) => match directory
+                        .entries()
+                        .get(component.as_bytes())
+                        .cloned()
+                    {
+                        Some(node) => node,
+                        None => {
+                            let node = Arc::new(RwLock::new(Node::directory()));
+
+                            directory
+                                .entries_mut()
+                                .insert(component.as_bytes().to_vec(), node.clone());
+
+                            node
+                        }
+                    },
+                    _ => return Err(Error::not_directory(path)),
+                }
+            };
+        }
+
+        Ok(())
+    }
+
+    async fn remove_file(&self, path: &Path) -> Result<(), Error> {
+        let (parent, file_name) = self.parent(path).await?;
+        if matches!(
+            &*self
+                .child(&parent, path, &file_name)
+                .await?
+                .read()
+                .await,
+            Node::Directory(_)
+        ) {
+            return Err(Error::is_directory(path));
+        }
+
+        match &mut *parent.write().await {
+            Node::Directory(directory) => {
+                directory
+                    .entries_mut()
+                    .remove(file_name.as_bytes())
+                    .ok_or_else(|| Error::not_found(path))?;
+
+                Ok(())
+            }
+            _ => Err(Error::not_directory(path)),
+        }
+    }
+
+    async fn remove_dir(&self, path: &Path, options: &RemoveDirOptions) -> Result<(), Error> {
+        if path.as_bytes() == b"/" {
+            return Err(Error::permission_denied(path));
+        }
+
+        let (parent, file_name) = self.parent(path).await?;
+        match &*self
+            .child(&parent, path, &file_name)
+            .await?
+            .read()
+            .await
+        {
+            Node::Directory(child) if !options.is_recursive() && !child.entries().is_empty() => {
+                return Err(Error::unsupported("directory is not empty"));
+            }
+            Node::Directory(_) => {}
+            _ => return Err(Error::not_directory(path)),
+        }
+
+        match &mut *parent.write().await {
+            Node::Directory(directory) => {
+                directory
+                    .entries_mut()
+                    .remove(file_name.as_bytes())
+                    .ok_or_else(|| Error::not_found(path))?;
+
+                Ok(())
+            }
+            _ => Err(Error::not_directory(path)),
+        }
+    }
+
+    async fn rename(&self, from: &Path, to: &Path) -> Result<(), Error> {
+        if from.as_bytes() == b"/" || to.as_bytes() == b"/" {
+            return Err(Error::permission_denied(from));
+        }
+
+        let (from_parent, from_name) = self.parent(from).await?;
+        let (to_parent, to_name) = self.parent(to).await?;
+
+        if Arc::ptr_eq(&from_parent, &to_parent) {
+            return match &mut *from_parent.write().await {
+                Node::Directory(directory) => {
+                    let entries = directory.entries_mut();
+
+                    if entries.contains_key(to_name.as_bytes()) {
+                        return Err(Error::already_exists(to));
+                    }
+
+                    if let Some(node) = entries.remove(from_name.as_bytes()) {
+                        entries.insert(to_name.as_bytes().to_vec(), node);
+
+                        Ok(())
+                    } else {
+                        Err(Error::not_found(from))
+                    }
+                }
+                _ => Err(Error::not_directory(from)),
+            };
+        }
+
+        match &*to_parent.read().await {
+            Node::Directory(directory) => {
+                if directory
+                    .entries()
+                    .contains_key(to_name.as_bytes())
+                {
+                    return Err(Error::already_exists(to));
+                }
+            }
+            _ => return Err(Error::not_directory(to)),
+        }
+
+        let node = match &mut *from_parent.write().await {
+            Node::Directory(directory) => directory
+                .entries_mut()
+                .remove(from_name.as_bytes())
+                .ok_or_else(|| Error::not_found(from))?,
+            _ => return Err(Error::not_directory(from)),
+        };
+
+        match &mut *to_parent.write().await {
+            Node::Directory(directory) => {
+                if directory
+                    .entries()
+                    .contains_key(to_name.as_bytes())
+                {
+                    return Err(Error::already_exists(to));
+                }
+
+                directory
+                    .entries_mut()
+                    .insert(to_name.as_bytes().to_vec(), node);
+
+                Ok(())
+            }
+            _ => Err(Error::not_directory(to)),
+        }
+    }
+
+    async fn symlink(&self, target: &Path, link: &Path) -> Result<(), Error> {
+        let (parent, file_name) = self.parent(link).await?;
+
+        match &mut *parent.write().await {
+            Node::Directory(directory) => {
+                if directory
+                    .entries()
+                    .contains_key(file_name.as_bytes())
+                {
+                    return Err(Error::already_exists(link));
+                }
+
+                directory.entries_mut().insert(
+                    file_name.as_bytes().to_vec(),
+                    Arc::new(RwLock::new(Node::symlink(PathBuf::parse(target.as_bytes())?))),
+                );
+
+                Ok(())
+            }
+            _ => Err(Error::not_directory(link)),
+        }
+    }
+
+    async fn read_link(&self, path: &Path) -> Result<PathBuf, Error> {
+        match &*self
+            .node(path, false)
+            .await?
+            .read()
+            .await
+        {
+            Node::Symlink(symlink) => Ok(symlink.target()),
+            _ => Err(Error::invalid_path("path is not a symlink")),
+        }
+    }
+
+    async fn set_permissions(&self, path: &Path, permissions: Permissions) -> Result<(), Error> {
+        self.node(path, false)
+            .await?
+            .write()
+            .await
+            .set_permissions(permissions);
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        errors::Error,
+        fs::{Dir, FileType, Fs},
+        path::PathBuf,
+    };
+
+    #[tokio::test]
+    async fn creates_writes_and_reads_file() {
+        let root = Fs::memory().root();
+        let mut file = root
+            .options()
+            .write(true)
+            .create(true)
+            .open("notes.txt")
+            .await
+            .unwrap();
+
+        file.write_all(b"hello").await.unwrap();
+        file.flush().await.unwrap();
+
+        let mut file = root
+            .open_file("notes.txt")
+            .await
+            .unwrap();
+
+        assert_eq!(file.read_to_string().await.unwrap(), "hello");
+    }
+
+    #[tokio::test]
+    async fn lists_directory_entries() {
+        let root = Fs::memory().root();
+
+        root.create_dir("workspace")
+            .await
+            .unwrap();
+        root.options()
+            .write(true)
+            .create(true)
+            .open("notes.txt")
+            .await
+            .unwrap();
+
+        let mut entries = root.entries().await.unwrap();
+        let mut names = Vec::new();
+
+        while let Some(entry) = entries.next().await.unwrap() {
+            names.push(entry.file_name().to_string_lossy());
+        }
+
+        assert_eq!(names, vec!["notes.txt", "workspace"]);
+    }
+
+    #[tokio::test]
+    async fn resolves_parent_paths_inside_authority() {
+        let fs = Fs::memory();
+
+        fs.root()
+            .create_dir_all("/workspace/nested")
+            .await
+            .unwrap();
+
+        assert_eq!(
+            Dir::new(
+                fs,
+                PathBuf::parse("/workspace").unwrap(),
+                PathBuf::parse("/workspace/nested").unwrap(),
+            )
+            .open_dir("..")
+            .await
+            .unwrap()
+            .path()
+            .to_string_lossy(),
+            "/workspace"
+        );
+    }
+
+    #[tokio::test]
+    async fn rejects_authority_escape() {
+        assert!(matches!(
+            Dir::new(
+                Fs::memory(),
+                PathBuf::parse("/workspace").unwrap(),
+                PathBuf::parse("/workspace").unwrap(),
+            )
+            .open_dir("..")
+            .await,
+            Err(Error::PathEscapesAuthority(path)) if path.to_string_lossy() == ".."
+        ));
+    }
+
+    #[tokio::test]
+    async fn creates_and_reads_symlink() {
+        let root = Fs::memory().root();
+
+        root.options()
+            .write(true)
+            .create(true)
+            .open("target.txt")
+            .await
+            .unwrap();
+        root.symlink("/target.txt", "link.txt")
+            .await
+            .unwrap();
+
+        assert_eq!(
+            root.read_link("link.txt")
+                .await
+                .unwrap()
+                .to_string_lossy(),
+            "/target.txt"
+        );
+    }
+
+    #[tokio::test]
+    async fn returns_metadata_for_node_types() {
+        let root = Fs::memory().root();
+
+        root.create_dir("workspace")
+            .await
+            .unwrap();
+        root.options()
+            .write(true)
+            .create(true)
+            .open("target.txt")
+            .await
+            .unwrap();
+        root.symlink("/target.txt", "link.txt")
+            .await
+            .unwrap();
+
+        assert_eq!(
+            root.metadata("workspace")
+                .await
+                .unwrap()
+                .file_type(),
+            FileType::Directory
+        );
+        assert_eq!(
+            root.metadata("target.txt")
+                .await
+                .unwrap()
+                .file_type(),
+            FileType::File
+        );
+        assert_eq!(
+            root.entry("link.txt")
+                .await
+                .unwrap()
+                .metadata()
+                .unwrap()
+                .file_type(),
+            FileType::Symlink
+        );
+    }
+
+    #[tokio::test]
+    async fn removes_file_and_directory() {
+        let root = Fs::memory().root();
+
+        root.options()
+            .write(true)
+            .create(true)
+            .open("notes.txt")
+            .await
+            .unwrap();
+        root.create_dir("workspace")
+            .await
+            .unwrap();
+
+        root.remove_file("notes.txt")
+            .await
+            .unwrap();
+        root.remove_dir("workspace")
+            .await
+            .unwrap();
+
+        assert!(matches!(
+            root.metadata("notes.txt").await,
+            Err(Error::NotFound(path)) if path.to_string_lossy() == "/notes.txt"
+        ));
+        assert!(matches!(
+            root.metadata("workspace").await,
+            Err(Error::NotFound(path)) if path.to_string_lossy() == "/workspace"
+        ));
+    }
+
+    #[tokio::test]
+    async fn renames_node_in_same_backend() {
+        let root = Fs::memory().root();
+
+        root.options()
+            .write(true)
+            .create(true)
+            .open("before.txt")
+            .await
+            .unwrap();
+
+        root.rename("before.txt", "after.txt")
+            .await
+            .unwrap();
+
+        assert_eq!(
+            root.metadata("after.txt")
+                .await
+                .unwrap()
+                .file_type(),
+            FileType::File
+        );
+        assert!(matches!(
+            root.metadata("before.txt").await,
+            Err(Error::NotFound(path)) if path.to_string_lossy() == "/before.txt"
+        ));
+    }
+}

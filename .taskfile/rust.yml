@@ -35,6 +35,7 @@ tasks:
           -p agentc-domain-sql \
           -p agentc-executor-typescript \
           -p agentc-http \
+          -p agentc-fs \
           -p agentc-mcp \
           -p agentc-model \
           -p agentc-prompt \
