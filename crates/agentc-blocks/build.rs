@@ -24,6 +24,7 @@ const RUNTIME_CRATES: &[&str] = &[
     "agentc-domain",
     "agentc-domain-sql",
     "agentc-executor-typescript",
+    "agentc-fs",
     "agentc-http",
     "agentc-mcp",
     "agentc-model",
