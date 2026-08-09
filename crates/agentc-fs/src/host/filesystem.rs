@@ -23,18 +23,16 @@ use crate::{
     backend::Backend,
     errors::Error,
     fs::{
-        Capabilities, CreateDirOptions, DirEntry, FileType, Metadata, MetadataOptions,
-        OpenOptions, PermissionCapability, Permissions, RemoveDirOptions,
+        Capabilities, CreateDirOptions, DirEntry, FileType, Metadata, MetadataOptions, OpenOptions,
+        PermissionCapability, Permissions, RemoveDirOptions,
     },
     path::{Component, Path, PathBuf},
 };
 
 #[cfg(unix)]
-use std::{
-    os::unix::{
-        ffi::{OsStrExt, OsStringExt},
-        fs::{FileTypeExt, PermissionsExt},
-    },
+use std::os::unix::{
+    ffi::{OsStrExt, OsStringExt},
+    fs::{FileTypeExt, PermissionsExt},
 };
 
 struct HostRoot {
@@ -71,7 +69,13 @@ impl From<HostFileName<'_>> for Component {
 
         #[cfg(not(unix))]
         {
-            Component::new(file_name.0.to_string_lossy().as_bytes().to_vec())
+            Component::new(
+                file_name
+                    .0
+                    .to_string_lossy()
+                    .as_bytes()
+                    .to_vec(),
+            )
         }
     }
 }
@@ -189,10 +193,9 @@ impl HostFs {
             ErrorKind::AlreadyExists => Error::already_exists(path),
             ErrorKind::PermissionDenied => Error::permission_denied(path),
             ErrorKind::InvalidInput => Error::invalid_path(error.to_string()),
-            _ => Error::unexpected(
-                message,
-                Some(Box::new(error) as Box<dyn StdError + Send + Sync>),
-            ),
+            _ => {
+                Error::unexpected(message, Some(Box::new(error) as Box<dyn StdError + Send + Sync>))
+            }
         }
     }
 
@@ -203,10 +206,9 @@ impl HostFs {
             ErrorKind::AlreadyExists => Error::already_exists(path),
             ErrorKind::PermissionDenied => Error::permission_denied(path),
             ErrorKind::InvalidInput => Error::invalid_path(error.to_string()),
-            _ => Error::unexpected(
-                message,
-                Some(Box::new(error) as Box<dyn StdError + Send + Sync>),
-            ),
+            _ => {
+                Error::unexpected(message, Some(Box::new(error) as Box<dyn StdError + Send + Sync>))
+            }
         }
     }
 }
@@ -245,11 +247,7 @@ impl Backend for HostFs {
                 Ok(_) => {}
                 Err(error) if error.kind() == ErrorKind::NotFound => {}
                 Err(error) => {
-                    return Err(Self::map_io_error(
-                        path,
-                        "failed to inspect host path",
-                        error,
-                    ));
+                    return Err(Self::map_io_error(path, "failed to inspect host path", error));
                 }
             }
         }
@@ -290,24 +288,22 @@ impl Backend for HostFs {
                 resolve |= ResolveFlags::NO_SYMLINKS;
             }
 
-            return Ok(
-                File::from_std(std::fs::File::from(
-                    openat2(
-                        &self.root.file,
-                        self.local_path(path)?,
-                        flags,
-                        if options.is_create() || options.is_create_new() {
-                            Mode::from_raw_mode(0o666)
-                        } else {
-                            Mode::empty()
-                        },
-                        resolve,
-                    )
-                    .map_err(|error| {
-                        Self::map_rustix_error(path, "failed to open rooted host file", error)
-                    })?,
-                ))
-            );
+            return Ok(File::from_std(std::fs::File::from(
+                openat2(
+                    &self.root.file,
+                    self.local_path(path)?,
+                    flags,
+                    if options.is_create() || options.is_create_new() {
+                        Mode::from_raw_mode(0o666)
+                    } else {
+                        Mode::empty()
+                    },
+                    resolve,
+                )
+                .map_err(|error| {
+                    Self::map_rustix_error(path, "failed to open rooted host file", error)
+                })?,
+            )));
         }
 
         #[cfg(not(target_os = "linux"))]
@@ -334,7 +330,9 @@ impl Backend for HostFs {
         while let Some(entry) = reader
             .next_entry()
             .await
-            .map_err(|error| Self::map_io_error(path, "failed to read host directory entry", error))?
+            .map_err(|error| {
+                Self::map_io_error(path, "failed to read host directory entry", error)
+            })?
         {
             let file_name = Component::from(HostFileName(&entry.file_name()));
             let child_path = PathBuf::from(path).join(file_name.as_bytes())?;
@@ -416,7 +414,9 @@ impl Backend for HostFs {
 
             if fs::metadata(&target_path)
                 .await
-                .map_err(|error| Self::map_io_error(target, "failed to inspect host symlink target", error))?
+                .map_err(|error| {
+                    Self::map_io_error(target, "failed to inspect host symlink target", error)
+                })?
                 .file_type()
                 .is_dir()
             {
@@ -494,14 +494,9 @@ impl HostFsBuilder {
         }
 
         #[cfg(target_os = "linux")]
-        let file = std::fs::File::open(&root)
-            .map_err(|error| {
-                HostFs::map_io_error(
-                    PathBuf::root().as_path(),
-                    "failed to open host root",
-                    error,
-                )
-            })?;
+        let file = std::fs::File::open(&root).map_err(|error| {
+            HostFs::map_io_error(PathBuf::root().as_path(), "failed to open host root", error)
+        })?;
 
         Ok(HostFs {
             root: HostRoot {
@@ -597,14 +592,16 @@ mod tests {
                 .unwrap(),
         )
         .root()
-            .options()
-            .write(true)
-            .create(true)
-            .open("/notes.txt")
+        .options()
+        .write(true)
+        .create(true)
+        .open("/notes.txt")
+        .await
+        .unwrap();
+
+        file.write_all(b"created")
             .await
             .unwrap();
-
-        file.write_all(b"created").await.unwrap();
         file.flush().await.unwrap();
 
         assert_eq!(std_fs::read_to_string(root.path.join("notes.txt")).unwrap(), "created");

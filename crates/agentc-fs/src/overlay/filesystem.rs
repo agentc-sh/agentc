@@ -2,12 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::{
-    collections::BTreeMap,
-    error::Error as StdError,
-    sync::Arc,
-    vec::IntoIter,
-};
+use std::{collections::BTreeMap, error::Error as StdError, sync::Arc, vec::IntoIter};
 
 use async_trait::async_trait;
 use futures::{
@@ -23,8 +18,8 @@ use crate::{
     backend::{Backend, ErasedBackend, FileHandle},
     errors::Error,
     fs::{
-        Capabilities, CreateDirOptions, DirEntry, FileType, Metadata, MetadataOptions,
-        OpenOptions, PermissionCapability, Permissions, RemoveDirOptions,
+        Capabilities, CreateDirOptions, DirEntry, FileType, Metadata, MetadataOptions, OpenOptions,
+        PermissionCapability, Permissions, RemoveDirOptions,
     },
     overlay::whiteout::Whiteouts,
     path::{Path, PathBuf},
@@ -54,10 +49,7 @@ impl OverlayFs {
     }
 
     fn io_error(message: &'static str, error: std::io::Error) -> Error {
-        Error::unexpected(
-            message,
-            Some(Box::new(error) as Box<dyn StdError + Send + Sync>),
-        )
+        Error::unexpected(message, Some(Box::new(error) as Box<dyn StdError + Send + Sync>))
     }
 
     async fn is_whiteout(&self, path: &Path) -> bool {
@@ -240,24 +232,15 @@ impl Backend for OverlayFs {
         }
 
         if Self::mutates_open(options) {
-            self.copy_lower_file_to_upper(path, options).await?;
+            self.copy_lower_file_to_upper(path, options)
+                .await?;
 
-            return self
-                .upper
-                .open(path, options)
-                .await;
+            return self.upper.open(path, options).await;
         }
 
-        match self
-            .upper
-            .open(path, options)
-            .await
-        {
+        match self.upper.open(path, options).await {
             Ok(file) => Ok(file),
-            Err(Error::NotFound(_)) => self
-                .lower
-                .open(path, options)
-                .await,
+            Err(Error::NotFound(_)) => self.lower.open(path, options).await,
             Err(error) => Err(error),
         }
     }
@@ -277,11 +260,16 @@ impl Backend for OverlayFs {
 
         let mut entries = BTreeMap::new();
 
-        if !self.upper_directory_is_opaque(path).await {
-            self.collect_entries(path, &mut entries, false).await?;
+        if !self
+            .upper_directory_is_opaque(path)
+            .await
+        {
+            self.collect_entries(path, &mut entries, false)
+                .await?;
         }
 
-        self.collect_entries(path, &mut entries, true).await?;
+        self.collect_entries(path, &mut entries, true)
+            .await?;
 
         Ok(stream::iter(
             entries
@@ -296,16 +284,9 @@ impl Backend for OverlayFs {
             return Err(Error::not_found(path));
         }
 
-        match self
-            .upper
-            .metadata(path, options)
-            .await
-        {
+        match self.upper.metadata(path, options).await {
             Ok(metadata) => Ok(metadata),
-            Err(Error::NotFound(_)) => self
-                .lower
-                .metadata(path, options)
-                .await,
+            Err(Error::NotFound(_)) => self.lower.metadata(path, options).await,
             Err(error) => Err(error),
         }
     }
@@ -358,7 +339,11 @@ impl Backend for OverlayFs {
     }
 
     async fn remove_dir(&self, path: &Path, options: &RemoveDirOptions) -> Result<(), Error> {
-        let removed_upper = match self.upper.remove_dir(path, options).await {
+        let removed_upper = match self
+            .upper
+            .remove_dir(path, options)
+            .await
+        {
             Ok(()) => true,
             Err(Error::NotFound(_)) => false,
             Err(error) => return Err(error),
@@ -388,20 +373,17 @@ impl Backend for OverlayFs {
             return Err(Error::not_found(from));
         }
 
-        self.copy_lower_file_to_upper(from, &OpenOptions::new().write(true)).await?;
+        self.copy_lower_file_to_upper(from, &OpenOptions::new().write(true))
+            .await?;
         self.clear_whiteout(to).await;
         self.create_upper_parent(to).await?;
-        self.upper
-            .rename(from, to)
-            .await
+        self.upper.rename(from, to).await
     }
 
     async fn symlink(&self, target: &Path, link: &Path) -> Result<(), Error> {
         self.clear_whiteout(link).await;
         self.create_upper_parent(link).await?;
-        self.upper
-            .symlink(target, link)
-            .await
+        self.upper.symlink(target, link).await
     }
 
     async fn read_link(&self, path: &Path) -> Result<PathBuf, Error> {
@@ -411,16 +393,14 @@ impl Backend for OverlayFs {
 
         match self.upper.read_link(path).await {
             Ok(path) => Ok(path),
-            Err(Error::NotFound(_)) => self
-                .lower
-                .read_link(path)
-                .await,
+            Err(Error::NotFound(_)) => self.lower.read_link(path).await,
             Err(error) => Err(error),
         }
     }
 
     async fn set_permissions(&self, path: &Path, permissions: Permissions) -> Result<(), Error> {
-        self.copy_lower_file_to_upper(path, &OpenOptions::new().write(true)).await?;
+        self.copy_lower_file_to_upper(path, &OpenOptions::new().write(true))
+            .await?;
         self.upper
             .set_permissions(path, permissions)
             .await
@@ -447,14 +427,13 @@ mod tests {
             let fs = MemoryFs::new();
             let path = PathBuf::parse(path).unwrap();
 
-            if let Some(parent) = path.parent().filter(|parent| parent.as_bytes() != b"/") {
-                Backend::create_dir(
-                    &fs,
-                    parent,
-                    &CreateDirOptions::new().recursive(true),
-                )
-                .await
-                .unwrap();
+            if let Some(parent) = path
+                .parent()
+                .filter(|parent| parent.as_bytes() != b"/")
+            {
+                Backend::create_dir(&fs, parent, &CreateDirOptions::new().recursive(true))
+                    .await
+                    .unwrap();
             }
 
             let mut file = Backend::open(
@@ -537,7 +516,9 @@ mod tests {
         ))
         .root();
 
-        root.remove_file("/notes.txt").await.unwrap();
+        root.remove_file("/notes.txt")
+            .await
+            .unwrap();
 
         assert!(matches!(
             root.open_file("/notes.txt").await,
@@ -553,7 +534,9 @@ mod tests {
         ))
         .root();
 
-        root.remove_file("/hidden.txt").await.unwrap();
+        root.remove_file("/hidden.txt")
+            .await
+            .unwrap();
 
         let mut entries = root.entries().await.unwrap();
         let mut names = Vec::new();

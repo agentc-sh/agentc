@@ -21,7 +21,8 @@ impl Whiteouts {
     }
 
     pub(crate) fn contains(&self, path: &Path) -> bool {
-        self.paths.contains(&PathBuf::from(path))
+        self.paths
+            .contains(&PathBuf::from(path))
     }
 
     pub(crate) fn child_contains(&self, parent: &Path, child: &Component) -> bool {
@@ -40,10 +41,12 @@ impl Whiteouts {
     }
 
     pub(crate) fn is_opaque(&self, path: &Path) -> bool {
-        self.opaque_directories.contains(&PathBuf::from(path))
+        self.opaque_directories
+            .contains(&PathBuf::from(path))
     }
 
     pub(crate) fn opaque(&mut self, path: impl Into<PathBuf>) {
-        self.opaque_directories.insert(path.into());
+        self.opaque_directories
+            .insert(path.into());
     }
 }
