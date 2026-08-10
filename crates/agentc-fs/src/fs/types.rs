@@ -7,8 +7,47 @@ use std::time::SystemTime;
 use crate::{
     errors::Error,
     fs::{dir::Dir, file::File},
-    path::IntoPathBuf,
+    path::{IntoPathBuf, Path},
 };
+
+const TEMP_ALPHABET: &[u8; 62] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+const TEMP_SUFFIX_LEN: usize = 6;
+
+pub(crate) struct TempSuffix([u8; TEMP_SUFFIX_LEN]);
+
+impl TempSuffix {
+    pub(crate) const ATTEMPTS: usize = 62 * 62 * 62;
+
+    pub(crate) fn generate() -> Result<Self, Error> {
+        let mut suffix = [0u8; TEMP_SUFFIX_LEN];
+        let mut buffer = [0u8; 16];
+        let mut filled = 0;
+
+        while filled < TEMP_SUFFIX_LEN {
+            getrandom::fill(&mut buffer)
+                .map_err(|error| Error::sourced_unexpected("failed to read random bytes", error))?;
+
+            for byte in buffer {
+                if byte >= 248 {
+                    continue;
+                }
+
+                suffix[filled] = TEMP_ALPHABET[(byte % 62) as usize];
+                filled += 1;
+
+                if filled == TEMP_SUFFIX_LEN {
+                    break;
+                }
+            }
+        }
+
+        Ok(TempSuffix(suffix))
+    }
+
+    pub(crate) fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Metadata {
@@ -18,6 +57,15 @@ pub struct Metadata {
     accessed: Option<SystemTime>,
     modified: Option<SystemTime>,
     created: Option<SystemTime>,
+    changed: Option<SystemTime>,
+    dev: u64,
+    ino: u64,
+    nlink: u64,
+    uid: u32,
+    gid: u32,
+    rdev: u64,
+    blksize: u64,
+    blocks: u64,
 }
 
 impl Metadata {
@@ -29,6 +77,15 @@ impl Metadata {
             accessed: None,
             modified: None,
             created: None,
+            changed: None,
+            dev: 0,
+            ino: 0,
+            nlink: 1,
+            uid: 0,
+            gid: 0,
+            rdev: 0,
+            blksize: 4096,
+            blocks: len.div_ceil(512),
         }
     }
 
@@ -60,6 +117,42 @@ impl Metadata {
         self.created
     }
 
+    pub fn changed(&self) -> Option<SystemTime> {
+        self.changed
+    }
+
+    pub fn dev(&self) -> u64 {
+        self.dev
+    }
+
+    pub fn ino(&self) -> u64 {
+        self.ino
+    }
+
+    pub fn nlink(&self) -> u64 {
+        self.nlink
+    }
+
+    pub fn uid(&self) -> u32 {
+        self.uid
+    }
+
+    pub fn gid(&self) -> u32 {
+        self.gid
+    }
+
+    pub fn rdev(&self) -> u64 {
+        self.rdev
+    }
+
+    pub fn blksize(&self) -> u64 {
+        self.blksize
+    }
+
+    pub fn blocks(&self) -> u64 {
+        self.blocks
+    }
+
     pub fn with_accessed(mut self, accessed: impl Into<Option<SystemTime>>) -> Self {
         self.accessed = accessed.into();
         self
@@ -72,6 +165,56 @@ impl Metadata {
 
     pub fn with_created(mut self, created: impl Into<Option<SystemTime>>) -> Self {
         self.created = created.into();
+        self
+    }
+
+    pub fn with_changed(mut self, changed: impl Into<Option<SystemTime>>) -> Self {
+        self.changed = changed.into();
+        self
+    }
+
+    pub fn with_permissions(mut self, permissions: Permissions) -> Self {
+        self.permissions = permissions;
+        self
+    }
+
+    pub fn with_dev(mut self, dev: u64) -> Self {
+        self.dev = dev;
+        self
+    }
+
+    pub fn with_ino(mut self, ino: u64) -> Self {
+        self.ino = ino;
+        self
+    }
+
+    pub fn with_nlink(mut self, nlink: u64) -> Self {
+        self.nlink = nlink;
+        self
+    }
+
+    pub fn with_uid(mut self, uid: u32) -> Self {
+        self.uid = uid;
+        self
+    }
+
+    pub fn with_gid(mut self, gid: u32) -> Self {
+        self.gid = gid;
+        self
+    }
+
+    pub fn with_rdev(mut self, rdev: u64) -> Self {
+        self.rdev = rdev;
+        self
+    }
+
+    pub fn with_blksize(mut self, blksize: u64) -> Self {
+        self.blksize = blksize;
+        self
+    }
+
+    pub fn with_blocks(mut self, blocks: u64) -> Self {
+        self.blocks = blocks;
         self
     }
 }
@@ -90,45 +233,28 @@ pub enum FileType {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Permissions {
-    readonly: bool,
-    mode: Option<u32>,
+    mode: u32,
 }
 
 impl Permissions {
-    pub fn new() -> Self {
-        Permissions { readonly: false, mode: None }
+    pub const FILE: u32 = 0o644;
+    pub const DIRECTORY: u32 = 0o755;
+    pub const SYMLINK: u32 = 0o777;
+
+    const MASK: u32 = 0o7777;
+    const WRITE: u32 = 0o222;
+
+    pub fn new(mode: u32) -> Self {
+        Permissions { mode: mode & Self::MASK }
     }
 
-    pub fn readonly(mut self, readonly: bool) -> Self {
-        self.readonly = readonly;
-        self
-    }
-
-    pub fn mode(mut self, mode: impl Into<Option<u32>>) -> Self {
-        self.mode = mode.into();
-        self
+    pub fn mode(&self) -> u32 {
+        self.mode
     }
 
     pub fn is_readonly(&self) -> bool {
-        self.readonly
+        self.mode & Self::WRITE == 0
     }
-
-    pub fn posix_mode(&self) -> Option<u32> {
-        self.mode
-    }
-}
-
-impl Default for Permissions {
-    fn default() -> Self {
-        Permissions::new()
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum PermissionCapability {
-    None,
-    Readonly,
-    PosixMode,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -136,7 +262,8 @@ pub struct Capabilities {
     symlink: bool,
     hard_link: bool,
     atomic_rename: bool,
-    permissions: PermissionCapability,
+    permissions: bool,
+    owner: bool,
     timestamps: bool,
 }
 
@@ -146,7 +273,8 @@ impl Capabilities {
             symlink: false,
             hard_link: false,
             atomic_rename: false,
-            permissions: PermissionCapability::None,
+            permissions: false,
+            owner: false,
             timestamps: false,
         }
     }
@@ -166,8 +294,13 @@ impl Capabilities {
         self
     }
 
-    pub fn permissions(mut self, permissions: PermissionCapability) -> Self {
+    pub fn permissions(mut self, permissions: bool) -> Self {
         self.permissions = permissions;
+        self
+    }
+
+    pub fn owner(mut self, owner: bool) -> Self {
+        self.owner = owner;
         self
     }
 
@@ -188,8 +321,12 @@ impl Capabilities {
         self.atomic_rename
     }
 
-    pub fn permission_capability(&self) -> PermissionCapability {
+    pub fn supports_permissions(&self) -> bool {
         self.permissions
+    }
+
+    pub fn supports_owner(&self) -> bool {
+        self.owner
     }
 
     pub fn supports_timestamps(&self) -> bool {
@@ -200,6 +337,36 @@ impl Capabilities {
 impl Default for Capabilities {
     fn default() -> Self {
         Capabilities::new()
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct Owner {
+    user: Option<u32>,
+    group: Option<u32>,
+}
+
+impl Owner {
+    pub fn new() -> Self {
+        Owner::default()
+    }
+
+    pub fn user(mut self, user: impl Into<Option<u32>>) -> Self {
+        self.user = user.into();
+        self
+    }
+
+    pub fn group(mut self, group: impl Into<Option<u32>>) -> Self {
+        self.group = group.into();
+        self
+    }
+
+    pub fn user_id(&self) -> Option<u32> {
+        self.user
+    }
+
+    pub fn group_id(&self) -> Option<u32> {
+        self.group
     }
 }
 
@@ -430,6 +597,111 @@ impl Default for MetadataOptions {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AccessOptions {
+    read: bool,
+    write: bool,
+    execute: bool,
+    follow_symlinks: bool,
+}
+
+impl AccessOptions {
+    pub fn new() -> Self {
+        AccessOptions {
+            read: false,
+            write: false,
+            execute: false,
+            follow_symlinks: true,
+        }
+    }
+
+    pub fn read(mut self, read: bool) -> Self {
+        self.read = read;
+        self
+    }
+
+    pub fn write(mut self, write: bool) -> Self {
+        self.write = write;
+        self
+    }
+
+    pub fn execute(mut self, execute: bool) -> Self {
+        self.execute = execute;
+        self
+    }
+
+    pub fn follow_symlinks(mut self, follow_symlinks: bool) -> Self {
+        self.follow_symlinks = follow_symlinks;
+        self
+    }
+
+    pub fn is_read(&self) -> bool {
+        self.read
+    }
+
+    pub fn is_write(&self) -> bool {
+        self.write
+    }
+
+    pub fn is_execute(&self) -> bool {
+        self.execute
+    }
+
+    pub fn follows_symlinks(&self) -> bool {
+        self.follow_symlinks
+    }
+
+    pub fn evaluate(&self, path: &Path, metadata: &Metadata) -> Result<(), Error> {
+        let mode = metadata.permissions().mode();
+
+        if self.read && mode & 0o400 == 0 {
+            return Err(Error::permission_denied(path));
+        }
+
+        if self.write && mode & 0o200 == 0 {
+            return Err(Error::permission_denied(path));
+        }
+
+        if self.execute && mode & 0o100 == 0 {
+            return Err(Error::permission_denied(path));
+        }
+
+        Ok(())
+    }
+}
+
+impl Default for AccessOptions {
+    fn default() -> Self {
+        AccessOptions::new()
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SetOwnerOptions {
+    follow_symlinks: bool,
+}
+
+impl SetOwnerOptions {
+    pub fn new() -> Self {
+        SetOwnerOptions { follow_symlinks: true }
+    }
+
+    pub fn follow_symlinks(mut self, follow_symlinks: bool) -> Self {
+        self.follow_symlinks = follow_symlinks;
+        self
+    }
+
+    pub fn follows_symlinks(&self) -> bool {
+        self.follow_symlinks
+    }
+}
+
+impl Default for SetOwnerOptions {
+    fn default() -> Self {
+        SetOwnerOptions::new()
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SymlinkOptions {
     overwrite: bool,
 }
@@ -452,5 +724,71 @@ impl SymlinkOptions {
 impl Default for SymlinkOptions {
     fn default() -> Self {
         SymlinkOptions::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::fs::{FileType, Metadata, Owner, Permissions, SetOwnerOptions};
+
+    #[test]
+    fn permissions_mask_discards_file_type_bits() {
+        assert_eq!(Permissions::new(0o100644).mode(), 0o644);
+    }
+
+    #[test]
+    fn permissions_without_write_bits_are_readonly() {
+        assert!(Permissions::new(0o444).is_readonly());
+        assert!(!Permissions::new(0o644).is_readonly());
+    }
+
+    #[test]
+    fn permissions_keep_set_user_bits() {
+        assert_eq!(Permissions::new(0o4755).mode(), 0o4755);
+    }
+
+    #[test]
+    fn metadata_defaults_are_posix_correct() {
+        let metadata = Metadata::new(FileType::File, 1000, Permissions::new(Permissions::FILE));
+
+        assert_eq!(metadata.nlink(), 1);
+        assert_eq!(metadata.blksize(), 4096);
+        assert_eq!(metadata.blocks(), 2);
+        assert_eq!(metadata.dev(), 0);
+        assert_eq!(metadata.ino(), 0);
+        assert_eq!(metadata.rdev(), 0);
+    }
+
+    #[test]
+    fn metadata_blocks_round_up_to_whole_blocks() {
+        assert_eq!(
+            Metadata::new(FileType::File, 0, Permissions::new(Permissions::FILE)).blocks(),
+            0
+        );
+        assert_eq!(
+            Metadata::new(FileType::File, 1, Permissions::new(Permissions::FILE)).blocks(),
+            1
+        );
+        assert_eq!(
+            Metadata::new(FileType::File, 512, Permissions::new(Permissions::FILE)).blocks(),
+            1
+        );
+        assert_eq!(
+            Metadata::new(FileType::File, 513, Permissions::new(Permissions::FILE)).blocks(),
+            2
+        );
+    }
+
+    #[test]
+    fn owner_default_changes_nothing() {
+        let owner = Owner::default();
+
+        assert_eq!(owner.user_id(), None);
+        assert_eq!(owner.group_id(), None);
+    }
+
+    #[test]
+    fn set_owner_options_follow_symlinks_by_default() {
+        assert!(SetOwnerOptions::new().follows_symlinks());
     }
 }

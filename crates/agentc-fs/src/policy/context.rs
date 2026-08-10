@@ -3,9 +3,31 @@
 // SPDX-License-Identifier: MIT
 
 use crate::{
-    fs::{CreateDirOptions, MetadataOptions, OpenOptions, Permissions, RemoveDirOptions},
+    fs::{
+        AccessOptions, CreateDirOptions, MetadataOptions, OpenOptions, Owner, Permissions,
+        RemoveDirOptions,
+    },
     path::Path,
 };
+
+pub struct AccessContext<'a> {
+    path: &'a Path,
+    options: &'a AccessOptions,
+}
+
+impl<'a> AccessContext<'a> {
+    pub fn new(path: &'a Path, options: &'a AccessOptions) -> Self {
+        AccessContext { path, options }
+    }
+
+    pub fn path(&self) -> &Path {
+        self.path
+    }
+
+    pub fn options(&self) -> &AccessOptions {
+        self.options
+    }
+}
 
 pub struct OpenContext<'a> {
     path: &'a Path,
@@ -64,6 +86,7 @@ pub struct WriteContext<'a> {
     open_options: Option<&'a OpenOptions>,
     create_dir_options: Option<&'a CreateDirOptions>,
     permissions: Option<&'a Permissions>,
+    owner: Option<&'a Owner>,
 }
 
 impl<'a> WriteContext<'a> {
@@ -72,12 +95,14 @@ impl<'a> WriteContext<'a> {
         open_options: impl Into<Option<&'a OpenOptions>>,
         create_dir_options: impl Into<Option<&'a CreateDirOptions>>,
         permissions: impl Into<Option<&'a Permissions>>,
+        owner: impl Into<Option<&'a Owner>>,
     ) -> Self {
         WriteContext {
             path,
             open_options: open_options.into(),
             create_dir_options: create_dir_options.into(),
             permissions: permissions.into(),
+            owner: owner.into(),
         }
     }
 
@@ -95,6 +120,10 @@ impl<'a> WriteContext<'a> {
 
     pub fn permissions(&self) -> Option<&Permissions> {
         self.permissions
+    }
+
+    pub fn owner(&self) -> Option<&Owner> {
+        self.owner
     }
 }
 
