@@ -7,7 +7,11 @@ use std::{
     task::{Context, Poll},
 };
 
-use futures::{Stream, future::poll_fn};
+use futures::{
+    Stream, StreamExt,
+    future::poll_fn,
+    stream::{self, BoxStream},
+};
 
 use crate::{
     backend::DirectoryCursor,
@@ -111,6 +115,37 @@ impl Dir {
                 .entries(self.path.as_path())
                 .await?,
         ))
+    }
+
+    pub async fn walk(&self) -> Result<Walk, Error> {
+        Ok(Walk {
+            inner: stream::unfold(
+                (self.fs.clone(), vec![self.entries().await?]),
+                |(fs, mut cursors)| async move {
+                    loop {
+                        let cursor = cursors.last_mut()?;
+
+                        match cursor.next().await {
+                            Ok(None) => {
+                                cursors.pop();
+                            }
+                            Ok(Some(entry)) => {
+                                if entry.file_type() == FileType::Directory
+                                    && let Ok(children) =
+                                        fs.backend.entries(entry.path().as_path()).await
+                                {
+                                    cursors.push(DirEntries::new(children));
+                                }
+
+                                return Some((Ok(entry), (fs, cursors)));
+                            }
+                            Err(error) => return Some((Err(error), (fs, cursors))),
+                        }
+                    }
+                },
+            )
+            .boxed(),
+        })
     }
 
     pub async fn entry(&self, path: impl IntoPathBuf) -> Result<DirEntry, Error> {
@@ -348,5 +383,28 @@ impl Stream for DirEntries {
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         Pin::new(&mut *self.inner).poll_next(cx)
+    }
+}
+
+pub struct Walk {
+    inner: BoxStream<'static, Result<DirEntry, Error>>,
+}
+
+impl Walk {
+    pub async fn next(&mut self) -> Result<Option<DirEntry>, Error> {
+        poll_fn(|cx| {
+            Pin::new(&mut self.inner)
+                .poll_next(cx)
+                .map(|entry| entry.transpose())
+        })
+        .await
+    }
+}
+
+impl Stream for Walk {
+    type Item = Result<DirEntry, Error>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        Pin::new(&mut self.inner).poll_next(cx)
     }
 }

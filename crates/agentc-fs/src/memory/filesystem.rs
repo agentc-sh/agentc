@@ -1149,4 +1149,101 @@ mod tests {
             .await
             .unwrap();
     }
+
+    #[tokio::test]
+    async fn walk_yields_every_entry_beneath_a_directory() {
+        let root = Fs::memory().root();
+
+        root.create_dir_all("/a/b")
+            .await
+            .unwrap();
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/a/b/c.txt")
+            .await
+            .unwrap();
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/a/d.txt")
+            .await
+            .unwrap();
+
+        let mut walk = root.walk().await.unwrap();
+        let mut paths = Vec::new();
+
+        while let Some(entry) = walk.next().await.unwrap() {
+            paths.push(entry.path().to_string_lossy());
+        }
+
+        paths.sort();
+
+        assert_eq!(paths, vec!["/a", "/a/b", "/a/b/c.txt", "/a/d.txt"]);
+    }
+
+    #[tokio::test]
+    async fn walk_yields_directories_as_well_as_their_contents() {
+        let root = Fs::memory().root();
+
+        root.create_dir_all("/a/b")
+            .await
+            .unwrap();
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/a/b/c.txt")
+            .await
+            .unwrap();
+
+        let mut walk = root.walk().await.unwrap();
+        let mut paths = Vec::new();
+
+        while let Some(entry) = walk.next().await.unwrap() {
+            paths.push(entry.path().to_string_lossy());
+        }
+
+        assert!(paths.contains(&"/a/b".to_string()));
+    }
+
+    #[tokio::test]
+    async fn walk_does_not_descend_into_symlinked_directories() {
+        let root = Fs::memory().root();
+
+        root.create_dir("/real")
+            .await
+            .unwrap();
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/real/file.txt")
+            .await
+            .unwrap();
+        root.symlink("/real", "/link")
+            .await
+            .unwrap();
+
+        let mut walk = root.walk().await.unwrap();
+        let mut entries = Vec::new();
+
+        while let Some(entry) = walk.next().await.unwrap() {
+            entries.push((entry.path().to_string_lossy(), entry.file_type()));
+        }
+
+        assert!(entries.contains(&("/link".to_string(), FileType::Symlink)));
+        assert!(!entries
+            .iter()
+            .any(|(path, _)| path == "/link/file.txt"));
+    }
+
+    #[tokio::test]
+    async fn walk_over_an_empty_directory_yields_nothing() {
+        let mut walk = Fs::memory()
+            .root()
+            .walk()
+            .await
+            .unwrap();
+
+        assert!(walk.next().await.unwrap().is_none());
+    }
 }

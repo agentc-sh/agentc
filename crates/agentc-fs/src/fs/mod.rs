@@ -9,7 +9,7 @@ mod filesystem;
 mod types;
 
 pub use builder::FsBuilder;
-pub use dir::{Dir, DirEntries, DirEntry};
+pub use dir::{Dir, DirEntries, DirEntry, Walk};
 pub use file::File;
 pub use filesystem::Fs;
 pub use types::*;
