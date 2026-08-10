@@ -353,8 +353,7 @@ impl Backend for HostFs {
         {
             let file_name = Component::from(HostFileName(&entry.file_name()));
             let child_path = PathBuf::from(path).join(file_name.as_bytes())?;
-            let metadata = entry
-                .metadata()
+            let metadata = fs::symlink_metadata(self.resolve(child_path.as_path())?)
                 .await
                 .map_err(|error| {
                     error.into_fs_error(
@@ -733,5 +732,34 @@ mod tests {
             .await,
             Err(Error::PermissionDenied(path)) if path.to_string_lossy() == "/link.txt"
         ));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn host_entries_report_symlinks_as_symlinks() {
+        use std::os::unix::fs::symlink;
+
+        let root = TempRoot::new();
+
+        std_fs::create_dir(root.path.join("target")).unwrap();
+        symlink(root.path.join("target"), root.path.join("link")).unwrap();
+
+        let mut entries = Fs::new(
+            HostFs::builder()
+                .root(root.path())
+                .build()
+                .unwrap(),
+        )
+        .root()
+        .entries()
+        .await
+        .unwrap();
+        let mut file_types = Vec::new();
+
+        while let Some(entry) = entries.next().await.unwrap() {
+            file_types.push((entry.file_name().to_string_lossy(), entry.file_type()));
+        }
+
+        assert!(file_types.contains(&("link".to_string(), FileType::Symlink)));
     }
 }

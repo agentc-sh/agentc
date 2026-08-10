@@ -17,7 +17,7 @@ use crate::{
         filesystem::Fs,
         types::{
             CreateDirOptions, FileType, Metadata, MetadataOptions, OpenOptions, OpenOptionsBuilder,
-            Owner, RemoveDirOptions, SetOwnerOptions,
+            Owner, Permissions, RemoveDirOptions, SetOwnerOptions,
         },
     },
     path::{Component, IntoPathBuf, Path, PathBuf},
@@ -131,6 +131,17 @@ impl Dir {
         self.fs
             .backend
             .metadata(self.resolve(path)?.as_path(), &MetadataOptions::new())
+            .await
+    }
+
+    pub async fn set_permissions(
+        &self,
+        path: impl IntoPathBuf,
+        permissions: Permissions,
+    ) -> Result<(), Error> {
+        self.fs
+            .backend
+            .set_permissions(self.resolve(path)?.as_path(), permissions)
             .await
     }
 

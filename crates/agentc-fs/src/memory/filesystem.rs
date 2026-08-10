@@ -551,6 +551,7 @@ mod tests {
         },
         memory::MemoryFs,
         path::PathBuf,
+        readonly::ReadOnlyFs,
     };
 
     #[tokio::test]
@@ -997,5 +998,75 @@ mod tests {
                 .unwrap()
                 > before
         );
+    }
+
+    #[tokio::test]
+    async fn set_permissions_changes_the_reported_mode() {
+        let root = Fs::memory().root();
+
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/notes.txt")
+            .await
+            .unwrap();
+        root.set_permissions("/notes.txt", Permissions::new(0o600))
+            .await
+            .unwrap();
+
+        assert_eq!(
+            root.metadata("/notes.txt")
+                .await
+                .unwrap()
+                .permissions()
+                .mode(),
+            0o600
+        );
+    }
+
+    #[tokio::test]
+    async fn set_permissions_rejects_paths_outside_the_authority() {
+        assert!(matches!(
+            Dir::new(
+                Fs::memory(),
+                PathBuf::parse("/workspace").unwrap(),
+                PathBuf::parse("/workspace").unwrap(),
+            )
+            .set_permissions("..", Permissions::new(0o600))
+            .await,
+            Err(Error::PathEscapesAuthority(path)) if path.to_string_lossy() == ".."
+        ));
+    }
+
+    #[tokio::test]
+    async fn set_permissions_is_refused_by_a_readonly_backend() {
+        assert!(matches!(
+            Fs::new(ReadOnlyFs::new(MemoryFs::new()))
+                .root()
+                .set_permissions("/notes.txt", Permissions::new(0o600))
+                .await,
+            Err(Error::PermissionDenied(path)) if path.to_string_lossy() == "/notes.txt"
+        ));
+    }
+
+    #[tokio::test]
+    async fn memory_entries_report_symlinks_as_symlinks() {
+        let root = Fs::memory().root();
+
+        root.create_dir("/target")
+            .await
+            .unwrap();
+        root.symlink("/target", "/link")
+            .await
+            .unwrap();
+
+        let mut entries = root.entries().await.unwrap();
+        let mut file_types = Vec::new();
+
+        while let Some(entry) = entries.next().await.unwrap() {
+            file_types.push((entry.file_name().to_string_lossy(), entry.file_type()));
+        }
+
+        assert!(file_types.contains(&("link".to_string(), FileType::Symlink)));
     }
 }
