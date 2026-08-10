@@ -7,8 +7,8 @@ mod filesystem;
 mod traits;
 
 pub use context::{
-    EntriesContext, MetadataContext, OpenContext, RemoveContext, RenameContext, SymlinkContext,
-    WriteContext,
+    AccessContext, EntriesContext, MetadataContext, OpenContext, RemoveContext, RenameContext,
+    SymlinkContext, WriteContext,
 };
 pub use filesystem::PolicyFs;
 pub use traits::{Denied, Policy};

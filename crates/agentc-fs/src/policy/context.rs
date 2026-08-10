@@ -3,9 +3,31 @@
 // SPDX-License-Identifier: MIT
 
 use crate::{
-    fs::{CreateDirOptions, MetadataOptions, OpenOptions, Owner, Permissions, RemoveDirOptions},
+    fs::{
+        AccessOptions, CreateDirOptions, MetadataOptions, OpenOptions, Owner, Permissions,
+        RemoveDirOptions,
+    },
     path::Path,
 };
+
+pub struct AccessContext<'a> {
+    path: &'a Path,
+    options: &'a AccessOptions,
+}
+
+impl<'a> AccessContext<'a> {
+    pub fn new(path: &'a Path, options: &'a AccessOptions) -> Self {
+        AccessContext { path, options }
+    }
+
+    pub fn path(&self) -> &Path {
+        self.path
+    }
+
+    pub fn options(&self) -> &AccessOptions {
+        self.options
+    }
+}
 
 pub struct OpenContext<'a> {
     path: &'a Path,

@@ -14,8 +14,8 @@ use tokio::io::ReadBuf;
 use crate::{
     errors::Error,
     fs::{
-        Capabilities, CreateDirOptions, DirEntry, Metadata, MetadataOptions, OpenOptions,
-        Owner, Permissions, RemoveDirOptions, SetOwnerOptions,
+        AccessOptions, Capabilities, CreateDirOptions, DirEntry, Metadata, MetadataOptions,
+        OpenOptions, Owner, Permissions, RemoveDirOptions, SetOwnerOptions,
     },
     path::{Path, PathBuf},
 };
@@ -32,6 +32,8 @@ pub trait Backend: Send + Sync + 'static {
     async fn entries(&self, path: &Path) -> Result<Self::DirEntries, Error>;
 
     async fn metadata(&self, path: &Path, options: &MetadataOptions) -> Result<Metadata, Error>;
+
+    async fn access(&self, path: &Path, options: &AccessOptions) -> Result<(), Error>;
 
     async fn create_dir(&self, path: &Path, options: &CreateDirOptions) -> Result<(), Error>;
 
@@ -134,6 +136,8 @@ pub trait ErasedBackend: Send + Sync + 'static {
 
     async fn metadata(&self, path: &Path, options: &MetadataOptions) -> Result<Metadata, Error>;
 
+    async fn access(&self, path: &Path, options: &AccessOptions) -> Result<(), Error>;
+
     async fn create_dir(&self, path: &Path, options: &CreateDirOptions) -> Result<(), Error>;
 
     async fn remove_file(&self, path: &Path) -> Result<(), Error>;
@@ -177,6 +181,10 @@ where
 
     async fn metadata(&self, path: &Path, options: &MetadataOptions) -> Result<Metadata, Error> {
         Backend::metadata(self, path, options).await
+    }
+
+    async fn access(&self, path: &Path, options: &AccessOptions) -> Result<(), Error> {
+        Backend::access(self, path, options).await
     }
 
     async fn create_dir(&self, path: &Path, options: &CreateDirOptions) -> Result<(), Error> {

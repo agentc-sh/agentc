@@ -21,8 +21,8 @@ use crate::{
     backend::Backend,
     errors::Error,
     fs::{
-        Capabilities, CreateDirOptions, DirEntry, Metadata, MetadataOptions, OpenOptions,
-        Owner, Permissions, RemoveDirOptions, SetOwnerOptions,
+        AccessOptions, Capabilities, CreateDirOptions, DirEntry, Metadata, MetadataOptions,
+        OpenOptions, Owner, Permissions, RemoveDirOptions, SetOwnerOptions,
     },
     memory::{
         file::MemoryFile,
@@ -269,6 +269,18 @@ impl Backend for MemoryFs {
             .read()
             .await
             .metadata())
+    }
+
+    async fn access(&self, path: &Path, options: &AccessOptions) -> Result<(), Error> {
+        options.evaluate(
+            path,
+            &self
+                .node(path, options.follows_symlinks())
+                .await?
+                .read()
+                .await
+                .metadata(),
+        )
     }
 
     async fn create_dir(&self, path: &Path, options: &CreateDirOptions) -> Result<(), Error> {
@@ -547,7 +559,8 @@ mod tests {
         backend::Backend,
         errors::Error,
         fs::{
-            Dir, FileType, Fs, MetadataOptions, OpenOptions, Owner, Permissions, SetOwnerOptions,
+            AccessOptions, Dir, FileType, Fs, MetadataOptions, OpenOptions, Owner, Permissions,
+            SetOwnerOptions,
         },
         memory::MemoryFs,
         path::PathBuf,
@@ -1068,5 +1081,72 @@ mod tests {
         }
 
         assert!(file_types.contains(&("link".to_string(), FileType::Symlink)));
+    }
+
+    #[tokio::test]
+    async fn access_permits_existing_path_with_no_flags() {
+        let root = Fs::memory().root();
+
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/notes.txt")
+            .await
+            .unwrap();
+
+        root.access("/notes.txt", &AccessOptions::new())
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn access_reports_missing_path_as_not_found() {
+        assert!(matches!(
+            Fs::memory()
+                .root()
+                .access("/missing.txt", &AccessOptions::new())
+                .await,
+            Err(Error::NotFound(path)) if path.to_string_lossy() == "/missing.txt"
+        ));
+    }
+
+    #[tokio::test]
+    async fn access_denies_write_on_a_readonly_mode() {
+        let root = Fs::memory().root();
+
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/notes.txt")
+            .await
+            .unwrap();
+        root.set_permissions("/notes.txt", Permissions::new(0o444))
+            .await
+            .unwrap();
+
+        assert!(matches!(
+            root.access("/notes.txt", &AccessOptions::new().write(true))
+                .await,
+            Err(Error::PermissionDenied(path)) if path.to_string_lossy() == "/notes.txt"
+        ));
+    }
+
+    #[tokio::test]
+    async fn access_permits_execute_on_executable_mode() {
+        let root = Fs::memory().root();
+
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/script.sh")
+            .await
+            .unwrap();
+        root.set_permissions("/script.sh", Permissions::new(0o755))
+            .await
+            .unwrap();
+
+        root.access("/script.sh", &AccessOptions::new().execute(true))
+            .await
+            .unwrap();
     }
 }

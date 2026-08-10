@@ -10,8 +10,8 @@ use crate::{
     backend::{Backend, DirectoryCursor, ErasedBackend, FileHandle},
     errors::Error,
     fs::{
-        Capabilities, CreateDirOptions, Metadata, MetadataOptions, OpenOptions, Owner,
-        Permissions, RemoveDirOptions, SetOwnerOptions,
+        AccessOptions, Capabilities, CreateDirOptions, Metadata, MetadataOptions, OpenOptions,
+        Owner, Permissions, RemoveDirOptions, SetOwnerOptions,
     },
     path::{Path, PathBuf},
 };
@@ -70,6 +70,14 @@ impl Backend for ReadOnlyFs {
         ))
     }
 
+    async fn access(&self, path: &Path, options: &AccessOptions) -> Result<(), Error> {
+        if options.is_write() {
+            return Err(Error::permission_denied(path));
+        }
+
+        self.inner.access(path, options).await
+    }
+
     async fn create_dir(&self, path: &Path, _options: &CreateDirOptions) -> Result<(), Error> {
         Err(Error::permission_denied(path))
     }
@@ -117,7 +125,7 @@ mod tests {
     use crate::{
         backend::Backend,
         errors::Error,
-        fs::{File, Fs, OpenOptions, Owner},
+        fs::{AccessOptions, File, Fs, OpenOptions, Owner},
         memory::MemoryFs,
         path::PathBuf,
         readonly::ReadOnlyFs,
@@ -226,5 +234,16 @@ mod tests {
                 .capabilities()
                 .supports_permissions()
         );
+    }
+
+    #[tokio::test]
+    async fn readonly_access_denies_every_write_request() {
+        assert!(matches!(
+            Fs::new(ReadOnlyFs::new(MemorySource::with_file("/notes.txt", b"readonly").await))
+                .root()
+                .access("/notes.txt", &AccessOptions::new().write(true))
+                .await,
+            Err(Error::PermissionDenied(path)) if path.to_string_lossy() == "/notes.txt"
+        ));
     }
 }

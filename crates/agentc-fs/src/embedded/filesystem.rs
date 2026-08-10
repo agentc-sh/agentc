@@ -16,8 +16,8 @@ use crate::{
     },
     errors::Error,
     fs::{
-        Capabilities, CreateDirOptions, DirEntry, FileType, Metadata, MetadataOptions, OpenOptions,
-        Owner, Permissions, RemoveDirOptions, SetOwnerOptions,
+        AccessOptions, Capabilities, CreateDirOptions, DirEntry, FileType, Metadata,
+        MetadataOptions, OpenOptions, Owner, Permissions, RemoveDirOptions, SetOwnerOptions,
     },
     path::{Component, Path, PathBuf},
 };
@@ -215,6 +215,18 @@ impl Backend for EmbeddedFs {
         }
     }
 
+    async fn access(&self, path: &Path, options: &AccessOptions) -> Result<(), Error> {
+        options.evaluate(
+            path,
+            &Backend::metadata(
+                self,
+                path,
+                &MetadataOptions::new().follow_symlinks(options.follows_symlinks()),
+            )
+            .await?,
+        )
+    }
+
     async fn create_dir(&self, path: &Path, _options: &CreateDirOptions) -> Result<(), Error> {
         Err(Error::permission_denied(path))
     }
@@ -262,7 +274,7 @@ mod tests {
     use crate::{
         embedded_dir, embedded_file,
         errors::Error,
-        fs::{FileType, Fs},
+        fs::{AccessOptions, FileType, Fs},
     };
 
     #[tokio::test]
@@ -364,5 +376,16 @@ mod tests {
                 .mode(),
             0o555
         );
+    }
+
+    #[tokio::test]
+    async fn embedded_access_denies_write() {
+        assert!(matches!(
+            Fs::new(embedded_dir!("$CARGO_MANIFEST_DIR/src"))
+                .root()
+                .access("lib.rs", &AccessOptions::new().write(true))
+                .await,
+            Err(Error::PermissionDenied(path)) if path.to_string_lossy() == "/lib.rs"
+        ));
     }
 }

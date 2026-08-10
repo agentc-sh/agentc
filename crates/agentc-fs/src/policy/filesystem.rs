@@ -10,14 +10,14 @@ use crate::{
     backend::{Backend, DirectoryCursor, ErasedBackend, FileHandle},
     errors::Error,
     fs::{
-        Capabilities, CreateDirOptions, Metadata, MetadataOptions, OpenOptions, Owner,
-        Permissions, RemoveDirOptions, SetOwnerOptions,
+        AccessOptions, Capabilities, CreateDirOptions, Metadata, MetadataOptions, OpenOptions,
+        Owner, Permissions, RemoveDirOptions, SetOwnerOptions,
     },
     path::{Path, PathBuf},
     policy::{
         context::{
-            EntriesContext, MetadataContext, OpenContext, RemoveContext, RenameContext,
-            SymlinkContext, WriteContext,
+            AccessContext, EntriesContext, MetadataContext, OpenContext, RemoveContext,
+            RenameContext, SymlinkContext, WriteContext,
         },
         traits::Policy,
     },
@@ -49,6 +49,16 @@ impl PolicyFs {
             .try_for_each(|policy| {
                 policy
                     .check_open(&OpenContext::new(path, options))
+                    .map_err(|_| Error::permission_denied(path))
+            })
+    }
+
+    fn check_access(&self, path: &Path, options: &AccessOptions) -> Result<(), Error> {
+        self.policies
+            .iter()
+            .try_for_each(|policy| {
+                policy
+                    .check_access(&AccessContext::new(path, options))
                     .map_err(|_| Error::permission_denied(path))
             })
     }
@@ -164,6 +174,12 @@ impl Backend for PolicyFs {
         self.inner.metadata(path, options).await
     }
 
+    async fn access(&self, path: &Path, options: &AccessOptions) -> Result<(), Error> {
+        self.check_access(path, options)?;
+
+        self.inner.access(path, options).await
+    }
+
     async fn create_dir(&self, path: &Path, options: &CreateDirOptions) -> Result<(), Error> {
         self.check_write(&WriteContext::new(path, None, Some(options), None, None))?;
 
@@ -237,10 +253,12 @@ mod tests {
     use crate::{
         backend::Backend,
         errors::Error,
-        fs::{File, Fs, OpenOptions, Owner},
+        fs::{AccessOptions, File, Fs, OpenOptions, Owner},
         memory::MemoryFs,
         path::PathBuf,
-        policy::{Denied, OpenContext, Policy, PolicyFs, RenameContext, WriteContext},
+        policy::{
+            AccessContext, Denied, OpenContext, Policy, PolicyFs, RenameContext, WriteContext,
+        },
     };
 
     struct MemorySource;
@@ -275,6 +293,18 @@ mod tests {
 
         fn check_open(&self, _context: &OpenContext<'_>) -> Result<(), Denied> {
             Err(Denied::new("open denied"))
+        }
+    }
+
+    struct DenyAccess;
+
+    impl Policy for DenyAccess {
+        fn name(&self) -> &'static str {
+            "deny-access"
+        }
+
+        fn check_access(&self, _context: &AccessContext<'_>) -> Result<(), Denied> {
+            Err(Denied::new("access denied"))
         }
     }
 
@@ -342,6 +372,22 @@ mod tests {
             .await,
             Err(Error::PermissionDenied(path)) if path.to_string_lossy() == "/notes.txt"
         ));
+    }
+
+    #[tokio::test]
+    async fn policy_can_deny_access() {
+        let root = Fs::new(
+            PolicyFs::new(MemorySource::with_file("/notes.txt", b"access").await)
+                .with_policy(DenyAccess),
+        )
+        .root();
+
+        assert!(matches!(
+            root.access("/notes.txt", &AccessOptions::new()).await,
+            Err(Error::PermissionDenied(path)) if path.to_string_lossy() == "/notes.txt"
+        ));
+
+        root.metadata("/notes.txt").await.unwrap();
     }
 
     #[tokio::test]

@@ -14,7 +14,7 @@ use futures::stream::{self, Iter};
 use tokio::fs;
 
 #[cfg(target_os = "linux")]
-use rustix::fs::{Mode, OFlags, ResolveFlags, openat2};
+use rustix::fs::{Access, AtFlags, Mode, OFlags, ResolveFlags, accessat, openat2};
 #[cfg(not(target_os = "linux"))]
 use tokio::fs::OpenOptions as HostOpenOptions;
 
@@ -22,8 +22,8 @@ use crate::{
     backend::Backend,
     errors::{Error, IntoFsError},
     fs::{
-        Capabilities, CreateDirOptions, DirEntry, FileType, Metadata, MetadataOptions, OpenOptions,
-        Owner, Permissions, RemoveDirOptions, SetOwnerOptions,
+        AccessOptions, Capabilities, CreateDirOptions, DirEntry, FileType, Metadata,
+        MetadataOptions, OpenOptions, Owner, Permissions, RemoveDirOptions, SetOwnerOptions,
     },
     host::HostFile,
     path::{Component, Path, PathBuf},
@@ -382,6 +382,46 @@ impl Backend for HostFs {
             }
             .map_err(|error| error.into_fs_error(path, "failed to read host metadata"))?,
         ))
+    }
+
+    async fn access(&self, path: &Path, options: &AccessOptions) -> Result<(), Error> {
+        #[cfg(target_os = "linux")]
+        {
+            let mut access = Access::EXISTS;
+            let mut flags = AtFlags::empty();
+
+            if options.is_read() {
+                access |= Access::READ_OK;
+            }
+
+            if options.is_write() {
+                access |= Access::WRITE_OK;
+            }
+
+            if options.is_execute() {
+                access |= Access::EXEC_OK;
+            }
+
+            if !self.root.follow_symlinks || !options.follows_symlinks() {
+                flags |= AtFlags::SYMLINK_NOFOLLOW;
+            }
+
+            return accessat(&self.root.file, self.local_path(path)?, access, flags)
+                .map_err(|error| error.into_fs_error(path, "failed to check host access"));
+        }
+
+        #[cfg(not(target_os = "linux"))]
+        {
+            options.evaluate(
+                path,
+                &Backend::metadata(
+                    self,
+                    path,
+                    &MetadataOptions::new().follow_symlinks(options.follows_symlinks()),
+                )
+                .await?,
+            )
+        }
     }
 
     async fn create_dir(&self, path: &Path, options: &CreateDirOptions) -> Result<(), Error> {

@@ -15,8 +15,8 @@ use crate::{
     backend::{Backend, ErasedBackend, FileHandle},
     errors::Error,
     fs::{
-        Capabilities, CreateDirOptions, DirEntry, File, FileType, Metadata, MetadataOptions,
-        OpenOptions, Owner, Permissions, RemoveDirOptions, SetOwnerOptions,
+        AccessOptions, Capabilities, CreateDirOptions, DirEntry, File, FileType, Metadata,
+        MetadataOptions, OpenOptions, Owner, Permissions, RemoveDirOptions, SetOwnerOptions,
     },
     overlay::whiteout::Whiteouts,
     path::{Path, PathBuf},
@@ -274,6 +274,18 @@ impl Backend for OverlayFs {
         match self.upper.metadata(path, options).await {
             Ok(metadata) => Ok(metadata),
             Err(Error::NotFound(_)) => self.lower.metadata(path, options).await,
+            Err(error) => Err(error),
+        }
+    }
+
+    async fn access(&self, path: &Path, options: &AccessOptions) -> Result<(), Error> {
+        if self.is_whiteout(path).await {
+            return Err(Error::not_found(path));
+        }
+
+        match self.upper.access(path, options).await {
+            Ok(()) => Ok(()),
+            Err(Error::NotFound(_)) => self.lower.access(path, options).await,
             Err(error) => Err(error),
         }
     }

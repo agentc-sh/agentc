@@ -7,7 +7,7 @@ use std::time::SystemTime;
 use crate::{
     errors::Error,
     fs::{dir::Dir, file::File},
-    path::IntoPathBuf,
+    path::{IntoPathBuf, Path},
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -556,6 +556,85 @@ impl MetadataOptions {
 impl Default for MetadataOptions {
     fn default() -> Self {
         MetadataOptions::new()
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AccessOptions {
+    read: bool,
+    write: bool,
+    execute: bool,
+    follow_symlinks: bool,
+}
+
+impl AccessOptions {
+    pub fn new() -> Self {
+        AccessOptions {
+            read: false,
+            write: false,
+            execute: false,
+            follow_symlinks: true,
+        }
+    }
+
+    pub fn read(mut self, read: bool) -> Self {
+        self.read = read;
+        self
+    }
+
+    pub fn write(mut self, write: bool) -> Self {
+        self.write = write;
+        self
+    }
+
+    pub fn execute(mut self, execute: bool) -> Self {
+        self.execute = execute;
+        self
+    }
+
+    pub fn follow_symlinks(mut self, follow_symlinks: bool) -> Self {
+        self.follow_symlinks = follow_symlinks;
+        self
+    }
+
+    pub fn is_read(&self) -> bool {
+        self.read
+    }
+
+    pub fn is_write(&self) -> bool {
+        self.write
+    }
+
+    pub fn is_execute(&self) -> bool {
+        self.execute
+    }
+
+    pub fn follows_symlinks(&self) -> bool {
+        self.follow_symlinks
+    }
+
+    pub fn evaluate(&self, path: &Path, metadata: &Metadata) -> Result<(), Error> {
+        let mode = metadata.permissions().mode();
+
+        if self.read && mode & 0o400 == 0 {
+            return Err(Error::permission_denied(path));
+        }
+
+        if self.write && mode & 0o200 == 0 {
+            return Err(Error::permission_denied(path));
+        }
+
+        if self.execute && mode & 0o100 == 0 {
+            return Err(Error::permission_denied(path));
+        }
+
+        Ok(())
+    }
+}
+
+impl Default for AccessOptions {
+    fn default() -> Self {
+        AccessOptions::new()
     }
 }
 

@@ -16,8 +16,8 @@ use crate::{
         file::File,
         filesystem::Fs,
         types::{
-            CreateDirOptions, FileType, Metadata, MetadataOptions, OpenOptions, OpenOptionsBuilder,
-            Owner, Permissions, RemoveDirOptions, SetOwnerOptions,
+            AccessOptions, CreateDirOptions, FileType, Metadata, MetadataOptions, OpenOptions,
+            OpenOptionsBuilder, Owner, Permissions, RemoveDirOptions, SetOwnerOptions,
         },
     },
     path::{Component, IntoPathBuf, Path, PathBuf},
@@ -131,6 +131,17 @@ impl Dir {
         self.fs
             .backend
             .metadata(self.resolve(path)?.as_path(), &MetadataOptions::new())
+            .await
+    }
+
+    pub async fn access(
+        &self,
+        path: impl IntoPathBuf,
+        options: &AccessOptions,
+    ) -> Result<(), Error> {
+        self.fs
+            .backend
+            .access(self.resolve(path)?.as_path(), options)
             .await
     }
 
