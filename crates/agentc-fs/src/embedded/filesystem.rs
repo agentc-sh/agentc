@@ -16,8 +16,8 @@ use crate::{
     },
     errors::Error,
     fs::{
-        Capabilities, CreateDirOptions, DirEntry, FileType, Metadata, MetadataOptions, OpenOptions,
-        PermissionCapability, Permissions, RemoveDirOptions,
+        AccessOptions, Capabilities, CreateDirOptions, DirEntry, FileType, Metadata,
+        MetadataOptions, OpenOptions, Owner, Permissions, RemoveDirOptions, SetOwnerOptions,
     },
     path::{Component, Path, PathBuf},
 };
@@ -46,7 +46,14 @@ impl EmbeddedFs {
     }
 
     fn metadata(file_type: FileType, len: u64) -> Metadata {
-        Metadata::new(file_type, len, Permissions::new().readonly(true))
+        Metadata::new(
+            file_type,
+            len,
+            Permissions::new(match file_type {
+                FileType::Directory => 0o555,
+                _ => 0o444,
+            }),
+        )
     }
 
     fn is_root(path: &Path) -> bool {
@@ -108,7 +115,7 @@ impl Backend for EmbeddedFs {
     type DirEntries = Iter<IntoIter<Result<DirEntry, Error>>>;
 
     fn capabilities(&self) -> Capabilities {
-        Capabilities::new().permissions(PermissionCapability::Readonly)
+        Capabilities::new().permissions(false)
     }
 
     async fn open(&self, path: &Path, options: &OpenOptions) -> Result<Self::File, Error> {
@@ -117,14 +124,16 @@ impl Backend for EmbeddedFs {
         }
 
         match &self.source {
-            EmbeddedSource::File { bytes } if Self::is_root(path) => Ok(EmbeddedFile::new(*bytes)),
+            EmbeddedSource::File { bytes } if Self::is_root(path) => {
+                Ok(EmbeddedFile::new(PathBuf::from(path), *bytes))
+            }
             EmbeddedSource::File { .. } => Err(Error::not_found(path)),
             EmbeddedSource::Directory { directory } => {
                 let relative_path = Self::relative_path(path);
                 let directory = directory.as_inner();
 
                 if let Some(file) = directory.get_file(relative_path.as_str()) {
-                    return Ok(EmbeddedFile::new(file.contents()));
+                    return Ok(EmbeddedFile::new(PathBuf::from(path), file.contents()));
                 }
 
                 if directory
@@ -206,6 +215,18 @@ impl Backend for EmbeddedFs {
         }
     }
 
+    async fn access(&self, path: &Path, options: &AccessOptions) -> Result<(), Error> {
+        options.evaluate(
+            path,
+            &Backend::metadata(
+                self,
+                path,
+                &MetadataOptions::new().follow_symlinks(options.follows_symlinks()),
+            )
+            .await?,
+        )
+    }
+
     async fn create_dir(&self, path: &Path, _options: &CreateDirOptions) -> Result<(), Error> {
         Err(Error::permission_denied(path))
     }
@@ -215,6 +236,10 @@ impl Backend for EmbeddedFs {
     }
 
     async fn remove_dir(&self, path: &Path, _options: &RemoveDirOptions) -> Result<(), Error> {
+        Err(Error::permission_denied(path))
+    }
+
+    async fn truncate(&self, path: &Path, _len: u64) -> Result<(), Error> {
         Err(Error::permission_denied(path))
     }
 
@@ -233,6 +258,15 @@ impl Backend for EmbeddedFs {
     async fn set_permissions(&self, path: &Path, _permissions: Permissions) -> Result<(), Error> {
         Err(Error::permission_denied(path))
     }
+
+    async fn set_owner(
+        &self,
+        path: &Path,
+        _owner: Owner,
+        _options: &SetOwnerOptions,
+    ) -> Result<(), Error> {
+        Err(Error::permission_denied(path))
+    }
 }
 
 #[cfg(test)]
@@ -240,7 +274,7 @@ mod tests {
     use crate::{
         embedded_dir, embedded_file,
         errors::Error,
-        fs::{FileType, Fs},
+        fs::{AccessOptions, FileType, Fs},
     };
 
     #[tokio::test]
@@ -319,6 +353,39 @@ mod tests {
                 .open_file("missing.md")
                 .await,
             Err(Error::NotFound(path)) if path.to_string_lossy() == "/missing.md"
+        ));
+    }
+
+    #[tokio::test]
+    async fn embedded_entries_are_readonly_modes() {
+        let root = Fs::new(embedded_dir!("$CARGO_MANIFEST_DIR/src")).root();
+
+        assert_eq!(
+            root.metadata("lib.rs")
+                .await
+                .unwrap()
+                .permissions()
+                .mode(),
+            0o444
+        );
+        assert_eq!(
+            root.metadata("fs")
+                .await
+                .unwrap()
+                .permissions()
+                .mode(),
+            0o555
+        );
+    }
+
+    #[tokio::test]
+    async fn embedded_access_denies_write() {
+        assert!(matches!(
+            Fs::new(embedded_dir!("$CARGO_MANIFEST_DIR/src"))
+                .root()
+                .access("lib.rs", &AccessOptions::new().write(true))
+                .await,
+            Err(Error::PermissionDenied(path)) if path.to_string_lossy() == "/lib.rs"
         ));
     }
 }

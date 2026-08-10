@@ -5,8 +5,8 @@
 use std::borrow::Cow;
 
 use crate::policy::context::{
-    EntriesContext, MetadataContext, OpenContext, RemoveContext, RenameContext, SymlinkContext,
-    WriteContext,
+    AccessContext, EntriesContext, MetadataContext, OpenContext, RemoveContext, RenameContext,
+    SymlinkContext, WriteContext,
 };
 
 pub struct Denied {
@@ -25,6 +25,10 @@ impl Denied {
 
 pub trait Policy: Send + Sync + 'static {
     fn name(&self) -> &'static str;
+
+    fn check_access(&self, _context: &AccessContext<'_>) -> Result<(), Denied> {
+        Ok(())
+    }
 
     fn check_open(&self, _context: &OpenContext<'_>) -> Result<(), Denied> {
         Ok(())

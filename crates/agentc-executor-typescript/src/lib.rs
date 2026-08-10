@@ -11,6 +11,7 @@ pub mod context;
 pub mod error;
 pub mod execution;
 pub mod executor;
+pub mod host;
 pub mod json;
 pub mod lease;
 

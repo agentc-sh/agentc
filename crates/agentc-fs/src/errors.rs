@@ -2,9 +2,12 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::error::Error as StdError;
+use std::{
+    error::Error as StdError,
+    io::{Error as IoError, ErrorKind},
+};
 
-use crate::path::PathBuf;
+use crate::path::{Path, PathBuf};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -80,13 +83,46 @@ impl Error {
         Error::CrossBackendRename { from: from.into(), to: to.into() }
     }
 
-    pub fn unexpected(
+    pub fn unexpected(message: impl Into<String>) -> Self {
+        Error::Unexpected { message: message.into(), source: None }
+    }
+
+    pub fn sourced_unexpected(
         message: impl Into<String>,
-        source: impl Into<Option<Box<dyn StdError + Send + Sync>>>,
+        source: impl Into<Box<dyn StdError + Send + Sync>>,
     ) -> Self {
         Error::Unexpected {
             message: message.into(),
-            source: source.into(),
+            source: Some(source.into()),
+        }
+    }
+}
+
+pub(crate) trait IntoFsError {
+    fn into_fs_error(self, path: &Path, message: &str) -> Error;
+}
+
+impl IntoFsError for IoError {
+    fn into_fs_error(self, path: &Path, message: &str) -> Error {
+        match self.kind() {
+            ErrorKind::NotFound => Error::not_found(path),
+            ErrorKind::AlreadyExists => Error::already_exists(path),
+            ErrorKind::PermissionDenied => Error::permission_denied(path),
+            ErrorKind::InvalidInput => Error::invalid_path(self.to_string()),
+            _ => Error::sourced_unexpected(message, self),
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl IntoFsError for rustix::io::Errno {
+    fn into_fs_error(self, path: &Path, message: &str) -> Error {
+        match self.kind() {
+            ErrorKind::NotFound => Error::not_found(path),
+            ErrorKind::AlreadyExists => Error::already_exists(path),
+            ErrorKind::PermissionDenied => Error::permission_denied(path),
+            ErrorKind::InvalidInput => Error::invalid_path(self.to_string()),
+            _ => Error::sourced_unexpected(message, self),
         }
     }
 }
@@ -152,7 +188,7 @@ mod tests {
             } if message == "path contains a NUL byte"
         ));
         assert!(matches!(
-            Error::unexpected("host failed", None),
+            Error::unexpected("host failed"),
             Error::Unexpected {
                 message,
                 source: None,

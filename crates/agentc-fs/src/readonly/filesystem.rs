@@ -10,8 +10,8 @@ use crate::{
     backend::{Backend, DirectoryCursor, ErasedBackend, FileHandle},
     errors::Error,
     fs::{
-        Capabilities, CreateDirOptions, Metadata, MetadataOptions, OpenOptions, Permissions,
-        RemoveDirOptions,
+        AccessOptions, Capabilities, CreateDirOptions, Metadata, MetadataOptions, OpenOptions,
+        Owner, Permissions, RemoveDirOptions, SetOwnerOptions,
     },
     path::{Path, PathBuf},
 };
@@ -32,6 +32,12 @@ impl ReadOnlyFs {
             || options.is_create()
             || options.is_create_new()
     }
+
+    fn readonly_metadata(metadata: Metadata) -> Metadata {
+        let permissions = Permissions::new(metadata.permissions().mode() & !0o222);
+
+        metadata.with_permissions(permissions)
+    }
 }
 
 #[async_trait]
@@ -40,7 +46,10 @@ impl Backend for ReadOnlyFs {
     type DirEntries = Box<dyn DirectoryCursor>;
 
     fn capabilities(&self) -> Capabilities {
-        self.inner.capabilities()
+        self.inner
+            .capabilities()
+            .permissions(false)
+            .owner(false)
     }
 
     async fn open(&self, path: &Path, options: &OpenOptions) -> Result<Self::File, Error> {
@@ -56,7 +65,19 @@ impl Backend for ReadOnlyFs {
     }
 
     async fn metadata(&self, path: &Path, options: &MetadataOptions) -> Result<Metadata, Error> {
-        self.inner.metadata(path, options).await
+        Ok(Self::readonly_metadata(
+            self.inner
+                .metadata(path, options)
+                .await?,
+        ))
+    }
+
+    async fn access(&self, path: &Path, options: &AccessOptions) -> Result<(), Error> {
+        if options.is_write() {
+            return Err(Error::permission_denied(path));
+        }
+
+        self.inner.access(path, options).await
     }
 
     async fn create_dir(&self, path: &Path, _options: &CreateDirOptions) -> Result<(), Error> {
@@ -68,6 +89,10 @@ impl Backend for ReadOnlyFs {
     }
 
     async fn remove_dir(&self, path: &Path, _options: &RemoveDirOptions) -> Result<(), Error> {
+        Err(Error::permission_denied(path))
+    }
+
+    async fn truncate(&self, path: &Path, _len: u64) -> Result<(), Error> {
         Err(Error::permission_denied(path))
     }
 
@@ -86,16 +111,23 @@ impl Backend for ReadOnlyFs {
     async fn set_permissions(&self, path: &Path, _permissions: Permissions) -> Result<(), Error> {
         Err(Error::permission_denied(path))
     }
+
+    async fn set_owner(
+        &self,
+        path: &Path,
+        _owner: Owner,
+        _options: &SetOwnerOptions,
+    ) -> Result<(), Error> {
+        Err(Error::permission_denied(path))
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use tokio::io::AsyncWriteExt;
-
     use crate::{
         backend::Backend,
         errors::Error,
-        fs::{Fs, OpenOptions},
+        fs::{AccessOptions, File, Fs, OpenOptions, Owner},
         memory::MemoryFs,
         path::PathBuf,
         readonly::ReadOnlyFs,
@@ -107,15 +139,17 @@ mod tests {
         async fn with_file(path: &str, content: &[u8]) -> MemoryFs {
             let fs = MemoryFs::new();
             let path = PathBuf::parse(path).unwrap();
-            let mut file = Backend::open(
-                &fs,
-                path.as_path(),
-                &OpenOptions::new()
-                    .write(true)
-                    .create(true),
-            )
-            .await
-            .unwrap();
+            let mut file = File::new(Box::new(
+                Backend::open(
+                    &fs,
+                    path.as_path(),
+                    &OpenOptions::new()
+                        .write(true)
+                        .create(true),
+                )
+                .await
+                .unwrap(),
+            ));
 
             file.write_all(content).await.unwrap();
             fs
@@ -156,6 +190,62 @@ mod tests {
                 .create_dir("/workspace")
                 .await,
             Err(Error::PermissionDenied(path)) if path.to_string_lossy() == "/workspace"
+        ));
+    }
+
+    #[tokio::test]
+    async fn readonly_denies_truncate() {
+        assert!(matches!(
+            Fs::new(ReadOnlyFs::new(MemorySource::with_file("/notes.txt", b"readonly").await))
+                .root()
+                .truncate("/notes.txt", 4)
+                .await,
+            Err(Error::PermissionDenied(path)) if path.to_string_lossy() == "/notes.txt"
+        ));
+    }
+
+    #[tokio::test]
+    async fn readonly_denies_set_owner() {
+        assert!(matches!(
+            Fs::new(ReadOnlyFs::new(MemorySource::with_file("/notes.txt", b"readonly").await))
+                .root()
+                .set_owner("/notes.txt", Owner::new().user(1000))
+                .await,
+            Err(Error::PermissionDenied(path)) if path.to_string_lossy() == "/notes.txt"
+        ));
+    }
+
+    #[tokio::test]
+    async fn readonly_metadata_reports_no_write_bits() {
+        let metadata =
+            Fs::new(ReadOnlyFs::new(MemorySource::with_file("/notes.txt", b"readonly").await))
+                .root()
+                .metadata("/notes.txt")
+                .await
+                .unwrap();
+
+        assert_eq!(metadata.permissions().mode(), 0o444);
+        assert!(metadata.permissions().is_readonly());
+    }
+
+    #[tokio::test]
+    async fn readonly_reports_no_permission_support() {
+        assert!(
+            !Fs::new(ReadOnlyFs::new(MemoryFs::new()))
+                .backend
+                .capabilities()
+                .supports_permissions()
+        );
+    }
+
+    #[tokio::test]
+    async fn readonly_access_denies_every_write_request() {
+        assert!(matches!(
+            Fs::new(ReadOnlyFs::new(MemorySource::with_file("/notes.txt", b"readonly").await))
+                .root()
+                .access("/notes.txt", &AccessOptions::new().write(true))
+                .await,
+            Err(Error::PermissionDenied(path)) if path.to_string_lossy() == "/notes.txt"
         ));
     }
 }

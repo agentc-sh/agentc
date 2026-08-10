@@ -7,7 +7,11 @@ use std::{
     task::{Context, Poll},
 };
 
-use futures::{Stream, future::poll_fn};
+use futures::{
+    Stream, StreamExt,
+    future::poll_fn,
+    stream::{self, BoxStream},
+};
 
 use crate::{
     backend::DirectoryCursor,
@@ -16,8 +20,8 @@ use crate::{
         file::File,
         filesystem::Fs,
         types::{
-            CreateDirOptions, FileType, Metadata, MetadataOptions, OpenOptions, OpenOptionsBuilder,
-            RemoveDirOptions,
+            AccessOptions, CreateDirOptions, FileType, Metadata, MetadataOptions, OpenOptions,
+            OpenOptionsBuilder, Owner, Permissions, RemoveDirOptions, SetOwnerOptions, TempSuffix,
         },
     },
     path::{Component, IntoPathBuf, Path, PathBuf},
@@ -104,6 +108,38 @@ impl Dir {
         Ok(Dir::new(self.fs.clone(), self.root.clone(), path))
     }
 
+    pub async fn create_dir_temp(&self, prefix: impl IntoPathBuf) -> Result<Dir, Error> {
+        let prefix = self.resolve(prefix)?;
+
+        for _ in 0..TempSuffix::ATTEMPTS {
+            let mut candidate = prefix.as_bytes().to_vec();
+
+            candidate.extend_from_slice(TempSuffix::generate()?.as_bytes());
+
+            let path = PathBuf::parse(candidate)?;
+
+            match self
+                .fs
+                .backend
+                .create_dir(path.as_path(), &CreateDirOptions::new())
+                .await
+            {
+                Ok(()) => {
+                    self.fs
+                        .backend
+                        .set_permissions(path.as_path(), Permissions::new(0o700))
+                        .await?;
+
+                    return Ok(Dir::new(self.fs.clone(), self.root.clone(), path));
+                }
+                Err(Error::AlreadyExists(_)) => continue,
+                Err(error) => return Err(error),
+            }
+        }
+
+        Err(Error::already_exists(prefix))
+    }
+
     pub async fn entries(&self) -> Result<DirEntries, Error> {
         Ok(DirEntries::new(
             self.fs
@@ -111,6 +147,39 @@ impl Dir {
                 .entries(self.path.as_path())
                 .await?,
         ))
+    }
+
+    pub async fn walk(&self) -> Result<Walk, Error> {
+        Ok(Walk {
+            inner: stream::unfold(
+                (self.fs.clone(), vec![self.entries().await?]),
+                |(fs, mut cursors)| async move {
+                    loop {
+                        let cursor = cursors.last_mut()?;
+
+                        match cursor.next().await {
+                            Ok(None) => {
+                                cursors.pop();
+                            }
+                            Ok(Some(entry)) => {
+                                if entry.file_type() == FileType::Directory
+                                    && let Ok(children) = fs
+                                        .backend
+                                        .entries(entry.path().as_path())
+                                        .await
+                                {
+                                    cursors.push(DirEntries::new(children));
+                                }
+
+                                return Some((Ok(entry), (fs, cursors)));
+                            }
+                            Err(error) => return Some((Err(error), (fs, cursors))),
+                        }
+                    }
+                },
+            )
+            .boxed(),
+        })
     }
 
     pub async fn entry(&self, path: impl IntoPathBuf) -> Result<DirEntry, Error> {
@@ -131,6 +200,28 @@ impl Dir {
         self.fs
             .backend
             .metadata(self.resolve(path)?.as_path(), &MetadataOptions::new())
+            .await
+    }
+
+    pub async fn access(
+        &self,
+        path: impl IntoPathBuf,
+        options: &AccessOptions,
+    ) -> Result<(), Error> {
+        self.fs
+            .backend
+            .access(self.resolve(path)?.as_path(), options)
+            .await
+    }
+
+    pub async fn set_permissions(
+        &self,
+        path: impl IntoPathBuf,
+        permissions: Permissions,
+    ) -> Result<(), Error> {
+        self.fs
+            .backend
+            .set_permissions(self.resolve(path)?.as_path(), permissions)
             .await
     }
 
@@ -185,6 +276,30 @@ impl Dir {
         self.fs
             .backend
             .remove_dir(self.resolve(path)?.as_path(), &RemoveDirOptions::new().recursive(true))
+            .await
+    }
+
+    pub async fn truncate(&self, path: impl IntoPathBuf, len: u64) -> Result<(), Error> {
+        self.fs
+            .backend
+            .truncate(self.resolve(path)?.as_path(), len)
+            .await
+    }
+
+    pub async fn set_owner(&self, path: impl IntoPathBuf, owner: Owner) -> Result<(), Error> {
+        self.set_owner_with_options(path, owner, &SetOwnerOptions::new())
+            .await
+    }
+
+    pub async fn set_owner_with_options(
+        &self,
+        path: impl IntoPathBuf,
+        owner: Owner,
+        options: &SetOwnerOptions,
+    ) -> Result<(), Error> {
+        self.fs
+            .backend
+            .set_owner(self.resolve(path)?.as_path(), owner, options)
             .await
     }
 
@@ -302,5 +417,28 @@ impl Stream for DirEntries {
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         Pin::new(&mut *self.inner).poll_next(cx)
+    }
+}
+
+pub struct Walk {
+    inner: BoxStream<'static, Result<DirEntry, Error>>,
+}
+
+impl Walk {
+    pub async fn next(&mut self) -> Result<Option<DirEntry>, Error> {
+        poll_fn(|cx| {
+            Pin::new(&mut self.inner)
+                .poll_next(cx)
+                .map(|entry| entry.transpose())
+        })
+        .await
+    }
+}
+
+impl Stream for Walk {
+    type Item = Result<DirEntry, Error>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        Pin::new(&mut self.inner).poll_next(cx)
     }
 }

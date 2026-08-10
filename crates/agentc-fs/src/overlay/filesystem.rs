@@ -2,24 +2,21 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::{collections::BTreeMap, error::Error as StdError, sync::Arc, vec::IntoIter};
+use std::{collections::BTreeMap, sync::Arc, vec::IntoIter};
 
 use async_trait::async_trait;
 use futures::{
     StreamExt,
     stream::{self, Iter},
 };
-use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
-    sync::RwLock,
-};
+use tokio::sync::RwLock;
 
 use crate::{
     backend::{Backend, ErasedBackend, FileHandle},
     errors::Error,
     fs::{
-        Capabilities, CreateDirOptions, DirEntry, FileType, Metadata, MetadataOptions, OpenOptions,
-        PermissionCapability, Permissions, RemoveDirOptions,
+        AccessOptions, Capabilities, CreateDirOptions, DirEntry, File, FileType, Metadata,
+        MetadataOptions, OpenOptions, Owner, Permissions, RemoveDirOptions, SetOwnerOptions,
     },
     overlay::whiteout::Whiteouts,
     path::{Path, PathBuf},
@@ -46,10 +43,6 @@ impl OverlayFs {
             || options.is_truncate()
             || options.is_create()
             || options.is_create_new()
-    }
-
-    fn io_error(message: &'static str, error: std::io::Error) -> Error {
-        Error::unexpected(message, Some(Box::new(error) as Box<dyn StdError + Send + Sync>))
     }
 
     async fn is_whiteout(&self, path: &Path) -> bool {
@@ -128,32 +121,28 @@ impl OverlayFs {
             None => return Ok(()),
         }
 
-        let mut bytes = Vec::new();
-        let mut lower = self
-            .lower
-            .open(path, &OpenOptions::new().read(true))
-            .await?;
+        let mut lower = File::new(
+            self.lower
+                .open(path, &OpenOptions::new().read(true))
+                .await?,
+        );
 
-        lower
-            .read_to_end(&mut bytes)
-            .await
-            .map_err(|error| Self::io_error("failed to read lower overlay file", error))?;
         self.create_upper_parent(path).await?;
-        let mut upper = self
-            .upper
-            .open(
-                path,
-                &OpenOptions::new()
-                    .write(true)
-                    .create(true)
-                    .truncate(true),
-            )
-            .await?;
+        let mut upper = File::new(
+            self.upper
+                .open(
+                    path,
+                    &OpenOptions::new()
+                        .write(true)
+                        .create(true)
+                        .truncate(true),
+                )
+                .await?,
+        );
 
         upper
-            .write_all(&bytes)
-            .await
-            .map_err(|error| Self::io_error("failed to write upper overlay file", error))?;
+            .write_all(lower.read_to_end().await?)
+            .await?;
 
         Ok(())
     }
@@ -218,7 +207,7 @@ impl Backend for OverlayFs {
 
     fn capabilities(&self) -> Capabilities {
         Capabilities::new()
-            .permissions(PermissionCapability::PosixMode)
+            .permissions(true)
             .timestamps(true)
     }
 
@@ -287,6 +276,18 @@ impl Backend for OverlayFs {
         match self.upper.metadata(path, options).await {
             Ok(metadata) => Ok(metadata),
             Err(Error::NotFound(_)) => self.lower.metadata(path, options).await,
+            Err(error) => Err(error),
+        }
+    }
+
+    async fn access(&self, path: &Path, options: &AccessOptions) -> Result<(), Error> {
+        if self.is_whiteout(path).await {
+            return Err(Error::not_found(path));
+        }
+
+        match self.upper.access(path, options).await {
+            Ok(()) => Ok(()),
+            Err(Error::NotFound(_)) => self.lower.access(path, options).await,
             Err(error) => Err(error),
         }
     }
@@ -368,6 +369,13 @@ impl Backend for OverlayFs {
         }
     }
 
+    async fn truncate(&self, path: &Path, len: u64) -> Result<(), Error> {
+        self.copy_lower_file_to_upper(path, &OpenOptions::new().write(true))
+            .await?;
+
+        self.upper.truncate(path, len).await
+    }
+
     async fn rename(&self, from: &Path, to: &Path) -> Result<(), Error> {
         if self.is_whiteout(from).await {
             return Err(Error::not_found(from));
@@ -405,16 +413,28 @@ impl Backend for OverlayFs {
             .set_permissions(path, permissions)
             .await
     }
+
+    async fn set_owner(
+        &self,
+        path: &Path,
+        owner: Owner,
+        options: &SetOwnerOptions,
+    ) -> Result<(), Error> {
+        self.copy_lower_file_to_upper(path, &OpenOptions::new().write(true))
+            .await?;
+
+        self.upper
+            .set_owner(path, owner, options)
+            .await
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use tokio::io::AsyncWriteExt;
-
     use crate::{
         backend::Backend,
         errors::Error,
-        fs::{CreateDirOptions, Fs, OpenOptions},
+        fs::{CreateDirOptions, File, Fs, OpenOptions},
         memory::MemoryFs,
         overlay::OverlayFs,
         path::PathBuf,
@@ -436,15 +456,17 @@ mod tests {
                     .unwrap();
             }
 
-            let mut file = Backend::open(
-                &fs,
-                path.as_path(),
-                &OpenOptions::new()
-                    .write(true)
-                    .create(true),
-            )
-            .await
-            .unwrap();
+            let mut file = File::new(Box::new(
+                Backend::open(
+                    &fs,
+                    path.as_path(),
+                    &OpenOptions::new()
+                        .write(true)
+                        .create(true),
+                )
+                .await
+                .unwrap(),
+            ));
 
             file.write_all(content).await.unwrap();
             fs
@@ -568,5 +590,28 @@ mod tests {
         }
 
         assert_eq!(names, vec!["upper.txt"]);
+    }
+
+    #[tokio::test]
+    async fn overlay_truncate_copies_the_file_up_first() {
+        let root = Fs::new(OverlayFs::new(
+            MemoryFs::new(),
+            MemorySource::with_file("/notes.txt", b"lower content").await,
+        ))
+        .root();
+
+        root.truncate("/notes.txt", 5)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            root.open_file("/notes.txt")
+                .await
+                .unwrap()
+                .read_to_string()
+                .await
+                .unwrap(),
+            "lower"
+        );
     }
 }

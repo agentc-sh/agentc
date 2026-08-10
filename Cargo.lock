@@ -432,6 +432,7 @@ dependencies = [
  "bstr",
  "bytes",
  "futures",
+ "getrandom 0.4.3",
  "include_dir",
  "rustix",
  "thiserror 2.0.18",

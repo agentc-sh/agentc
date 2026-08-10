@@ -9,6 +9,10 @@ pub enum Error {
     #[error(transparent)]
     Guest(#[from] guestjs::errors::Error),
 
+    /// No Tokio runtime was active where the host runtime was captured.
+    #[error("no active runtime to capture as the host runtime")]
+    NoHostRuntime,
+
     /// The executor was configured without any workers.
     #[error("executor worker count must be greater than zero")]
     InvalidWorkerCount,
@@ -61,6 +65,10 @@ pub enum Error {
     #[error("worker {worker} panicked")]
     WorkerPanicked { worker: usize },
 
+    /// The host runtime stopped or the offloaded task panicked before returning a result.
+    #[error("the host runtime did not return a result for the offloaded future")]
+    HostRuntimeStopped,
+
     /// The blocking worker-join task failed.
     #[error("worker join task failed: {0}")]
     JoinTask(#[from] tokio::task::JoinError),
@@ -78,6 +86,11 @@ impl Error {
     /// Creates an [`Error::Guest`] error.
     pub fn guest(error: impl Into<guestjs::errors::Error>) -> Self {
         Self::Guest(error.into())
+    }
+
+    /// Creates an [`Error::NoHostRuntime`] error.
+    pub fn no_host_runtime() -> Self {
+        Self::NoHostRuntime
     }
 
     /// Creates an [`Error::InvalidWorkerCount`] error.
@@ -140,6 +153,11 @@ impl Error {
     /// Creates an [`Error::WorkerPanicked`] error.
     pub fn worker_panicked(worker: impl Into<usize>) -> Self {
         Self::WorkerPanicked { worker: worker.into() }
+    }
+
+    /// Creates an [`Error::HostRuntimeStopped`] error.
+    pub fn host_runtime_stopped() -> Self {
+        Self::HostRuntimeStopped
     }
 
     /// Creates an [`Error::JoinTask`] error.

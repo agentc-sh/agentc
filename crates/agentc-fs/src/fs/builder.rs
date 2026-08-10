@@ -44,6 +44,7 @@ impl FsBuilder {
                 path,
                 kind: MountKind::Directory,
                 backend: Arc::new(backend),
+                dev: 0,
             }),
             Err(error) => self.error = Some(error),
         }
@@ -57,6 +58,7 @@ impl FsBuilder {
                 path,
                 kind: MountKind::File,
                 backend: Arc::new(backend),
+                dev: 0,
             }),
             Err(error) => self.error = Some(error),
         }
