@@ -10,8 +10,7 @@ use crate::{
     path::{IntoPathBuf, Path},
 };
 
-const TEMP_ALPHABET: &[u8; 62] =
-    b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+const TEMP_ALPHABET: &[u8; 62] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 const TEMP_SUFFIX_LEN: usize = 6;
 
 pub(crate) struct TempSuffix([u8; TEMP_SUFFIX_LEN]);
@@ -25,9 +24,8 @@ impl TempSuffix {
         let mut filled = 0;
 
         while filled < TEMP_SUFFIX_LEN {
-            getrandom::fill(&mut buffer).map_err(|error| {
-                Error::sourced_unexpected("failed to read random bytes", error)
-            })?;
+            getrandom::fill(&mut buffer)
+                .map_err(|error| Error::sourced_unexpected("failed to read random bytes", error))?;
 
             for byte in buffer {
                 if byte >= 248 {
@@ -247,9 +245,7 @@ impl Permissions {
     const WRITE: u32 = 0o222;
 
     pub fn new(mode: u32) -> Self {
-        Permissions {
-            mode: mode & Self::MASK,
-        }
+        Permissions { mode: mode & Self::MASK }
     }
 
     pub fn mode(&self) -> u32 {
@@ -753,11 +749,7 @@ mod tests {
 
     #[test]
     fn metadata_defaults_are_posix_correct() {
-        let metadata = Metadata::new(
-            FileType::File,
-            1000,
-            Permissions::new(Permissions::FILE),
-        );
+        let metadata = Metadata::new(FileType::File, 1000, Permissions::new(Permissions::FILE));
 
         assert_eq!(metadata.nlink(), 1);
         assert_eq!(metadata.blksize(), 4096);

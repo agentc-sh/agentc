@@ -789,7 +789,9 @@ mod tests {
             .await
             .unwrap();
 
-        root.truncate("/notes.txt", 5).await.unwrap();
+        root.truncate("/notes.txt", 5)
+            .await
+            .unwrap();
 
         assert_eq!(
             root.open_file("/notes.txt")
@@ -826,17 +828,24 @@ mod tests {
             .open("/notes.txt")
             .await
             .unwrap();
-        root.set_owner(
-            "/notes.txt",
-            Owner::new()
-                .user(1000)
-                .group(1000),
-        )
-        .await
-        .unwrap();
+        root.set_owner("/notes.txt", Owner::new().user(1000).group(1000))
+            .await
+            .unwrap();
 
-        assert_eq!(root.metadata("/notes.txt").await.unwrap().uid(), 1000);
-        assert_eq!(root.metadata("/notes.txt").await.unwrap().gid(), 1000);
+        assert_eq!(
+            root.metadata("/notes.txt")
+                .await
+                .unwrap()
+                .uid(),
+            1000
+        );
+        assert_eq!(
+            root.metadata("/notes.txt")
+                .await
+                .unwrap()
+                .gid(),
+            1000
+        );
     }
 
     #[tokio::test]
@@ -849,20 +858,27 @@ mod tests {
             .open("/notes.txt")
             .await
             .unwrap();
-        root.set_owner(
-            "/notes.txt",
-            Owner::new()
-                .user(1000)
-                .group(1000),
-        )
-        .await
-        .unwrap();
+        root.set_owner("/notes.txt", Owner::new().user(1000).group(1000))
+            .await
+            .unwrap();
         root.set_owner("/notes.txt", Owner::new().group(2000))
             .await
             .unwrap();
 
-        assert_eq!(root.metadata("/notes.txt").await.unwrap().uid(), 1000);
-        assert_eq!(root.metadata("/notes.txt").await.unwrap().gid(), 2000);
+        assert_eq!(
+            root.metadata("/notes.txt")
+                .await
+                .unwrap()
+                .uid(),
+            1000
+        );
+        assert_eq!(
+            root.metadata("/notes.txt")
+                .await
+                .unwrap()
+                .gid(),
+            2000
+        );
     }
 
     #[tokio::test]
@@ -882,8 +898,20 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(root.metadata("/target.txt").await.unwrap().uid(), 1000);
-        assert_eq!(root.metadata("/link.txt").await.unwrap().uid(), 0);
+        assert_eq!(
+            root.metadata("/target.txt")
+                .await
+                .unwrap()
+                .uid(),
+            1000
+        );
+        assert_eq!(
+            root.metadata("/link.txt")
+                .await
+                .unwrap()
+                .uid(),
+            0
+        );
 
         root.set_owner_with_options(
             "/link.txt",
@@ -893,12 +921,23 @@ mod tests {
         .await
         .unwrap();
 
-        assert_eq!(root.metadata("/link.txt").await.unwrap().uid(), 2000);
+        assert_eq!(
+            root.metadata("/link.txt")
+                .await
+                .unwrap()
+                .uid(),
+            2000
+        );
     }
 
     #[tokio::test]
     async fn memory_reports_ownership_capability() {
-        assert!(Fs::memory().backend.capabilities().supports_owner());
+        assert!(
+            Fs::memory()
+                .backend
+                .capabilities()
+                .supports_owner()
+        );
     }
 
     #[tokio::test]
@@ -963,8 +1002,16 @@ mod tests {
             .await
             .unwrap();
 
-        let first = root.metadata("/first.txt").await.unwrap().ino();
-        let second = root.metadata("/second.txt").await.unwrap().ino();
+        let first = root
+            .metadata("/first.txt")
+            .await
+            .unwrap()
+            .ino();
+        let second = root
+            .metadata("/second.txt")
+            .await
+            .unwrap()
+            .ino();
 
         assert_ne!(first, 0);
         assert_ne!(second, 0);
@@ -973,7 +1020,15 @@ mod tests {
 
     #[tokio::test]
     async fn memory_root_has_the_first_inode_number() {
-        assert_eq!(Fs::memory().root().metadata("/").await.unwrap().ino(), 1);
+        assert_eq!(
+            Fs::memory()
+                .root()
+                .metadata("/")
+                .await
+                .unwrap()
+                .ino(),
+            1
+        );
     }
 
     #[tokio::test]
@@ -1210,9 +1265,7 @@ mod tests {
     async fn walk_does_not_descend_into_symlinked_directories() {
         let root = Fs::memory().root();
 
-        root.create_dir("/real")
-            .await
-            .unwrap();
+        root.create_dir("/real").await.unwrap();
         root.options()
             .write(true)
             .create(true)
@@ -1231,9 +1284,11 @@ mod tests {
         }
 
         assert!(entries.contains(&("/link".to_string(), FileType::Symlink)));
-        assert!(!entries
-            .iter()
-            .any(|(path, _)| path == "/link/file.txt"));
+        assert!(
+            !entries
+                .iter()
+                .any(|(path, _)| path == "/link/file.txt")
+        );
     }
 
     #[tokio::test]
@@ -1251,11 +1306,12 @@ mod tests {
     async fn create_dir_temp_appends_six_characters_to_the_prefix() {
         let root = Fs::memory().root();
 
-        root.create_dir("/tmp")
+        root.create_dir("/tmp").await.unwrap();
+
+        let dir = root
+            .create_dir_temp("/tmp/run-")
             .await
             .unwrap();
-
-        let dir = root.create_dir_temp("/tmp/run-").await.unwrap();
         let path = dir.path().to_string_lossy();
 
         assert!(path.starts_with("/tmp/run-"));
@@ -1266,25 +1322,31 @@ mod tests {
     async fn create_dir_temp_returns_distinct_paths() {
         let root = Fs::memory().root();
 
-        root.create_dir("/tmp")
+        root.create_dir("/tmp").await.unwrap();
+
+        let first = root
+            .create_dir_temp("/tmp/run-")
+            .await
+            .unwrap();
+        let second = root
+            .create_dir_temp("/tmp/run-")
             .await
             .unwrap();
 
-        let first = root.create_dir_temp("/tmp/run-").await.unwrap();
-        let second = root.create_dir_temp("/tmp/run-").await.unwrap();
-
         assert_ne!(first.path(), second.path());
-        root.metadata(first.path()).await.unwrap();
-        root.metadata(second.path()).await.unwrap();
+        root.metadata(first.path())
+            .await
+            .unwrap();
+        root.metadata(second.path())
+            .await
+            .unwrap();
     }
 
     #[tokio::test]
     async fn create_dir_temp_restricts_the_mode() {
         let root = Fs::memory().root();
 
-        root.create_dir("/tmp")
-            .await
-            .unwrap();
+        root.create_dir("/tmp").await.unwrap();
 
         assert_eq!(
             root.create_dir_temp("/tmp/run-")
@@ -1303,9 +1365,7 @@ mod tests {
     async fn create_dir_temp_uses_only_alphabet_characters() {
         let root = Fs::memory().root();
 
-        root.create_dir("/tmp")
-            .await
-            .unwrap();
+        root.create_dir("/tmp").await.unwrap();
 
         assert!(
             root.create_dir_temp("/tmp/run-")

@@ -140,7 +140,9 @@ impl OverlayFs {
                 .await?,
         );
 
-        upper.write_all(lower.read_to_end().await?).await?;
+        upper
+            .write_all(lower.read_to_end().await?)
+            .await?;
 
         Ok(())
     }
@@ -598,7 +600,9 @@ mod tests {
         ))
         .root();
 
-        root.truncate("/notes.txt", 5).await.unwrap();
+        root.truncate("/notes.txt", 5)
+            .await
+            .unwrap();
 
         assert_eq!(
             root.open_file("/notes.txt")

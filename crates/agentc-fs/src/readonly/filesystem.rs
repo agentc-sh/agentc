@@ -66,7 +66,9 @@ impl Backend for ReadOnlyFs {
 
     async fn metadata(&self, path: &Path, options: &MetadataOptions) -> Result<Metadata, Error> {
         Ok(Self::readonly_metadata(
-            self.inner.metadata(path, options).await?,
+            self.inner
+                .metadata(path, options)
+                .await?,
         ))
     }
 

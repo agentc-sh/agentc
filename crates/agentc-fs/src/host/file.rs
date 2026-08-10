@@ -61,18 +61,14 @@ impl FileHandle for HostFile {
         self.file
             .set_len(len)
             .await
-            .map_err(|error| {
-                error.into_fs_error(self.path.as_path(), "failed to resize host file")
-            })
+            .map_err(|error| error.into_fs_error(self.path.as_path(), "failed to resize host file"))
     }
 
     async fn sync_all(&mut self) -> Result<(), Error> {
         self.file
             .sync_all()
             .await
-            .map_err(|error| {
-                error.into_fs_error(self.path.as_path(), "failed to sync host file")
-            })
+            .map_err(|error| error.into_fs_error(self.path.as_path(), "failed to sync host file"))
     }
 
     async fn sync_data(&mut self) -> Result<(), Error> {

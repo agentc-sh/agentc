@@ -387,7 +387,9 @@ mod tests {
             Err(Error::PermissionDenied(path)) if path.to_string_lossy() == "/notes.txt"
         ));
 
-        root.metadata("/notes.txt").await.unwrap();
+        root.metadata("/notes.txt")
+            .await
+            .unwrap();
     }
 
     #[tokio::test]

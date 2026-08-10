@@ -163,8 +163,10 @@ impl Dir {
                             }
                             Ok(Some(entry)) => {
                                 if entry.file_type() == FileType::Directory
-                                    && let Ok(children) =
-                                        fs.backend.entries(entry.path().as_path()).await
+                                    && let Ok(children) = fs
+                                        .backend
+                                        .entries(entry.path().as_path())
+                                        .await
                                 {
                                     cursors.push(DirEntries::new(children));
                                 }

@@ -25,9 +25,7 @@ impl File {
         let mut bytes = Vec::new();
         AsyncReadExt::read_to_end(self, &mut bytes)
             .await
-            .map_err(|error| {
-                Error::sourced_unexpected("failed to read file", error)
-            })?;
+            .map_err(|error| Error::sourced_unexpected("failed to read file", error))?;
 
         Ok(bytes)
     }
@@ -36,9 +34,7 @@ impl File {
         let mut content = String::new();
         AsyncReadExt::read_to_string(self, &mut content)
             .await
-            .map_err(|error| {
-                Error::sourced_unexpected("failed to read file as string", error)
-            })?;
+            .map_err(|error| Error::sourced_unexpected("failed to read file as string", error))?;
 
         Ok(content)
     }
@@ -46,17 +42,13 @@ impl File {
     pub async fn write_all(&mut self, bytes: impl AsRef<[u8]>) -> Result<(), Error> {
         AsyncWriteExt::write_all(self, bytes.as_ref())
             .await
-            .map_err(|error| {
-                Error::sourced_unexpected("failed to write file", error)
-            })
+            .map_err(|error| Error::sourced_unexpected("failed to write file", error))
     }
 
     pub async fn flush(&mut self) -> Result<(), Error> {
         AsyncWriteExt::flush(self)
             .await
-            .map_err(|error| {
-                Error::sourced_unexpected("failed to flush file", error)
-            })
+            .map_err(|error| Error::sourced_unexpected("failed to flush file", error))
     }
 
     pub async fn set_len(&mut self, len: u64) -> Result<(), Error> {
@@ -78,33 +70,21 @@ impl AsyncRead for File {
         cx: &mut Context<'_>,
         buf: &mut ReadBuf<'_>,
     ) -> Poll<IoResult<()>> {
-        self.get_mut()
-            .inner
-            .poll_read(cx, buf)
+        self.get_mut().inner.poll_read(cx, buf)
     }
 }
 
 impl AsyncWrite for File {
-    fn poll_write(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<IoResult<usize>> {
-        self.get_mut()
-            .inner
-            .poll_write(cx, buf)
+    fn poll_write(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<IoResult<usize>> {
+        self.get_mut().inner.poll_write(cx, buf)
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
-        self.get_mut()
-            .inner
-            .poll_flush(cx)
+        self.get_mut().inner.poll_flush(cx)
     }
 
     fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
-        self.get_mut()
-            .inner
-            .poll_shutdown(cx)
+        self.get_mut().inner.poll_shutdown(cx)
     }
 }
 
@@ -116,9 +96,7 @@ impl AsyncSeek for File {
     }
 
     fn poll_complete(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<u64>> {
-        self.get_mut()
-            .inner
-            .poll_seek(cx)
+        self.get_mut().inner.poll_seek(cx)
     }
 }
 
@@ -137,7 +115,9 @@ mod tests {
             .await
             .unwrap();
 
-        file.write_all(b"content").await.unwrap();
+        file.write_all(b"content")
+            .await
+            .unwrap();
 
         assert!(file.sync_all().await.is_ok());
         assert!(file.sync_data().await.is_ok());

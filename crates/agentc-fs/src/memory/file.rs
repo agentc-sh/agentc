@@ -28,12 +28,7 @@ impl MemoryFile {
         position: u64,
         writable: bool,
     ) -> Self {
-        MemoryFile {
-            path,
-            content,
-            position,
-            writable,
-        }
+        MemoryFile { path, content, position, writable }
     }
 
     fn lock_content(&self) -> IoResult<MutexGuard<'_, Vec<u8>>> {
@@ -147,11 +142,7 @@ mod tests {
     use tokio::io::AsyncSeekExt;
 
     use crate::{
-        backend::FileHandle,
-        errors::Error,
-        fs::File,
-        memory::file::MemoryFile,
-        path::PathBuf,
+        backend::FileHandle, errors::Error, fs::File, memory::file::MemoryFile, path::PathBuf,
     };
 
     #[tokio::test]
@@ -184,12 +175,8 @@ mod tests {
     #[tokio::test]
     async fn memory_file_set_len_shrinks_and_zero_fills() {
         let content = Arc::new(Mutex::new(b"hello world".to_vec()));
-        let mut file = MemoryFile::new(
-            PathBuf::parse("/notes.txt").unwrap(),
-            content.clone(),
-            0,
-            true,
-        );
+        let mut file =
+            MemoryFile::new(PathBuf::parse("/notes.txt").unwrap(), content.clone(), 0, true);
 
         file.set_len(5).await.unwrap();
         assert_eq!(content.lock().unwrap().as_slice(), b"hello");

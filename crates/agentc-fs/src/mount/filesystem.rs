@@ -226,9 +226,7 @@ impl Backend for MountFs {
     }
 
     async fn access(&self, path: &Path, options: &AccessOptions) -> Result<(), Error> {
-        self.route(path)?
-            .access(options)
-            .await
+        self.route(path)?.access(options).await
     }
 
     async fn create_dir(&self, path: &Path, options: &CreateDirOptions) -> Result<(), Error> {
@@ -248,9 +246,7 @@ impl Backend for MountFs {
     }
 
     async fn truncate(&self, path: &Path, len: u64) -> Result<(), Error> {
-        self.route(path)?
-            .truncate(len)
-            .await
+        self.route(path)?.truncate(len).await
     }
 
     async fn rename(&self, from: &Path, to: &Path) -> Result<(), Error> {
@@ -428,8 +424,16 @@ mod tests {
             .unwrap()
             .root();
 
-        let left = root.metadata("/left/file.txt").await.unwrap().dev();
-        let right = root.metadata("/right/file.txt").await.unwrap().dev();
+        let left = root
+            .metadata("/left/file.txt")
+            .await
+            .unwrap()
+            .dev();
+        let right = root
+            .metadata("/right/file.txt")
+            .await
+            .unwrap()
+            .dev();
 
         assert_ne!(left, 0);
         assert_ne!(right, 0);
@@ -443,7 +447,13 @@ mod tests {
             .build()
             .unwrap()
             .root();
-        let mut entries = root.open_dir("/workspace").await.unwrap().entries().await.unwrap();
+        let mut entries = root
+            .open_dir("/workspace")
+            .await
+            .unwrap()
+            .entries()
+            .await
+            .unwrap();
 
         assert_eq!(
             entries
@@ -454,7 +464,10 @@ mod tests {
                 .metadata()
                 .unwrap()
                 .dev(),
-            root.metadata("/workspace/notes.txt").await.unwrap().dev()
+            root.metadata("/workspace/notes.txt")
+                .await
+                .unwrap()
+                .dev()
         );
     }
 }

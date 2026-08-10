@@ -151,12 +151,10 @@ impl HostFs {
                 .with_rdev(host_metadata.rdev())
                 .with_blksize(host_metadata.blksize())
                 .with_blocks(host_metadata.blocks())
-                .with_changed(
-                    SystemTime::UNIX_EPOCH.checked_add(Duration::new(
-                        host_metadata.ctime() as u64,
-                        host_metadata.ctime_nsec() as u32,
-                    )),
-                );
+                .with_changed(SystemTime::UNIX_EPOCH.checked_add(Duration::new(
+                    host_metadata.ctime() as u64,
+                    host_metadata.ctime_nsec() as u32,
+                )));
         }
 
         #[cfg(not(unix))]
@@ -347,9 +345,7 @@ impl Backend for HostFs {
         while let Some(entry) = reader
             .next_entry()
             .await
-            .map_err(|error| {
-                error.into_fs_error(path, "failed to read host directory entry")
-            })?
+            .map_err(|error| error.into_fs_error(path, "failed to read host directory entry"))?
         {
             let file_name = Component::from(HostFileName(&entry.file_name()));
             let child_path = PathBuf::from(path).join(file_name.as_bytes())?;

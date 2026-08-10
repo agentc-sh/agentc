@@ -89,7 +89,7 @@ impl Error {
 
     pub fn sourced_unexpected(
         message: impl Into<String>,
-        source:  impl Into<Box<dyn StdError + Send + Sync>>,
+        source: impl Into<Box<dyn StdError + Send + Sync>>,
     ) -> Self {
         Error::Unexpected {
             message: message.into(),
