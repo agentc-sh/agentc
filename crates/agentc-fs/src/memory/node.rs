@@ -95,7 +95,7 @@ impl MemoryFileNode {
 
         MemoryFileNode {
             content: Arc::new(Mutex::new(Vec::new())),
-            permissions: Permissions::new(),
+            permissions: Permissions::new(Permissions::FILE),
             accessed: Some(now),
             modified: Some(now),
             created: Some(now),
@@ -141,7 +141,7 @@ impl MemoryDirectoryNode {
 
         MemoryDirectoryNode {
             entries: BTreeMap::new(),
-            permissions: Permissions::new(),
+            permissions: Permissions::new(Permissions::DIRECTORY),
             accessed: Some(now),
             modified: Some(now),
             created: Some(now),
@@ -184,7 +184,7 @@ impl MemorySymlinkNode {
 
         MemorySymlinkNode {
             target,
-            permissions: Permissions::new(),
+            permissions: Permissions::new(Permissions::SYMLINK),
             accessed: Some(now),
             modified: Some(now),
             created: Some(now),

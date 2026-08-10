@@ -23,7 +23,7 @@ use crate::{
     errors::{Error, IntoFsError},
     fs::{
         Capabilities, CreateDirOptions, DirEntry, FileType, Metadata, MetadataOptions, OpenOptions,
-        Owner, PermissionCapability, Permissions, RemoveDirOptions, SetOwnerOptions,
+        Owner, Permissions, RemoveDirOptions, SetOwnerOptions,
     },
     host::HostFile,
     path::{Component, Path, PathBuf},
@@ -128,10 +128,11 @@ impl HostFs {
     }
 
     fn metadata_from_host(host_metadata: std::fs::Metadata) -> Metadata {
+        let file_type = Self::file_type_from_host(host_metadata.file_type());
         let metadata = Metadata::new(
-            Self::file_type_from_host(host_metadata.file_type()),
+            file_type,
             host_metadata.len(),
-            Self::permissions_from_host(host_metadata.permissions()),
+            Self::permissions_from_host(file_type, host_metadata.permissions()),
         )
         .with_accessed(host_metadata.accessed().ok())
         .with_modified(host_metadata.modified().ok())
@@ -185,17 +186,25 @@ impl HostFs {
         FileType::Other
     }
 
-    fn permissions_from_host(permissions: std::fs::Permissions) -> Permissions {
+    fn permissions_from_host(
+        file_type: FileType,
+        permissions: std::fs::Permissions,
+    ) -> Permissions {
         #[cfg(unix)]
         {
-            return Permissions::new()
-                .readonly(permissions.readonly())
-                .mode(permissions.mode());
+            _ = file_type;
+
+            return Permissions::new(permissions.mode());
         }
 
         #[cfg(not(unix))]
         {
-            Permissions::new().readonly(permissions.readonly())
+            Permissions::new(match (file_type, permissions.readonly()) {
+                (FileType::Directory, true) => 0o555,
+                (FileType::Directory, false) => 0o755,
+                (_, true) => 0o444,
+                (_, false) => 0o644,
+            })
         }
     }
 }
@@ -211,7 +220,7 @@ impl Backend for HostFs {
             return Capabilities::new()
                 .symlink(true)
                 .atomic_rename(true)
-                .permissions(PermissionCapability::PosixMode)
+                .permissions(true)
                 .owner(true)
                 .timestamps(true);
         }
@@ -221,7 +230,7 @@ impl Backend for HostFs {
             Capabilities::new()
                 .symlink(true)
                 .atomic_rename(true)
-                .permissions(PermissionCapability::Readonly)
+                .permissions(true)
                 .timestamps(true)
         }
     }
@@ -454,9 +463,7 @@ impl Backend for HostFs {
         host_permissions.set_readonly(permissions.is_readonly());
 
         #[cfg(unix)]
-        if let Some(mode) = permissions.posix_mode() {
-            host_permissions.set_mode(mode);
-        }
+        host_permissions.set_mode(permissions.mode());
 
         fs::set_permissions(self.resolve(path)?, host_permissions)
             .await

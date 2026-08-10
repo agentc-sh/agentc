@@ -16,7 +16,7 @@ use crate::{
     errors::Error,
     fs::{
         Capabilities, CreateDirOptions, DirEntry, Metadata, MetadataOptions, OpenOptions,
-        Owner, PermissionCapability, Permissions, RemoveDirOptions, SetOwnerOptions,
+        Owner, Permissions, RemoveDirOptions, SetOwnerOptions,
     },
     memory::{
         file::MemoryFile,
@@ -132,7 +132,7 @@ impl Backend for MemoryFs {
         Capabilities::new()
             .symlink(true)
             .atomic_rename(true)
-            .permissions(PermissionCapability::PosixMode)
+            .permissions(true)
             .owner(true)
             .timestamps(true)
     }
@@ -525,7 +525,7 @@ impl Backend for MemoryFs {
 mod tests {
     use crate::{
         errors::Error,
-        fs::{Dir, FileType, Fs, Owner, SetOwnerOptions},
+        fs::{Dir, FileType, Fs, Owner, Permissions, SetOwnerOptions},
         path::PathBuf,
     };
 
@@ -861,5 +861,50 @@ mod tests {
     #[tokio::test]
     async fn memory_reports_ownership_capability() {
         assert!(Fs::memory().backend.capabilities().supports_owner());
+    }
+
+    #[tokio::test]
+    async fn memory_nodes_carry_posix_modes() {
+        let root = Fs::memory().root();
+
+        root.create_dir("/workspace")
+            .await
+            .unwrap();
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/notes.txt")
+            .await
+            .unwrap();
+        root.symlink("/notes.txt", "/notes-link.txt")
+            .await
+            .unwrap();
+
+        assert_eq!(
+            root.metadata("/workspace")
+                .await
+                .unwrap()
+                .permissions()
+                .mode(),
+            Permissions::DIRECTORY
+        );
+        assert_eq!(
+            root.metadata("/notes.txt")
+                .await
+                .unwrap()
+                .permissions()
+                .mode(),
+            Permissions::FILE
+        );
+        assert_eq!(
+            root.entry("/notes-link.txt")
+                .await
+                .unwrap()
+                .metadata()
+                .unwrap()
+                .permissions()
+                .mode(),
+            Permissions::SYMLINK
+        );
     }
 }

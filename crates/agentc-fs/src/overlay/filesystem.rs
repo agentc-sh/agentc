@@ -16,7 +16,7 @@ use crate::{
     errors::Error,
     fs::{
         Capabilities, CreateDirOptions, DirEntry, File, FileType, Metadata, MetadataOptions,
-        OpenOptions, Owner, PermissionCapability, Permissions, RemoveDirOptions, SetOwnerOptions,
+        OpenOptions, Owner, Permissions, RemoveDirOptions, SetOwnerOptions,
     },
     overlay::whiteout::Whiteouts,
     path::{Path, PathBuf},
@@ -205,7 +205,7 @@ impl Backend for OverlayFs {
 
     fn capabilities(&self) -> Capabilities {
         Capabilities::new()
-            .permissions(PermissionCapability::PosixMode)
+            .permissions(true)
             .timestamps(true)
     }
 

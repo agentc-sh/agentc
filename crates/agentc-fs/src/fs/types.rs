@@ -87,6 +87,11 @@ impl Metadata {
         self
     }
 
+    pub fn with_permissions(mut self, permissions: Permissions) -> Self {
+        self.permissions = permissions;
+        self
+    }
+
     pub fn with_uid(mut self, uid: u32) -> Self {
         self.uid = uid;
         self
@@ -112,45 +117,30 @@ pub enum FileType {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Permissions {
-    readonly: bool,
-    mode: Option<u32>,
+    mode: u32,
 }
 
 impl Permissions {
-    pub fn new() -> Self {
-        Permissions { readonly: false, mode: None }
+    pub const FILE: u32 = 0o644;
+    pub const DIRECTORY: u32 = 0o755;
+    pub const SYMLINK: u32 = 0o777;
+
+    const MASK: u32 = 0o7777;
+    const WRITE: u32 = 0o222;
+
+    pub fn new(mode: u32) -> Self {
+        Permissions {
+            mode: mode & Self::MASK,
+        }
     }
 
-    pub fn readonly(mut self, readonly: bool) -> Self {
-        self.readonly = readonly;
-        self
-    }
-
-    pub fn mode(mut self, mode: impl Into<Option<u32>>) -> Self {
-        self.mode = mode.into();
-        self
+    pub fn mode(&self) -> u32 {
+        self.mode
     }
 
     pub fn is_readonly(&self) -> bool {
-        self.readonly
+        self.mode & Self::WRITE == 0
     }
-
-    pub fn posix_mode(&self) -> Option<u32> {
-        self.mode
-    }
-}
-
-impl Default for Permissions {
-    fn default() -> Self {
-        Permissions::new()
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum PermissionCapability {
-    None,
-    Readonly,
-    PosixMode,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -158,7 +148,7 @@ pub struct Capabilities {
     symlink: bool,
     hard_link: bool,
     atomic_rename: bool,
-    permissions: PermissionCapability,
+    permissions: bool,
     owner: bool,
     timestamps: bool,
 }
@@ -169,7 +159,7 @@ impl Capabilities {
             symlink: false,
             hard_link: false,
             atomic_rename: false,
-            permissions: PermissionCapability::None,
+            permissions: false,
             owner: false,
             timestamps: false,
         }
@@ -190,7 +180,7 @@ impl Capabilities {
         self
     }
 
-    pub fn permissions(mut self, permissions: PermissionCapability) -> Self {
+    pub fn permissions(mut self, permissions: bool) -> Self {
         self.permissions = permissions;
         self
     }
@@ -217,7 +207,7 @@ impl Capabilities {
         self.atomic_rename
     }
 
-    pub fn permission_capability(&self) -> PermissionCapability {
+    pub fn supports_permissions(&self) -> bool {
         self.permissions
     }
 
@@ -546,7 +536,23 @@ impl Default for SymlinkOptions {
 
 #[cfg(test)]
 mod tests {
-    use crate::fs::{Owner, SetOwnerOptions};
+    use crate::fs::{Owner, Permissions, SetOwnerOptions};
+
+    #[test]
+    fn permissions_mask_discards_file_type_bits() {
+        assert_eq!(Permissions::new(0o100644).mode(), 0o644);
+    }
+
+    #[test]
+    fn permissions_without_write_bits_are_readonly() {
+        assert!(Permissions::new(0o444).is_readonly());
+        assert!(!Permissions::new(0o644).is_readonly());
+    }
+
+    #[test]
+    fn permissions_keep_set_user_bits() {
+        assert_eq!(Permissions::new(0o4755).mode(), 0o4755);
+    }
 
     #[test]
     fn owner_default_changes_nothing() {

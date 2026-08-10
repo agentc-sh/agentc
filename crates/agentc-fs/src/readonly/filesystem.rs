@@ -32,6 +32,12 @@ impl ReadOnlyFs {
             || options.is_create()
             || options.is_create_new()
     }
+
+    fn readonly_metadata(metadata: Metadata) -> Metadata {
+        let permissions = Permissions::new(metadata.permissions().mode() & !0o222);
+
+        metadata.with_permissions(permissions)
+    }
 }
 
 #[async_trait]
@@ -42,6 +48,7 @@ impl Backend for ReadOnlyFs {
     fn capabilities(&self) -> Capabilities {
         self.inner
             .capabilities()
+            .permissions(false)
             .owner(false)
     }
 
@@ -58,7 +65,9 @@ impl Backend for ReadOnlyFs {
     }
 
     async fn metadata(&self, path: &Path, options: &MetadataOptions) -> Result<Metadata, Error> {
-        self.inner.metadata(path, options).await
+        Ok(Self::readonly_metadata(
+            self.inner.metadata(path, options).await?,
+        ))
     }
 
     async fn create_dir(&self, path: &Path, _options: &CreateDirOptions) -> Result<(), Error> {
@@ -194,5 +203,28 @@ mod tests {
                 .await,
             Err(Error::PermissionDenied(path)) if path.to_string_lossy() == "/notes.txt"
         ));
+    }
+
+    #[tokio::test]
+    async fn readonly_metadata_reports_no_write_bits() {
+        let metadata =
+            Fs::new(ReadOnlyFs::new(MemorySource::with_file("/notes.txt", b"readonly").await))
+                .root()
+                .metadata("/notes.txt")
+                .await
+                .unwrap();
+
+        assert_eq!(metadata.permissions().mode(), 0o444);
+        assert!(metadata.permissions().is_readonly());
+    }
+
+    #[tokio::test]
+    async fn readonly_reports_no_permission_support() {
+        assert!(
+            !Fs::new(ReadOnlyFs::new(MemoryFs::new()))
+                .backend
+                .capabilities()
+                .supports_permissions()
+        );
     }
 }

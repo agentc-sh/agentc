@@ -17,7 +17,7 @@ use crate::{
     errors::Error,
     fs::{
         Capabilities, CreateDirOptions, DirEntry, FileType, Metadata, MetadataOptions, OpenOptions,
-        Owner, PermissionCapability, Permissions, RemoveDirOptions, SetOwnerOptions,
+        Owner, Permissions, RemoveDirOptions, SetOwnerOptions,
     },
     path::{Component, Path, PathBuf},
 };
@@ -46,7 +46,14 @@ impl EmbeddedFs {
     }
 
     fn metadata(file_type: FileType, len: u64) -> Metadata {
-        Metadata::new(file_type, len, Permissions::new().readonly(true))
+        Metadata::new(
+            file_type,
+            len,
+            Permissions::new(match file_type {
+                FileType::Directory => 0o555,
+                _ => 0o444,
+            }),
+        )
     }
 
     fn is_root(path: &Path) -> bool {
@@ -108,7 +115,7 @@ impl Backend for EmbeddedFs {
     type DirEntries = Iter<IntoIter<Result<DirEntry, Error>>>;
 
     fn capabilities(&self) -> Capabilities {
-        Capabilities::new().permissions(PermissionCapability::Readonly)
+        Capabilities::new().permissions(false)
     }
 
     async fn open(&self, path: &Path, options: &OpenOptions) -> Result<Self::File, Error> {
@@ -335,5 +342,27 @@ mod tests {
                 .await,
             Err(Error::NotFound(path)) if path.to_string_lossy() == "/missing.md"
         ));
+    }
+
+    #[tokio::test]
+    async fn embedded_entries_are_readonly_modes() {
+        let root = Fs::new(embedded_dir!("$CARGO_MANIFEST_DIR/src")).root();
+
+        assert_eq!(
+            root.metadata("lib.rs")
+                .await
+                .unwrap()
+                .permissions()
+                .mode(),
+            0o444
+        );
+        assert_eq!(
+            root.metadata("fs")
+                .await
+                .unwrap()
+                .permissions()
+                .mode(),
+            0o555
+        );
     }
 }
