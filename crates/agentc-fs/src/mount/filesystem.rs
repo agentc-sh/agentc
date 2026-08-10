@@ -10,8 +10,8 @@ use crate::{
     backend::{Backend, DirectoryCursor, ErasedBackend, FileHandle},
     errors::Error,
     fs::{
-        Capabilities, CreateDirOptions, Metadata, MetadataOptions, OpenOptions, Permissions,
-        RemoveDirOptions,
+        Capabilities, CreateDirOptions, Metadata, MetadataOptions, OpenOptions, Owner,
+        Permissions, RemoveDirOptions, SetOwnerOptions,
     },
     path::{Path, PathBuf},
 };
@@ -161,6 +161,13 @@ impl Route<'_> {
             .set_permissions(self.path.as_path(), permissions)
             .await
     }
+
+    async fn set_owner(self, owner: Owner, options: &SetOwnerOptions) -> Result<(), Error> {
+        self.mount
+            .backend
+            .set_owner(self.path.as_path(), owner, options)
+            .await
+    }
 }
 
 #[async_trait]
@@ -245,6 +252,17 @@ impl Backend for MountFs {
     async fn set_permissions(&self, path: &Path, permissions: Permissions) -> Result<(), Error> {
         self.route(path)?
             .set_permissions(permissions)
+            .await
+    }
+
+    async fn set_owner(
+        &self,
+        path: &Path,
+        owner: Owner,
+        options: &SetOwnerOptions,
+    ) -> Result<(), Error> {
+        self.route(path)?
+            .set_owner(owner, options)
             .await
     }
 }

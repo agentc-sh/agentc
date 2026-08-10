@@ -10,8 +10,8 @@ use crate::{
     backend::{Backend, DirectoryCursor, ErasedBackend, FileHandle},
     errors::Error,
     fs::{
-        Capabilities, CreateDirOptions, Metadata, MetadataOptions, OpenOptions, Permissions,
-        RemoveDirOptions,
+        Capabilities, CreateDirOptions, Metadata, MetadataOptions, OpenOptions, Owner,
+        Permissions, RemoveDirOptions, SetOwnerOptions,
     },
     path::{Path, PathBuf},
 };
@@ -40,7 +40,9 @@ impl Backend for ReadOnlyFs {
     type DirEntries = Box<dyn DirectoryCursor>;
 
     fn capabilities(&self) -> Capabilities {
-        self.inner.capabilities()
+        self.inner
+            .capabilities()
+            .owner(false)
     }
 
     async fn open(&self, path: &Path, options: &OpenOptions) -> Result<Self::File, Error> {
@@ -90,6 +92,15 @@ impl Backend for ReadOnlyFs {
     async fn set_permissions(&self, path: &Path, _permissions: Permissions) -> Result<(), Error> {
         Err(Error::permission_denied(path))
     }
+
+    async fn set_owner(
+        &self,
+        path: &Path,
+        _owner: Owner,
+        _options: &SetOwnerOptions,
+    ) -> Result<(), Error> {
+        Err(Error::permission_denied(path))
+    }
 }
 
 #[cfg(test)]
@@ -97,7 +108,7 @@ mod tests {
     use crate::{
         backend::Backend,
         errors::Error,
-        fs::{File, Fs, OpenOptions},
+        fs::{File, Fs, OpenOptions, Owner},
         memory::MemoryFs,
         path::PathBuf,
         readonly::ReadOnlyFs,
@@ -169,6 +180,17 @@ mod tests {
             Fs::new(ReadOnlyFs::new(MemorySource::with_file("/notes.txt", b"readonly").await))
                 .root()
                 .truncate("/notes.txt", 4)
+                .await,
+            Err(Error::PermissionDenied(path)) if path.to_string_lossy() == "/notes.txt"
+        ));
+    }
+
+    #[tokio::test]
+    async fn readonly_denies_set_owner() {
+        assert!(matches!(
+            Fs::new(ReadOnlyFs::new(MemorySource::with_file("/notes.txt", b"readonly").await))
+                .root()
+                .set_owner("/notes.txt", Owner::new().user(1000))
                 .await,
             Err(Error::PermissionDenied(path)) if path.to_string_lossy() == "/notes.txt"
         ));

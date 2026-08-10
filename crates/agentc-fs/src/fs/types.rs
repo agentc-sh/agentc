@@ -18,6 +18,8 @@ pub struct Metadata {
     accessed: Option<SystemTime>,
     modified: Option<SystemTime>,
     created: Option<SystemTime>,
+    uid: u32,
+    gid: u32,
 }
 
 impl Metadata {
@@ -29,6 +31,8 @@ impl Metadata {
             accessed: None,
             modified: None,
             created: None,
+            uid: 0,
+            gid: 0,
         }
     }
 
@@ -60,6 +64,14 @@ impl Metadata {
         self.created
     }
 
+    pub fn uid(&self) -> u32 {
+        self.uid
+    }
+
+    pub fn gid(&self) -> u32 {
+        self.gid
+    }
+
     pub fn with_accessed(mut self, accessed: impl Into<Option<SystemTime>>) -> Self {
         self.accessed = accessed.into();
         self
@@ -72,6 +84,16 @@ impl Metadata {
 
     pub fn with_created(mut self, created: impl Into<Option<SystemTime>>) -> Self {
         self.created = created.into();
+        self
+    }
+
+    pub fn with_uid(mut self, uid: u32) -> Self {
+        self.uid = uid;
+        self
+    }
+
+    pub fn with_gid(mut self, gid: u32) -> Self {
+        self.gid = gid;
         self
     }
 }
@@ -137,6 +159,7 @@ pub struct Capabilities {
     hard_link: bool,
     atomic_rename: bool,
     permissions: PermissionCapability,
+    owner: bool,
     timestamps: bool,
 }
 
@@ -147,6 +170,7 @@ impl Capabilities {
             hard_link: false,
             atomic_rename: false,
             permissions: PermissionCapability::None,
+            owner: false,
             timestamps: false,
         }
     }
@@ -171,6 +195,11 @@ impl Capabilities {
         self
     }
 
+    pub fn owner(mut self, owner: bool) -> Self {
+        self.owner = owner;
+        self
+    }
+
     pub fn timestamps(mut self, timestamps: bool) -> Self {
         self.timestamps = timestamps;
         self
@@ -192,6 +221,10 @@ impl Capabilities {
         self.permissions
     }
 
+    pub fn supports_owner(&self) -> bool {
+        self.owner
+    }
+
     pub fn supports_timestamps(&self) -> bool {
         self.timestamps
     }
@@ -200,6 +233,36 @@ impl Capabilities {
 impl Default for Capabilities {
     fn default() -> Self {
         Capabilities::new()
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct Owner {
+    user: Option<u32>,
+    group: Option<u32>,
+}
+
+impl Owner {
+    pub fn new() -> Self {
+        Owner::default()
+    }
+
+    pub fn user(mut self, user: impl Into<Option<u32>>) -> Self {
+        self.user = user.into();
+        self
+    }
+
+    pub fn group(mut self, group: impl Into<Option<u32>>) -> Self {
+        self.group = group.into();
+        self
+    }
+
+    pub fn user_id(&self) -> Option<u32> {
+        self.user
+    }
+
+    pub fn group_id(&self) -> Option<u32> {
+        self.group
     }
 }
 
@@ -429,6 +492,32 @@ impl Default for MetadataOptions {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SetOwnerOptions {
+    follow_symlinks: bool,
+}
+
+impl SetOwnerOptions {
+    pub fn new() -> Self {
+        SetOwnerOptions { follow_symlinks: true }
+    }
+
+    pub fn follow_symlinks(mut self, follow_symlinks: bool) -> Self {
+        self.follow_symlinks = follow_symlinks;
+        self
+    }
+
+    pub fn follows_symlinks(&self) -> bool {
+        self.follow_symlinks
+    }
+}
+
+impl Default for SetOwnerOptions {
+    fn default() -> Self {
+        SetOwnerOptions::new()
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SymlinkOptions {
     overwrite: bool,
@@ -452,5 +541,23 @@ impl SymlinkOptions {
 impl Default for SymlinkOptions {
     fn default() -> Self {
         SymlinkOptions::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::fs::{Owner, SetOwnerOptions};
+
+    #[test]
+    fn owner_default_changes_nothing() {
+        let owner = Owner::default();
+
+        assert_eq!(owner.user_id(), None);
+        assert_eq!(owner.group_id(), None);
+    }
+
+    #[test]
+    fn set_owner_options_follow_symlinks_by_default() {
+        assert!(SetOwnerOptions::new().follows_symlinks());
     }
 }

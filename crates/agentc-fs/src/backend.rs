@@ -15,7 +15,7 @@ use crate::{
     errors::Error,
     fs::{
         Capabilities, CreateDirOptions, DirEntry, Metadata, MetadataOptions, OpenOptions,
-        Permissions, RemoveDirOptions,
+        Owner, Permissions, RemoveDirOptions, SetOwnerOptions,
     },
     path::{Path, PathBuf},
 };
@@ -48,6 +48,13 @@ pub trait Backend: Send + Sync + 'static {
     async fn read_link(&self, path: &Path) -> Result<PathBuf, Error>;
 
     async fn set_permissions(&self, path: &Path, permissions: Permissions) -> Result<(), Error>;
+
+    async fn set_owner(
+        &self,
+        path: &Path,
+        owner: Owner,
+        options: &SetOwnerOptions,
+    ) -> Result<(), Error>;
 }
 
 #[async_trait]
@@ -142,6 +149,13 @@ pub trait ErasedBackend: Send + Sync + 'static {
     async fn read_link(&self, path: &Path) -> Result<PathBuf, Error>;
 
     async fn set_permissions(&self, path: &Path, permissions: Permissions) -> Result<(), Error>;
+
+    async fn set_owner(
+        &self,
+        path: &Path,
+        owner: Owner,
+        options: &SetOwnerOptions,
+    ) -> Result<(), Error>;
 }
 
 #[async_trait]
@@ -195,5 +209,14 @@ where
 
     async fn set_permissions(&self, path: &Path, permissions: Permissions) -> Result<(), Error> {
         Backend::set_permissions(self, path, permissions).await
+    }
+
+    async fn set_owner(
+        &self,
+        path: &Path,
+        owner: Owner,
+        options: &SetOwnerOptions,
+    ) -> Result<(), Error> {
+        Backend::set_owner(self, path, owner, options).await
     }
 }

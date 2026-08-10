@@ -16,7 +16,7 @@ use crate::{
     errors::Error,
     fs::{
         Capabilities, CreateDirOptions, DirEntry, File, FileType, Metadata, MetadataOptions,
-        OpenOptions, PermissionCapability, Permissions, RemoveDirOptions,
+        OpenOptions, Owner, PermissionCapability, Permissions, RemoveDirOptions, SetOwnerOptions,
     },
     overlay::whiteout::Whiteouts,
     path::{Path, PathBuf},
@@ -397,6 +397,20 @@ impl Backend for OverlayFs {
             .await?;
         self.upper
             .set_permissions(path, permissions)
+            .await
+    }
+
+    async fn set_owner(
+        &self,
+        path: &Path,
+        owner: Owner,
+        options: &SetOwnerOptions,
+    ) -> Result<(), Error> {
+        self.copy_lower_file_to_upper(path, &OpenOptions::new().write(true))
+            .await?;
+
+        self.upper
+            .set_owner(path, owner, options)
             .await
     }
 }

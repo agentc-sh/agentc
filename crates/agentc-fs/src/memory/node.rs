@@ -11,7 +11,7 @@ use std::{
 use tokio::sync::RwLock;
 
 use crate::{
-    fs::{FileType, Metadata, Permissions},
+    fs::{FileType, Metadata, Owner, Permissions},
     path::PathBuf,
 };
 
@@ -59,6 +59,24 @@ impl Node {
             Node::Symlink(node) => node.permissions = permissions,
         }
     }
+
+    pub(crate) fn set_owner(&mut self, owner: Owner) {
+        if let Some(user) = owner.user_id() {
+            match self {
+                Node::File(node) => node.uid = user,
+                Node::Directory(node) => node.uid = user,
+                Node::Symlink(node) => node.uid = user,
+            }
+        }
+
+        if let Some(group) = owner.group_id() {
+            match self {
+                Node::File(node) => node.gid = group,
+                Node::Directory(node) => node.gid = group,
+                Node::Symlink(node) => node.gid = group,
+            }
+        }
+    }
 }
 
 pub(crate) struct MemoryFileNode {
@@ -67,6 +85,8 @@ pub(crate) struct MemoryFileNode {
     accessed: Option<SystemTime>,
     modified: Option<SystemTime>,
     created: Option<SystemTime>,
+    uid: u32,
+    gid: u32,
 }
 
 impl MemoryFileNode {
@@ -79,6 +99,8 @@ impl MemoryFileNode {
             accessed: Some(now),
             modified: Some(now),
             created: Some(now),
+            uid: 0,
+            gid: 0,
         }
     }
 
@@ -98,6 +120,8 @@ impl MemoryFileNode {
         .with_accessed(self.accessed)
         .with_modified(self.modified)
         .with_created(self.created)
+        .with_uid(self.uid)
+        .with_gid(self.gid)
     }
 }
 
@@ -107,6 +131,8 @@ pub(crate) struct MemoryDirectoryNode {
     accessed: Option<SystemTime>,
     modified: Option<SystemTime>,
     created: Option<SystemTime>,
+    uid: u32,
+    gid: u32,
 }
 
 impl MemoryDirectoryNode {
@@ -119,6 +145,8 @@ impl MemoryDirectoryNode {
             accessed: Some(now),
             modified: Some(now),
             created: Some(now),
+            uid: 0,
+            gid: 0,
         }
     }
 
@@ -135,6 +163,8 @@ impl MemoryDirectoryNode {
             .with_accessed(self.accessed)
             .with_modified(self.modified)
             .with_created(self.created)
+            .with_uid(self.uid)
+            .with_gid(self.gid)
     }
 }
 
@@ -144,6 +174,8 @@ pub(crate) struct MemorySymlinkNode {
     accessed: Option<SystemTime>,
     modified: Option<SystemTime>,
     created: Option<SystemTime>,
+    uid: u32,
+    gid: u32,
 }
 
 impl MemorySymlinkNode {
@@ -156,6 +188,8 @@ impl MemorySymlinkNode {
             accessed: Some(now),
             modified: Some(now),
             created: Some(now),
+            uid: 0,
+            gid: 0,
         }
     }
 
@@ -168,5 +202,7 @@ impl MemorySymlinkNode {
             .with_accessed(self.accessed)
             .with_modified(self.modified)
             .with_created(self.created)
+            .with_uid(self.uid)
+            .with_gid(self.gid)
     }
 }

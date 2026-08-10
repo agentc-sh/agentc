@@ -10,8 +10,8 @@ use crate::{
     backend::{Backend, DirectoryCursor, ErasedBackend, FileHandle},
     errors::Error,
     fs::{
-        Capabilities, CreateDirOptions, Metadata, MetadataOptions, OpenOptions, Permissions,
-        RemoveDirOptions,
+        Capabilities, CreateDirOptions, Metadata, MetadataOptions, OpenOptions, Owner,
+        Permissions, RemoveDirOptions, SetOwnerOptions,
     },
     path::{Path, PathBuf},
     policy::{
@@ -146,7 +146,7 @@ impl Backend for PolicyFs {
         self.check_open(path, options)?;
 
         if Self::mutates_open(options) {
-            self.check_write(&WriteContext::new(path, Some(options), None, None))?;
+            self.check_write(&WriteContext::new(path, Some(options), None, None, None))?;
         }
 
         self.inner.open(path, options).await
@@ -165,7 +165,7 @@ impl Backend for PolicyFs {
     }
 
     async fn create_dir(&self, path: &Path, options: &CreateDirOptions) -> Result<(), Error> {
-        self.check_write(&WriteContext::new(path, None, Some(options), None))?;
+        self.check_write(&WriteContext::new(path, None, Some(options), None, None))?;
 
         self.inner
             .create_dir(path, options)
@@ -187,7 +187,7 @@ impl Backend for PolicyFs {
     }
 
     async fn truncate(&self, path: &Path, len: u64) -> Result<(), Error> {
-        self.check_write(&WriteContext::new(path, None, None, None))?;
+        self.check_write(&WriteContext::new(path, None, None, None, None))?;
 
         self.inner.truncate(path, len).await
     }
@@ -211,10 +211,23 @@ impl Backend for PolicyFs {
     }
 
     async fn set_permissions(&self, path: &Path, permissions: Permissions) -> Result<(), Error> {
-        self.check_write(&WriteContext::new(path, None, None, Some(&permissions)))?;
+        self.check_write(&WriteContext::new(path, None, None, Some(&permissions), None))?;
 
         self.inner
             .set_permissions(path, permissions)
+            .await
+    }
+
+    async fn set_owner(
+        &self,
+        path: &Path,
+        owner: Owner,
+        options: &SetOwnerOptions,
+    ) -> Result<(), Error> {
+        self.check_write(&WriteContext::new(path, None, None, None, Some(&owner)))?;
+
+        self.inner
+            .set_owner(path, owner, options)
             .await
     }
 }
@@ -224,7 +237,7 @@ mod tests {
     use crate::{
         backend::Backend,
         errors::Error,
-        fs::{File, Fs, OpenOptions},
+        fs::{File, Fs, OpenOptions, Owner},
         memory::MemoryFs,
         path::PathBuf,
         policy::{Denied, OpenContext, Policy, PolicyFs, RenameContext, WriteContext},
@@ -289,6 +302,22 @@ mod tests {
         }
     }
 
+    struct DenyOwner;
+
+    impl Policy for DenyOwner {
+        fn name(&self) -> &'static str {
+            "deny-owner"
+        }
+
+        fn check_write(&self, context: &WriteContext<'_>) -> Result<(), Denied> {
+            if context.owner().is_some() {
+                return Err(Denied::new("owner denied"));
+            }
+
+            Ok(())
+        }
+    }
+
     #[tokio::test]
     async fn allows_operations_when_policies_allow() {
         let mut file =
@@ -341,5 +370,25 @@ mod tests {
             .await,
             Err(Error::PermissionDenied(path)) if path.to_string_lossy() == "/notes.txt"
         ));
+    }
+
+    #[tokio::test]
+    async fn policy_can_deny_set_owner_by_inspecting_the_owner() {
+        let root = Fs::new(
+            PolicyFs::new(MemorySource::with_file("/notes.txt", b"owner").await)
+                .with_policy(DenyOwner),
+        )
+        .root();
+
+        assert!(matches!(
+            root.set_owner("/notes.txt", Owner::new().user(1000)).await,
+            Err(Error::PermissionDenied(path)) if path.to_string_lossy() == "/notes.txt"
+        ));
+
+        root.options()
+            .write(true)
+            .open("/notes.txt")
+            .await
+            .unwrap();
     }
 }

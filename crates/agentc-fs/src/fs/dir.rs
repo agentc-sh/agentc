@@ -17,7 +17,7 @@ use crate::{
         filesystem::Fs,
         types::{
             CreateDirOptions, FileType, Metadata, MetadataOptions, OpenOptions, OpenOptionsBuilder,
-            RemoveDirOptions,
+            Owner, RemoveDirOptions, SetOwnerOptions,
         },
     },
     path::{Component, IntoPathBuf, Path, PathBuf},
@@ -192,6 +192,23 @@ impl Dir {
         self.fs
             .backend
             .truncate(self.resolve(path)?.as_path(), len)
+            .await
+    }
+
+    pub async fn set_owner(&self, path: impl IntoPathBuf, owner: Owner) -> Result<(), Error> {
+        self.set_owner_with_options(path, owner, &SetOwnerOptions::new())
+            .await
+    }
+
+    pub async fn set_owner_with_options(
+        &self,
+        path: impl IntoPathBuf,
+        owner: Owner,
+        options: &SetOwnerOptions,
+    ) -> Result<(), Error> {
+        self.fs
+            .backend
+            .set_owner(self.resolve(path)?.as_path(), owner, options)
             .await
     }
 

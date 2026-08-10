@@ -23,7 +23,7 @@ use crate::{
     errors::{Error, IntoFsError},
     fs::{
         Capabilities, CreateDirOptions, DirEntry, FileType, Metadata, MetadataOptions, OpenOptions,
-        PermissionCapability, Permissions, RemoveDirOptions,
+        Owner, PermissionCapability, Permissions, RemoveDirOptions, SetOwnerOptions,
     },
     host::HostFile,
     path::{Component, Path, PathBuf},
@@ -32,7 +32,7 @@ use crate::{
 #[cfg(unix)]
 use std::os::unix::{
     ffi::{OsStrExt, OsStringExt},
-    fs::{FileTypeExt, PermissionsExt},
+    fs::{FileTypeExt, MetadataExt, PermissionsExt, chown, lchown},
 };
 
 struct HostRoot {
@@ -127,15 +127,27 @@ impl HostFs {
         Ok(components)
     }
 
-    fn metadata_from_host(metadata: std::fs::Metadata) -> Metadata {
-        Metadata::new(
-            Self::file_type_from_host(metadata.file_type()),
-            metadata.len(),
-            Self::permissions_from_host(metadata.permissions()),
+    fn metadata_from_host(host_metadata: std::fs::Metadata) -> Metadata {
+        let metadata = Metadata::new(
+            Self::file_type_from_host(host_metadata.file_type()),
+            host_metadata.len(),
+            Self::permissions_from_host(host_metadata.permissions()),
         )
-        .with_accessed(metadata.accessed().ok())
-        .with_modified(metadata.modified().ok())
-        .with_created(metadata.created().ok())
+        .with_accessed(host_metadata.accessed().ok())
+        .with_modified(host_metadata.modified().ok())
+        .with_created(host_metadata.created().ok());
+
+        #[cfg(unix)]
+        {
+            return metadata
+                .with_uid(host_metadata.uid())
+                .with_gid(host_metadata.gid());
+        }
+
+        #[cfg(not(unix))]
+        {
+            metadata
+        }
     }
 
     fn file_type_from_host(file_type: std::fs::FileType) -> FileType {
@@ -200,6 +212,7 @@ impl Backend for HostFs {
                 .symlink(true)
                 .atomic_rename(true)
                 .permissions(PermissionCapability::PosixMode)
+                .owner(true)
                 .timestamps(true);
         }
 
@@ -448,6 +461,31 @@ impl Backend for HostFs {
         fs::set_permissions(self.resolve(path)?, host_permissions)
             .await
             .map_err(|error| error.into_fs_error(path, "failed to set host permissions"))
+    }
+
+    async fn set_owner(
+        &self,
+        path: &Path,
+        owner: Owner,
+        options: &SetOwnerOptions,
+    ) -> Result<(), Error> {
+        #[cfg(unix)]
+        {
+            return if options.follows_symlinks() {
+                chown(self.resolve(path)?, owner.user_id(), owner.group_id())
+            } else {
+                lchown(self.resolve(path)?, owner.user_id(), owner.group_id())
+            }
+            .map_err(|error| error.into_fs_error(path, "failed to change host path ownership"));
+        }
+
+        #[cfg(not(unix))]
+        {
+            _ = owner;
+            _ = options;
+
+            Err(Error::unsupported("changing ownership is unsupported on this platform"))
+        }
     }
 }
 

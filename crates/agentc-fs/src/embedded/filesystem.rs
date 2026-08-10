@@ -17,7 +17,7 @@ use crate::{
     errors::Error,
     fs::{
         Capabilities, CreateDirOptions, DirEntry, FileType, Metadata, MetadataOptions, OpenOptions,
-        PermissionCapability, Permissions, RemoveDirOptions,
+        Owner, PermissionCapability, Permissions, RemoveDirOptions, SetOwnerOptions,
     },
     path::{Component, Path, PathBuf},
 };
@@ -237,6 +237,15 @@ impl Backend for EmbeddedFs {
     }
 
     async fn set_permissions(&self, path: &Path, _permissions: Permissions) -> Result<(), Error> {
+        Err(Error::permission_denied(path))
+    }
+
+    async fn set_owner(
+        &self,
+        path: &Path,
+        _owner: Owner,
+        _options: &SetOwnerOptions,
+    ) -> Result<(), Error> {
         Err(Error::permission_denied(path))
     }
 }

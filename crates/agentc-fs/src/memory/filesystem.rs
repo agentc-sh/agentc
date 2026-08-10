@@ -16,7 +16,7 @@ use crate::{
     errors::Error,
     fs::{
         Capabilities, CreateDirOptions, DirEntry, Metadata, MetadataOptions, OpenOptions,
-        PermissionCapability, Permissions, RemoveDirOptions,
+        Owner, PermissionCapability, Permissions, RemoveDirOptions, SetOwnerOptions,
     },
     memory::{
         file::MemoryFile,
@@ -133,6 +133,7 @@ impl Backend for MemoryFs {
             .symlink(true)
             .atomic_rename(true)
             .permissions(PermissionCapability::PosixMode)
+            .owner(true)
             .timestamps(true)
     }
 
@@ -503,13 +504,28 @@ impl Backend for MemoryFs {
 
         Ok(())
     }
+
+    async fn set_owner(
+        &self,
+        path: &Path,
+        owner: Owner,
+        options: &SetOwnerOptions,
+    ) -> Result<(), Error> {
+        self.node(path, options.follows_symlinks())
+            .await?
+            .write()
+            .await
+            .set_owner(owner);
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::{
         errors::Error,
-        fs::{Dir, FileType, Fs},
+        fs::{Dir, FileType, Fs, Owner, SetOwnerOptions},
         path::PathBuf,
     };
 
@@ -760,5 +776,90 @@ mod tests {
             root.truncate("/workspace", 0).await,
             Err(Error::IsDirectory(path)) if path.to_string_lossy() == "/workspace"
         ));
+    }
+
+    #[tokio::test]
+    async fn memory_set_owner_changes_both_members() {
+        let root = Fs::memory().root();
+
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/notes.txt")
+            .await
+            .unwrap();
+        root.set_owner(
+            "/notes.txt",
+            Owner::new()
+                .user(1000)
+                .group(1000),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(root.metadata("/notes.txt").await.unwrap().uid(), 1000);
+        assert_eq!(root.metadata("/notes.txt").await.unwrap().gid(), 1000);
+    }
+
+    #[tokio::test]
+    async fn memory_set_owner_leaves_unset_members_alone() {
+        let root = Fs::memory().root();
+
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/notes.txt")
+            .await
+            .unwrap();
+        root.set_owner(
+            "/notes.txt",
+            Owner::new()
+                .user(1000)
+                .group(1000),
+        )
+        .await
+        .unwrap();
+        root.set_owner("/notes.txt", Owner::new().group(2000))
+            .await
+            .unwrap();
+
+        assert_eq!(root.metadata("/notes.txt").await.unwrap().uid(), 1000);
+        assert_eq!(root.metadata("/notes.txt").await.unwrap().gid(), 2000);
+    }
+
+    #[tokio::test]
+    async fn memory_set_owner_on_a_symlink_follows_by_default() {
+        let root = Fs::memory().root();
+
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/target.txt")
+            .await
+            .unwrap();
+        root.symlink("/target.txt", "/link.txt")
+            .await
+            .unwrap();
+        root.set_owner("/link.txt", Owner::new().user(1000))
+            .await
+            .unwrap();
+
+        assert_eq!(root.metadata("/target.txt").await.unwrap().uid(), 1000);
+        assert_eq!(root.metadata("/link.txt").await.unwrap().uid(), 0);
+
+        root.set_owner_with_options(
+            "/link.txt",
+            Owner::new().user(2000),
+            &SetOwnerOptions::new().follow_symlinks(false),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(root.metadata("/link.txt").await.unwrap().uid(), 2000);
+    }
+
+    #[tokio::test]
+    async fn memory_reports_ownership_capability() {
+        assert!(Fs::memory().backend.capabilities().supports_owner());
     }
 }
