@@ -21,6 +21,8 @@ thiserror = { workspace = true }
 
 bytes = { workspace = true }
 
+getrandom = "0.4"
+
 bstr = "1"
 typed-path = "0.12"
 

@@ -10,6 +10,47 @@ use crate::{
     path::{IntoPathBuf, Path},
 };
 
+const TEMP_ALPHABET: &[u8; 62] =
+    b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+const TEMP_SUFFIX_LEN: usize = 6;
+
+pub(crate) struct TempSuffix([u8; TEMP_SUFFIX_LEN]);
+
+impl TempSuffix {
+    pub(crate) const ATTEMPTS: usize = 62 * 62 * 62;
+
+    pub(crate) fn generate() -> Result<Self, Error> {
+        let mut suffix = [0u8; TEMP_SUFFIX_LEN];
+        let mut buffer = [0u8; 16];
+        let mut filled = 0;
+
+        while filled < TEMP_SUFFIX_LEN {
+            getrandom::fill(&mut buffer).map_err(|error| {
+                Error::sourced_unexpected("failed to read random bytes", error)
+            })?;
+
+            for byte in buffer {
+                if byte >= 248 {
+                    continue;
+                }
+
+                suffix[filled] = TEMP_ALPHABET[(byte % 62) as usize];
+                filled += 1;
+
+                if filled == TEMP_SUFFIX_LEN {
+                    break;
+                }
+            }
+        }
+
+        Ok(TempSuffix(suffix))
+    }
+
+    pub(crate) fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Metadata {
     file_type: FileType,

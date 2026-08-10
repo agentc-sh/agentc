@@ -21,7 +21,7 @@ use crate::{
         filesystem::Fs,
         types::{
             AccessOptions, CreateDirOptions, FileType, Metadata, MetadataOptions, OpenOptions,
-            OpenOptionsBuilder, Owner, Permissions, RemoveDirOptions, SetOwnerOptions,
+            OpenOptionsBuilder, Owner, Permissions, RemoveDirOptions, SetOwnerOptions, TempSuffix,
         },
     },
     path::{Component, IntoPathBuf, Path, PathBuf},
@@ -106,6 +106,38 @@ impl Dir {
             .await?;
 
         Ok(Dir::new(self.fs.clone(), self.root.clone(), path))
+    }
+
+    pub async fn create_dir_temp(&self, prefix: impl IntoPathBuf) -> Result<Dir, Error> {
+        let prefix = self.resolve(prefix)?;
+
+        for _ in 0..TempSuffix::ATTEMPTS {
+            let mut candidate = prefix.as_bytes().to_vec();
+
+            candidate.extend_from_slice(TempSuffix::generate()?.as_bytes());
+
+            let path = PathBuf::parse(candidate)?;
+
+            match self
+                .fs
+                .backend
+                .create_dir(path.as_path(), &CreateDirOptions::new())
+                .await
+            {
+                Ok(()) => {
+                    self.fs
+                        .backend
+                        .set_permissions(path.as_path(), Permissions::new(0o700))
+                        .await?;
+
+                    return Ok(Dir::new(self.fs.clone(), self.root.clone(), path));
+                }
+                Err(Error::AlreadyExists(_)) => continue,
+                Err(error) => return Err(error),
+            }
+        }
+
+        Err(Error::already_exists(prefix))
     }
 
     pub async fn entries(&self) -> Result<DirEntries, Error> {

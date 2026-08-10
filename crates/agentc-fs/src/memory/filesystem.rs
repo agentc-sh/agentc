@@ -1246,4 +1246,91 @@ mod tests {
 
         assert!(walk.next().await.unwrap().is_none());
     }
+
+    #[tokio::test]
+    async fn create_dir_temp_appends_six_characters_to_the_prefix() {
+        let root = Fs::memory().root();
+
+        root.create_dir("/tmp")
+            .await
+            .unwrap();
+
+        let dir = root.create_dir_temp("/tmp/run-").await.unwrap();
+        let path = dir.path().to_string_lossy();
+
+        assert!(path.starts_with("/tmp/run-"));
+        assert_eq!(path.len(), "/tmp/run-".len() + 6);
+    }
+
+    #[tokio::test]
+    async fn create_dir_temp_returns_distinct_paths() {
+        let root = Fs::memory().root();
+
+        root.create_dir("/tmp")
+            .await
+            .unwrap();
+
+        let first = root.create_dir_temp("/tmp/run-").await.unwrap();
+        let second = root.create_dir_temp("/tmp/run-").await.unwrap();
+
+        assert_ne!(first.path(), second.path());
+        root.metadata(first.path()).await.unwrap();
+        root.metadata(second.path()).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn create_dir_temp_restricts_the_mode() {
+        let root = Fs::memory().root();
+
+        root.create_dir("/tmp")
+            .await
+            .unwrap();
+
+        assert_eq!(
+            root.create_dir_temp("/tmp/run-")
+                .await
+                .unwrap()
+                .metadata(".")
+                .await
+                .unwrap()
+                .permissions()
+                .mode(),
+            0o700
+        );
+    }
+
+    #[tokio::test]
+    async fn create_dir_temp_uses_only_alphabet_characters() {
+        let root = Fs::memory().root();
+
+        root.create_dir("/tmp")
+            .await
+            .unwrap();
+
+        assert!(
+            root.create_dir_temp("/tmp/run-")
+                .await
+                .unwrap()
+                .path()
+                .to_string_lossy()
+                .strip_prefix("/tmp/run-")
+                .unwrap()
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric())
+        );
+    }
+
+    #[tokio::test]
+    async fn create_dir_temp_rejects_paths_outside_the_authority() {
+        assert!(matches!(
+            Dir::new(
+                Fs::memory(),
+                PathBuf::parse("/workspace").unwrap(),
+                PathBuf::parse("/workspace").unwrap(),
+            )
+            .create_dir_temp("../tmp-")
+            .await,
+            Err(Error::PathEscapesAuthority(path)) if path.to_string_lossy() == "../tmp-"
+        ));
+    }
 }
