@@ -4,7 +4,6 @@
 
 use std::{
     cmp::min,
-    error::Error as StdError,
     io::{Error as IoError, ErrorKind, Result as IoResult, SeekFrom},
     sync::{Arc, Mutex, MutexGuard},
     task::{Context, Poll},
@@ -123,12 +122,7 @@ impl FileHandle for MemoryFile {
         }
 
         self.lock_content()
-            .map_err(|_| {
-                Error::unexpected(
-                    "memory file lock is poisoned",
-                    None::<Box<dyn StdError + Send + Sync>>,
-                )
-            })?
+            .map_err(|_| Error::unexpected("memory file lock is poisoned"))?
             .resize(len as usize, 0);
 
         Ok(())

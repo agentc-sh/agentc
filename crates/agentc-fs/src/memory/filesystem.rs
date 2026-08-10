@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::{error::Error as StdError, sync::Arc, vec::IntoIter};
+use std::{sync::Arc, vec::IntoIter};
 
 use async_trait::async_trait;
 use futures::{
@@ -152,12 +152,7 @@ impl Backend for MemoryFs {
                         if options.is_truncate() {
                             content
                                 .lock()
-                                .map_err(|_| {
-                                    Error::unexpected(
-                                        "memory file lock is poisoned",
-                                        None::<Box<dyn StdError + Send + Sync>>,
-                                    )
-                                })?
+                                .map_err(|_| Error::unexpected("memory file lock is poisoned"))?
                                 .clear();
                         }
 
@@ -174,12 +169,7 @@ impl Backend for MemoryFs {
                 let position = if options.is_append() {
                     content
                         .lock()
-                        .map_err(|_| {
-                            Error::unexpected(
-                                "memory file lock is poisoned",
-                                None::<Box<dyn StdError + Send + Sync>>,
-                            )
-                        })?
+                        .map_err(|_| Error::unexpected("memory file lock is poisoned"))?
                         .len() as u64
                 } else {
                     0
@@ -391,12 +381,7 @@ impl Backend for MemoryFs {
             Node::File(file) => {
                 file.content()
                     .lock()
-                    .map_err(|_| {
-                        Error::unexpected(
-                            "memory file lock is poisoned",
-                            None::<Box<dyn StdError + Send + Sync>>,
-                        )
-                    })?
+                    .map_err(|_| Error::unexpected("memory file lock is poisoned"))?
                     .resize(len as usize, 0);
 
                 Ok(())

@@ -83,13 +83,17 @@ impl Error {
         Error::CrossBackendRename { from: from.into(), to: to.into() }
     }
 
-    pub fn unexpected(
+    pub fn unexpected(message: impl Into<String>) -> Self {
+        Error::Unexpected { message: message.into(), source: None }
+    }
+
+    pub fn sourced_unexpected(
         message: impl Into<String>,
-        source: impl Into<Option<Box<dyn StdError + Send + Sync>>>,
+        source:  impl Into<Box<dyn StdError + Send + Sync>>,
     ) -> Self {
         Error::Unexpected {
             message: message.into(),
-            source: source.into(),
+            source: Some(source.into()),
         }
     }
 }
@@ -105,10 +109,7 @@ impl IntoFsError for IoError {
             ErrorKind::AlreadyExists => Error::already_exists(path),
             ErrorKind::PermissionDenied => Error::permission_denied(path),
             ErrorKind::InvalidInput => Error::invalid_path(self.to_string()),
-            _ => Error::unexpected(
-                message,
-                Some(Box::new(self) as Box<dyn StdError + Send + Sync>),
-            ),
+            _ => Error::sourced_unexpected(message, self),
         }
     }
 }
@@ -121,10 +122,7 @@ impl IntoFsError for rustix::io::Errno {
             ErrorKind::AlreadyExists => Error::already_exists(path),
             ErrorKind::PermissionDenied => Error::permission_denied(path),
             ErrorKind::InvalidInput => Error::invalid_path(self.to_string()),
-            _ => Error::unexpected(
-                message,
-                Some(Box::new(self) as Box<dyn StdError + Send + Sync>),
-            ),
+            _ => Error::sourced_unexpected(message, self),
         }
     }
 }
@@ -190,7 +188,7 @@ mod tests {
             } if message == "path contains a NUL byte"
         ));
         assert!(matches!(
-            Error::unexpected("host failed", None),
+            Error::unexpected("host failed"),
             Error::Unexpected {
                 message,
                 source: None,

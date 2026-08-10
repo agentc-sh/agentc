@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: MIT
 
 use std::{
-    error::Error as StdError,
     io::{Result as IoResult, SeekFrom},
     pin::Pin,
     task::{Context, Poll},
@@ -27,10 +26,7 @@ impl File {
         AsyncReadExt::read_to_end(self, &mut bytes)
             .await
             .map_err(|error| {
-                Error::unexpected(
-                    "failed to read file",
-                    Some(Box::new(error) as Box<dyn StdError + Send + Sync>),
-                )
+                Error::sourced_unexpected("failed to read file", error)
             })?;
 
         Ok(bytes)
@@ -41,10 +37,7 @@ impl File {
         AsyncReadExt::read_to_string(self, &mut content)
             .await
             .map_err(|error| {
-                Error::unexpected(
-                    "failed to read file as string",
-                    Some(Box::new(error) as Box<dyn StdError + Send + Sync>),
-                )
+                Error::sourced_unexpected("failed to read file as string", error)
             })?;
 
         Ok(content)
@@ -54,10 +47,7 @@ impl File {
         AsyncWriteExt::write_all(self, bytes.as_ref())
             .await
             .map_err(|error| {
-                Error::unexpected(
-                    "failed to write file",
-                    Some(Box::new(error) as Box<dyn StdError + Send + Sync>),
-                )
+                Error::sourced_unexpected("failed to write file", error)
             })
     }
 
@@ -65,10 +55,7 @@ impl File {
         AsyncWriteExt::flush(self)
             .await
             .map_err(|error| {
-                Error::unexpected(
-                    "failed to flush file",
-                    Some(Box::new(error) as Box<dyn StdError + Send + Sync>),
-                )
+                Error::sourced_unexpected("failed to flush file", error)
             })
     }
 
