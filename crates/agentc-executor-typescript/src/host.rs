@@ -102,8 +102,8 @@ export function read() {
         let runtime = HostRuntime::current().unwrap();
 
         assert_eq!(
-            std::thread::spawn(move || runtime.block_on(async { 42_i32 }))
-                .join()
+            tokio::task::spawn_blocking(move || runtime.block_on(async { 42_i32 }))
+                .await
                 .unwrap()
                 .unwrap(),
             42,
