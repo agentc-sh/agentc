@@ -18,8 +18,15 @@ pub struct Metadata {
     accessed: Option<SystemTime>,
     modified: Option<SystemTime>,
     created: Option<SystemTime>,
+    changed: Option<SystemTime>,
+    dev: u64,
+    ino: u64,
+    nlink: u64,
     uid: u32,
     gid: u32,
+    rdev: u64,
+    blksize: u64,
+    blocks: u64,
 }
 
 impl Metadata {
@@ -31,8 +38,15 @@ impl Metadata {
             accessed: None,
             modified: None,
             created: None,
+            changed: None,
+            dev: 0,
+            ino: 0,
+            nlink: 1,
             uid: 0,
             gid: 0,
+            rdev: 0,
+            blksize: 4096,
+            blocks: len.div_ceil(512),
         }
     }
 
@@ -64,12 +78,40 @@ impl Metadata {
         self.created
     }
 
+    pub fn changed(&self) -> Option<SystemTime> {
+        self.changed
+    }
+
+    pub fn dev(&self) -> u64 {
+        self.dev
+    }
+
+    pub fn ino(&self) -> u64 {
+        self.ino
+    }
+
+    pub fn nlink(&self) -> u64 {
+        self.nlink
+    }
+
     pub fn uid(&self) -> u32 {
         self.uid
     }
 
     pub fn gid(&self) -> u32 {
         self.gid
+    }
+
+    pub fn rdev(&self) -> u64 {
+        self.rdev
+    }
+
+    pub fn blksize(&self) -> u64 {
+        self.blksize
+    }
+
+    pub fn blocks(&self) -> u64 {
+        self.blocks
     }
 
     pub fn with_accessed(mut self, accessed: impl Into<Option<SystemTime>>) -> Self {
@@ -87,8 +129,28 @@ impl Metadata {
         self
     }
 
+    pub fn with_changed(mut self, changed: impl Into<Option<SystemTime>>) -> Self {
+        self.changed = changed.into();
+        self
+    }
+
     pub fn with_permissions(mut self, permissions: Permissions) -> Self {
         self.permissions = permissions;
+        self
+    }
+
+    pub fn with_dev(mut self, dev: u64) -> Self {
+        self.dev = dev;
+        self
+    }
+
+    pub fn with_ino(mut self, ino: u64) -> Self {
+        self.ino = ino;
+        self
+    }
+
+    pub fn with_nlink(mut self, nlink: u64) -> Self {
+        self.nlink = nlink;
         self
     }
 
@@ -99,6 +161,21 @@ impl Metadata {
 
     pub fn with_gid(mut self, gid: u32) -> Self {
         self.gid = gid;
+        self
+    }
+
+    pub fn with_rdev(mut self, rdev: u64) -> Self {
+        self.rdev = rdev;
+        self
+    }
+
+    pub fn with_blksize(mut self, blksize: u64) -> Self {
+        self.blksize = blksize;
+        self
+    }
+
+    pub fn with_blocks(mut self, blocks: u64) -> Self {
+        self.blocks = blocks;
         self
     }
 }
@@ -536,7 +613,7 @@ impl Default for SymlinkOptions {
 
 #[cfg(test)]
 mod tests {
-    use crate::fs::{Owner, Permissions, SetOwnerOptions};
+    use crate::fs::{FileType, Metadata, Owner, Permissions, SetOwnerOptions};
 
     #[test]
     fn permissions_mask_discards_file_type_bits() {
@@ -552,6 +629,42 @@ mod tests {
     #[test]
     fn permissions_keep_set_user_bits() {
         assert_eq!(Permissions::new(0o4755).mode(), 0o4755);
+    }
+
+    #[test]
+    fn metadata_defaults_are_posix_correct() {
+        let metadata = Metadata::new(
+            FileType::File,
+            1000,
+            Permissions::new(Permissions::FILE),
+        );
+
+        assert_eq!(metadata.nlink(), 1);
+        assert_eq!(metadata.blksize(), 4096);
+        assert_eq!(metadata.blocks(), 2);
+        assert_eq!(metadata.dev(), 0);
+        assert_eq!(metadata.ino(), 0);
+        assert_eq!(metadata.rdev(), 0);
+    }
+
+    #[test]
+    fn metadata_blocks_round_up_to_whole_blocks() {
+        assert_eq!(
+            Metadata::new(FileType::File, 0, Permissions::new(Permissions::FILE)).blocks(),
+            0
+        );
+        assert_eq!(
+            Metadata::new(FileType::File, 1, Permissions::new(Permissions::FILE)).blocks(),
+            1
+        );
+        assert_eq!(
+            Metadata::new(FileType::File, 512, Permissions::new(Permissions::FILE)).blocks(),
+            1
+        );
+        assert_eq!(
+            Metadata::new(FileType::File, 513, Permissions::new(Permissions::FILE)).blocks(),
+            2
+        );
     }
 
     #[test]

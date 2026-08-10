@@ -2,7 +2,13 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::{sync::Arc, vec::IntoIter};
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+    vec::IntoIter,
+};
 
 use async_trait::async_trait;
 use futures::{
@@ -27,13 +33,20 @@ use crate::{
 
 pub struct MemoryFs {
     root: NodeRef,
+    next_ino: AtomicU64,
 }
 
 impl MemoryFs {
     pub fn new() -> Self {
         MemoryFs {
-            root: Arc::new(RwLock::new(Node::directory())),
+            root: Arc::new(RwLock::new(Node::directory(1))),
+            next_ino: AtomicU64::new(2),
         }
+    }
+
+    fn next_ino(&self) -> u64 {
+        self.next_ino
+            .fetch_add(1, Ordering::Relaxed)
     }
 
     fn node<'a>(
@@ -195,7 +208,7 @@ impl Backend for MemoryFs {
                             return Err(Error::already_exists(path));
                         }
 
-                        let node = Node::file();
+                        let node = Node::file(self.next_ino());
                         let content = match &node {
                             Node::File(file) => file.content(),
                             _ => unreachable!(),
@@ -277,7 +290,7 @@ impl Backend for MemoryFs {
 
                     directory.entries_mut().insert(
                         file_name.as_bytes().to_vec(),
-                        Arc::new(RwLock::new(Node::directory())),
+                        Arc::new(RwLock::new(Node::directory(self.next_ino()))),
                     );
                     Ok(())
                 }
@@ -297,7 +310,7 @@ impl Backend for MemoryFs {
                     {
                         Some(node) => node,
                         None => {
-                            let node = Arc::new(RwLock::new(Node::directory()));
+                            let node = Arc::new(RwLock::new(Node::directory(self.next_ino())));
 
                             directory
                                 .entries_mut()
@@ -474,7 +487,10 @@ impl Backend for MemoryFs {
 
                 directory.entries_mut().insert(
                     file_name.as_bytes().to_vec(),
-                    Arc::new(RwLock::new(Node::symlink(PathBuf::parse(target.as_bytes())?))),
+                    Arc::new(RwLock::new(Node::symlink(
+                        self.next_ino(),
+                        PathBuf::parse(target.as_bytes())?,
+                    ))),
                 );
 
                 Ok(())
@@ -523,9 +539,17 @@ impl Backend for MemoryFs {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
+    use tokio::time::sleep;
+
     use crate::{
+        backend::Backend,
         errors::Error,
-        fs::{Dir, FileType, Fs, Owner, Permissions, SetOwnerOptions},
+        fs::{
+            Dir, FileType, Fs, MetadataOptions, OpenOptions, Owner, Permissions, SetOwnerOptions,
+        },
+        memory::MemoryFs,
         path::PathBuf,
     };
 
@@ -905,6 +929,73 @@ mod tests {
                 .permissions()
                 .mode(),
             Permissions::SYMLINK
+        );
+    }
+
+    #[tokio::test]
+    async fn memory_entries_receive_distinct_inode_numbers() {
+        let root = Fs::memory().root();
+
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/first.txt")
+            .await
+            .unwrap();
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/second.txt")
+            .await
+            .unwrap();
+
+        let first = root.metadata("/first.txt").await.unwrap().ino();
+        let second = root.metadata("/second.txt").await.unwrap().ino();
+
+        assert_ne!(first, 0);
+        assert_ne!(second, 0);
+        assert_ne!(first, second);
+    }
+
+    #[tokio::test]
+    async fn memory_root_has_the_first_inode_number() {
+        assert_eq!(Fs::memory().root().metadata("/").await.unwrap().ino(), 1);
+    }
+
+    #[tokio::test]
+    async fn memory_permission_change_updates_the_status_timestamp() {
+        let fs = MemoryFs::new();
+        let path = PathBuf::parse("/notes.txt").unwrap();
+
+        Backend::open(
+            &fs,
+            path.as_path(),
+            &OpenOptions::new()
+                .write(true)
+                .create(true),
+        )
+        .await
+        .unwrap();
+
+        let before = Backend::metadata(&fs, path.as_path(), &MetadataOptions::new())
+            .await
+            .unwrap()
+            .changed()
+            .unwrap();
+
+        sleep(Duration::from_millis(1)).await;
+
+        Backend::set_permissions(&fs, path.as_path(), Permissions::new(0o600))
+            .await
+            .unwrap();
+
+        assert!(
+            Backend::metadata(&fs, path.as_path(), &MetadataOptions::new())
+                .await
+                .unwrap()
+                .changed()
+                .unwrap()
+                > before
         );
     }
 }

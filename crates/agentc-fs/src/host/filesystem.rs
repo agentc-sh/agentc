@@ -34,6 +34,8 @@ use std::os::unix::{
     ffi::{OsStrExt, OsStringExt},
     fs::{FileTypeExt, MetadataExt, PermissionsExt, chown, lchown},
 };
+#[cfg(unix)]
+use std::time::{Duration, SystemTime};
 
 struct HostRoot {
     path: HostPathBuf,
@@ -141,8 +143,20 @@ impl HostFs {
         #[cfg(unix)]
         {
             return metadata
+                .with_dev(host_metadata.dev())
+                .with_ino(host_metadata.ino())
+                .with_nlink(host_metadata.nlink())
                 .with_uid(host_metadata.uid())
-                .with_gid(host_metadata.gid());
+                .with_gid(host_metadata.gid())
+                .with_rdev(host_metadata.rdev())
+                .with_blksize(host_metadata.blksize())
+                .with_blocks(host_metadata.blocks())
+                .with_changed(
+                    SystemTime::UNIX_EPOCH.checked_add(Duration::new(
+                        host_metadata.ctime() as u64,
+                        host_metadata.ctime_nsec() as u32,
+                    )),
+                );
         }
 
         #[cfg(not(unix))]

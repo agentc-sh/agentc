@@ -5,12 +5,13 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use futures::StreamExt;
 
 use crate::{
     backend::{Backend, DirectoryCursor, ErasedBackend, FileHandle},
     errors::Error,
     fs::{
-        Capabilities, CreateDirOptions, Metadata, MetadataOptions, OpenOptions, Owner,
+        Capabilities, CreateDirOptions, DirEntry, Metadata, MetadataOptions, OpenOptions, Owner,
         Permissions, RemoveDirOptions, SetOwnerOptions,
     },
     path::{Path, PathBuf},
@@ -29,6 +30,10 @@ impl MountFs {
                 .len()
                 .cmp(&left.path.as_bytes().len())
         });
+
+        for (index, mount) in mounts.iter_mut().enumerate() {
+            mount.dev = index as u64 + 1;
+        }
 
         MountFs { mounts }
     }
@@ -64,6 +69,7 @@ pub(crate) struct Mount {
     pub(crate) path: PathBuf,
     pub(crate) kind: MountKind,
     pub(crate) backend: Arc<dyn ErasedBackend>,
+    pub(crate) dev: u64,
 }
 
 impl Mount {
@@ -107,17 +113,36 @@ impl Route<'_> {
     }
 
     async fn entries(self) -> Result<Box<dyn DirectoryCursor>, Error> {
-        self.mount
-            .backend
-            .entries(self.path.as_path())
-            .await
+        let dev = self.mount.dev;
+
+        Ok(Box::new(
+            self.mount
+                .backend
+                .entries(self.path.as_path())
+                .await?
+                .map(move |entry| {
+                    entry.map(|entry| {
+                        DirEntry::new(
+                            entry.path().clone(),
+                            entry.file_name().clone(),
+                            entry.file_type(),
+                            entry
+                                .metadata()
+                                .cloned()
+                                .map(|metadata| metadata.with_dev(dev)),
+                        )
+                    })
+                }),
+        ))
     }
 
     async fn metadata(self, options: &MetadataOptions) -> Result<Metadata, Error> {
-        self.mount
+        Ok(self
+            .mount
             .backend
             .metadata(self.path.as_path(), options)
-            .await
+            .await?
+            .with_dev(self.mount.dev))
     }
 
     async fn create_dir(self, options: &CreateDirOptions) -> Result<(), Error> {
@@ -379,5 +404,44 @@ mod tests {
             }) if from.to_string_lossy() == "/left/file.txt"
                 && to.to_string_lossy() == "/right/file.txt"
         ));
+    }
+
+    #[tokio::test]
+    async fn mounts_receive_distinct_device_numbers() {
+        let root = Fs::builder()
+            .mount("/left", MemorySource::with_file("/file.txt", b"left").await)
+            .mount("/right", MemorySource::with_file("/file.txt", b"right").await)
+            .build()
+            .unwrap()
+            .root();
+
+        let left = root.metadata("/left/file.txt").await.unwrap().dev();
+        let right = root.metadata("/right/file.txt").await.unwrap().dev();
+
+        assert_ne!(left, 0);
+        assert_ne!(right, 0);
+        assert_ne!(left, right);
+    }
+
+    #[tokio::test]
+    async fn mounted_directory_entries_carry_the_mount_device() {
+        let root = Fs::builder()
+            .mount("/workspace", MemorySource::with_file("/notes.txt", b"workspace").await)
+            .build()
+            .unwrap()
+            .root();
+        let mut entries = root.open_dir("/workspace").await.unwrap().entries().await.unwrap();
+
+        assert_eq!(
+            entries
+                .next()
+                .await
+                .unwrap()
+                .unwrap()
+                .metadata()
+                .unwrap()
+                .dev(),
+            root.metadata("/workspace/notes.txt").await.unwrap().dev()
+        );
     }
 }

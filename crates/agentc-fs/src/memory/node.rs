@@ -24,16 +24,16 @@ pub(crate) enum Node {
 }
 
 impl Node {
-    pub(crate) fn directory() -> Self {
-        Node::Directory(MemoryDirectoryNode::new())
+    pub(crate) fn directory(ino: u64) -> Self {
+        Node::Directory(MemoryDirectoryNode::new(ino))
     }
 
-    pub(crate) fn file() -> Self {
-        Node::File(MemoryFileNode::new())
+    pub(crate) fn file(ino: u64) -> Self {
+        Node::File(MemoryFileNode::new(ino))
     }
 
-    pub(crate) fn symlink(target: PathBuf) -> Self {
-        Node::Symlink(MemorySymlinkNode::new(target))
+    pub(crate) fn symlink(ino: u64, target: PathBuf) -> Self {
+        Node::Symlink(MemorySymlinkNode::new(ino, target))
     }
 
     pub(crate) fn file_type(&self) -> FileType {
@@ -53,27 +53,58 @@ impl Node {
     }
 
     pub(crate) fn set_permissions(&mut self, permissions: Permissions) {
+        let changed = SystemTime::now();
+
         match self {
-            Node::File(node) => node.permissions = permissions,
-            Node::Directory(node) => node.permissions = permissions,
-            Node::Symlink(node) => node.permissions = permissions,
+            Node::File(node) => {
+                node.permissions = permissions;
+                node.changed = Some(changed);
+            }
+            Node::Directory(node) => {
+                node.permissions = permissions;
+                node.changed = Some(changed);
+            }
+            Node::Symlink(node) => {
+                node.permissions = permissions;
+                node.changed = Some(changed);
+            }
         }
     }
 
     pub(crate) fn set_owner(&mut self, owner: Owner) {
+        let changed = SystemTime::now();
+
         if let Some(user) = owner.user_id() {
             match self {
-                Node::File(node) => node.uid = user,
-                Node::Directory(node) => node.uid = user,
-                Node::Symlink(node) => node.uid = user,
+                Node::File(node) => {
+                    node.uid = user;
+                    node.changed = Some(changed);
+                }
+                Node::Directory(node) => {
+                    node.uid = user;
+                    node.changed = Some(changed);
+                }
+                Node::Symlink(node) => {
+                    node.uid = user;
+                    node.changed = Some(changed);
+                }
             }
         }
 
         if let Some(group) = owner.group_id() {
             match self {
-                Node::File(node) => node.gid = group,
-                Node::Directory(node) => node.gid = group,
-                Node::Symlink(node) => node.gid = group,
+                Node::File(node) => {
+                    node.gid = group;
+                    node.changed = Some(changed);
+                }
+                Node::Directory(node) => {
+                    node.gid = group;
+                    node.changed = Some(changed);
+                }
+                Node::Symlink(node) => {
+                    node.gid = group;
+                    node.changed = Some(changed);
+                }
             }
         }
     }
@@ -85,12 +116,14 @@ pub(crate) struct MemoryFileNode {
     accessed: Option<SystemTime>,
     modified: Option<SystemTime>,
     created: Option<SystemTime>,
+    changed: Option<SystemTime>,
+    ino: u64,
     uid: u32,
     gid: u32,
 }
 
 impl MemoryFileNode {
-    fn new() -> Self {
+    fn new(ino: u64) -> Self {
         let now = SystemTime::now();
 
         MemoryFileNode {
@@ -99,6 +132,8 @@ impl MemoryFileNode {
             accessed: Some(now),
             modified: Some(now),
             created: Some(now),
+            changed: Some(now),
+            ino,
             uid: 0,
             gid: 0,
         }
@@ -120,6 +155,8 @@ impl MemoryFileNode {
         .with_accessed(self.accessed)
         .with_modified(self.modified)
         .with_created(self.created)
+        .with_changed(self.changed)
+        .with_ino(self.ino)
         .with_uid(self.uid)
         .with_gid(self.gid)
     }
@@ -131,12 +168,14 @@ pub(crate) struct MemoryDirectoryNode {
     accessed: Option<SystemTime>,
     modified: Option<SystemTime>,
     created: Option<SystemTime>,
+    changed: Option<SystemTime>,
+    ino: u64,
     uid: u32,
     gid: u32,
 }
 
 impl MemoryDirectoryNode {
-    fn new() -> Self {
+    fn new(ino: u64) -> Self {
         let now = SystemTime::now();
 
         MemoryDirectoryNode {
@@ -145,6 +184,8 @@ impl MemoryDirectoryNode {
             accessed: Some(now),
             modified: Some(now),
             created: Some(now),
+            changed: Some(now),
+            ino,
             uid: 0,
             gid: 0,
         }
@@ -163,6 +204,8 @@ impl MemoryDirectoryNode {
             .with_accessed(self.accessed)
             .with_modified(self.modified)
             .with_created(self.created)
+            .with_changed(self.changed)
+            .with_ino(self.ino)
             .with_uid(self.uid)
             .with_gid(self.gid)
     }
@@ -174,12 +217,14 @@ pub(crate) struct MemorySymlinkNode {
     accessed: Option<SystemTime>,
     modified: Option<SystemTime>,
     created: Option<SystemTime>,
+    changed: Option<SystemTime>,
+    ino: u64,
     uid: u32,
     gid: u32,
 }
 
 impl MemorySymlinkNode {
-    fn new(target: PathBuf) -> Self {
+    fn new(ino: u64, target: PathBuf) -> Self {
         let now = SystemTime::now();
 
         MemorySymlinkNode {
@@ -188,6 +233,8 @@ impl MemorySymlinkNode {
             accessed: Some(now),
             modified: Some(now),
             created: Some(now),
+            changed: Some(now),
+            ino,
             uid: 0,
             gid: 0,
         }
@@ -202,6 +249,8 @@ impl MemorySymlinkNode {
             .with_accessed(self.accessed)
             .with_modified(self.modified)
             .with_created(self.created)
+            .with_changed(self.changed)
+            .with_ino(self.ino)
             .with_uid(self.uid)
             .with_gid(self.gid)
     }
