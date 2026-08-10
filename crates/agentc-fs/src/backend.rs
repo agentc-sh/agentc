@@ -2,9 +2,14 @@
 //
 // SPDX-License-Identifier: MIT
 
+use std::{
+    io::{Result as IoResult, SeekFrom},
+    task::{Context, Poll},
+};
+
 use async_trait::async_trait;
 use futures::Stream;
-use tokio::io::{AsyncRead, AsyncSeek, AsyncWrite};
+use tokio::io::ReadBuf;
 
 use crate::{
     errors::Error,
@@ -34,6 +39,8 @@ pub trait Backend: Send + Sync + 'static {
 
     async fn remove_dir(&self, path: &Path, options: &RemoveDirOptions) -> Result<(), Error>;
 
+    async fn truncate(&self, path: &Path, len: u64) -> Result<(), Error>;
+
     async fn rename(&self, from: &Path, to: &Path) -> Result<(), Error>;
 
     async fn symlink(&self, target: &Path, link: &Path) -> Result<(), Error>;
@@ -43,9 +50,65 @@ pub trait Backend: Send + Sync + 'static {
     async fn set_permissions(&self, path: &Path, permissions: Permissions) -> Result<(), Error>;
 }
 
-pub trait FileHandle: AsyncRead + AsyncWrite + AsyncSeek + Send + Unpin + 'static {}
+#[async_trait]
+pub trait FileHandle: Send + Unpin + 'static {
+    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<IoResult<()>>;
 
-impl<T> FileHandle for T where T: AsyncRead + AsyncWrite + AsyncSeek + Send + Unpin + 'static {}
+    fn poll_write(&mut self, cx: &mut Context<'_>, bytes: &[u8]) -> Poll<IoResult<usize>>;
+
+    fn poll_flush(&mut self, cx: &mut Context<'_>) -> Poll<IoResult<()>>;
+
+    fn poll_shutdown(&mut self, cx: &mut Context<'_>) -> Poll<IoResult<()>>;
+
+    fn start_seek(&mut self, position: SeekFrom) -> IoResult<()>;
+
+    fn poll_seek(&mut self, cx: &mut Context<'_>) -> Poll<IoResult<u64>>;
+
+    async fn set_len(&mut self, len: u64) -> Result<(), Error>;
+
+    async fn sync_all(&mut self) -> Result<(), Error>;
+
+    async fn sync_data(&mut self) -> Result<(), Error>;
+}
+
+#[async_trait]
+impl FileHandle for Box<dyn FileHandle> {
+    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<IoResult<()>> {
+        self.as_mut().poll_read(cx, buf)
+    }
+
+    fn poll_write(&mut self, cx: &mut Context<'_>, bytes: &[u8]) -> Poll<IoResult<usize>> {
+        self.as_mut().poll_write(cx, bytes)
+    }
+
+    fn poll_flush(&mut self, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
+        self.as_mut().poll_flush(cx)
+    }
+
+    fn poll_shutdown(&mut self, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
+        self.as_mut().poll_shutdown(cx)
+    }
+
+    fn start_seek(&mut self, position: SeekFrom) -> IoResult<()> {
+        self.as_mut().start_seek(position)
+    }
+
+    fn poll_seek(&mut self, cx: &mut Context<'_>) -> Poll<IoResult<u64>> {
+        self.as_mut().poll_seek(cx)
+    }
+
+    async fn set_len(&mut self, len: u64) -> Result<(), Error> {
+        self.as_mut().set_len(len).await
+    }
+
+    async fn sync_all(&mut self) -> Result<(), Error> {
+        self.as_mut().sync_all().await
+    }
+
+    async fn sync_data(&mut self) -> Result<(), Error> {
+        self.as_mut().sync_data().await
+    }
+}
 
 pub trait DirectoryCursor: Stream<Item = Result<DirEntry, Error>> + Send + Unpin + 'static {}
 
@@ -69,6 +132,8 @@ pub trait ErasedBackend: Send + Sync + 'static {
     async fn remove_file(&self, path: &Path) -> Result<(), Error>;
 
     async fn remove_dir(&self, path: &Path, options: &RemoveDirOptions) -> Result<(), Error>;
+
+    async fn truncate(&self, path: &Path, len: u64) -> Result<(), Error>;
 
     async fn rename(&self, from: &Path, to: &Path) -> Result<(), Error>;
 
@@ -110,6 +175,10 @@ where
 
     async fn remove_dir(&self, path: &Path, options: &RemoveDirOptions) -> Result<(), Error> {
         Backend::remove_dir(self, path, options).await
+    }
+
+    async fn truncate(&self, path: &Path, len: u64) -> Result<(), Error> {
+        Backend::truncate(self, path, len).await
     }
 
     async fn rename(&self, from: &Path, to: &Path) -> Result<(), Error> {

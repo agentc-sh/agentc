@@ -71,42 +71,88 @@ impl File {
                 )
             })
     }
+
+    pub async fn set_len(&mut self, len: u64) -> Result<(), Error> {
+        self.inner.set_len(len).await
+    }
+
+    pub async fn sync_all(&mut self) -> Result<(), Error> {
+        self.inner.sync_all().await
+    }
+
+    pub async fn sync_data(&mut self) -> Result<(), Error> {
+        self.inner.sync_data().await
+    }
 }
 
 impl AsyncRead for File {
     fn poll_read(
-        mut self: Pin<&mut Self>,
+        self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &mut ReadBuf<'_>,
     ) -> Poll<IoResult<()>> {
-        Pin::new(&mut *self.inner).poll_read(cx, buf)
+        self.get_mut()
+            .inner
+            .poll_read(cx, buf)
     }
 }
 
 impl AsyncWrite for File {
     fn poll_write(
-        mut self: Pin<&mut Self>,
+        self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<IoResult<usize>> {
-        Pin::new(&mut *self.inner).poll_write(cx, buf)
+        self.get_mut()
+            .inner
+            .poll_write(cx, buf)
     }
 
-    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
-        Pin::new(&mut *self.inner).poll_flush(cx)
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
+        self.get_mut()
+            .inner
+            .poll_flush(cx)
     }
 
-    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
-        Pin::new(&mut *self.inner).poll_shutdown(cx)
+    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
+        self.get_mut()
+            .inner
+            .poll_shutdown(cx)
     }
 }
 
 impl AsyncSeek for File {
-    fn start_seek(mut self: Pin<&mut Self>, position: SeekFrom) -> IoResult<()> {
-        Pin::new(&mut *self.inner).start_seek(position)
+    fn start_seek(self: Pin<&mut Self>, position: SeekFrom) -> IoResult<()> {
+        self.get_mut()
+            .inner
+            .start_seek(position)
     }
 
-    fn poll_complete(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<u64>> {
-        Pin::new(&mut *self.inner).poll_complete(cx)
+    fn poll_complete(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<u64>> {
+        self.get_mut()
+            .inner
+            .poll_seek(cx)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::fs::Fs;
+
+    #[tokio::test]
+    async fn file_sync_operations_succeed_on_a_memory_backend() {
+        let mut file = Fs::memory()
+            .root()
+            .options()
+            .write(true)
+            .create(true)
+            .open("/notes.txt")
+            .await
+            .unwrap();
+
+        file.write_all(b"content").await.unwrap();
+
+        assert!(file.sync_all().await.is_ok());
+        assert!(file.sync_data().await.is_ok());
     }
 }

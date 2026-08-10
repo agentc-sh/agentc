@@ -188,6 +188,13 @@ impl Dir {
             .await
     }
 
+    pub async fn truncate(&self, path: impl IntoPathBuf, len: u64) -> Result<(), Error> {
+        self.fs
+            .backend
+            .truncate(self.resolve(path)?.as_path(), len)
+            .await
+    }
+
     pub(crate) fn resolve(&self, path: impl IntoPathBuf) -> Result<PathBuf, Error> {
         let path = path.into_path_buf()?;
 

@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: MIT
 
 use std::{
-    error::Error as StdError,
     ffi::{OsStr, OsString},
     io::ErrorKind,
     path::PathBuf as HostPathBuf,
@@ -12,7 +11,7 @@ use std::{
 
 use async_trait::async_trait;
 use futures::stream::{self, Iter};
-use tokio::fs::{self, File};
+use tokio::fs;
 
 #[cfg(target_os = "linux")]
 use rustix::fs::{Mode, OFlags, ResolveFlags, openat2};
@@ -21,11 +20,12 @@ use tokio::fs::OpenOptions as HostOpenOptions;
 
 use crate::{
     backend::Backend,
-    errors::Error,
+    errors::{Error, IntoFsError},
     fs::{
         Capabilities, CreateDirOptions, DirEntry, FileType, Metadata, MetadataOptions, OpenOptions,
         PermissionCapability, Permissions, RemoveDirOptions,
     },
+    host::HostFile,
     path::{Component, Path, PathBuf},
 };
 
@@ -186,36 +186,11 @@ impl HostFs {
             Permissions::new().readonly(permissions.readonly())
         }
     }
-
-    fn map_io_error(path: &Path, message: &str, error: std::io::Error) -> Error {
-        match error.kind() {
-            ErrorKind::NotFound => Error::not_found(path),
-            ErrorKind::AlreadyExists => Error::already_exists(path),
-            ErrorKind::PermissionDenied => Error::permission_denied(path),
-            ErrorKind::InvalidInput => Error::invalid_path(error.to_string()),
-            _ => {
-                Error::unexpected(message, Some(Box::new(error) as Box<dyn StdError + Send + Sync>))
-            }
-        }
-    }
-
-    #[cfg(target_os = "linux")]
-    fn map_rustix_error(path: &Path, message: &str, error: rustix::io::Errno) -> Error {
-        match error.kind() {
-            ErrorKind::NotFound => Error::not_found(path),
-            ErrorKind::AlreadyExists => Error::already_exists(path),
-            ErrorKind::PermissionDenied => Error::permission_denied(path),
-            ErrorKind::InvalidInput => Error::invalid_path(error.to_string()),
-            _ => {
-                Error::unexpected(message, Some(Box::new(error) as Box<dyn StdError + Send + Sync>))
-            }
-        }
-    }
 }
 
 #[async_trait]
 impl Backend for HostFs {
-    type File = File;
+    type File = HostFile;
     type DirEntries = Iter<IntoIter<Result<DirEntry, Error>>>;
 
     fn capabilities(&self) -> Capabilities {
@@ -247,7 +222,7 @@ impl Backend for HostFs {
                 Ok(_) => {}
                 Err(error) if error.kind() == ErrorKind::NotFound => {}
                 Err(error) => {
-                    return Err(Self::map_io_error(path, "failed to inspect host path", error));
+                    return Err(error.into_fs_error(path, "failed to inspect host path"));
                 }
             }
         }
@@ -288,50 +263,56 @@ impl Backend for HostFs {
                 resolve |= ResolveFlags::NO_SYMLINKS;
             }
 
-            return Ok(File::from_std(std::fs::File::from(
-                openat2(
-                    &self.root.file,
-                    self.local_path(path)?,
-                    flags,
-                    if options.is_create() || options.is_create_new() {
-                        Mode::from_raw_mode(0o666)
-                    } else {
-                        Mode::empty()
-                    },
-                    resolve,
-                )
-                .map_err(|error| {
-                    Self::map_rustix_error(path, "failed to open rooted host file", error)
-                })?,
-            )));
+            return Ok(HostFile::new(
+                PathBuf::from(path),
+                fs::File::from_std(std::fs::File::from(
+                    openat2(
+                        &self.root.file,
+                        self.local_path(path)?,
+                        flags,
+                        if options.is_create() || options.is_create_new() {
+                            Mode::from_raw_mode(0o666)
+                        } else {
+                            Mode::empty()
+                        },
+                        resolve,
+                    )
+                    .map_err(|error| {
+                        error.into_fs_error(path, "failed to open rooted host file")
+                    })?,
+                )),
+            ));
         }
 
         #[cfg(not(target_os = "linux"))]
         {
-            HostOpenOptions::new()
-                .read(options.is_read())
-                .write(options.is_write())
-                .append(options.is_append())
-                .truncate(options.is_truncate())
-                .create(options.is_create())
-                .create_new(options.is_create_new())
-                .open(self.resolve(path)?)
-                .await
-                .map_err(|error| Self::map_io_error(path, "failed to open host file", error))
+            Ok(HostFile::new(
+                PathBuf::from(path),
+                HostOpenOptions::new()
+                    .read(options.is_read())
+                    .write(options.is_write())
+                    .append(options.is_append())
+                    .truncate(options.is_truncate())
+                    .create(options.is_create())
+                    .create_new(options.is_create_new())
+                    .open(self.resolve(path)?)
+                    .await
+                    .map_err(|error| error.into_fs_error(path, "failed to open host file"))?,
+            ))
         }
     }
 
     async fn entries(&self, path: &Path) -> Result<Self::DirEntries, Error> {
         let mut reader = fs::read_dir(self.resolve(path)?)
             .await
-            .map_err(|error| Self::map_io_error(path, "failed to read host directory", error))?;
+            .map_err(|error| error.into_fs_error(path, "failed to read host directory"))?;
         let mut entries = Vec::new();
 
         while let Some(entry) = reader
             .next_entry()
             .await
             .map_err(|error| {
-                Self::map_io_error(path, "failed to read host directory entry", error)
+                error.into_fs_error(path, "failed to read host directory entry")
             })?
         {
             let file_name = Component::from(HostFileName(&entry.file_name()));
@@ -340,10 +321,9 @@ impl Backend for HostFs {
                 .metadata()
                 .await
                 .map_err(|error| {
-                    Self::map_io_error(
+                    error.into_fs_error(
                         child_path.as_path(),
                         "failed to read host directory entry metadata",
-                        error,
                     )
                 })?;
 
@@ -365,7 +345,7 @@ impl Backend for HostFs {
             } else {
                 fs::symlink_metadata(self.resolve(path)?).await
             }
-            .map_err(|error| Self::map_io_error(path, "failed to read host metadata", error))?,
+            .map_err(|error| error.into_fs_error(path, "failed to read host metadata"))?,
         ))
     }
 
@@ -375,13 +355,13 @@ impl Backend for HostFs {
         } else {
             fs::create_dir(self.resolve(path)?).await
         }
-        .map_err(|error| Self::map_io_error(path, "failed to create host directory", error))
+        .map_err(|error| error.into_fs_error(path, "failed to create host directory"))
     }
 
     async fn remove_file(&self, path: &Path) -> Result<(), Error> {
         fs::remove_file(self.resolve(path)?)
             .await
-            .map_err(|error| Self::map_io_error(path, "failed to remove host file", error))
+            .map_err(|error| error.into_fs_error(path, "failed to remove host file"))
     }
 
     async fn remove_dir(&self, path: &Path, options: &RemoveDirOptions) -> Result<(), Error> {
@@ -390,13 +370,24 @@ impl Backend for HostFs {
         } else {
             fs::remove_dir(self.resolve(path)?).await
         }
-        .map_err(|error| Self::map_io_error(path, "failed to remove host directory", error))
+        .map_err(|error| error.into_fs_error(path, "failed to remove host directory"))
+    }
+
+    async fn truncate(&self, path: &Path, len: u64) -> Result<(), Error> {
+        fs::OpenOptions::new()
+            .write(true)
+            .open(self.resolve(path)?)
+            .await
+            .map_err(|error| error.into_fs_error(path, "failed to open host path for truncation"))?
+            .set_len(len)
+            .await
+            .map_err(|error| error.into_fs_error(path, "failed to truncate host file"))
     }
 
     async fn rename(&self, from: &Path, to: &Path) -> Result<(), Error> {
         fs::rename(self.resolve(from)?, self.resolve(to)?)
             .await
-            .map_err(|error| Self::map_io_error(from, "failed to rename host path", error))
+            .map_err(|error| error.into_fs_error(from, "failed to rename host path"))
     }
 
     async fn symlink(&self, target: &Path, link: &Path) -> Result<(), Error> {
@@ -404,7 +395,7 @@ impl Backend for HostFs {
         {
             tokio::fs::symlink(self.resolve(target)?, self.resolve(link)?)
                 .await
-                .map_err(|error| Self::map_io_error(link, "failed to create host symlink", error))
+                .map_err(|error| error.into_fs_error(link, "failed to create host symlink"))
         }
 
         #[cfg(windows)]
@@ -415,7 +406,7 @@ impl Backend for HostFs {
             if fs::metadata(&target_path)
                 .await
                 .map_err(|error| {
-                    Self::map_io_error(target, "failed to inspect host symlink target", error)
+                    error.into_fs_error(target, "failed to inspect host symlink target")
                 })?
                 .file_type()
                 .is_dir()
@@ -424,7 +415,7 @@ impl Backend for HostFs {
             } else {
                 fs::symlink_file(target_path, link_path).await
             }
-            .map_err(|error| Self::map_io_error(link, "failed to create host symlink", error))
+            .map_err(|error| error.into_fs_error(link, "failed to create host symlink"))
         }
 
         #[cfg(not(any(unix, windows)))]
@@ -437,14 +428,14 @@ impl Backend for HostFs {
         PathBuf::from_host_path(
             fs::read_link(self.resolve(path)?)
                 .await
-                .map_err(|error| Self::map_io_error(path, "failed to read host symlink", error))?,
+                .map_err(|error| error.into_fs_error(path, "failed to read host symlink"))?,
         )
     }
 
     async fn set_permissions(&self, path: &Path, permissions: Permissions) -> Result<(), Error> {
         let mut host_permissions = fs::metadata(self.resolve(path)?)
             .await
-            .map_err(|error| Self::map_io_error(path, "failed to read host metadata", error))?
+            .map_err(|error| error.into_fs_error(path, "failed to read host metadata"))?
             .permissions();
 
         host_permissions.set_readonly(permissions.is_readonly());
@@ -456,7 +447,7 @@ impl Backend for HostFs {
 
         fs::set_permissions(self.resolve(path)?, host_permissions)
             .await
-            .map_err(|error| Self::map_io_error(path, "failed to set host permissions", error))
+            .map_err(|error| error.into_fs_error(path, "failed to set host permissions"))
     }
 }
 
@@ -495,7 +486,7 @@ impl HostFsBuilder {
 
         #[cfg(target_os = "linux")]
         let file = std::fs::File::open(&root).map_err(|error| {
-            HostFs::map_io_error(PathBuf::root().as_path(), "failed to open host root", error)
+            error.into_fs_error(PathBuf::root().as_path(), "failed to open host root")
         })?;
 
         Ok(HostFs {

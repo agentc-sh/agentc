@@ -2,9 +2,12 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::error::Error as StdError;
+use std::{
+    error::Error as StdError,
+    io::{Error as IoError, ErrorKind},
+};
 
-use crate::path::PathBuf;
+use crate::path::{Path, PathBuf};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -87,6 +90,41 @@ impl Error {
         Error::Unexpected {
             message: message.into(),
             source: source.into(),
+        }
+    }
+}
+
+pub(crate) trait IntoFsError {
+    fn into_fs_error(self, path: &Path, message: &str) -> Error;
+}
+
+impl IntoFsError for IoError {
+    fn into_fs_error(self, path: &Path, message: &str) -> Error {
+        match self.kind() {
+            ErrorKind::NotFound => Error::not_found(path),
+            ErrorKind::AlreadyExists => Error::already_exists(path),
+            ErrorKind::PermissionDenied => Error::permission_denied(path),
+            ErrorKind::InvalidInput => Error::invalid_path(self.to_string()),
+            _ => Error::unexpected(
+                message,
+                Some(Box::new(self) as Box<dyn StdError + Send + Sync>),
+            ),
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl IntoFsError for rustix::io::Errno {
+    fn into_fs_error(self, path: &Path, message: &str) -> Error {
+        match self.kind() {
+            ErrorKind::NotFound => Error::not_found(path),
+            ErrorKind::AlreadyExists => Error::already_exists(path),
+            ErrorKind::PermissionDenied => Error::permission_denied(path),
+            ErrorKind::InvalidInput => Error::invalid_path(self.to_string()),
+            _ => Error::unexpected(
+                message,
+                Some(Box::new(self) as Box<dyn StdError + Send + Sync>),
+            ),
         }
     }
 }

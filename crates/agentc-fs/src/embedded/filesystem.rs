@@ -117,14 +117,16 @@ impl Backend for EmbeddedFs {
         }
 
         match &self.source {
-            EmbeddedSource::File { bytes } if Self::is_root(path) => Ok(EmbeddedFile::new(*bytes)),
+            EmbeddedSource::File { bytes } if Self::is_root(path) => {
+                Ok(EmbeddedFile::new(PathBuf::from(path), *bytes))
+            }
             EmbeddedSource::File { .. } => Err(Error::not_found(path)),
             EmbeddedSource::Directory { directory } => {
                 let relative_path = Self::relative_path(path);
                 let directory = directory.as_inner();
 
                 if let Some(file) = directory.get_file(relative_path.as_str()) {
-                    return Ok(EmbeddedFile::new(file.contents()));
+                    return Ok(EmbeddedFile::new(PathBuf::from(path), file.contents()));
                 }
 
                 if directory
@@ -215,6 +217,10 @@ impl Backend for EmbeddedFs {
     }
 
     async fn remove_dir(&self, path: &Path, _options: &RemoveDirOptions) -> Result<(), Error> {
+        Err(Error::permission_denied(path))
+    }
+
+    async fn truncate(&self, path: &Path, _len: u64) -> Result<(), Error> {
         Err(Error::permission_denied(path))
     }
 

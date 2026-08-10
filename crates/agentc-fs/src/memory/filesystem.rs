@@ -185,7 +185,12 @@ impl Backend for MemoryFs {
                     0
                 };
 
-                Ok(MemoryFile::new(content, position))
+                Ok(MemoryFile::new(
+                    PathBuf::from(path),
+                    content,
+                    position,
+                    options.is_write() || options.is_append(),
+                ))
             }
             Err(Error::NotFound(_)) if options.is_create() || options.is_create_new() => {
                 let (parent, file_name) = self.parent(path).await?;
@@ -209,7 +214,12 @@ impl Backend for MemoryFs {
                             .entries_mut()
                             .insert(file_name.as_bytes().to_vec(), Arc::new(RwLock::new(node)));
 
-                        Ok(MemoryFile::new(content, 0))
+                        Ok(MemoryFile::new(
+                            PathBuf::from(path),
+                            content,
+                            0,
+                            options.is_write() || options.is_append(),
+                        ))
                     }
                     _ => Err(Error::not_directory(path)),
                 }
@@ -368,6 +378,31 @@ impl Backend for MemoryFs {
                 Ok(())
             }
             _ => Err(Error::not_directory(path)),
+        }
+    }
+
+    async fn truncate(&self, path: &Path, len: u64) -> Result<(), Error> {
+        match &mut *self
+            .node(path, true)
+            .await?
+            .write()
+            .await
+        {
+            Node::File(file) => {
+                file.content()
+                    .lock()
+                    .map_err(|_| {
+                        Error::unexpected(
+                            "memory file lock is poisoned",
+                            None::<Box<dyn StdError + Send + Sync>>,
+                        )
+                    })?
+                    .resize(len as usize, 0);
+
+                Ok(())
+            }
+            Node::Directory(_) => Err(Error::is_directory(path)),
+            Node::Symlink(_) => Err(Error::not_found(path)),
         }
     }
 
@@ -698,6 +733,47 @@ mod tests {
         assert!(matches!(
             root.metadata("before.txt").await,
             Err(Error::NotFound(path)) if path.to_string_lossy() == "/before.txt"
+        ));
+    }
+
+    #[tokio::test]
+    async fn memory_truncate_shortens_a_file_by_path() {
+        let root = Fs::memory().root();
+
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/notes.txt")
+            .await
+            .unwrap()
+            .write_all(b"hello world")
+            .await
+            .unwrap();
+
+        root.truncate("/notes.txt", 5).await.unwrap();
+
+        assert_eq!(
+            root.open_file("/notes.txt")
+                .await
+                .unwrap()
+                .read_to_string()
+                .await
+                .unwrap(),
+            "hello"
+        );
+    }
+
+    #[tokio::test]
+    async fn memory_truncate_rejects_a_directory() {
+        let root = Fs::memory().root();
+
+        root.create_dir("/workspace")
+            .await
+            .unwrap();
+
+        assert!(matches!(
+            root.truncate("/workspace", 0).await,
+            Err(Error::IsDirectory(path)) if path.to_string_lossy() == "/workspace"
         ));
     }
 }

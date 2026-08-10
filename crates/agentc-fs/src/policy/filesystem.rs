@@ -186,6 +186,12 @@ impl Backend for PolicyFs {
             .await
     }
 
+    async fn truncate(&self, path: &Path, len: u64) -> Result<(), Error> {
+        self.check_write(&WriteContext::new(path, None, None, None))?;
+
+        self.inner.truncate(path, len).await
+    }
+
     async fn rename(&self, from: &Path, to: &Path) -> Result<(), Error> {
         self.check_rename(from, to)?;
 
@@ -215,12 +221,10 @@ impl Backend for PolicyFs {
 
 #[cfg(test)]
 mod tests {
-    use tokio::io::AsyncWriteExt;
-
     use crate::{
         backend::Backend,
         errors::Error,
-        fs::{Fs, OpenOptions},
+        fs::{File, Fs, OpenOptions},
         memory::MemoryFs,
         path::PathBuf,
         policy::{Denied, OpenContext, Policy, PolicyFs, RenameContext, WriteContext},
@@ -232,15 +236,17 @@ mod tests {
         async fn with_file(path: &str, content: &[u8]) -> MemoryFs {
             let fs = MemoryFs::new();
             let path = PathBuf::parse(path).unwrap();
-            let mut file = Backend::open(
-                &fs,
-                path.as_path(),
-                &OpenOptions::new()
-                    .write(true)
-                    .create(true),
-            )
-            .await
-            .unwrap();
+            let mut file = File::new(Box::new(
+                Backend::open(
+                    &fs,
+                    path.as_path(),
+                    &OpenOptions::new()
+                        .write(true)
+                        .create(true),
+                )
+                .await
+                .unwrap(),
+            ));
 
             file.write_all(content).await.unwrap();
             fs

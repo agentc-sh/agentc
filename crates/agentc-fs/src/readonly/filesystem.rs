@@ -71,6 +71,10 @@ impl Backend for ReadOnlyFs {
         Err(Error::permission_denied(path))
     }
 
+    async fn truncate(&self, path: &Path, _len: u64) -> Result<(), Error> {
+        Err(Error::permission_denied(path))
+    }
+
     async fn rename(&self, from: &Path, _to: &Path) -> Result<(), Error> {
         Err(Error::permission_denied(from))
     }
@@ -90,12 +94,10 @@ impl Backend for ReadOnlyFs {
 
 #[cfg(test)]
 mod tests {
-    use tokio::io::AsyncWriteExt;
-
     use crate::{
         backend::Backend,
         errors::Error,
-        fs::{Fs, OpenOptions},
+        fs::{File, Fs, OpenOptions},
         memory::MemoryFs,
         path::PathBuf,
         readonly::ReadOnlyFs,
@@ -107,15 +109,17 @@ mod tests {
         async fn with_file(path: &str, content: &[u8]) -> MemoryFs {
             let fs = MemoryFs::new();
             let path = PathBuf::parse(path).unwrap();
-            let mut file = Backend::open(
-                &fs,
-                path.as_path(),
-                &OpenOptions::new()
-                    .write(true)
-                    .create(true),
-            )
-            .await
-            .unwrap();
+            let mut file = File::new(Box::new(
+                Backend::open(
+                    &fs,
+                    path.as_path(),
+                    &OpenOptions::new()
+                        .write(true)
+                        .create(true),
+                )
+                .await
+                .unwrap(),
+            ));
 
             file.write_all(content).await.unwrap();
             fs
@@ -156,6 +160,17 @@ mod tests {
                 .create_dir("/workspace")
                 .await,
             Err(Error::PermissionDenied(path)) if path.to_string_lossy() == "/workspace"
+        ));
+    }
+
+    #[tokio::test]
+    async fn readonly_denies_truncate() {
+        assert!(matches!(
+            Fs::new(ReadOnlyFs::new(MemorySource::with_file("/notes.txt", b"readonly").await))
+                .root()
+                .truncate("/notes.txt", 4)
+                .await,
+            Err(Error::PermissionDenied(path)) if path.to_string_lossy() == "/notes.txt"
         ));
     }
 }
