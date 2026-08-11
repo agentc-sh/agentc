@@ -62,7 +62,7 @@ impl OverlayFs {
     async fn upper_exists(&self, path: &Path) -> Result<bool, Error> {
         match self
             .upper
-            .metadata(path, &MetadataOptions::new())
+            .metadata(path, &MetadataOptions::new().follow_symlinks(false))
             .await
         {
             Ok(_) => Ok(true),
@@ -74,7 +74,7 @@ impl OverlayFs {
     async fn lower_metadata(&self, path: &Path) -> Result<Option<Metadata>, Error> {
         match self
             .lower
-            .metadata(path, &MetadataOptions::new())
+            .metadata(path, &MetadataOptions::new().follow_symlinks(false))
             .await
         {
             Ok(metadata) => Ok(Some(metadata)),
@@ -159,7 +159,7 @@ impl OverlayFs {
 
         matches!(
             self.upper
-                .metadata(path, &MetadataOptions::new())
+                .metadata(path, &MetadataOptions::new().follow_symlinks(false))
                 .await,
             Ok(metadata) if metadata.file_type() == FileType::Directory
         )
@@ -239,7 +239,11 @@ impl Backend for OverlayFs {
             return Err(Error::not_found(path));
         }
 
-        if Backend::metadata(self, path, &MetadataOptions::new())
+        if Backend::metadata(
+            self,
+            path,
+            &MetadataOptions::new().follow_symlinks(false),
+        )
             .await?
             .file_type()
             != FileType::Directory

@@ -14,6 +14,9 @@ pub mod backend;
 #[cfg(feature = "embedded")]
 pub mod embedded;
 
+#[cfg(feature = "typescript")]
+pub mod typescript;
+
 pub mod host;
 pub mod memory;
 pub mod mount;

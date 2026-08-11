@@ -221,7 +221,7 @@ impl Backend for PolicyFs {
     }
 
     async fn read_link(&self, path: &Path) -> Result<PathBuf, Error> {
-        self.check_metadata(path, &MetadataOptions::new())?;
+        self.check_metadata(path, &MetadataOptions::new().follow_symlinks(false))?;
 
         self.inner.read_link(path).await
     }

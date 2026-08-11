@@ -75,7 +75,7 @@ impl Dir {
         if self
             .fs
             .backend
-            .metadata(path.as_path(), &MetadataOptions::new())
+            .metadata(path.as_path(), &MetadataOptions::new().follow_symlinks(false))
             .await?
             .file_type()
             != FileType::Directory
@@ -187,7 +187,7 @@ impl Dir {
         let metadata = self
             .fs
             .backend
-            .metadata(path.as_path(), &MetadataOptions::new())
+            .metadata(path.as_path(), &MetadataOptions::new().follow_symlinks(false))
             .await?;
         let file_name = path
             .file_name()
@@ -199,7 +199,20 @@ impl Dir {
     pub async fn metadata(&self, path: impl IntoPathBuf) -> Result<Metadata, Error> {
         self.fs
             .backend
-            .metadata(self.resolve(path)?.as_path(), &MetadataOptions::new())
+            .metadata(
+                self.resolve(path)?.as_path(),
+                &MetadataOptions::new().follow_symlinks(true),
+            )
+            .await
+    }
+
+    pub async fn symlink_metadata(&self, path: impl IntoPathBuf) -> Result<Metadata, Error> {
+        self.fs
+            .backend
+            .metadata(
+                self.resolve(path)?.as_path(),
+                &MetadataOptions::new().follow_symlinks(false),
+            )
             .await
     }
 
@@ -440,5 +453,65 @@ impl Stream for Walk {
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         Pin::new(&mut self.inner).poll_next(cx)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::fs::{FileType, Fs};
+
+    #[tokio::test]
+    async fn metadata_follows_a_symlink_and_symlink_metadata_does_not() {
+        let fs = Fs::memory();
+        let root = fs.root();
+
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/target.txt")
+            .await
+            .unwrap();
+        root.symlink("/target.txt", "/link.txt")
+            .await
+            .unwrap();
+
+        assert_eq!(
+            root.metadata("/link.txt")
+                .await
+                .unwrap()
+                .file_type(),
+            FileType::File,
+        );
+        assert_eq!(
+            root.symlink_metadata("/link.txt")
+                .await
+                .unwrap()
+                .file_type(),
+            FileType::Symlink,
+        );
+    }
+
+    #[tokio::test]
+    async fn a_directory_entry_reports_its_own_type_for_a_symlink() {
+        let fs = Fs::memory();
+        let root = fs.root();
+
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/target.txt")
+            .await
+            .unwrap();
+        root.symlink("/target.txt", "/link.txt")
+            .await
+            .unwrap();
+
+        assert_eq!(
+            root.entry("/link.txt")
+                .await
+                .unwrap()
+                .file_type(),
+            FileType::Symlink,
+        );
     }
 }

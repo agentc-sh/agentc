@@ -906,7 +906,7 @@ mod tests {
             1000
         );
         assert_eq!(
-            root.metadata("/link.txt")
+            root.symlink_metadata("/link.txt")
                 .await
                 .unwrap()
                 .uid(),
@@ -922,7 +922,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(
-            root.metadata("/link.txt")
+            root.symlink_metadata("/link.txt")
                 .await
                 .unwrap()
                 .uid(),
