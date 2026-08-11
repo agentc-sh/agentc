@@ -41,6 +41,7 @@ impl ToolCodeGen for JavascriptTools<'_> {
         Self::is_present(self.0).then(|| {
             quote! {
                 use agentc_executor_typescript::executor::Executor;
+                use agentc_fs::typescript::executor::ExecutorBuilderFsExt;
                 use agentc_http::client::typescript::ExecutorBuilderHttpExt;
                 use agentc_tools::javascript::JavascriptTool;
             }
@@ -79,6 +80,7 @@ impl ToolCodeGen for JavascriptTools<'_> {
                     .queue_capacity(32)
                     .standard_environment()
                     .with_http(config.network.builder())
+                    .with_fs(fs.root())?
                     .cancellation(shutdown.clone())
                     .build()
                     .await?;
@@ -179,6 +181,28 @@ impl Fragment<ResolvedContext> for HttpTypescriptCargoFragment {
             "cargo::dependencies" => Ok(ErasedContributionValue::new(
                 CargoDependencies::from_entries([CargoDependencyContribution::runtime(
                     RuntimeDependencyContribution::new("agentc-http")
+                        .default_features(false)
+                        .feature("typescript"),
+                )])
+                .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
+            )),
+            _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
+        }
+    }
+}
+
+pub struct FilesystemTypescriptCargoFragment;
+
+impl Fragment<ResolvedContext> for FilesystemTypescriptCargoFragment {
+    fn generate_contribution(
+        &self,
+        _ctx: &GenerationContext<ResolvedContext>,
+        point: &str,
+    ) -> Result<ErasedContributionValue, GeneratorError> {
+        match point {
+            "cargo::dependencies" => Ok(ErasedContributionValue::new(
+                CargoDependencies::from_entries([CargoDependencyContribution::runtime(
+                    RuntimeDependencyContribution::new("agentc-fs")
                         .default_features(false)
                         .feature("typescript"),
                 )])
@@ -342,6 +366,7 @@ mod tests {
         assert!(registrations.contains(". queue_capacity (32)"));
         assert!(registrations.contains(". standard_environment ()"));
         assert!(registrations.contains(". with_http (config . network . builder ())"));
+        assert!(registrations.contains(". with_fs (fs . root ())"));
         assert!(registrations.contains(". cancellation (shutdown . clone ())"));
     }
 
@@ -386,6 +411,7 @@ mod tests {
             .to_string();
 
         assert!(imports.contains("agentc_executor_typescript :: executor :: Executor"));
+        assert!(imports.contains("ExecutorBuilderFsExt"));
         assert!(imports.contains("ExecutorBuilderHttpExt"));
         assert!(imports.contains("JavascriptTool"));
     }

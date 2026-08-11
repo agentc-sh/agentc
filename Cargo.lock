@@ -4222,22 +4222,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "llrt_fs"
-version = "0.8.1-beta"
-source = "git+https://github.com/awslabs/llrt?rev=101ae49#101ae49b6a6d31dd468c8310c38eab93702db885"
-dependencies = [
- "either",
- "junction",
- "llrt_buffer",
- "llrt_encoding",
- "llrt_path",
- "llrt_utils",
- "rand 0.10.2",
- "rquickjs",
- "tokio",
-]
-
-[[package]]
 name = "llrt_hooking"
 version = "0.8.1-beta"
 source = "git+https://github.com/awslabs/llrt?rev=101ae49#101ae49b6a6d31dd468c8310c38eab93702db885"
@@ -4303,7 +4287,6 @@ dependencies = [
  "llrt_buffer",
  "llrt_console",
  "llrt_fetch",
- "llrt_fs",
  "llrt_hooking",
  "llrt_http",
  "llrt_json",

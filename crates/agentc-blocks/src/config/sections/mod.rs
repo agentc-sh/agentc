@@ -6,6 +6,7 @@ pub mod a2a;
 pub mod block;
 pub mod contribution;
 pub mod database;
+pub mod filesystem;
 pub mod mcp;
 pub mod network;
 pub mod point;

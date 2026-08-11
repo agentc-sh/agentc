@@ -154,7 +154,6 @@ impl ExecutorBuilder {
                     .os()
                     .process_env()
                     .streams()
-                    .fs()
                     .build(),
             )
         })
