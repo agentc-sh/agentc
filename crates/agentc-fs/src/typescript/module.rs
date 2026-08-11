@@ -7,8 +7,10 @@ use std::borrow::Cow;
 use agentc_executor_typescript::{
     guestjs::{
         errors::Error,
-        handle::{Object},
-        host::{Exports, HostModule},
+        handle::Object,
+        host::{Exports, HostClass, HostModule},
+        marshal::ToGuestBound,
+        runtime::Scope,
     },
     host::HostRuntime,
 };
@@ -45,13 +47,12 @@ pub struct FsModule {
 impl FsModule {
     const DEFAULT_SPECIFIER: &'static str = "agentc:fs";
 
-    pub fn new(dir: Dir) -> Result<Self, Error> {
-        Ok(Self {
+    pub fn new(dir: Dir, host_runtime: HostRuntime) -> Self {
+        Self {
             specifier: Cow::Borrowed(Self::DEFAULT_SPECIFIER),
             dir,
-            runtime: HostRuntime::current()
-                .map_err(|e| Error::unexpected(format!("agentc:fs: cannot access host runtime: {e}")))?,
-        })
+            runtime: host_runtime,
+        }
     }
 
     fn relative_name(base: &[u8], path: &[u8]) -> String {
@@ -338,12 +339,20 @@ impl FsModule {
         Ok(())
     }
 
-    async fn open(self, path: String, flags: OpenFlags) -> Result<(PathBuf, File), Error> {
+    async fn open(self, path: String, flags: OpenFlags, mode: Option<u32>) -> Result<(PathBuf, File), Error> {
         let resolved = self.dir.resolve(&path)?;
         let file = self
             .dir
             .open_with_options(path, flags.options())
             .await?;
+
+        if let Some(mode) = mode {
+            if flags.creates() {
+                self.dir
+                    .set_permissions(resolved.clone(), Permissions::new(mode))
+                    .await?;
+            }
+        }
 
         Ok((resolved, file))
     }
@@ -361,6 +370,32 @@ impl FsModule {
 impl HostModule for FsModule {
     fn name(&self) -> &str {
         self.specifier()
+    }
+
+    fn initialize<'js>(&self, scope: &Scope<'js>) -> Result<(), Error> {
+        let module = scope.host_module(self.specifier())?;
+        let globals = scope.ctx().globals();
+
+        globals.set(
+            Stats::NAME,
+            module
+                .class(Stats::NAME)?
+                .to_guest_bound(scope)?,
+        )?;
+        globals.set(
+            Dirent::NAME,
+            module
+                .class(Dirent::NAME)?
+                .to_guest_bound(scope)?,
+        )?;
+        globals.set(
+            FileHandle::NAME,
+            module
+                .class(FileHandle::NAME)?
+                .to_guest_bound(scope)?,
+        )?;
+
+        Ok(())
     }
 
     fn build(&self, exports: &mut Exports) {
@@ -617,9 +652,10 @@ impl HostModule for FsModule {
                 let descriptors = descriptors.clone();
                 let path = args.get_owned::<String>(scope, 0)?;
                 let flags = OpenFlags::from_args(scope, &args, 1)?;
+                let mode = args.get_opt::<u32>(scope, 2)?;
 
                 Ok(async move {
-                    let (resolved, file) = module.clone().open(path, flags).await?;
+                    let (resolved, file) = module.clone().open(path, flags, mode).await?;
                     let fd = descriptors.insert(resolved.clone(), file);
 
                     Ok(FileHandle::new(fd, resolved, module.dir.clone(), descriptors))
@@ -912,10 +948,11 @@ impl HostModule for FsModule {
             move |scope, args| {
                 let path = args.get_owned::<String>(scope, 0)?;
                 let flags = OpenFlags::from_args(scope, &args, 1)?;
+                let mode = args.get_opt::<u32>(scope, 2)?;
 
                 let (resolved, file) = module
                     .runtime
-                    .block_on(module.clone().open(path, flags))
+                    .block_on(module.clone().open(path, flags, mode))
                     .map_err(|error| Error::unexpected(format!("agentc:fs: {error}")))??;
 
                 Ok(descriptors.insert(resolved, file))
@@ -1074,10 +1111,10 @@ mod tests {
             handle::Promise,
             marshal::{FromGuest, ToGuestArgs},
         },
+        host::HostRuntime,
     };
 
-    use super::FsModule;
-    use crate::fs::{Fs, Dir};
+    use crate::{fs::{Fs, Dir}, typescript::module::FsModule};
 
     const FS_SOURCE: &str = r#"
 import {
@@ -1108,6 +1145,9 @@ import {
     truncate,
     writeSync,
     writeFile,
+    Dirent as ImportedDirent,
+    FileHandle as ImportedFileHandle,
+    Stats as ImportedStats,
 } from "agentc:fs";
 
 export async function writeReadBytes(path) {
@@ -1385,10 +1425,18 @@ export async function syncDescriptorOps(path) {
 
     return `${before}:${after}`;
 }
+
+export async function globalsIdentity() {
+    return [
+        globalThis.Stats === ImportedStats,
+        globalThis.Dirent === ImportedDirent,
+        globalThis.FileHandle === ImportedFileHandle,
+    ].join(":");
+}
 "#;
 
     async fn executor(dir: Dir) -> Executor {
-        let module = FsModule::new(dir).expect("module construct");
+        let module = FsModule::new(dir, HostRuntime::current().expect("host runtime"));
 
         Executor::builder("fs.ts", FS_SOURCE)
             .workers(1)
@@ -1957,6 +2005,19 @@ export async function syncDescriptorOps(path) {
         assert_eq!(
             call::<String, _>(&executor, "syncDescriptorOps", ("/file.txt".to_owned(),)).await,
             "5:2",
+        );
+
+        executor.shutdown().await.expect("executor shuts down");
+    }
+
+    #[tokio::test]
+    async fn the_classes_are_installed_as_globals() {
+        let fs = Fs::memory();
+        let executor = executor(fs.root()).await;
+
+        assert_eq!(
+            call::<String, _>(&executor, "globalsIdentity", ()).await,
+            "true:true:true",
         );
 
         executor.shutdown().await.expect("executor shuts down");
