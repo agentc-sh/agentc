@@ -11,7 +11,7 @@ declare module 'agentc:fs' {
   export interface FileOptions {
     encoding?: FileEncoding
     mode?: number
-    flag?: string | number
+    flag?: string
   }
 
   export interface MkdirOptions {
