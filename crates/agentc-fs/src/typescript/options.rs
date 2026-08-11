@@ -252,6 +252,13 @@ impl FileOptions {
             .map(Encoding::parse)
             .transpose()
     }
+
+    pub fn open_flags(&self, default: &str) -> Result<OpenFlags, Error> {
+        match self.flag.as_deref() {
+            Some(flag) => OpenFlags::parse(flag),
+            None => OpenFlags::parse(default),
+        }
+    }
 }
 
 #[derive(Debug, Default, Deserialize, FromGuest)]

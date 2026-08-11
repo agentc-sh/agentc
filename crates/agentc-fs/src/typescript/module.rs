@@ -75,12 +75,10 @@ impl FsModule {
     }
 
     async fn read_file(self, path: String, options: FileOptions) -> Result<FileContents, Error> {
-        let mut file = self
-            .dir
-            .options()
-            .read(true)
-            .open(path)
+        let mut file = self.dir
+            .open_with_options(path, options.open_flags("r")?.options())
             .await?;
+
         let bytes = file.read_to_end().await?;
 
         match options.encoding()? {
@@ -90,19 +88,14 @@ impl FsModule {
     }
 
     async fn write_file(self, path: String, data: FileData, options: FileOptions) -> Result<(), Error> {
-        let encoding = options.encoding()?;
-        let mut file = self
-            .dir
-            .options()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .open(path.clone())
+        let flags = options.open_flags("w")?;
+        let mut file = self.dir
+            .open_with_options(path.clone(), flags.options())
             .await?;
 
-        file.write_all(data.into_bytes(encoding)?).await?;
+        file.write_all(data.into_bytes(options.encoding()?)?).await?;
 
-        if let Some(mode) = options.mode {
+        if let Some(mode) = options.mode && flags.creates() {
             self.dir
                 .set_permissions(path, Permissions::new(mode))
                 .await?;
@@ -112,19 +105,14 @@ impl FsModule {
     }
 
     async fn append_file(self, path: String, data: FileData, options: FileOptions) -> Result<(), Error> {
-        let encoding = options.encoding()?;
-        let mut file = self
-            .dir
-            .options()
-            .write(true)
-            .append(true)
-            .create(true)
-            .open(path.clone())
+        let flags = options.open_flags("a")?;
+        let mut file = self.dir
+            .open_with_options(path.clone(), flags.options())
             .await?;
 
-        file.write_all(data.into_bytes(encoding)?).await?;
+        file.write_all(data.into_bytes(options.encoding()?)?).await?;
 
-        if let Some(mode) = options.mode {
+        if let Some(mode) = options.mode && flags.creates() {
             self.dir
                 .set_permissions(path, Permissions::new(mode))
                 .await?;
@@ -169,12 +157,10 @@ impl FsModule {
         }
 
         if options.recursive.unwrap_or(false) {
-            let base = dir.path().as_bytes().to_vec();
-
             return Ok(ReaddirResult::Names(
                 entries
                     .into_iter()
-                    .map(|entry| Self::relative_name(&base, entry.path().as_bytes()))
+                    .map(|entry| Self::relative_name(&dir.path().as_bytes().to_vec(), entry.path().as_bytes()))
                     .collect(),
             ));
         }
@@ -341,8 +327,7 @@ impl FsModule {
 
     async fn open(self, path: String, flags: OpenFlags, mode: Option<u32>) -> Result<(PathBuf, File), Error> {
         let resolved = self.dir.resolve(&path)?;
-        let file = self
-            .dir
+        let file = self.dir
             .open_with_options(path, flags.options())
             .await?;
 
