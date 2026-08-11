@@ -35,7 +35,7 @@ pub trait Backend: Send + Sync + 'static {
 
     async fn access(&self, path: &Path, options: &AccessOptions) -> Result<(), Error>;
 
-    async fn create_dir(&self, path: &Path, options: &CreateDirOptions) -> Result<(), Error>;
+    async fn create_dir(&self, path: &Path, options: &CreateDirOptions) -> Result<bool, Error>;
 
     async fn remove_file(&self, path: &Path) -> Result<(), Error>;
 
@@ -138,7 +138,7 @@ pub trait ErasedBackend: Send + Sync + 'static {
 
     async fn access(&self, path: &Path, options: &AccessOptions) -> Result<(), Error>;
 
-    async fn create_dir(&self, path: &Path, options: &CreateDirOptions) -> Result<(), Error>;
+    async fn create_dir(&self, path: &Path, options: &CreateDirOptions) -> Result<bool, Error>;
 
     async fn remove_file(&self, path: &Path) -> Result<(), Error>;
 
@@ -187,7 +187,7 @@ where
         Backend::access(self, path, options).await
     }
 
-    async fn create_dir(&self, path: &Path, options: &CreateDirOptions) -> Result<(), Error> {
+    async fn create_dir(&self, path: &Path, options: &CreateDirOptions) -> Result<bool, Error> {
         Backend::create_dir(self, path, options).await
     }
 

@@ -39,6 +39,26 @@ impl Dir {
         Dir { fs, root, path }
     }
 
+    fn path_components(&self, path: &PathBuf) -> Vec<Component> {
+        path.components()
+            .filter(|component| !matches!(component.as_bytes(), b"/" | b"."))
+            .collect()
+    }
+
+    fn path_bytes(components: Vec<Component>) -> Vec<u8> {
+        let mut bytes = vec![b'/'];
+
+        for component in components {
+            if bytes.len() > 1 {
+                bytes.push(b'/');
+            }
+
+            bytes.extend_from_slice(component.as_bytes());
+        }
+
+        bytes
+    }
+
     pub fn path(&self) -> &Path {
         self.path.as_path()
     }
@@ -47,12 +67,16 @@ impl Dir {
         self.root.as_path()
     }
 
+    pub fn options(&self) -> OpenOptionsBuilder<'_> {
+        OpenOptionsBuilder::new(self)
+    }
+
     pub async fn open_file(&self, path: impl IntoPathBuf) -> Result<File, Error> {
         self.open_with_options(path, &OpenOptions::new().read(true))
             .await
     }
 
-    pub(crate) async fn open_with_options(
+    pub async fn open_with_options(
         &self,
         path: impl IntoPathBuf,
         options: &OpenOptions,
@@ -65,17 +89,13 @@ impl Dir {
         ))
     }
 
-    pub fn options(&self) -> OpenOptionsBuilder<'_> {
-        OpenOptionsBuilder::new(self)
-    }
-
     pub async fn open_dir(&self, path: impl IntoPathBuf) -> Result<Dir, Error> {
         let path = self.resolve(path)?;
 
         if self
             .fs
             .backend
-            .metadata(path.as_path(), &MetadataOptions::new())
+            .metadata(path.as_path(), &MetadataOptions::new().follow_symlinks(false))
             .await?
             .file_type()
             != FileType::Directory
@@ -86,26 +106,28 @@ impl Dir {
         Ok(Dir::new(self.fs.clone(), self.root.clone(), path))
     }
 
-    pub async fn create_dir(&self, path: impl IntoPathBuf) -> Result<Dir, Error> {
+    pub async fn create_dir(&self, path: impl IntoPathBuf) -> Result<(Dir, bool), Error> {
         let path = self.resolve(path)?;
 
-        self.fs
+        let created = self
+            .fs
             .backend
             .create_dir(path.as_path(), &CreateDirOptions::new())
             .await?;
 
-        Ok(Dir::new(self.fs.clone(), self.root.clone(), path))
+        Ok((Dir::new(self.fs.clone(), self.root.clone(), path), created))
     }
 
-    pub async fn create_dir_all(&self, path: impl IntoPathBuf) -> Result<Dir, Error> {
+    pub async fn create_dir_all(&self, path: impl IntoPathBuf) -> Result<(Dir, bool), Error> {
         let path = self.resolve(path)?;
 
-        self.fs
+        let created = self
+            .fs
             .backend
             .create_dir(path.as_path(), &CreateDirOptions::new().recursive(true))
             .await?;
 
-        Ok(Dir::new(self.fs.clone(), self.root.clone(), path))
+        Ok((Dir::new(self.fs.clone(), self.root.clone(), path), created))
     }
 
     pub async fn create_dir_temp(&self, prefix: impl IntoPathBuf) -> Result<Dir, Error> {
@@ -124,7 +146,7 @@ impl Dir {
                 .create_dir(path.as_path(), &CreateDirOptions::new())
                 .await
             {
-                Ok(()) => {
+                Ok(true) => {
                     self.fs
                         .backend
                         .set_permissions(path.as_path(), Permissions::new(0o700))
@@ -132,6 +154,7 @@ impl Dir {
 
                     return Ok(Dir::new(self.fs.clone(), self.root.clone(), path));
                 }
+                Ok(false) => continue,
                 Err(Error::AlreadyExists(_)) => continue,
                 Err(error) => return Err(error),
             }
@@ -187,7 +210,7 @@ impl Dir {
         let metadata = self
             .fs
             .backend
-            .metadata(path.as_path(), &MetadataOptions::new())
+            .metadata(path.as_path(), &MetadataOptions::new().follow_symlinks(false))
             .await?;
         let file_name = path
             .file_name()
@@ -199,7 +222,14 @@ impl Dir {
     pub async fn metadata(&self, path: impl IntoPathBuf) -> Result<Metadata, Error> {
         self.fs
             .backend
-            .metadata(self.resolve(path)?.as_path(), &MetadataOptions::new())
+            .metadata(self.resolve(path)?.as_path(), &MetadataOptions::new().follow_symlinks(true))
+            .await
+    }
+
+    pub async fn symlink_metadata(&self, path: impl IntoPathBuf) -> Result<Metadata, Error> {
+        self.fs
+            .backend
+            .metadata(self.resolve(path)?.as_path(), &MetadataOptions::new().follow_symlinks(false))
             .await
     }
 
@@ -331,26 +361,6 @@ impl Dir {
 
         PathBuf::parse(Self::path_bytes(components))
     }
-
-    fn path_components(&self, path: &PathBuf) -> Vec<Component> {
-        path.components()
-            .filter(|component| !matches!(component.as_bytes(), b"/" | b"."))
-            .collect()
-    }
-
-    fn path_bytes(components: Vec<Component>) -> Vec<u8> {
-        let mut bytes = vec![b'/'];
-
-        for component in components {
-            if bytes.len() > 1 {
-                bytes.push(b'/');
-            }
-
-            bytes.extend_from_slice(component.as_bytes());
-        }
-
-        bytes
-    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -440,5 +450,65 @@ impl Stream for Walk {
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         Pin::new(&mut self.inner).poll_next(cx)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::fs::{FileType, Fs};
+
+    #[tokio::test]
+    async fn metadata_follows_a_symlink_and_symlink_metadata_does_not() {
+        let fs = Fs::memory();
+        let root = fs.root();
+
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/target.txt")
+            .await
+            .unwrap();
+        root.symlink("/target.txt", "/link.txt")
+            .await
+            .unwrap();
+
+        assert_eq!(
+            root.metadata("/link.txt")
+                .await
+                .unwrap()
+                .file_type(),
+            FileType::File,
+        );
+        assert_eq!(
+            root.symlink_metadata("/link.txt")
+                .await
+                .unwrap()
+                .file_type(),
+            FileType::Symlink,
+        );
+    }
+
+    #[tokio::test]
+    async fn a_directory_entry_reports_its_own_type_for_a_symlink() {
+        let fs = Fs::memory();
+        let root = fs.root();
+
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/target.txt")
+            .await
+            .unwrap();
+        root.symlink("/target.txt", "/link.txt")
+            .await
+            .unwrap();
+
+        assert_eq!(
+            root.entry("/link.txt")
+                .await
+                .unwrap()
+                .file_type(),
+            FileType::Symlink,
+        );
     }
 }

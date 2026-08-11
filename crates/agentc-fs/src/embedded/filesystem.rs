@@ -227,7 +227,7 @@ impl Backend for EmbeddedFs {
         )
     }
 
-    async fn create_dir(&self, path: &Path, _options: &CreateDirOptions) -> Result<(), Error> {
+    async fn create_dir(&self, path: &Path, _options: &CreateDirOptions) -> Result<bool, Error> {
         Err(Error::permission_denied(path))
     }
 

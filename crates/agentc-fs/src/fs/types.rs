@@ -577,7 +577,7 @@ pub struct MetadataOptions {
 
 impl MetadataOptions {
     pub fn new() -> Self {
-        MetadataOptions { follow_symlinks: false }
+        MetadataOptions { follow_symlinks: true }
     }
 
     pub fn follow_symlinks(mut self, follow_symlinks: bool) -> Self {

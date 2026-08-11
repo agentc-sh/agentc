@@ -420,13 +420,27 @@ impl Backend for HostFs {
         }
     }
 
-    async fn create_dir(&self, path: &Path, options: &CreateDirOptions) -> Result<(), Error> {
+    async fn create_dir(&self, path: &Path, options: &CreateDirOptions) -> Result<bool, Error> {
+        let resolved = self.resolve(path)?;
+
         if options.is_recursive() {
-            fs::create_dir_all(self.resolve(path)?).await
+            let created = self
+                .metadata(path, &MetadataOptions::new().follow_symlinks(false))
+                .await
+                .is_err();
+
+            fs::create_dir_all(&resolved)
+                .await
+                .map_err(|error| error.into_fs_error(path, "failed to create host directory"))?;
+
+            Ok(created)
         } else {
-            fs::create_dir(self.resolve(path)?).await
+            fs::create_dir(&resolved)
+                .await
+                .map_err(|error| error.into_fs_error(path, "failed to create host directory"))?;
+
+            Ok(true)
         }
-        .map_err(|error| error.into_fs_error(path, "failed to create host directory"))
     }
 
     async fn remove_file(&self, path: &Path) -> Result<(), Error> {
