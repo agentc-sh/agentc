@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-use agentc_executor_typescript::guestjs::{errors::Error, host::Args, runtime::Scope, FromGuest};
+use agentc_executor_typescript::guestjs::{FromGuest, errors::Error, host::Args, runtime::Scope};
 use serde::Deserialize;
 
 use crate::{

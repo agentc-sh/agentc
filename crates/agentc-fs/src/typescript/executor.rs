@@ -2,7 +2,9 @@
 //
 // SPDX-License-Identifier: MIT
 
-use agentc_executor_typescript::{executor::ExecutorBuilder, host::HostRuntime, guestjs::errors::Error};
+use agentc_executor_typescript::{
+    executor::ExecutorBuilder, guestjs::errors::Error, host::HostRuntime,
+};
 
 use crate::{fs::Dir, typescript::library::FsLibrary};
 
@@ -16,19 +18,19 @@ impl ExecutorBuilderFsExt for ExecutorBuilder {
     fn with_fs(self, dir: Dir) -> Result<Self, Error> {
         // We need to capture the host runtime here instead of in the configure closure because the configure closure
         // is executed on each worker thread, and the host runtime is from the main thread.
-        let host_runtime = HostRuntime::current()
-            .map_err(|e| Error::unexpected(format!("agentc:fs: cannot access host runtime: {e}")))?;
+        let host_runtime = HostRuntime::current().map_err(|e| {
+            Error::unexpected(format!("agentc:fs: cannot access host runtime: {e}"))
+        })?;
 
-        Ok(self.configure(move |runtime| runtime.bind(FsLibrary::bind(dir.clone(), host_runtime.clone()))))
+        Ok(self.configure(move |runtime| {
+            runtime.bind(FsLibrary::bind(dir.clone(), host_runtime.clone()))
+        }))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use agentc_executor_typescript::{
-        executor::Executor,
-        guestjs::handle::Promise,
-    };
+    use agentc_executor_typescript::{executor::Executor, guestjs::handle::Promise};
 
     use super::ExecutorBuilderFsExt;
     use crate::fs::Fs;

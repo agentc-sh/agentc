@@ -1402,10 +1402,16 @@ mod tests {
         let fs = Fs::memory();
         let root = fs.root();
 
-        let (_, created) = root.create_dir_all("/a/b").await.unwrap();
+        let (_, created) = root
+            .create_dir_all("/a/b")
+            .await
+            .unwrap();
         assert!(created);
 
-        let (_, created) = root.create_dir_all("/a/b").await.unwrap();
+        let (_, created) = root
+            .create_dir_all("/a/b")
+            .await
+            .unwrap();
         assert!(!created);
     }
 
@@ -1414,7 +1420,10 @@ mod tests {
         let fs = Fs::memory();
         let root = fs.root();
 
-        let (_, created) = root.create_dir("/single").await.unwrap();
+        let (_, created) = root
+            .create_dir("/single")
+            .await
+            .unwrap();
         assert!(created);
     }
 }

@@ -45,10 +45,13 @@ impl ReadRequest {
         args: &Args<'js>,
         buffer: BoundObject<'js>,
     ) -> Result<Self, Error> {
-        let offset = args.get_opt::<u32>(scope, 1)?.unwrap_or_default() as usize;
-        let length = args.get_opt::<u32>(scope, 2)?.map(|length| length as usize).unwrap_or(
-            BufferView::checked_length(BufferView::len(&buffer)?, offset)?,
-        );
+        let offset = args
+            .get_opt::<u32>(scope, 1)?
+            .unwrap_or_default() as usize;
+        let length = args
+            .get_opt::<u32>(scope, 2)?
+            .map(|length| length as usize)
+            .unwrap_or(BufferView::checked_length(BufferView::len(&buffer)?, offset)?);
 
         Ok(Self {
             buffer: Some(Value::from_guest(scope, buffer.to_guest_bound(scope)?)?),
@@ -60,18 +63,17 @@ impl ReadRequest {
 
     fn from_options<'js>(scope: &Scope<'js>, options: BoundObject<'js>) -> Result<Self, Error> {
         let buffer = options.get::<Option<Object>>("buffer")?;
-        let offset = options.get::<Option<u32>>("offset")?.unwrap_or_default() as usize;
+        let offset = options
+            .get::<Option<u32>>("offset")?
+            .unwrap_or_default() as usize;
         let length = match &buffer {
             Some(buffer) => options
                 .get::<Option<u32>>("length")?
                 .map(|length| length as usize)
-                .unwrap_or(
-                    BufferView::checked_length(
-                        BufferView::len(buffer)?,
-                        offset,
-                    )?,
-                ),
-            None => options.get::<Option<u32>>("length")?.unwrap_or(16_384) as usize,
+                .unwrap_or(BufferView::checked_length(BufferView::len(buffer)?, offset)?),
+            None => options
+                .get::<Option<u32>>("length")?
+                .unwrap_or(16_384) as usize,
         };
 
         Ok(Self {
@@ -84,10 +86,7 @@ impl ReadRequest {
         })
     }
 
-    fn from_args<'js>(
-        scope: &Scope<'js>,
-        args: &Args<'js>,
-    ) -> Result<Self, Error> {
+    fn from_args<'js>(scope: &Scope<'js>, args: &Args<'js>) -> Result<Self, Error> {
         let Some(first) = args.get_opt::<Value>(scope, 0)? else {
             return Ok(Self::default());
         };
@@ -116,10 +115,13 @@ impl WriteRequest {
         args: &Args<'js>,
         buffer: BoundObject<'js>,
     ) -> Result<Self, Error> {
-        let offset = args.get_opt::<u32>(scope, 1)?.unwrap_or_default() as usize;
-        let length = args.get_opt::<u32>(scope, 2)?.map(|length| length as usize).unwrap_or(
-            BufferView::checked_length(BufferView::len(&buffer)?, offset)?,
-        );
+        let offset = args
+            .get_opt::<u32>(scope, 1)?
+            .unwrap_or_default() as usize;
+        let length = args
+            .get_opt::<u32>(scope, 2)?
+            .map(|length| length as usize)
+            .unwrap_or(BufferView::checked_length(BufferView::len(&buffer)?, offset)?);
 
         Ok(Self {
             bytes: BufferView::read(&buffer, offset, length)?,
@@ -128,10 +130,7 @@ impl WriteRequest {
         })
     }
 
-    fn from_string<'js>(
-        scope: &Scope<'js>,
-        args: &Args<'js>,
-    ) -> Result<Self, Error> {
+    fn from_string<'js>(scope: &Scope<'js>, args: &Args<'js>) -> Result<Self, Error> {
         let text = args.get_owned::<String>(scope, 0)?;
         let encoding = args
             .get_opt::<String>(scope, 2)?
@@ -146,10 +145,7 @@ impl WriteRequest {
         })
     }
 
-    fn from_args<'js>(
-        scope: &Scope<'js>,
-        args: &Args<'js>,
-    ) -> Result<Self, Error> {
+    fn from_args<'js>(scope: &Scope<'js>, args: &Args<'js>) -> Result<Self, Error> {
         if let Some(value) = args.get_opt::<Value>(scope, 0)? {
             if let Ok(buffer) = Object::from_guest_bound(scope, value.to_guest_bound(scope)?) {
                 if BufferView::is_uint8_array(&buffer)? {
@@ -171,12 +167,7 @@ pub struct FileHandle {
 
 impl FileHandle {
     pub fn new(fd: u32, path: PathBuf, dir: Dir, descriptors: Descriptors) -> Self {
-        Self {
-            fd,
-            path,
-            dir,
-            descriptors,
-        }
+        Self { fd, path, dir, descriptors }
     }
 }
 
@@ -210,7 +201,8 @@ impl HostClass for FileHandle {
             let mode = args.get::<u32>(scope, 0)?;
 
             Ok(async move {
-                dir.set_permissions(path, Permissions::new(mode)).await?;
+                dir.set_permissions(path, Permissions::new(mode))
+                    .await?;
 
                 Ok(())
             })
@@ -223,7 +215,8 @@ impl HostClass for FileHandle {
             let gid = args.get::<u32>(scope, 1)?;
 
             Ok(async move {
-                dir.set_owner(path, Owner::new().user(uid).group(gid)).await?;
+                dir.set_owner(path, Owner::new().user(uid).group(gid))
+                    .await?;
 
                 Ok(())
             })
@@ -232,11 +225,17 @@ impl HostClass for FileHandle {
         spec.async_method("truncate", |handle, scope, args| {
             let descriptors = handle.descriptors.clone();
             let fd = handle.fd;
-            let len = args.get_opt::<u64>(scope, 0)?.unwrap_or_default();
+            let len = args
+                .get_opt::<u64>(scope, 0)?
+                .unwrap_or_default();
             let mut lease = descriptors.lease(fd)?;
 
             Ok(async move {
-                lease.session()?.truncate(len).await.map_err(Into::into)
+                lease
+                    .session()?
+                    .truncate(len)
+                    .await
+                    .map_err(Into::into)
             })
         });
 
@@ -246,7 +245,11 @@ impl HostClass for FileHandle {
             let mut lease = descriptors.lease(fd)?;
 
             Ok(async move {
-                lease.session()?.sync_all().await.map_err(Into::into)
+                lease
+                    .session()?
+                    .sync_all()
+                    .await
+                    .map_err(Into::into)
             })
         });
 
@@ -256,7 +259,11 @@ impl HostClass for FileHandle {
             let mut lease = descriptors.lease(fd)?;
 
             Ok(async move {
-                lease.session()?.sync_data().await.map_err(Into::into)
+                lease
+                    .session()?
+                    .sync_data()
+                    .await
+                    .map_err(Into::into)
             })
         });
 

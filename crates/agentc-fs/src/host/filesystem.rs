@@ -424,7 +424,8 @@ impl Backend for HostFs {
         let resolved = self.resolve(path)?;
 
         if options.is_recursive() {
-            let created = self.metadata(path, &MetadataOptions::new().follow_symlinks(false))
+            let created = self
+                .metadata(path, &MetadataOptions::new().follow_symlinks(false))
                 .await
                 .is_err();
 

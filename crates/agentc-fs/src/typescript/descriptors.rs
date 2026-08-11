@@ -2,20 +2,11 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::{
-    cell::RefCell,
-    collections::HashMap,
-    io::SeekFrom,
-    rc::Rc,
-};
+use std::{cell::RefCell, collections::HashMap, io::SeekFrom, rc::Rc};
 
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
 
-use crate::{
-    errors::Error,
-    fs::File,
-    path::PathBuf,
-};
+use crate::{errors::Error, fs::File, path::PathBuf};
 
 pub struct Session {
     file: File,
@@ -38,7 +29,8 @@ impl Session {
             Some(position) => {
                 let original = self.seek(SeekFrom::Current(0)).await?;
 
-                self.seek(SeekFrom::Start(position)).await?;
+                self.seek(SeekFrom::Start(position))
+                    .await?;
 
                 Some(original)
             }
@@ -69,7 +61,8 @@ impl Session {
         };
 
         if let Some(original) = original {
-            self.seek(SeekFrom::Start(original)).await?;
+            self.seek(SeekFrom::Start(original))
+                .await?;
         }
 
         result
@@ -80,7 +73,8 @@ impl Session {
             Some(position) => {
                 let original = self.seek(SeekFrom::Current(0)).await?;
 
-                self.seek(SeekFrom::Start(position)).await?;
+                self.seek(SeekFrom::Start(position))
+                    .await?;
 
                 Some(original)
             }
@@ -95,7 +89,8 @@ impl Session {
             .map(|()| len);
 
         if let Some(original) = original {
-            self.seek(SeekFrom::Start(original)).await?;
+            self.seek(SeekFrom::Start(original))
+                .await?;
         }
 
         result
@@ -136,10 +131,7 @@ struct Descriptor {
 impl Descriptors {
     pub fn new() -> Self {
         Self {
-            inner: Rc::new(RefCell::new(DescriptorTable {
-                next: 3,
-                entries: HashMap::new(),
-            })),
+            inner: Rc::new(RefCell::new(DescriptorTable { next: 3, entries: HashMap::new() })),
         }
     }
 
@@ -148,13 +140,9 @@ impl Descriptors {
         let fd = table.next;
 
         table.next += 1;
-        table.entries.insert(
-            fd,
-            Descriptor {
-                path,
-                session: Some(Session::new(file)),
-            },
-        );
+        table
+            .entries
+            .insert(fd, Descriptor { path, session: Some(Session::new(file)) });
 
         fd
     }
@@ -191,7 +179,11 @@ impl Descriptors {
     }
 
     pub fn restore(&self, fd: u32, session: Session) {
-        if let Some(descriptor) = self.inner.borrow_mut().entries.get_mut(&fd)
+        if let Some(descriptor) = self
+            .inner
+            .borrow_mut()
+            .entries
+            .get_mut(&fd)
             && descriptor.session.is_none()
         {
             descriptor.session = Some(session);
@@ -224,7 +216,8 @@ impl Lease {
 impl Drop for Lease {
     fn drop(&mut self) {
         if let Some(session) = self.session.take() {
-            self.descriptors.restore(self.fd, session);
+            self.descriptors
+                .restore(self.fd, session);
         }
     }
 }
@@ -317,7 +310,9 @@ mod tests {
             .unwrap();
 
         file.write_all(b"abcdef").await.unwrap();
-        file.seek(SeekFrom::Start(4)).await.unwrap();
+        file.seek(SeekFrom::Start(4))
+            .await
+            .unwrap();
 
         let mut session = Session::new(file);
 

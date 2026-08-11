@@ -17,9 +17,7 @@ use agentc_executor_typescript::{
 use bytes::Bytes;
 
 use crate::{
-    fs::{
-        Dir, File, FileType, Owner, Permissions, SetOwnerOptions,
-    },
+    fs::{Dir, File, FileType, Owner, Permissions, SetOwnerOptions},
     path::PathBuf,
     typescript::{
         constants::Constants,
@@ -27,13 +25,11 @@ use crate::{
         dirent::Dirent,
         handle::FileHandle,
         options::{
-            AccessMode, CopyMode, FileOptions, MkdirOptions, OpenFlags, ReaddirOptions,
-            RmOptions, RmdirOptions,
+            AccessMode, CopyMode, FileOptions, MkdirOptions, OpenFlags, ReaddirOptions, RmOptions,
+            RmdirOptions,
         },
         stats::Stats,
-        types::{
-            BufferView, FileContents, FileData, ReaddirResult, WriteBuffer,
-        },
+        types::{BufferView, FileContents, FileData, ReaddirResult, WriteBuffer},
     },
 };
 
@@ -56,13 +52,11 @@ impl FsModule {
     }
 
     fn relative_name(base: &[u8], path: &[u8]) -> String {
-        String::from_utf8_lossy(
-            if base == b"/" {
-                &path[1..]
-            } else {
-                &path[base.len() + 1..]
-            },
-        )
+        String::from_utf8_lossy(if base == b"/" {
+            &path[1..]
+        } else {
+            &path[base.len() + 1..]
+        })
         .into_owned()
     }
 
@@ -75,7 +69,8 @@ impl FsModule {
     }
 
     async fn read_file(self, path: String, options: FileOptions) -> Result<FileContents, Error> {
-        let mut file = self.dir
+        let mut file = self
+            .dir
             .open_with_options(path, options.open_flags("r")?.options())
             .await?;
 
@@ -87,15 +82,24 @@ impl FsModule {
         }
     }
 
-    async fn write_file(self, path: String, data: FileData, options: FileOptions) -> Result<(), Error> {
+    async fn write_file(
+        self,
+        path: String,
+        data: FileData,
+        options: FileOptions,
+    ) -> Result<(), Error> {
         let flags = options.open_flags("w")?;
-        let mut file = self.dir
+        let mut file = self
+            .dir
             .open_with_options(path.clone(), flags.options())
             .await?;
 
-        file.write_all(data.into_bytes(options.encoding()?)?).await?;
+        file.write_all(data.into_bytes(options.encoding()?)?)
+            .await?;
 
-        if let Some(mode) = options.mode && flags.creates() {
+        if let Some(mode) = options.mode
+            && flags.creates()
+        {
             self.dir
                 .set_permissions(path, Permissions::new(mode))
                 .await?;
@@ -104,15 +108,24 @@ impl FsModule {
         Ok(())
     }
 
-    async fn append_file(self, path: String, data: FileData, options: FileOptions) -> Result<(), Error> {
+    async fn append_file(
+        self,
+        path: String,
+        data: FileData,
+        options: FileOptions,
+    ) -> Result<(), Error> {
         let flags = options.open_flags("a")?;
-        let mut file = self.dir
+        let mut file = self
+            .dir
             .open_with_options(path.clone(), flags.options())
             .await?;
 
-        file.write_all(data.into_bytes(options.encoding()?)?).await?;
+        file.write_all(data.into_bytes(options.encoding()?)?)
+            .await?;
 
-        if let Some(mode) = options.mode && flags.creates() {
+        if let Some(mode) = options.mode
+            && flags.creates()
+        {
             self.dir
                 .set_permissions(path, Permissions::new(mode))
                 .await?;
@@ -145,7 +158,11 @@ impl FsModule {
             }
         }
 
-        entries.sort_by(|left, right| left.path().as_bytes().cmp(right.path().as_bytes()));
+        entries.sort_by(|left, right| {
+            left.path()
+                .as_bytes()
+                .cmp(right.path().as_bytes())
+        });
 
         if options.with_file_types.unwrap_or(false) {
             return Ok(ReaddirResult::Entries(
@@ -160,7 +177,12 @@ impl FsModule {
             return Ok(ReaddirResult::Names(
                 entries
                     .into_iter()
-                    .map(|entry| Self::relative_name(&dir.path().as_bytes().to_vec(), entry.path().as_bytes()))
+                    .map(|entry| {
+                        Self::relative_name(
+                            &dir.path().as_bytes().to_vec(),
+                            entry.path().as_bytes(),
+                        )
+                    })
                     .collect(),
             ));
         }
@@ -180,7 +202,9 @@ impl FsModule {
             self.dir.create_dir(path).await?
         };
 
-        if let Some(mode) = options.mode && created {
+        if let Some(mode) = options.mode
+            && created
+        {
             self.dir
                 .set_permissions(dir.path(), Permissions::new(mode))
                 .await?;
@@ -190,7 +214,12 @@ impl FsModule {
     }
 
     async fn mkdtemp(self, prefix: String) -> Result<String, Error> {
-        Ok(self.dir.create_dir_temp(prefix).await?.path().to_string_lossy())
+        Ok(self
+            .dir
+            .create_dir_temp(prefix)
+            .await?
+            .path()
+            .to_string_lossy())
     }
 
     async fn rm(self, path: String, options: RmOptions) -> Result<(), Error> {
@@ -284,11 +313,17 @@ impl FsModule {
     }
 
     async fn readlink(self, path: String) -> Result<String, Error> {
-        Ok(self.dir.read_link(path).await?.to_string_lossy())
+        Ok(self
+            .dir
+            .read_link(path)
+            .await?
+            .to_string_lossy())
     }
 
     async fn truncate(self, path: String, len: Option<u64>) -> Result<(), Error> {
-        self.dir.truncate(path, len.unwrap_or_default()).await?;
+        self.dir
+            .truncate(path, len.unwrap_or_default())
+            .await?;
 
         Ok(())
     }
@@ -325,9 +360,15 @@ impl FsModule {
         Ok(())
     }
 
-    async fn open(self, path: String, flags: OpenFlags, mode: Option<u32>) -> Result<(PathBuf, File), Error> {
+    async fn open(
+        self,
+        path: String,
+        flags: OpenFlags,
+        mode: Option<u32>,
+    ) -> Result<(PathBuf, File), Error> {
         let resolved = self.dir.resolve(&path)?;
-        let file = self.dir
+        let file = self
+            .dir
             .open_with_options(path, flags.options())
             .await?;
 
@@ -422,7 +463,11 @@ impl HostModule for FsModule {
                 let data = FileData::from_args(scope, &args, 1)?;
                 let options = FileOptions::from_args(scope, &args, 2)?;
 
-                Ok(async move { module.write_file(path, data, options).await })
+                Ok(async move {
+                    module
+                        .write_file(path, data, options)
+                        .await
+                })
             }
         });
 
@@ -435,7 +480,11 @@ impl HostModule for FsModule {
                 let data = FileData::from_args(scope, &args, 1)?;
                 let options = FileOptions::from_args(scope, &args, 2)?;
 
-                Ok(async move { module.append_file(path, data, options).await })
+                Ok(async move {
+                    module
+                        .append_file(path, data, options)
+                        .await
+                })
             }
         });
 
@@ -457,7 +506,9 @@ impl HostModule for FsModule {
             move |scope, args| {
                 let module = module.clone();
                 let path = args.get_owned::<String>(scope, 0)?;
-                let options = args.get_opt::<ReaddirOptions>(scope, 1)?.unwrap_or_default();
+                let options = args
+                    .get_opt::<ReaddirOptions>(scope, 1)?
+                    .unwrap_or_default();
 
                 Ok(async move { module.readdir(path, options).await })
             }
@@ -469,7 +520,9 @@ impl HostModule for FsModule {
             move |scope, args| {
                 let module = module.clone();
                 let path = args.get_owned::<String>(scope, 0)?;
-                let options = args.get_opt::<MkdirOptions>(scope, 1)?.unwrap_or_default();
+                let options = args
+                    .get_opt::<MkdirOptions>(scope, 1)?
+                    .unwrap_or_default();
 
                 Ok(async move { module.mkdir(path, options).await })
             }
@@ -492,7 +545,9 @@ impl HostModule for FsModule {
             move |scope, args| {
                 let module = module.clone();
                 let path = args.get_owned::<String>(scope, 0)?;
-                let options = args.get_opt::<RmOptions>(scope, 1)?.unwrap_or_default();
+                let options = args
+                    .get_opt::<RmOptions>(scope, 1)?
+                    .unwrap_or_default();
 
                 Ok(async move { module.rm(path, options).await })
             }
@@ -504,7 +559,9 @@ impl HostModule for FsModule {
             move |scope, args| {
                 let module = module.clone();
                 let path = args.get_owned::<String>(scope, 0)?;
-                let options = args.get_opt::<RmdirOptions>(scope, 1)?.unwrap_or_default();
+                let options = args
+                    .get_opt::<RmdirOptions>(scope, 1)?
+                    .unwrap_or_default();
 
                 Ok(async move { module.rmdir(path, options).await })
             }
@@ -640,7 +697,10 @@ impl HostModule for FsModule {
                 let mode = args.get_opt::<u32>(scope, 2)?;
 
                 Ok(async move {
-                    let (resolved, file) = module.clone().open(path, flags, mode).await?;
+                    let (resolved, file) = module
+                        .clone()
+                        .open(path, flags, mode)
+                        .await?;
                     let fd = descriptors.insert(resolved.clone(), file);
 
                     Ok(FileHandle::new(fd, resolved, module.dir.clone(), descriptors))
@@ -685,7 +745,11 @@ impl HostModule for FsModule {
 
                 module
                     .runtime
-                    .block_on(module.clone().write_file(path, data, options))
+                    .block_on(
+                        module
+                            .clone()
+                            .write_file(path, data, options),
+                    )
                     .map_err(|error| Error::unexpected(format!("agentc:fs: {error}")))?
             }
         });
@@ -700,7 +764,11 @@ impl HostModule for FsModule {
 
                 module
                     .runtime
-                    .block_on(module.clone().append_file(path, data, options))
+                    .block_on(
+                        module
+                            .clone()
+                            .append_file(path, data, options),
+                    )
                     .map_err(|error| Error::unexpected(format!("agentc:fs: {error}")))?
             }
         });
@@ -724,7 +792,9 @@ impl HostModule for FsModule {
 
             move |scope, args| {
                 let path = args.get_owned::<String>(scope, 0)?;
-                let options = args.get_opt::<ReaddirOptions>(scope, 1)?.unwrap_or_default();
+                let options = args
+                    .get_opt::<ReaddirOptions>(scope, 1)?
+                    .unwrap_or_default();
 
                 module
                     .runtime
@@ -738,7 +808,9 @@ impl HostModule for FsModule {
 
             move |scope, args| {
                 let path = args.get_owned::<String>(scope, 0)?;
-                let options = args.get_opt::<MkdirOptions>(scope, 1)?.unwrap_or_default();
+                let options = args
+                    .get_opt::<MkdirOptions>(scope, 1)?
+                    .unwrap_or_default();
 
                 module
                     .runtime
@@ -765,7 +837,9 @@ impl HostModule for FsModule {
 
             move |scope, args| {
                 let path = args.get_owned::<String>(scope, 0)?;
-                let options = args.get_opt::<RmOptions>(scope, 1)?.unwrap_or_default();
+                let options = args
+                    .get_opt::<RmOptions>(scope, 1)?
+                    .unwrap_or_default();
 
                 module
                     .runtime
@@ -779,7 +853,9 @@ impl HostModule for FsModule {
 
             move |scope, args| {
                 let path = args.get_owned::<String>(scope, 0)?;
-                let options = args.get_opt::<RmdirOptions>(scope, 1)?.unwrap_or_default();
+                let options = args
+                    .get_opt::<RmdirOptions>(scope, 1)?
+                    .unwrap_or_default();
 
                 module
                     .runtime
@@ -959,7 +1035,9 @@ impl HostModule for FsModule {
             move |scope, args| {
                 let fd = args.get::<u32>(scope, 0)?;
                 let buffer = args.get::<Object>(scope, 1)?;
-                let offset = args.get_opt::<u32>(scope, 2)?.unwrap_or_default() as usize;
+                let offset = args
+                    .get_opt::<u32>(scope, 2)?
+                    .unwrap_or_default() as usize;
                 let length = args
                     .get_opt::<u32>(scope, 3)?
                     .map(|length| length as usize)
@@ -995,7 +1073,9 @@ impl HostModule for FsModule {
                 let (session, result) = module
                     .runtime
                     .block_on(async move {
-                        let result = session.write(request.bytes, request.position).await;
+                        let result = session
+                            .write(request.bytes, request.position)
+                            .await;
 
                         (session, result)
                     })
@@ -1017,7 +1097,11 @@ impl HostModule for FsModule {
                 module
                     .runtime
                     .block_on(async move { dir.metadata(path).await })
-                    .map(|result| result.map(Stats::new).map_err(Into::into))
+                    .map(|result| {
+                        result
+                            .map(Stats::new)
+                            .map_err(Into::into)
+                    })
                     .map_err(|error| Error::unexpected(format!("agentc:fs: {error}")))?
             }
         });
@@ -1027,7 +1111,9 @@ impl HostModule for FsModule {
 
             move |scope, args| {
                 let fd = args.get::<u32>(scope, 0)?;
-                let len = args.get_opt::<u64>(scope, 1)?.unwrap_or_default();
+                let len = args
+                    .get_opt::<u64>(scope, 1)?
+                    .unwrap_or_default();
                 let mut session = descriptors.take(fd)?;
                 let (session, result) = module
                     .runtime
@@ -1099,7 +1185,10 @@ mod tests {
         host::HostRuntime,
     };
 
-    use crate::{fs::{Fs, Dir, Permissions}, typescript::module::FsModule};
+    use crate::{
+        fs::{Dir, Fs, Permissions},
+        typescript::module::FsModule,
+    };
 
     const FS_SOURCE: &str = r#"
 import {
@@ -1479,7 +1568,10 @@ export async function globalsIdentity() {
             "1,2,3",
         );
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 
     #[tokio::test]
@@ -1492,7 +1584,10 @@ export async function globalsIdentity() {
             "hello",
         );
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 
     #[tokio::test]
@@ -1505,7 +1600,10 @@ export async function globalsIdentity() {
             "hello world",
         );
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 
     #[tokio::test]
@@ -1518,7 +1616,10 @@ export async function globalsIdentity() {
             "68656c6c6f:aGVsbG8=",
         );
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 
     #[tokio::test]
@@ -1531,7 +1632,10 @@ export async function globalsIdentity() {
             "/work/nested/path",
         );
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 
     #[tokio::test]
@@ -1540,7 +1644,9 @@ export async function globalsIdentity() {
         let root = fs.root();
         let executor = executor(root.clone()).await;
 
-        root.create_dir_all("/work").await.unwrap();
+        root.create_dir_all("/work")
+            .await
+            .unwrap();
         root.set_permissions("/work", Permissions::new(0o700))
             .await
             .unwrap();
@@ -1549,7 +1655,10 @@ export async function globalsIdentity() {
 
         assert_eq!(mode, 0o700);
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 
     #[tokio::test]
@@ -1561,7 +1670,10 @@ export async function globalsIdentity() {
 
         assert_eq!(mode, 0o600);
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 
     #[tokio::test]
@@ -1574,7 +1686,10 @@ export async function globalsIdentity() {
             "true:true:true",
         );
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 
     #[tokio::test]
@@ -1586,16 +1701,34 @@ export async function globalsIdentity() {
 
         let executor = executor(root.clone()).await;
 
-        root.options().write(true).create(true).open("/dir/b.txt").await.unwrap();
-        root.options().write(true).create(true).open("/dir/a.txt").await.unwrap();
-        root.options().write(true).create(true).open("/dir/c.txt").await.unwrap();
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/dir/b.txt")
+            .await
+            .unwrap();
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/dir/a.txt")
+            .await
+            .unwrap();
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/dir/c.txt")
+            .await
+            .unwrap();
 
         assert_eq!(
             call::<String, _>(&executor, "sortedNames", ("/dir".to_owned(),)).await,
             "a.txt,b.txt,c.txt",
         );
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 
     #[tokio::test]
@@ -1605,15 +1738,25 @@ export async function globalsIdentity() {
         let executor = executor(root.clone()).await;
 
         root.create_dir("/dir").await.unwrap();
-        root.options().write(true).create(true).open("/dir/file.txt").await.unwrap();
-        root.create_dir("/dir/folder").await.unwrap();
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/dir/file.txt")
+            .await
+            .unwrap();
+        root.create_dir("/dir/folder")
+            .await
+            .unwrap();
 
         assert_eq!(
             call::<String, _>(&executor, "direntSummary", ("/dir".to_owned(),)).await,
             "file.txt:/dir:true:false|folder:/dir:false:true",
         );
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 
     #[tokio::test]
@@ -1622,16 +1765,31 @@ export async function globalsIdentity() {
         let root = fs.root();
         let executor = executor(root.clone()).await;
 
-        root.create_dir_all("/dir/sub").await.unwrap();
-        root.options().write(true).create(true).open("/dir/a.txt").await.unwrap();
-        root.options().write(true).create(true).open("/dir/sub/b.txt").await.unwrap();
+        root.create_dir_all("/dir/sub")
+            .await
+            .unwrap();
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/dir/a.txt")
+            .await
+            .unwrap();
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/dir/sub/b.txt")
+            .await
+            .unwrap();
 
         assert_eq!(
             call::<String, _>(&executor, "recursiveNames", ("/dir".to_owned(),)).await,
             "a.txt,sub,sub/b.txt",
         );
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 
     #[tokio::test]
@@ -1640,15 +1798,25 @@ export async function globalsIdentity() {
         let root = fs.root();
         let executor = executor(root.clone()).await;
 
-        root.options().write(true).create(true).open("/target.txt").await.unwrap();
-        root.symlink("/target.txt", "/link.txt").await.unwrap();
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/target.txt")
+            .await
+            .unwrap();
+        root.symlink("/target.txt", "/link.txt")
+            .await
+            .unwrap();
 
         assert_eq!(
             call::<String, _>(&executor, "statKinds", ("/link.txt".to_owned(),)).await,
             "true:true",
         );
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 
     #[tokio::test]
@@ -1657,11 +1825,19 @@ export async function globalsIdentity() {
         let root = fs.root();
         let executor = executor(root.clone()).await;
 
-        root.options().write(true).create(true).open("/file.txt").await.unwrap();
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/file.txt")
+            .await
+            .unwrap();
 
         assert!(call::<bool, _>(&executor, "statDates", ("/file.txt".to_owned(),)).await);
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 
     #[tokio::test]
@@ -1670,11 +1846,19 @@ export async function globalsIdentity() {
         let root = fs.root();
         let executor = executor(root.clone()).await;
 
-        root.options().write(true).create(true).open("/file.txt").await.unwrap();
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/file.txt")
+            .await
+            .unwrap();
 
         assert!(call::<bool, _>(&executor, "statModeBits", ("/file.txt".to_owned(),)).await);
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 
     #[tokio::test]
@@ -1683,14 +1867,22 @@ export async function globalsIdentity() {
         let root = fs.root();
         let executor = executor(root.clone()).await;
 
-        root.options().write(true).create(true).open("/file.txt").await.unwrap();
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/file.txt")
+            .await
+            .unwrap();
 
         assert_eq!(
             call::<u32, _>(&executor, "chmodMode", ("/file.txt".to_owned(),)).await,
             0o600_u32,
         );
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 
     #[tokio::test]
@@ -1703,7 +1895,10 @@ export async function globalsIdentity() {
             "ok",
         );
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 
     #[tokio::test]
@@ -1712,15 +1907,22 @@ export async function globalsIdentity() {
         let root = fs.root();
         let executor = executor(root.clone()).await;
 
-        root.create_dir_all("/dir/sub").await.unwrap();
-        root.options().write(true).create(true).open("/dir/sub/file.txt").await.unwrap();
+        root.create_dir_all("/dir/sub")
+            .await
+            .unwrap();
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/dir/sub/file.txt")
+            .await
+            .unwrap();
 
-        assert_eq!(
-            call::<String, _>(&executor, "rmRecursive", ("/dir".to_owned(),)).await,
-            "gone",
-        );
+        assert_eq!(call::<String, _>(&executor, "rmRecursive", ("/dir".to_owned(),)).await, "gone",);
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 
     #[tokio::test]
@@ -1729,14 +1931,30 @@ export async function globalsIdentity() {
         let root = fs.root();
         let executor = executor(root.clone()).await;
 
-        root.options().write(true).create(true).open("/from.txt").await.unwrap().write_all(b"hello").await.unwrap();
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/from.txt")
+            .await
+            .unwrap()
+            .write_all(b"hello")
+            .await
+            .unwrap();
 
         assert_eq!(
-            call::<String, _>(&executor, "renameRead", ("/from.txt".to_owned(), "/to.txt".to_owned())).await,
+            call::<String, _>(
+                &executor,
+                "renameRead",
+                ("/from.txt".to_owned(), "/to.txt".to_owned())
+            )
+            .await,
             "hello",
         );
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 
     #[tokio::test]
@@ -1745,15 +1963,39 @@ export async function globalsIdentity() {
         let root = fs.root();
         let executor = executor(root.clone()).await;
 
-        root.options().write(true).create(true).open("/from.txt").await.unwrap().write_all(b"a").await.unwrap();
-        root.options().write(true).create(true).open("/to.txt").await.unwrap().write_all(b"b").await.unwrap();
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/from.txt")
+            .await
+            .unwrap()
+            .write_all(b"a")
+            .await
+            .unwrap();
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/to.txt")
+            .await
+            .unwrap()
+            .write_all(b"b")
+            .await
+            .unwrap();
 
         assert!(
-            call::<String, _>(&executor, "copyExclusive", ("/from.txt".to_owned(), "/to.txt".to_owned())).await
-                .contains("agentc:fs:"),
+            call::<String, _>(
+                &executor,
+                "copyExclusive",
+                ("/from.txt".to_owned(), "/to.txt".to_owned())
+            )
+            .await
+            .contains("agentc:fs:"),
         );
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 
     #[tokio::test]
@@ -1762,14 +2004,25 @@ export async function globalsIdentity() {
         let root = fs.root();
         let executor = executor(root.clone()).await;
 
-        root.options().write(true).create(true).open("/file.txt").await.unwrap().write_all(b"hello").await.unwrap();
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/file.txt")
+            .await
+            .unwrap()
+            .write_all(b"hello")
+            .await
+            .unwrap();
 
         assert_eq!(
             call::<String, _>(&executor, "truncateRead", ("/file.txt".to_owned(), 2_u64)).await,
             "he",
         );
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 
     #[tokio::test]
@@ -1778,15 +2031,25 @@ export async function globalsIdentity() {
         let root = fs.root();
         let executor = executor(root.clone()).await;
 
-        root.options().write(true).create(true).open("/target.txt").await.unwrap();
-        root.symlink("/target.txt", "/link.txt").await.unwrap();
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/target.txt")
+            .await
+            .unwrap();
+        root.symlink("/target.txt", "/link.txt")
+            .await
+            .unwrap();
 
         assert_eq!(
             call::<String, _>(&executor, "linkTarget", ("/link.txt".to_owned(),)).await,
             "/target.txt",
         );
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 
     #[tokio::test]
@@ -1799,15 +2062,24 @@ export async function globalsIdentity() {
         let executor = executor(root.open_dir("/work").await.unwrap()).await;
 
         assert_eq!(
-            call::<String, _>(&executor, "writeText", ("data.json".to_owned(), "hello".to_owned())).await,
+            call::<String, _>(&executor, "writeText", ("data.json".to_owned(), "hello".to_owned()))
+                .await,
             "ok",
         );
         assert_eq!(
-            root.open_file("/work/data.json").await.unwrap().read_to_string().await.unwrap(),
+            root.open_file("/work/data.json")
+                .await
+                .unwrap()
+                .read_to_string()
+                .await
+                .unwrap(),
             "hello",
         );
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 
     #[tokio::test]
@@ -1820,15 +2092,28 @@ export async function globalsIdentity() {
         let executor = executor(root.open_dir("/work").await.unwrap()).await;
 
         assert_eq!(
-            call::<String, _>(&executor, "writeText", ("/other.txt".to_owned(), "hello".to_owned())).await,
+            call::<String, _>(
+                &executor,
+                "writeText",
+                ("/other.txt".to_owned(), "hello".to_owned())
+            )
+            .await,
             "ok",
         );
         assert_eq!(
-            root.open_file("/other.txt").await.unwrap().read_to_string().await.unwrap(),
+            root.open_file("/other.txt")
+                .await
+                .unwrap()
+                .read_to_string()
+                .await
+                .unwrap(),
             "hello",
         );
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 
     #[tokio::test]
@@ -1837,11 +2122,15 @@ export async function globalsIdentity() {
         let executor = executor(fs.root()).await;
 
         assert!(
-            call::<String, _>(&executor, "missingMessage", ("/missing.txt".to_owned(),)).await
+            call::<String, _>(&executor, "missingMessage", ("/missing.txt".to_owned(),))
+                .await
                 .contains("agentc:fs:"),
         );
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 
     #[tokio::test]
@@ -1850,11 +2139,22 @@ export async function globalsIdentity() {
         let root = fs.root();
         let executor = executor(root.clone()).await;
 
-        root.options().write(true).create(true).open("/file.txt").await.unwrap().write_all(b"hello").await.unwrap();
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/file.txt")
+            .await
+            .unwrap()
+            .write_all(b"hello")
+            .await
+            .unwrap();
 
         assert!(call::<bool, _>(&executor, "syncSurface", ("/file.txt".to_owned(),)).await);
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 
     #[tokio::test]
@@ -1863,14 +2163,25 @@ export async function globalsIdentity() {
         let root = fs.root();
         let executor = executor(root.clone()).await;
 
-        root.options().write(true).create(true).open("/file.txt").await.unwrap().write_all(b"hello").await.unwrap();
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/file.txt")
+            .await
+            .unwrap()
+            .write_all(b"hello")
+            .await
+            .unwrap();
 
         assert_eq!(
             call::<String, _>(&executor, "openReadInto", ("/file.txt".to_owned(),)).await,
             "5:104,101,108,108,111",
         );
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 
     #[tokio::test]
@@ -1879,11 +2190,22 @@ export async function globalsIdentity() {
         let root = fs.root();
         let executor = executor(root.clone()).await;
 
-        root.options().write(true).create(true).open("/file.txt").await.unwrap().write_all(b"hello").await.unwrap();
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/file.txt")
+            .await
+            .unwrap()
+            .write_all(b"hello")
+            .await
+            .unwrap();
 
         assert!(call::<bool, _>(&executor, "identity", ("/file.txt".to_owned(),)).await);
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 
     #[tokio::test]
@@ -1892,14 +2214,25 @@ export async function globalsIdentity() {
         let root = fs.root();
         let executor = executor(root.clone()).await;
 
-        root.options().write(true).create(true).open("/file.txt").await.unwrap().write_all(b"hello").await.unwrap();
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/file.txt")
+            .await
+            .unwrap()
+            .write_all(b"hello")
+            .await
+            .unwrap();
 
         assert_eq!(
             call::<String, _>(&executor, "readWithoutBuffer", ("/file.txt".to_owned(),)).await,
             "5:104,101,108,108,111",
         );
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 
     #[tokio::test]
@@ -1908,14 +2241,25 @@ export async function globalsIdentity() {
         let root = fs.root();
         let executor = executor(root.clone()).await;
 
-        root.options().write(true).create(true).open("/file.txt").await.unwrap().write_all(b"hello").await.unwrap();
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/file.txt")
+            .await
+            .unwrap()
+            .write_all(b"hello")
+            .await
+            .unwrap();
 
         assert_eq!(
             call::<String, _>(&executor, "readAtPosition", ("/file.txt".to_owned(),)).await,
             "101,108:104,101",
         );
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 
     #[tokio::test]
@@ -1924,14 +2268,25 @@ export async function globalsIdentity() {
         let root = fs.root();
         let executor = executor(root.clone()).await;
 
-        root.options().write(true).create(true).open("/file.txt").await.unwrap().write_all(b"hello").await.unwrap();
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/file.txt")
+            .await
+            .unwrap()
+            .write_all(b"hello")
+            .await
+            .unwrap();
 
         assert_eq!(
             call::<String, _>(&executor, "writeThroughHandle", ("/file.txt".to_owned(),)).await,
             "hello world",
         );
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 
     #[tokio::test]
@@ -1940,14 +2295,25 @@ export async function globalsIdentity() {
         let root = fs.root();
         let executor = executor(root.clone()).await;
 
-        root.options().write(true).create(true).open("/file.txt").await.unwrap().write_all(b"hello").await.unwrap();
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/file.txt")
+            .await
+            .unwrap()
+            .write_all(b"hello")
+            .await
+            .unwrap();
 
         assert_eq!(
             call::<String, _>(&executor, "syncReadInto", ("/file.txt".to_owned(),)).await,
             "5:104,101,108,108,111",
         );
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 
     #[tokio::test]
@@ -1961,7 +2327,10 @@ export async function globalsIdentity() {
             "5:hello",
         );
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 
     #[tokio::test]
@@ -1970,14 +2339,25 @@ export async function globalsIdentity() {
         let root = fs.root();
         let executor = executor(root.clone()).await;
 
-        root.options().write(true).create(true).open("/file.txt").await.unwrap().write_all(b"rust").await.unwrap();
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/file.txt")
+            .await
+            .unwrap()
+            .write_all(b"rust")
+            .await
+            .unwrap();
 
         assert_eq!(
             call::<String, _>(&executor, "readSubarray", ("/file.txt".to_owned(),)).await,
             "0,0,0,0,114,117,115,116,0,0,0,0,0,0,0,0",
         );
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 
     #[tokio::test]
@@ -1986,11 +2366,22 @@ export async function globalsIdentity() {
         let root = fs.root();
         let executor = executor(root.clone()).await;
 
-        root.options().write(true).create(true).open("/file.txt").await.unwrap().write_all(b"hello").await.unwrap();
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/file.txt")
+            .await
+            .unwrap()
+            .write_all(b"hello")
+            .await
+            .unwrap();
 
         assert!(call::<bool, _>(&executor, "syncFstatMatches", ("/file.txt".to_owned(),)).await);
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 
     #[tokio::test]
@@ -1999,14 +2390,23 @@ export async function globalsIdentity() {
         let root = fs.root();
         let executor = executor(root.clone()).await;
 
-        root.options().write(true).create(true).open("/file.txt").await.unwrap();
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/file.txt")
+            .await
+            .unwrap();
 
         assert!(
-            call::<String, _>(&executor, "closeTwice", ("/file.txt".to_owned(),)).await
+            call::<String, _>(&executor, "closeTwice", ("/file.txt".to_owned(),))
+                .await
                 .contains("bad file descriptor")
         );
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 
     #[tokio::test]
@@ -2015,14 +2415,26 @@ export async function globalsIdentity() {
         let root = fs.root();
         let executor = executor(root.clone()).await;
 
-        root.options().write(true).create(true).open("/file.txt").await.unwrap().write_all(b"hello").await.unwrap();
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/file.txt")
+            .await
+            .unwrap()
+            .write_all(b"hello")
+            .await
+            .unwrap();
 
         assert!(
-            call::<String, _>(&executor, "busyDescriptor", ("/file.txt".to_owned(),)).await
+            call::<String, _>(&executor, "busyDescriptor", ("/file.txt".to_owned(),))
+                .await
                 .contains("is busy")
         );
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 
     #[tokio::test]
@@ -2031,14 +2443,25 @@ export async function globalsIdentity() {
         let root = fs.root();
         let executor = executor(root.clone()).await;
 
-        root.options().write(true).create(true).open("/file.txt").await.unwrap().write_all(b"hello").await.unwrap();
+        root.options()
+            .write(true)
+            .create(true)
+            .open("/file.txt")
+            .await
+            .unwrap()
+            .write_all(b"hello")
+            .await
+            .unwrap();
 
         assert_eq!(
             call::<String, _>(&executor, "syncDescriptorOps", ("/file.txt".to_owned(),)).await,
             "5:2",
         );
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 
     #[tokio::test]
@@ -2046,11 +2469,11 @@ export async function globalsIdentity() {
         let fs = Fs::memory();
         let executor = executor(fs.root()).await;
 
-        assert_eq!(
-            call::<String, _>(&executor, "globalsIdentity", ()).await,
-            "true:true:true",
-        );
+        assert_eq!(call::<String, _>(&executor, "globalsIdentity", ()).await, "true:true:true",);
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 }
