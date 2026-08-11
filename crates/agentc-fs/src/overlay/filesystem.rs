@@ -292,25 +292,24 @@ impl Backend for OverlayFs {
         }
     }
 
-    async fn create_dir(&self, path: &Path, options: &CreateDirOptions) -> Result<(), Error> {
+    async fn create_dir(&self, path: &Path, options: &CreateDirOptions) -> Result<bool, Error> {
+        let existed = self.upper_exists(path).await?;
+
         self.clear_whiteout(path).await;
         self.create_upper_parent(path).await?;
-        self.upper
+        let created = self
+            .upper
             .create_dir(path, options)
             .await?;
 
-        if self
-            .lower_metadata(path)
-            .await?
-            .is_some()
-        {
+        if !existed && created {
             self.whiteouts
                 .write()
                 .await
                 .opaque(PathBuf::from(path));
         }
 
-        Ok(())
+        Ok(created)
     }
 
     async fn remove_file(&self, path: &Path) -> Result<(), Error> {

@@ -180,7 +180,7 @@ impl Backend for PolicyFs {
         self.inner.access(path, options).await
     }
 
-    async fn create_dir(&self, path: &Path, options: &CreateDirOptions) -> Result<(), Error> {
+    async fn create_dir(&self, path: &Path, options: &CreateDirOptions) -> Result<bool, Error> {
         self.check_write(&WriteContext::new(path, None, Some(options), None, None))?;
 
         self.inner

@@ -283,7 +283,7 @@ impl Backend for MemoryFs {
         )
     }
 
-    async fn create_dir(&self, path: &Path, options: &CreateDirOptions) -> Result<(), Error> {
+    async fn create_dir(&self, path: &Path, options: &CreateDirOptions) -> Result<bool, Error> {
         if path.as_bytes() == b"/" {
             return Err(Error::already_exists(path));
         }
@@ -304,13 +304,14 @@ impl Backend for MemoryFs {
                         file_name.as_bytes().to_vec(),
                         Arc::new(RwLock::new(Node::directory(self.next_ino()))),
                     );
-                    Ok(())
+                    Ok(true)
                 }
                 _ => Err(Error::not_directory(path)),
             };
         }
 
         let mut current = self.root.clone();
+        let mut created = false;
 
         for component in self.components(path) {
             current = {
@@ -328,6 +329,8 @@ impl Backend for MemoryFs {
                                 .entries_mut()
                                 .insert(component.as_bytes().to_vec(), node.clone());
 
+                            created = true;
+
                             node
                         }
                     },
@@ -336,7 +339,7 @@ impl Backend for MemoryFs {
             };
         }
 
-        Ok(())
+        Ok(created)
     }
 
     async fn remove_file(&self, path: &Path) -> Result<(), Error> {
@@ -1392,5 +1395,26 @@ mod tests {
             .await,
             Err(Error::PathEscapesAuthority(path)) if path.to_string_lossy() == "../tmp-"
         ));
+    }
+
+    #[tokio::test]
+    async fn create_dir_all_reports_whether_it_created_the_final_directory() {
+        let fs = Fs::memory();
+        let root = fs.root();
+
+        let (_, created) = root.create_dir_all("/a/b").await.unwrap();
+        assert!(created);
+
+        let (_, created) = root.create_dir_all("/a/b").await.unwrap();
+        assert!(!created);
+    }
+
+    #[tokio::test]
+    async fn create_dir_reports_true_when_it_creates() {
+        let fs = Fs::memory();
+        let root = fs.root();
+
+        let (_, created) = root.create_dir("/single").await.unwrap();
+        assert!(created);
     }
 }

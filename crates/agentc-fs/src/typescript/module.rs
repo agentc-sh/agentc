@@ -175,9 +175,9 @@ impl FsModule {
 
     async fn mkdir(self, path: String, options: MkdirOptions) -> Result<String, Error> {
         let dir = if options.recursive.unwrap_or(false) {
-            self.dir.create_dir_all(path.clone()).await?
+            self.dir.create_dir_all(path.clone()).await?.0
         } else {
-            self.dir.create_dir(path.clone()).await?
+            self.dir.create_dir(path.clone()).await?.0
         };
 
         if let Some(mode) = options.mode {
