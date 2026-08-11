@@ -480,11 +480,13 @@ mod tests {
             .unwrap()
             .to_string();
 
-        assert!(codegen
-            .generate_contribution(&context, "config::fields")
-            .unwrap()
-            .to_string()
-            .contains("react : ConfigReAct"));
+        assert!(
+            codegen
+                .generate_contribution(&context, "config::fields")
+                .unwrap()
+                .to_string()
+                .contains("react : ConfigReAct")
+        );
         assert!(impls.contains("struct ConfigReActModel"));
         assert!(impls.contains("struct ConfigReActModelRetry"));
         assert!(loader.contains("\"react\" , \"model\" , \"timeout\""));

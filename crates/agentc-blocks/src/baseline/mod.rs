@@ -6,7 +6,7 @@ pub mod a2a;
 pub mod mcp;
 
 use agentc_compiler::generator::{
-    blocks::{fragment::FragmentBlock, BlockSet},
+    blocks::{BlockSet, fragment::FragmentBlock},
     extension::Contribution,
 };
 

@@ -13,8 +13,8 @@ pub mod server;
 use serde::{Deserialize, Serialize};
 
 use agentc_compiler::generator::{
-    blocks::{codegen::CodeGenBlock, fragment::FragmentBlock, BlockSet},
-    extension::{reducers, Contribution},
+    blocks::{BlockSet, codegen::CodeGenBlock, fragment::FragmentBlock},
+    extension::{Contribution, reducers},
 };
 
 use crate::{
@@ -287,22 +287,30 @@ mod tests {
             .resolve(context(None), ReActGraphConfig::default())
             .unwrap();
 
-        assert!(resolved
-            .contribution
-            .provides
-            .contains::<GraphReAct>());
-        assert!(resolved
-            .contribution
-            .provides
-            .contains::<Streaming>());
-        assert!(resolved
-            .contribution
-            .provides
-            .contains::<SupportsAgUi>());
-        assert!(resolved
-            .contribution
-            .provides
-            .contains::<SupportsA2a>());
+        assert!(
+            resolved
+                .contribution
+                .provides
+                .contains::<GraphReAct>()
+        );
+        assert!(
+            resolved
+                .contribution
+                .provides
+                .contains::<Streaming>()
+        );
+        assert!(
+            resolved
+                .contribution
+                .provides
+                .contains::<SupportsAgUi>()
+        );
+        assert!(
+            resolved
+                .contribution
+                .provides
+                .contains::<SupportsA2a>()
+        );
     }
 
     #[test]
@@ -331,15 +339,21 @@ mod tests {
             ]
         );
         assert_eq!(resolved.integrations.len(), 3);
-        assert!(resolved.integrations[0]
-            .requires
-            .contains::<HttpServer>());
-        assert!(resolved.integrations[1]
-            .requires
-            .contains::<ProtocolAgUi>());
-        assert!(resolved.integrations[2]
-            .requires
-            .contains::<ProtocolA2a>());
+        assert!(
+            resolved.integrations[0]
+                .requires
+                .contains::<HttpServer>()
+        );
+        assert!(
+            resolved.integrations[1]
+                .requires
+                .contains::<ProtocolAgUi>()
+        );
+        assert!(
+            resolved.integrations[2]
+                .requires
+                .contains::<ProtocolA2a>()
+        );
     }
 
     #[test]
@@ -372,16 +386,20 @@ mod tests {
             .resolve(context(None), ReActGraphConfig::default())
             .unwrap();
 
-        assert!(!without
-            .contribution
-            .blocks
-            .iter()
-            .any(|block| block.id() == "http_typescript_cargo"));
-        assert!(!without
-            .contribution
-            .blocks
-            .iter()
-            .any(|block| block.id() == "filesystem_typescript_cargo"));
+        assert!(
+            !without
+                .contribution
+                .blocks
+                .iter()
+                .any(|block| block.id() == "http_typescript_cargo")
+        );
+        assert!(
+            !without
+                .contribution
+                .blocks
+                .iter()
+                .any(|block| block.id() == "filesystem_typescript_cargo")
+        );
 
         let mut ctx = context(None);
 
@@ -406,20 +424,23 @@ mod tests {
             .resolve(ctx, ReActGraphConfig::default())
             .unwrap();
 
-        assert!(with
-            .contribution
-            .blocks
-            .iter()
-            .any(|block| block.id() == "javascript_tool_cargo"));
-        assert!(with
-            .contribution
-            .blocks
-            .iter()
-            .any(|block| block.id() == "http_typescript_cargo"));
-        assert!(with
-            .contribution
-            .blocks
-            .iter()
-            .any(|block| block.id() == "filesystem_typescript_cargo"));
+        assert!(
+            with.contribution
+                .blocks
+                .iter()
+                .any(|block| block.id() == "javascript_tool_cargo")
+        );
+        assert!(
+            with.contribution
+                .blocks
+                .iter()
+                .any(|block| block.id() == "http_typescript_cargo")
+        );
+        assert!(
+            with.contribution
+                .blocks
+                .iter()
+                .any(|block| block.id() == "filesystem_typescript_cargo")
+        );
     }
 }

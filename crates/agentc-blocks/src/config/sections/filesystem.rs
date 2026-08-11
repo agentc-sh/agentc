@@ -152,17 +152,23 @@ mod tests {
             .get(&FilesystemSection::NAME)
             .expect("filesystem section is contributed");
 
-        assert!(section
-            .types
-            .as_str()
-            .contains("pub struct ConfigFilesystem"));
-        assert!(section
-            .types
-            .as_str()
-            .contains("MemoryFs"));
-        assert!(section
-            .fields
-            .as_str()
-            .contains("pub filesystem : ConfigFilesystem"));
+        assert!(
+            section
+                .types
+                .as_str()
+                .contains("pub struct ConfigFilesystem")
+        );
+        assert!(
+            section
+                .types
+                .as_str()
+                .contains("MemoryFs")
+        );
+        assert!(
+            section
+                .fields
+                .as_str()
+                .contains("pub filesystem : ConfigFilesystem")
+        );
     }
 }
