@@ -428,6 +428,7 @@ dependencies = [
 name = "agentc-fs"
 version = "0.3.1"
 dependencies = [
+ "agentc-executor-typescript",
  "async-trait",
  "bstr",
  "bytes",
@@ -435,6 +436,7 @@ dependencies = [
  "getrandom 0.4.3",
  "include_dir",
  "rustix",
+ "serde",
  "thiserror 2.0.18",
  "tokio",
  "typed-path",
@@ -2771,8 +2773,8 @@ dependencies = [
 
 [[package]]
 name = "guestjs"
-version = "0.1.7"
-source = "git+https://github.com/wizrds/guestjs.git?rev=a83a835#a83a835584a89a97d78d481d7bc3b260530a164b"
+version = "0.3.2"
+source = "git+https://github.com/wizrds/guestjs.git?rev=0.3.2#4210a88a17040f1b11876e5c0affd11526d903f7"
 dependencies = [
  "async-trait",
  "guestjs-core",
@@ -2785,8 +2787,8 @@ dependencies = [
 
 [[package]]
 name = "guestjs-core"
-version = "0.1.7"
-source = "git+https://github.com/wizrds/guestjs.git?rev=a83a835#a83a835584a89a97d78d481d7bc3b260530a164b"
+version = "0.3.2"
+source = "git+https://github.com/wizrds/guestjs.git?rev=0.3.2#4210a88a17040f1b11876e5c0affd11526d903f7"
 dependencies = [
  "async-trait",
  "bytes",
@@ -2802,8 +2804,8 @@ dependencies = [
 
 [[package]]
 name = "guestjs-llrt"
-version = "0.1.7"
-source = "git+https://github.com/wizrds/guestjs.git?rev=a83a835#a83a835584a89a97d78d481d7bc3b260530a164b"
+version = "0.3.2"
+source = "git+https://github.com/wizrds/guestjs.git?rev=0.3.2#4210a88a17040f1b11876e5c0affd11526d903f7"
 dependencies = [
  "bytes",
  "futures",
@@ -2815,8 +2817,8 @@ dependencies = [
 
 [[package]]
 name = "guestjs-macros"
-version = "0.1.7"
-source = "git+https://github.com/wizrds/guestjs.git?rev=a83a835#a83a835584a89a97d78d481d7bc3b260530a164b"
+version = "0.3.2"
+source = "git+https://github.com/wizrds/guestjs.git?rev=0.3.2#4210a88a17040f1b11876e5c0affd11526d903f7"
 dependencies = [
  "darling 0.23.0",
  "heck 0.5.0",

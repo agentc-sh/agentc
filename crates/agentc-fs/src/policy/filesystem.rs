@@ -180,7 +180,7 @@ impl Backend for PolicyFs {
         self.inner.access(path, options).await
     }
 
-    async fn create_dir(&self, path: &Path, options: &CreateDirOptions) -> Result<(), Error> {
+    async fn create_dir(&self, path: &Path, options: &CreateDirOptions) -> Result<bool, Error> {
         self.check_write(&WriteContext::new(path, None, Some(options), None, None))?;
 
         self.inner
@@ -221,7 +221,7 @@ impl Backend for PolicyFs {
     }
 
     async fn read_link(&self, path: &Path) -> Result<PathBuf, Error> {
-        self.check_metadata(path, &MetadataOptions::new())?;
+        self.check_metadata(path, &MetadataOptions::new().follow_symlinks(false))?;
 
         self.inner.read_link(path).await
     }

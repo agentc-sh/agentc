@@ -152,7 +152,7 @@ impl Route<'_> {
             .await
     }
 
-    async fn create_dir(self, options: &CreateDirOptions) -> Result<(), Error> {
+    async fn create_dir(self, options: &CreateDirOptions) -> Result<bool, Error> {
         self.mount
             .backend
             .create_dir(self.path.as_path(), options)
@@ -229,7 +229,7 @@ impl Backend for MountFs {
         self.route(path)?.access(options).await
     }
 
-    async fn create_dir(&self, path: &Path, options: &CreateDirOptions) -> Result<(), Error> {
+    async fn create_dir(&self, path: &Path, options: &CreateDirOptions) -> Result<bool, Error> {
         self.route(path)?
             .create_dir(options)
             .await

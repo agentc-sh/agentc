@@ -62,7 +62,7 @@ impl OverlayFs {
     async fn upper_exists(&self, path: &Path) -> Result<bool, Error> {
         match self
             .upper
-            .metadata(path, &MetadataOptions::new())
+            .metadata(path, &MetadataOptions::new().follow_symlinks(false))
             .await
         {
             Ok(_) => Ok(true),
@@ -74,7 +74,7 @@ impl OverlayFs {
     async fn lower_metadata(&self, path: &Path) -> Result<Option<Metadata>, Error> {
         match self
             .lower
-            .metadata(path, &MetadataOptions::new())
+            .metadata(path, &MetadataOptions::new().follow_symlinks(false))
             .await
         {
             Ok(metadata) => Ok(Some(metadata)),
@@ -159,7 +159,7 @@ impl OverlayFs {
 
         matches!(
             self.upper
-                .metadata(path, &MetadataOptions::new())
+                .metadata(path, &MetadataOptions::new().follow_symlinks(false))
                 .await,
             Ok(metadata) if metadata.file_type() == FileType::Directory
         )
@@ -239,7 +239,7 @@ impl Backend for OverlayFs {
             return Err(Error::not_found(path));
         }
 
-        if Backend::metadata(self, path, &MetadataOptions::new())
+        if Backend::metadata(self, path, &MetadataOptions::new().follow_symlinks(false))
             .await?
             .file_type()
             != FileType::Directory
@@ -292,25 +292,24 @@ impl Backend for OverlayFs {
         }
     }
 
-    async fn create_dir(&self, path: &Path, options: &CreateDirOptions) -> Result<(), Error> {
+    async fn create_dir(&self, path: &Path, options: &CreateDirOptions) -> Result<bool, Error> {
+        let existed = self.upper_exists(path).await?;
+
         self.clear_whiteout(path).await;
         self.create_upper_parent(path).await?;
-        self.upper
+        let created = self
+            .upper
             .create_dir(path, options)
             .await?;
 
-        if self
-            .lower_metadata(path)
-            .await?
-            .is_some()
-        {
+        if !existed && created {
             self.whiteouts
                 .write()
                 .await
                 .opaque(PathBuf::from(path));
         }
 
-        Ok(())
+        Ok(created)
     }
 
     async fn remove_file(&self, path: &Path) -> Result<(), Error> {

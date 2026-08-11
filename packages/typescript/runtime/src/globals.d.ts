@@ -127,70 +127,12 @@ type ByteLengthQueuingStrategy =
 declare const CountQueuingStrategy: typeof import('node:stream/web').CountQueuingStrategy
 type CountQueuingStrategy = import('node:stream/web').CountQueuingStrategy
 
-/** Installed when `node:fs` or `node:fs/promises` is evaluated, and named by their signatures. */
-declare class Dirent {
-  private constructor()
-  readonly name: string
-  readonly parentPath: string
-  isFile(): boolean
-  isDirectory(): boolean
-  isSymbolicLink(): boolean
-  isFIFO(): boolean
-  isBlockDevice(): boolean
-  isCharacterDevice(): boolean
-  isSocket(): boolean
-}
+/** Installed when `agentc:fs` is evaluated, and named by its signatures. */
+declare const Dirent: typeof import('agentc:fs').Dirent
+type Dirent = import('agentc:fs').Dirent
 
-declare class Stats {
-  private constructor()
-  readonly dev: number
-  readonly ino: number
-  readonly mode: number
-  readonly nlink: number
-  readonly uid: number
-  readonly gid: number
-  readonly rdev: number
-  readonly size: number
-  readonly blksize: number
-  readonly blocks: number
-  readonly atimeMs: number
-  readonly mtimeMs: number
-  readonly ctimeMs: number
-  readonly birthtimeMs: number
-  readonly atime: Date
-  readonly mtime: Date
-  readonly ctime: Date
-  readonly birthtime: Date
-  isDir(): boolean
-  isDirectory(): boolean
-  isSymlink(): boolean
-  isSymbolicLink(): boolean
-  isFIFO(): boolean
-  isBlockDevice(): boolean
-  isCharacterDevice(): boolean
-  isSocket(): boolean
-}
+declare const Stats: typeof import('agentc:fs').Stats
+type Stats = import('agentc:fs').Stats
 
-declare class FileHandle {
-  private constructor()
-  readonly fd: Promise<number>
-  chmod(mode: number): Promise<void>
-  chown(uid: number, gid: number): Promise<void>
-  close(): Promise<void>
-  datasync(): Promise<void>
-  read(
-    ...args: unknown[]
-  ): Promise<{ bytesRead: number; buffer: ArrayBufferView }>
-  /** Resolves to a string when an encoding is given, and to a `Uint8Array` otherwise. */
-  readFile(options?: string | { encoding?: string }): Promise<unknown>
-  stat(): Promise<Stats>
-  sync(): Promise<void>
-  truncate(len?: number): Promise<void>
-  write(
-    ...args: unknown[]
-  ): Promise<{ bytesWritten: number; buffer: string | ArrayBufferView }>
-  writeFile(
-    data: string | ArrayBufferView,
-    options?: string | { encoding?: string },
-  ): Promise<void>
-}
+declare const FileHandle: typeof import('agentc:fs').FileHandle
+type FileHandle = import('agentc:fs').FileHandle

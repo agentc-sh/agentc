@@ -279,6 +279,18 @@ impl IntoPathBuf for String {
     }
 }
 
+impl IntoPathBuf for &String {
+    fn into_path_buf(self) -> Result<PathBuf, Error> {
+        PathBuf::parse(self)
+    }
+}
+
+impl IntoPathBuf for Cow<'_, str> {
+    fn into_path_buf(self) -> Result<PathBuf, Error> {
+        PathBuf::parse(self.into_owned())
+    }
+}
+
 impl IntoPathBuf for &[u8] {
     fn into_path_buf(self) -> Result<PathBuf, Error> {
         PathBuf::parse(self)
