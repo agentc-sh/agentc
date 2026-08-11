@@ -31,7 +31,6 @@ features = [
     "llrt-console",
     "llrt-streams",
     "llrt-fetch",
-    "llrt-fs",
     "llrt-os",
     "llrt-process-env",
     "llrt-timers",

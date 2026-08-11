@@ -33,7 +33,10 @@ use crate::{
         SupportsA2a, SupportsAgUi,
     },
     graph::{
-        codegen::tools::javascript::{HttpTypescriptCargoFragment, JavascriptToolCargoFragment},
+        codegen::tools::javascript::{
+            FilesystemTypescriptCargoFragment, HttpTypescriptCargoFragment,
+            JavascriptToolCargoFragment,
+        },
         react::{
             agent::AgentCodeGen,
             cargo::{ReActCargoFragment, ReActDatabaseCargoFragment, ReActFeatureCargoFragment},
@@ -152,10 +155,16 @@ impl AgentGraph for ReActGraph {
                             "cargo::dependencies",
                         ))
                         .build(HttpTypescriptCargoFragment),
+                )
+                .add(
+                    FragmentBlock::builder()
+                        .id("filesystem_typescript_cargo")
+                        .contribute(Contribution::<CargoDependencies>::strict(
+                            "cargo::dependencies",
+                        ))
+                        .build(FilesystemTypescriptCargoFragment),
                 );
         }
-
-        let core_blocks = core_blocks.into_inner();
 
         let server_integration = GenerationContribution::new()
             .with_blocks(
@@ -231,7 +240,7 @@ impl AgentGraph for ReActGraph {
         Ok(ResolvedGraph {
             name: self.name().to_string(),
             contribution: GenerationContribution::new()
-                .with_blocks(core_blocks)
+                .with_blocks(core_blocks.into_inner())
                 .with_provides(
                     GenerationFeatureSet::new()
                         .with::<GraphReAct>()
@@ -384,6 +393,13 @@ mod tests {
                 .iter()
                 .any(|block| block.id() == "http_typescript_cargo")
         );
+        assert!(
+            !without
+                .contribution
+                .blocks
+                .iter()
+                .any(|block| block.id() == "filesystem_typescript_cargo")
+        );
 
         let mut ctx = context(None);
 
@@ -419,6 +435,12 @@ mod tests {
                 .blocks
                 .iter()
                 .any(|block| block.id() == "http_typescript_cargo")
+        );
+        assert!(
+            with.contribution
+                .blocks
+                .iter()
+                .any(|block| block.id() == "filesystem_typescript_cargo")
         );
     }
 }

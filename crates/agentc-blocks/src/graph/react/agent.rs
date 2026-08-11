@@ -181,6 +181,7 @@ impl CodeGen<ResolvedContext> for AgentCodeGen {
             use tokio_util::sync::CancellationToken;
 
             use agentc_database::Database;
+            use agentc_fs::Fs;
             use agentc_prompt::{
                 compaction::TailWindow,
                 counter::TiktokenCounter,
@@ -216,6 +217,7 @@ impl CodeGen<ResolvedContext> for AgentCodeGen {
 
             pub async fn build_agent(
                 db: Arc<Database>,
+                fs: Fs,
                 config: &Config,
                 shutdown: CancellationToken,
             ) -> Result<Agent<ReActNode, Event, Message>> {
@@ -411,6 +413,15 @@ mod tests {
         assert!(!rendered.contains("config . mcp . servers"));
         assert!(!rendered.contains("agentc_protocol_a2a"));
         assert!(!rendered.contains("agentc_mcp"));
+    }
+
+    #[test]
+    fn generated_agent_threads_the_process_filesystem() {
+        let rendered = AgentCodeGenFixture::generated_agent();
+
+        assert!(rendered.contains("use agentc_fs :: Fs"));
+        assert!(rendered.contains("fs : Fs"));
+        assert!(rendered.contains("db : Arc < Database >"));
     }
 
     #[test]
