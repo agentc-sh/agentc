@@ -143,15 +143,11 @@ mod tests {
             .downcast::<CargoDependencies>()
             .unwrap();
 
-        assert!(
-            dependencies
-                .get(&"agentc-domain-sql")
-                .is_some()
-        );
-        assert!(
-            dependencies
-                .get(&"sea-orm-migration")
-                .is_some()
-        );
+        assert!(dependencies
+            .get(&"agentc-domain-sql")
+            .is_some());
+        assert!(dependencies
+            .get(&"sea-orm-migration")
+            .is_some());
     }
 }

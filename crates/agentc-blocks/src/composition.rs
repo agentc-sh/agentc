@@ -590,6 +590,7 @@ mod tests {
             vec![
                 "archetype",
                 "baseline_network_section",
+                "baseline_filesystem_section",
                 "baseline_mcp_section",
                 "baseline_a2a_section",
                 "baseline_mcp_agent",

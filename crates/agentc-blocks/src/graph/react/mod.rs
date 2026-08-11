@@ -13,8 +13,8 @@ pub mod server;
 use serde::{Deserialize, Serialize};
 
 use agentc_compiler::generator::{
-    blocks::{BlockSet, codegen::CodeGenBlock, fragment::FragmentBlock},
-    extension::{Contribution, reducers},
+    blocks::{codegen::CodeGenBlock, fragment::FragmentBlock, BlockSet},
+    extension::{reducers, Contribution},
 };
 
 use crate::{
@@ -33,7 +33,10 @@ use crate::{
         SupportsA2a, SupportsAgUi,
     },
     graph::{
-        codegen::tools::javascript::{HttpTypescriptCargoFragment, JavascriptToolCargoFragment},
+        codegen::tools::javascript::{
+            FilesystemTypescriptCargoFragment, HttpTypescriptCargoFragment,
+            JavascriptToolCargoFragment,
+        },
         react::{
             agent::AgentCodeGen,
             cargo::{ReActCargoFragment, ReActDatabaseCargoFragment, ReActFeatureCargoFragment},
@@ -152,10 +155,16 @@ impl AgentGraph for ReActGraph {
                             "cargo::dependencies",
                         ))
                         .build(HttpTypescriptCargoFragment),
+                )
+                .add(
+                    FragmentBlock::builder()
+                        .id("filesystem_typescript_cargo")
+                        .contribute(Contribution::<CargoDependencies>::strict(
+                            "cargo::dependencies",
+                        ))
+                        .build(FilesystemTypescriptCargoFragment),
                 );
         }
-
-        let core_blocks = core_blocks.into_inner();
 
         let server_integration = GenerationContribution::new()
             .with_blocks(
@@ -231,7 +240,7 @@ impl AgentGraph for ReActGraph {
         Ok(ResolvedGraph {
             name: self.name().to_string(),
             contribution: GenerationContribution::new()
-                .with_blocks(core_blocks)
+                .with_blocks(core_blocks.into_inner())
                 .with_provides(
                     GenerationFeatureSet::new()
                         .with::<GraphReAct>()
@@ -278,30 +287,22 @@ mod tests {
             .resolve(context(None), ReActGraphConfig::default())
             .unwrap();
 
-        assert!(
-            resolved
-                .contribution
-                .provides
-                .contains::<GraphReAct>()
-        );
-        assert!(
-            resolved
-                .contribution
-                .provides
-                .contains::<Streaming>()
-        );
-        assert!(
-            resolved
-                .contribution
-                .provides
-                .contains::<SupportsAgUi>()
-        );
-        assert!(
-            resolved
-                .contribution
-                .provides
-                .contains::<SupportsA2a>()
-        );
+        assert!(resolved
+            .contribution
+            .provides
+            .contains::<GraphReAct>());
+        assert!(resolved
+            .contribution
+            .provides
+            .contains::<Streaming>());
+        assert!(resolved
+            .contribution
+            .provides
+            .contains::<SupportsAgUi>());
+        assert!(resolved
+            .contribution
+            .provides
+            .contains::<SupportsA2a>());
     }
 
     #[test]
@@ -330,21 +331,15 @@ mod tests {
             ]
         );
         assert_eq!(resolved.integrations.len(), 3);
-        assert!(
-            resolved.integrations[0]
-                .requires
-                .contains::<HttpServer>()
-        );
-        assert!(
-            resolved.integrations[1]
-                .requires
-                .contains::<ProtocolAgUi>()
-        );
-        assert!(
-            resolved.integrations[2]
-                .requires
-                .contains::<ProtocolA2a>()
-        );
+        assert!(resolved.integrations[0]
+            .requires
+            .contains::<HttpServer>());
+        assert!(resolved.integrations[1]
+            .requires
+            .contains::<ProtocolAgUi>());
+        assert!(resolved.integrations[2]
+            .requires
+            .contains::<ProtocolA2a>());
     }
 
     #[test]
@@ -377,13 +372,16 @@ mod tests {
             .resolve(context(None), ReActGraphConfig::default())
             .unwrap();
 
-        assert!(
-            !without
-                .contribution
-                .blocks
-                .iter()
-                .any(|block| block.id() == "http_typescript_cargo")
-        );
+        assert!(!without
+            .contribution
+            .blocks
+            .iter()
+            .any(|block| block.id() == "http_typescript_cargo"));
+        assert!(!without
+            .contribution
+            .blocks
+            .iter()
+            .any(|block| block.id() == "filesystem_typescript_cargo"));
 
         let mut ctx = context(None);
 
@@ -408,17 +406,20 @@ mod tests {
             .resolve(ctx, ReActGraphConfig::default())
             .unwrap();
 
-        assert!(
-            with.contribution
-                .blocks
-                .iter()
-                .any(|block| block.id() == "javascript_tool_cargo")
-        );
-        assert!(
-            with.contribution
-                .blocks
-                .iter()
-                .any(|block| block.id() == "http_typescript_cargo")
-        );
+        assert!(with
+            .contribution
+            .blocks
+            .iter()
+            .any(|block| block.id() == "javascript_tool_cargo"));
+        assert!(with
+            .contribution
+            .blocks
+            .iter()
+            .any(|block| block.id() == "http_typescript_cargo"));
+        assert!(with
+            .contribution
+            .blocks
+            .iter()
+            .any(|block| block.id() == "filesystem_typescript_cargo"));
     }
 }

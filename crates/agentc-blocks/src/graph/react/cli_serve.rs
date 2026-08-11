@@ -89,6 +89,18 @@ impl CodeGen<ResolvedContext> for CliServeCodeGen {
                     event = "DatabaseInitialized",
                 );
 
+                let fs = config.filesystem.builder().build()?;
+
+                info!(
+                    event = "FilesystemInitialized",
+                );
+
+                let _http_client = config.network.builder().build()?;
+
+                info!(
+                    event = "HttpClientInitialized",
+                );
+
                 let pubsub = config.pubsub.build().await?;
 
                 info!(
@@ -96,7 +108,7 @@ impl CodeGen<ResolvedContext> for CliServeCodeGen {
                     kind = config.pubsub.kind(),
                 );
 
-                let agent = build_agent(database.clone(), &config, shutdown.clone()).await?;
+                let agent = build_agent(database.clone(), fs.clone(), &config, shutdown.clone()).await?;
 
                 info!(
                     event = "AgentInitialized",
@@ -214,5 +226,20 @@ mod tests {
         assert!(
             source.contains("build (config . database . auto_migrate && ! args . no_migrations)")
         );
+    }
+
+    #[test]
+    fn serve_constructs_the_process_filesystem_and_http_client() {
+        let source = CliServeCodeGen
+            .generate_files(&context(), &ExtensionRegistry::empty())
+            .unwrap()[0]
+            .1
+            .to_string();
+
+        assert!(source.contains("let fs = config . filesystem . builder () . build ()"));
+        assert!(source.contains("let _http_client = config . network . builder () . build ()"));
+        assert!(source.contains("event = \"FilesystemInitialized\""));
+        assert!(source.contains("event = \"HttpClientInitialized\""));
+        assert!(source.contains("build_agent (database . clone () , fs . clone ()"));
     }
 }

@@ -181,6 +181,7 @@ impl CodeGen<ResolvedContext> for AgentCodeGen {
             use tokio_util::sync::CancellationToken;
 
             use agentc_database::Database;
+            use agentc_fs::Fs;
             use agentc_prompt::{
                 compaction::TailWindow,
                 counter::TiktokenCounter,
@@ -216,6 +217,7 @@ impl CodeGen<ResolvedContext> for AgentCodeGen {
 
             pub async fn build_agent(
                 db: Arc<Database>,
+                fs: Fs,
                 config: &Config,
                 shutdown: CancellationToken,
             ) -> Result<Agent<ReActNode, Event, Message>> {
@@ -414,6 +416,15 @@ mod tests {
     }
 
     #[test]
+    fn generated_agent_threads_the_process_filesystem() {
+        let rendered = AgentCodeGenFixture::generated_agent();
+
+        assert!(rendered.contains("use agentc_fs :: Fs"));
+        assert!(rendered.contains("fs : Fs"));
+        assert!(rendered.contains("db : Arc < Database >"));
+    }
+
+    #[test]
     fn generated_agent_passes_react_model_defaults_to_graph() {
         let rendered = AgentCodeGenFixture::generated_agent();
 
@@ -469,13 +480,11 @@ mod tests {
             .unwrap()
             .to_string();
 
-        assert!(
-            codegen
-                .generate_contribution(&context, "config::fields")
-                .unwrap()
-                .to_string()
-                .contains("react : ConfigReAct")
-        );
+        assert!(codegen
+            .generate_contribution(&context, "config::fields")
+            .unwrap()
+            .to_string()
+            .contains("react : ConfigReAct"));
         assert!(impls.contains("struct ConfigReActModel"));
         assert!(impls.contains("struct ConfigReActModelRetry"));
         assert!(loader.contains("\"react\" , \"model\" , \"timeout\""));

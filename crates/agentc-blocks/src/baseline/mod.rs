@@ -6,14 +6,16 @@ pub mod a2a;
 pub mod mcp;
 
 use agentc_compiler::generator::{
-    blocks::{BlockSet, fragment::FragmentBlock},
+    blocks::{fragment::FragmentBlock, BlockSet},
     extension::Contribution,
 };
 
 use crate::{
     baseline::{a2a::A2aAgentFragment, mcp::McpAgentFragment},
     composition::GenerationContribution,
-    config::sections::{a2a::A2aSection, mcp::McpSection, network::NetworkSection},
+    config::sections::{
+        a2a::A2aSection, filesystem::FilesystemSection, mcp::McpSection, network::NetworkSection,
+    },
     contributions::dependency::{CargoDependencies, CargoPatches},
     errors::BlocksError,
 };
@@ -32,6 +34,7 @@ impl Baseline {
             contribution: GenerationContribution::new().with_blocks(
                 BlockSet::new()
                     .add(NetworkSection::block("baseline_network_section"))
+                    .add(FilesystemSection::block("baseline_filesystem_section"))
                     .add(McpSection::block("baseline_mcp_section"))
                     .add(A2aSection::block("baseline_a2a_section"))
                     .add(

@@ -90,26 +90,20 @@ mod tests {
 
     #[test]
     fn migrate_command_contributes_cli_dispatch() {
-        assert!(
-            CliMigrateCodeGen
-                .generate_contribution(&context(), "cli::mod::use")
-                .unwrap()
-                .to_string()
-                .contains("mod migrate ;")
-        );
-        assert!(
-            CliMigrateCodeGen
-                .generate_contribution(&context(), "cli::mod::variants")
-                .unwrap()
-                .to_string()
-                .contains("Migrate ,")
-        );
-        assert!(
-            CliMigrateCodeGen
-                .generate_contribution(&context(), "cli::mod::arms")
-                .unwrap()
-                .to_string()
-                .contains("Command :: Migrate => migrate :: migrate ()")
-        );
+        assert!(CliMigrateCodeGen
+            .generate_contribution(&context(), "cli::mod::use")
+            .unwrap()
+            .to_string()
+            .contains("mod migrate ;"));
+        assert!(CliMigrateCodeGen
+            .generate_contribution(&context(), "cli::mod::variants")
+            .unwrap()
+            .to_string()
+            .contains("Migrate ,"));
+        assert!(CliMigrateCodeGen
+            .generate_contribution(&context(), "cli::mod::arms")
+            .unwrap()
+            .to_string()
+            .contains("Command :: Migrate => migrate :: migrate ()"));
     }
 }
