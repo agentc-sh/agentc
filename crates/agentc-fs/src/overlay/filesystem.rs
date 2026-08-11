@@ -239,11 +239,7 @@ impl Backend for OverlayFs {
             return Err(Error::not_found(path));
         }
 
-        if Backend::metadata(
-            self,
-            path,
-            &MetadataOptions::new().follow_symlinks(false),
-        )
+        if Backend::metadata(self, path, &MetadataOptions::new().follow_symlinks(false))
             .await?
             .file_type()
             != FileType::Directory

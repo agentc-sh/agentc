@@ -199,20 +199,14 @@ impl Dir {
     pub async fn metadata(&self, path: impl IntoPathBuf) -> Result<Metadata, Error> {
         self.fs
             .backend
-            .metadata(
-                self.resolve(path)?.as_path(),
-                &MetadataOptions::new().follow_symlinks(true),
-            )
+            .metadata(self.resolve(path)?.as_path(), &MetadataOptions::new().follow_symlinks(true))
             .await
     }
 
     pub async fn symlink_metadata(&self, path: impl IntoPathBuf) -> Result<Metadata, Error> {
         self.fs
             .backend
-            .metadata(
-                self.resolve(path)?.as_path(),
-                &MetadataOptions::new().follow_symlinks(false),
-            )
+            .metadata(self.resolve(path)?.as_path(), &MetadataOptions::new().follow_symlinks(false))
             .await
     }
 
