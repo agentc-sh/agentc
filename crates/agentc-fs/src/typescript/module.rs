@@ -174,15 +174,15 @@ impl FsModule {
     }
 
     async fn mkdir(self, path: String, options: MkdirOptions) -> Result<String, Error> {
-        let dir = if options.recursive.unwrap_or(false) {
-            self.dir.create_dir_all(path.clone()).await?.0
+        let (dir, created) = if options.recursive.unwrap_or(false) {
+            self.dir.create_dir_all(path).await?
         } else {
-            self.dir.create_dir(path.clone()).await?.0
+            self.dir.create_dir(path).await?
         };
 
-        if let Some(mode) = options.mode {
+        if let Some(mode) = options.mode && created {
             self.dir
-                .set_permissions(path, Permissions::new(mode))
+                .set_permissions(dir.path(), Permissions::new(mode))
                 .await?;
         }
 
@@ -1099,7 +1099,7 @@ mod tests {
         host::HostRuntime,
     };
 
-    use crate::{fs::{Fs, Dir}, typescript::module::FsModule};
+    use crate::{fs::{Fs, Dir, Permissions}, typescript::module::FsModule};
 
     const FS_SOURCE: &str = r#"
 import {
@@ -1169,6 +1169,22 @@ export async function makeTemps(prefix) {
     const second = await mkdtemp(prefix);
 
     return `${first !== second}:${first.startsWith(prefix)}:${second.startsWith(prefix)}`;
+}
+
+export async function mkdirModeOnExisting(path) {
+    await mkdir(path, { recursive: true, mode: 0o600 });
+
+    const { mode } = await stat(path);
+
+    return mode & 0o777;
+}
+
+export async function mkdirModeOnNew(path) {
+    await mkdir(path, { recursive: true, mode: 0o600 });
+
+    const { mode } = await stat(path);
+
+    return mode & 0o777;
 }
 
 export async function sortedNames(path) {
@@ -1514,6 +1530,36 @@ export async function globalsIdentity() {
             call::<String, _>(&executor, "makeNested", ("/work/nested/path".to_owned(),)).await,
             "/work/nested/path",
         );
+
+        executor.shutdown().await.expect("executor shuts down");
+    }
+
+    #[tokio::test]
+    async fn mkdir_mode_is_not_applied_to_an_existing_directory() {
+        let fs = Fs::memory();
+        let root = fs.root();
+        let executor = executor(root.clone()).await;
+
+        root.create_dir_all("/work").await.unwrap();
+        root.set_permissions("/work", Permissions::new(0o700))
+            .await
+            .unwrap();
+
+        let mode = call::<u32, _>(&executor, "mkdirModeOnExisting", ("/work".to_owned(),)).await;
+
+        assert_eq!(mode, 0o700);
+
+        executor.shutdown().await.expect("executor shuts down");
+    }
+
+    #[tokio::test]
+    async fn mkdir_mode_is_applied_to_a_new_directory() {
+        let fs = Fs::memory();
+        let executor = executor(fs.root()).await;
+
+        let mode = call::<u32, _>(&executor, "mkdirModeOnNew", ("/fresh".to_owned(),)).await;
+
+        assert_eq!(mode, 0o600);
 
         executor.shutdown().await.expect("executor shuts down");
     }
