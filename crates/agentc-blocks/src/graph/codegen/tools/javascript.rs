@@ -220,8 +220,8 @@ mod tests {
     use super::*;
     use crate::{
         context::{
-            ResolvedContextAgent, ResolvedContextAgentModel, ResolvedContextRuntime,
-            ResolvedContextTool,
+            ResolvedContextAgent, ResolvedContextAgentModel, ResolvedContextNetwork,
+            ResolvedContextRuntime, ResolvedContextTool,
         },
         types::RuntimeValue,
     };
@@ -279,6 +279,7 @@ mod tests {
                 tools: tools.into_iter().collect(),
                 skills: HashMap::new(),
                 http_server: None,
+                network: ResolvedContextNetwork::default(),
             }
         }
 

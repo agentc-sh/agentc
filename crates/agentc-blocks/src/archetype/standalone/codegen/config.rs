@@ -164,34 +164,13 @@ impl StructTree {
             current_path.push(field_name.clone());
 
             match node {
-                StructNode::Leaf { value, .. } => match value {
-                    FieldValue::Constant { value } => {
-                        let json_tokens = value
-                            .to_string()
-                            .parse::<TokenStream>()
-                            .unwrap();
+                StructNode::Leaf { value, .. } => {
+                    let tokens = value.loader_tokens(&current_path);
 
-                        constants.push(quote! {
-                            .constant(path![#(#current_path),*], serde_json::json!(#json_tokens))
-                        });
-                    }
-                    FieldValue::Runtime { env, default, .. } => {
-                        field_mappings.push(quote! {
-                            .field(path![#(#current_path),*], #env)
-                        });
-
-                        if let Some(default_val) = default {
-                            let json_tokens = default_val
-                                .to_string()
-                                .parse::<TokenStream>()
-                                .unwrap();
-
-                            defaults.push(quote! {
-                                .default(path![#(#current_path),*], serde_json::json!(#json_tokens))
-                            });
-                        }
-                    }
-                },
+                    constants.extend(tokens.constant);
+                    defaults.extend(tokens.default);
+                    field_mappings.extend(tokens.field);
+                }
                 StructNode::Interior(subtree) => {
                     subtree.generate_loader_calls(
                         &current_path,

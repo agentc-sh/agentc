@@ -334,8 +334,8 @@ mod tests {
 
     use super::*;
     use crate::context::{
-        ResolvedContextAgent, ResolvedContextAgentModel, ResolvedContextRuntime,
-        ResolvedContextTool, ResolvedContextToolA2a,
+        ResolvedContextAgent, ResolvedContextAgentModel, ResolvedContextNetwork,
+        ResolvedContextRuntime, ResolvedContextTool, ResolvedContextToolA2a,
     };
 
     struct A2aSectionFixture;
@@ -402,6 +402,7 @@ mod tests {
                 )]),
                 skills: HashMap::new(),
                 http_server: None,
+                network: ResolvedContextNetwork::default(),
             }
         }
 

@@ -22,7 +22,9 @@ pub struct MountFs {
 }
 
 impl MountFs {
-    pub(crate) fn new(mut mounts: Vec<Mount>) -> Self {
+    pub(crate) fn new(mounts: Vec<Mount>) -> Self {
+        let mut mounts = Self::retain_last_per_path(mounts);
+
         mounts.sort_by(|left, right| {
             right
                 .path
@@ -36,6 +38,22 @@ impl MountFs {
         }
 
         MountFs { mounts }
+    }
+
+    fn retain_last_per_path(mounts: Vec<Mount>) -> Vec<Mount> {
+        let mut retained = Vec::<Mount>::with_capacity(mounts.len());
+
+        for mount in mounts {
+            match retained
+                .iter_mut()
+                .find(|existing| existing.path == mount.path)
+            {
+                Some(existing) => *existing = mount,
+                None => retained.push(mount),
+            }
+        }
+
+        retained
     }
 
     fn route(&self, path: &Path) -> Result<Route<'_>, Error> {
@@ -350,6 +368,21 @@ mod tests {
             .unwrap();
 
         assert_eq!(file.read_to_string().await.unwrap(), "specific");
+    }
+
+    #[tokio::test]
+    async fn registering_a_second_mount_at_the_same_path_replaces_the_first() {
+        let mut file = Fs::builder()
+            .mount("/data", MemorySource::with_file("/file.txt", b"first").await)
+            .mount("/data", MemorySource::with_file("/file.txt", b"second").await)
+            .build()
+            .unwrap()
+            .root()
+            .open_file("/data/file.txt")
+            .await
+            .unwrap();
+
+        assert_eq!(file.read_to_string().await.unwrap(), "second");
     }
 
     #[tokio::test]

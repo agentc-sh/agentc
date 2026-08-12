@@ -9,6 +9,7 @@ pub mod errors;
 pub mod graph;
 pub mod http_server;
 pub mod interpolate;
+pub mod network;
 pub mod observability;
 pub mod provider;
 pub mod runtime;
@@ -20,6 +21,7 @@ pub use block::*;
 pub use build::*;
 pub use graph::*;
 pub use http_server::*;
+pub use network::*;
 pub use provider::*;
 pub use runtime::*;
 pub use skill::*;
@@ -76,6 +78,10 @@ pub struct Manifest {
     #[serde(default)]
     #[validate(nested)]
     pub http_server: Option<ManifestHttpServer>,
+    /// Outbound network configuration.
+    #[serde(default)]
+    #[validate(nested)]
+    pub network: ManifestNetwork,
 }
 
 impl Manifest {
@@ -843,6 +849,57 @@ impl Manifest {
             })
     }
 
+    fn resolve_network(&self) -> ResolvedContextNetwork {
+        ResolvedContextNetwork {
+            user_agent: self.network.user_agent.clone(),
+            headers: self.network.headers.clone(),
+            limits: ResolvedContextNetworkLimits {
+                connect_timeout_ms: self.network.limits.connect_timeout_ms.clone(),
+                read_timeout_ms: self.network.limits.read_timeout_ms.clone(),
+                request_timeout_ms: self.network.limits.request_timeout_ms.clone(),
+                max_redirects: self.network.limits.max_redirects.clone(),
+                max_response_bytes: self.network.limits.max_response_bytes.clone(),
+                concurrency_limit: self.network.limits.concurrency_limit.clone(),
+            },
+            policy: ResolvedContextNetworkPolicy {
+                addresses: ResolvedContextNetworkPolicyAddresses {
+                    allow_loopback: self.network.policy.addresses.allow_loopback.clone(),
+                    allow_private: self.network.policy.addresses.allow_private.clone(),
+                    allow_link_local: self.network.policy.addresses.allow_link_local.clone(),
+                },
+                methods: self.network.policy.methods.clone(),
+                allow: match &self.network.policy.allow {
+                    RuntimeValue::Constant(patterns) => RuntimeValue::Constant(
+                        patterns
+                            .iter()
+                            .map(|pattern| ResolvedContextNetworkUrlPattern {
+                                protocol: pattern.protocol.clone(),
+                                hostname: pattern.hostname.clone(),
+                                port: pattern.port.clone(),
+                                pathname: pattern.pathname.clone(),
+                            })
+                            .collect(),
+                    ),
+                    RuntimeValue::Runtime { env, default, secret } => RuntimeValue::Runtime {
+                        env: env.clone(),
+                        default: default.as_ref().map(|patterns| {
+                            patterns
+                                .iter()
+                                .map(|pattern| ResolvedContextNetworkUrlPattern {
+                                    protocol: pattern.protocol.clone(),
+                                    hostname: pattern.hostname.clone(),
+                                    port: pattern.port.clone(),
+                                    pathname: pattern.pathname.clone(),
+                                })
+                                .collect()
+                        }),
+                        secret: *secret,
+                    },
+                },
+            },
+        }
+    }
+
     pub async fn resolve(
         self,
         loader: &dyn ResourceLoader,
@@ -863,6 +920,7 @@ impl Manifest {
                 tools: self.resolve_tools(assets)?,
                 skills: self.resolve_skills(assets)?,
                 http_server: self.resolve_http_server(),
+                network: self.resolve_network(),
             },
             self.build.config(),
         ))
@@ -1197,5 +1255,71 @@ version = 7
                 .collect_assets()
                 .is_empty()
         );
+    }
+
+    #[tokio::test]
+    async fn network_manifest_block_resolves_constants_and_runtime_leaves() {
+        let manifest = SpecFormat::hcl()
+            .with_hcl_deserialize_middleware(RuntimeFunctionDeserialize)
+            .deserialize_string::<Manifest>(
+                r#"
+build {
+  archetype = "standalone"
+}
+
+providers {}
+
+agent "assistant" {
+  graph {
+    type = "react"
+  }
+
+  model {
+    provider = "anthropic"
+    name     = "claude-haiku-4-5"
+  }
+}
+
+network {
+  limits {
+    max_redirects = 3
+  }
+
+  policy {
+    addresses {
+      allow_private = runtime("NETWORK_ALLOW_PRIVATE", false)
+    }
+
+    allow = [{ hostname = "api.internal.example.com" }]
+  }
+}
+"#,
+            )
+            .expect("manifest should deserialize");
+
+        let (resolved, _) = manifest
+            .resolve(&EmptyLoader, &[])
+            .await
+            .expect("manifest should resolve");
+
+        assert_eq!(
+            resolved.network.limits.max_redirects,
+            RuntimeValue::Constant(3)
+        );
+        assert!(matches!(
+            &resolved.network.policy.addresses.allow_private,
+            RuntimeValue::Runtime { env, default, .. }
+                if env == "NETWORK_ALLOW_PRIVATE" && default == &Some(false)
+        ));
+        assert!(matches!(
+            &resolved.network.policy.allow,
+            RuntimeValue::Constant(patterns)
+                if patterns.len() == 1
+                    && patterns[0].hostname.as_deref() == Some("api.internal.example.com")
+        ));
+        assert!(matches!(
+            &resolved.network.user_agent,
+            RuntimeValue::Runtime { env, default: Some(None), .. } if env == "NETWORK_USER_AGENT"
+        ));
     }
 }
