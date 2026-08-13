@@ -6,6 +6,7 @@ pub mod agent;
 pub mod block;
 pub mod build;
 pub mod errors;
+pub mod filesystem;
 pub mod graph;
 pub mod http_server;
 pub mod interpolate;
@@ -19,6 +20,7 @@ pub mod tool;
 pub use agent::*;
 pub use block::*;
 pub use build::*;
+pub use filesystem::*;
 pub use graph::*;
 pub use http_server::*;
 pub use network::*;
@@ -82,6 +84,10 @@ pub struct Manifest {
     #[serde(default)]
     #[validate(nested)]
     pub network: ManifestNetwork,
+    /// Virtual filesystem topology.
+    #[serde(default)]
+    #[validate(nested)]
+    pub filesystem: ManifestFilesystem,
 }
 
 impl Manifest {
@@ -900,6 +906,20 @@ impl Manifest {
         }
     }
 
+    fn resolve_filesystem(&self) -> ResolvedContextFilesystem {
+        ResolvedContextFilesystem {
+            mounts: self
+                .filesystem
+                .mounts
+                .iter()
+                .map(|mount| ResolvedContextFilesystemMount {
+                    path: mount.path.clone(),
+                    backend: mount.backend.resolve(),
+                })
+                .collect(),
+        }
+    }
+
     pub async fn resolve(
         self,
         loader: &dyn ResourceLoader,
@@ -921,6 +941,7 @@ impl Manifest {
                 skills: self.resolve_skills(assets)?,
                 http_server: self.resolve_http_server(),
                 network: self.resolve_network(),
+                filesystem: self.resolve_filesystem(),
             },
             self.build.config(),
         ))
@@ -1320,6 +1341,98 @@ network {
         assert!(matches!(
             &resolved.network.user_agent,
             RuntimeValue::Runtime { env, default: Some(None), .. } if env == "NETWORK_USER_AGENT"
+        ));
+    }
+
+    #[tokio::test]
+    async fn filesystem_manifest_block_resolves_nested_backends_and_defaults_to_memory() {
+        let default_manifest = SpecFormat::hcl()
+            .with_hcl_deserialize_middleware(RuntimeFunctionDeserialize)
+            .deserialize_string::<Manifest>(
+                r#"
+build {
+  archetype = "standalone"
+}
+
+providers {}
+
+agent "assistant" {
+  graph {
+    type = "react"
+  }
+
+  model {
+    provider = "anthropic"
+    name     = "claude-haiku-4-5"
+  }
+}
+"#,
+            )
+            .expect("manifest should deserialize");
+
+        let (resolved, _) = default_manifest
+            .resolve(&EmptyLoader, &[])
+            .await
+            .expect("manifest should resolve");
+
+        assert_eq!(resolved.filesystem.mounts.len(), 1);
+        assert_eq!(resolved.filesystem.mounts[0].path, "/");
+        assert!(matches!(
+            resolved.filesystem.mounts[0].backend,
+            ResolvedContextFilesystemBackend::Memory
+        ));
+
+        let overlay_manifest = SpecFormat::hcl()
+            .with_hcl_deserialize_middleware(RuntimeFunctionDeserialize)
+            .deserialize_string::<Manifest>(
+                r#"
+build {
+  archetype = "standalone"
+}
+
+providers {}
+
+agent "assistant" {
+  graph {
+    type = "react"
+  }
+
+  model {
+    provider = "anthropic"
+    name     = "claude-haiku-4-5"
+  }
+}
+
+filesystem {
+  mounts = [{
+    path = "/workspace"
+    backend = {
+      kind = "overlay"
+      upper = { kind = "memory" }
+      lower = { kind = "host", root = "/var/lib/agent/base" }
+    }
+  }]
+}
+"#,
+            )
+            .expect("manifest should deserialize");
+
+        let (resolved, _) = overlay_manifest
+            .resolve(&EmptyLoader, &[])
+            .await
+            .expect("manifest should resolve");
+
+        assert_eq!(resolved.filesystem.mounts.len(), 1);
+        assert_eq!(resolved.filesystem.mounts[0].path, "/workspace");
+        assert!(matches!(
+            &resolved.filesystem.mounts[0].backend,
+            ResolvedContextFilesystemBackend::Overlay { upper, lower }
+                if matches!(**upper, ResolvedContextFilesystemBackend::Memory)
+                    && matches!(
+                        **lower,
+                        ResolvedContextFilesystemBackend::Host { ref root, .. }
+                            if root == "/var/lib/agent/base"
+                    )
         ));
     }
 }

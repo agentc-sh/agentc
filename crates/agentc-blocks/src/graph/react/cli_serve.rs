@@ -89,13 +89,13 @@ impl CodeGen<ResolvedContext> for CliServeCodeGen {
                     event = "DatabaseInitialized",
                 );
 
-                let fs = config.filesystem.builder().build()?;
+                let fs = config.filesystem.builder()?.build()?;
 
                 info!(
                     event = "FilesystemInitialized",
                 );
 
-                let _http_client = config.network.builder().build()?;
+                let _http_client = config.network.builder()?.build()?;
 
                 info!(
                     event = "HttpClientInitialized",
@@ -236,8 +236,8 @@ mod tests {
             .1
             .to_string();
 
-        assert!(source.contains("let fs = config . filesystem . builder () . build ()"));
-        assert!(source.contains("let _http_client = config . network . builder () . build ()"));
+        assert!(source.contains("let fs = config . filesystem . builder () ?"));
+        assert!(source.contains("let _http_client = config . network . builder () ?"));
         assert!(source.contains("event = \"FilesystemInitialized\""));
         assert!(source.contains("event = \"HttpClientInitialized\""));
         assert!(source.contains("build_agent (database . clone () , fs . clone ()"));

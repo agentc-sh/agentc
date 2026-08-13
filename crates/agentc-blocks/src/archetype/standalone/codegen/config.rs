@@ -246,6 +246,14 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
             .get("config::sections::mapper")
             .and_then(|s| s.parse::<TokenStream>().ok());
 
+        let filesystem_mounts = registry
+            .get("filesystem::mounts")
+            .and_then(|s| s.parse::<TokenStream>().ok());
+
+        let filesystem_topology = registry
+            .get("filesystem::topology")
+            .and_then(|s| s.parse::<TokenStream>().ok());
+
         let tree = self
             .fields
             .iter()
@@ -302,6 +310,30 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
             #section_use
 
             #section_types
+
+            impl ConfigFilesystem {
+                pub fn builder(&self) -> Result<FsBuilder, agentc_fs::errors::Error> {
+                    let mut builder = Fs::builder();
+
+                    #filesystem_mounts
+                    #filesystem_topology
+
+                    for bind in &self.binds {
+                        let host = HostFs::builder()
+                            .root(bind.root.clone())
+                            .follow_symlinks(bind.follow_symlinks)
+                            .build()?;
+
+                        builder = if bind.readonly {
+                            builder.mount(bind.path.clone(), ReadOnlyFs::new(host))
+                        } else {
+                            builder.mount(bind.path.clone(), host)
+                        };
+                    }
+
+                    Ok(builder)
+                }
+            }
 
             #(#generated_structs)*
 

@@ -2,13 +2,14 @@
 //
 // SPDX-License-Identifier: MIT
 
+use proc_macro2::TokenStream;
 use quote::quote;
 
 use agentc_compiler::generator::{
     blocks::fragment::{Fragment, FragmentBlock},
     context::GenerationContext,
     errors::GeneratorError,
-    extension::{Contribution, ErasedContributionValue},
+    extension::{Contribution, ErasedContributionValue, reducers},
 };
 
 use crate::{
@@ -16,7 +17,7 @@ use crate::{
         block::ConfigSectionBlockBuilderExt,
         contribution::{ConfigSectionContribution, ConfigSections},
     },
-    context::ResolvedContext,
+    context::{ResolvedContext, ResolvedContextFilesystem},
     contributions::dependency::{
         CargoDependencies, CargoDependencyContribution, CargoPatchContribution, CargoPatches,
         RuntimeDependencyContribution,
@@ -32,25 +33,57 @@ impl FilesystemSection {
         FragmentBlock::<ResolvedContext>::builder()
             .id(id)
             .contribute_config_sections()
+            .extension_point("filesystem::mounts", reducers::concat)
+            .extension_point("filesystem::topology", reducers::last)
+            .contribute(Contribution::<String>::strict("filesystem::topology"))
             .contribute(Contribution::<CargoDependencies>::strict("cargo::dependencies"))
             .contribute(Contribution::<CargoPatches>::strict("cargo::patches"))
             .build(Self)
     }
 
+    fn topology_tokens(&self, filesystem: &ResolvedContextFilesystem) -> TokenStream {
+        let mounts = filesystem
+            .mounts
+            .iter()
+            .map(|mount| {
+                let path = &mount.path;
+                let backend = mount.backend.tokens();
+
+                quote! {
+                    builder = builder.mount(#path, #backend);
+                }
+            })
+            .collect::<Vec<_>>();
+
+        quote! { #(#mounts)* }
+    }
+
     fn section(&self) -> Result<ConfigSections, GeneratorError> {
         ConfigSections::from_entries([ConfigSectionContribution::new(Self::NAME)
             .uses(quote! {
-                use agentc_fs::{Fs, fs::FsBuilder, memory::MemoryFs};
+                use agentc_fs::{
+                    fs::{Fs, FsBuilder},
+                    host::HostFs,
+                    memory::MemoryFs,
+                    overlay::OverlayFs,
+                    readonly::ReadOnlyFs,
+                };
             })
             .types(quote! {
                 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
                 #[serde(default)]
-                pub struct ConfigFilesystem {}
+                pub struct ConfigFilesystem {
+                    pub binds: Vec<ConfigFilesystemBind>,
+                }
 
-                impl ConfigFilesystem {
-                    pub fn builder(&self) -> FsBuilder {
-                        Fs::builder().mount("/", MemoryFs::new())
-                    }
+                #[derive(Debug, Clone, Serialize, Deserialize)]
+                pub struct ConfigFilesystemBind {
+                    pub path: String,
+                    pub root: String,
+                    #[serde(default)]
+                    pub readonly: bool,
+                    #[serde(default)]
+                    pub follow_symlinks: bool,
                 }
             })
             .fields(quote! {
@@ -63,7 +96,7 @@ impl FilesystemSection {
 impl Fragment<ResolvedContext> for FilesystemSection {
     fn generate_contribution(
         &self,
-        _ctx: &GenerationContext<ResolvedContext>,
+        ctx: &GenerationContext<ResolvedContext>,
         point: &str,
     ) -> Result<ErasedContributionValue, GeneratorError> {
         match point {
@@ -72,6 +105,10 @@ impl Fragment<ResolvedContext> for FilesystemSection {
             | "config::sections::fields"
             | "config::sections::loader"
             | "config::sections::mapper" => Ok(ErasedContributionValue::new(self.section()?)),
+            "filesystem::topology" => Ok(ErasedContributionValue::new(
+                self.topology_tokens(&ctx.filesystem)
+                    .to_string(),
+            )),
             "cargo::dependencies" => Ok(ErasedContributionValue::new(
                 CargoDependencies::from_entries([CargoDependencyContribution::runtime(
                     RuntimeDependencyContribution::new("agentc-fs")
@@ -97,7 +134,7 @@ mod tests {
 
     use serde_json::json;
 
-    fn context() -> GenerationContext<ResolvedContext> {
+    fn context(filesystem: serde_json::Value) -> GenerationContext<ResolvedContext> {
         GenerationContext::new(
             serde_json::from_value(json!({
                 "slug": "assistant",
@@ -115,16 +152,20 @@ mod tests {
                 "blocks": {},
                 "tools": {},
                 "skills": {},
-                "http_server": null
+                "http_server": null,
+                "filesystem": filesystem
             }))
             .unwrap(),
         )
     }
 
     #[test]
-    fn contributes_the_fs_dependency_unconditionally() {
+    fn contributes_the_fs_dependency_with_the_embedded_feature() {
         let dependencies = FilesystemSection
-            .generate_contribution(&context(), "cargo::dependencies")
+            .generate_contribution(
+                &context(json!({ "mounts": [] })),
+                "cargo::dependencies",
+            )
             .unwrap()
             .downcast::<CargoDependencies>()
             .unwrap();
@@ -142,9 +183,12 @@ mod tests {
     }
 
     #[test]
-    fn the_section_defines_filesystem_config_and_its_field() {
+    fn the_section_defines_filesystem_config_with_only_binds_and_no_builder_impl() {
         let sections = FilesystemSection
-            .generate_contribution(&context(), "config::sections::types")
+            .generate_contribution(
+                &context(json!({ "mounts": [] })),
+                "config::sections::types",
+            )
             .unwrap()
             .downcast::<ConfigSections>()
             .unwrap();
@@ -162,13 +206,55 @@ mod tests {
             section
                 .types
                 .as_str()
-                .contains("MemoryFs")
+                .contains("pub binds : Vec < ConfigFilesystemBind >")
+        );
+        assert!(
+            !section
+                .types
+                .as_str()
+                .contains("fn builder")
         );
         assert!(
             section
                 .fields
                 .as_str()
                 .contains("pub filesystem : ConfigFilesystem")
+        );
+    }
+
+    #[test]
+    fn topology_emits_one_mount_statement_per_configured_mount() {
+        let topology = FilesystemSection
+            .generate_contribution(
+                &context(json!({
+                    "mounts": [
+                        { "path": "/", "backend": { "Memory": null } },
+                        {
+                            "path": "/data",
+                            "backend": {
+                                "ReadOnly": {
+                                    "inner": {
+                                        "Host": {
+                                            "root": "/var/lib/agent/data",
+                                            "follow_symlinks": false
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    ]
+                })),
+                "filesystem::topology",
+            )
+            .unwrap()
+            .downcast::<String>()
+            .unwrap();
+
+        assert!(topology.contains(r#"builder = builder . mount ("/" , MemoryFs :: new ())"#));
+        assert!(
+            topology.contains(
+                r#"ReadOnlyFs :: new (HostFs :: builder () . root ("/var/lib/agent/data")"#
+            )
         );
     }
 }

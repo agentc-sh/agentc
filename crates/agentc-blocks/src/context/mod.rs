@@ -4,6 +4,7 @@
 
 pub mod agent;
 pub mod block;
+pub mod filesystem;
 pub mod http_server;
 pub mod network;
 pub mod observability;
@@ -14,6 +15,7 @@ pub mod tool;
 
 pub use agent::*;
 pub use block::*;
+pub use filesystem::*;
 pub use http_server::*;
 pub use network::*;
 pub use provider::*;
@@ -47,6 +49,9 @@ pub struct ResolvedContext {
     /// The resolved outbound network configuration.
     #[serde(default)]
     pub network: ResolvedContextNetwork,
+    /// The resolved virtual filesystem topology.
+    #[serde(default)]
+    pub filesystem: ResolvedContextFilesystem,
 }
 
 impl ResolvedContext {
