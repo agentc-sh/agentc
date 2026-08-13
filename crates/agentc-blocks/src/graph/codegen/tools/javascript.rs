@@ -79,7 +79,7 @@ impl ToolCodeGen for JavascriptTools<'_> {
                     .workers(4)
                     .queue_capacity(32)
                     .standard_environment()
-                    .with_http(config.network.builder())
+                    .with_http(config.network.builder()?)
                     .with_fs(fs.root())?
                     .cancellation(shutdown.clone())
                     .build()
@@ -220,8 +220,8 @@ mod tests {
     use super::*;
     use crate::{
         context::{
-            ResolvedContextAgent, ResolvedContextAgentModel, ResolvedContextRuntime,
-            ResolvedContextTool,
+            ResolvedContextAgent, ResolvedContextAgentModel, ResolvedContextFilesystem,
+            ResolvedContextNetwork, ResolvedContextRuntime, ResolvedContextTool,
         },
         types::RuntimeValue,
     };
@@ -279,6 +279,8 @@ mod tests {
                 tools: tools.into_iter().collect(),
                 skills: HashMap::new(),
                 http_server: None,
+                network: ResolvedContextNetwork::default(),
+                filesystem: ResolvedContextFilesystem::default(),
             }
         }
 
@@ -365,7 +367,7 @@ mod tests {
         assert!(registrations.contains(". workers (4)"));
         assert!(registrations.contains(". queue_capacity (32)"));
         assert!(registrations.contains(". standard_environment ()"));
-        assert!(registrations.contains(". with_http (config . network . builder ())"));
+        assert!(registrations.contains(". with_http (config . network . builder () ?)"));
         assert!(registrations.contains(". with_fs (fs . root ())"));
         assert!(registrations.contains(". cancellation (shutdown . clone ())"));
     }

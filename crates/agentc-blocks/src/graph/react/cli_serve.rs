@@ -7,8 +7,10 @@ use quote::quote;
 use std::path::PathBuf;
 
 use agentc_compiler::generator::{
-    blocks::codegen::CodeGen, context::GenerationContext, errors::GeneratorError,
-    extension::ExtensionRegistry,
+    blocks::codegen::CodeGen,
+    context::GenerationContext,
+    errors::GeneratorError,
+    extension::{ErasedContributionValue, ExtensionRegistry, RenderedTokenStream},
 };
 
 use crate::context::ResolvedContext;
@@ -20,18 +22,24 @@ impl CodeGen<ResolvedContext> for CliServeCodeGen {
         &self,
         _ctx: &GenerationContext<ResolvedContext>,
         point: &str,
-    ) -> Result<TokenStream, GeneratorError> {
+    ) -> Result<ErasedContributionValue, GeneratorError> {
         match point {
-            "cli::mod::use" => Ok(quote! {
-                mod serve;
-            }),
-            "cli::mod::variants" => Ok(quote! {
-                /// Start the HTTP server.
-                Serve(serve::ServeArgs),
-            }),
-            "cli::mod::arms" => Ok(quote! {
-                Command::Serve(args) => serve::run(args).await,
-            }),
+            "cli::mod::use" => {
+                Ok(ErasedContributionValue::new(RenderedTokenStream::from(quote! {
+                    mod serve;
+                })))
+            }
+            "cli::mod::variants" => {
+                Ok(ErasedContributionValue::new(RenderedTokenStream::from(quote! {
+                    /// Start the HTTP server.
+                    Serve(serve::ServeArgs),
+                })))
+            }
+            "cli::mod::arms" => {
+                Ok(ErasedContributionValue::new(RenderedTokenStream::from(quote! {
+                    Command::Serve(args) => serve::run(args).await,
+                })))
+            }
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
     }
@@ -89,13 +97,13 @@ impl CodeGen<ResolvedContext> for CliServeCodeGen {
                     event = "DatabaseInitialized",
                 );
 
-                let fs = config.filesystem.builder().build()?;
+                let fs = config.filesystem.builder()?.build()?;
 
                 info!(
                     event = "FilesystemInitialized",
                 );
 
-                let _http_client = config.network.builder().build()?;
+                let _http_client = config.network.builder()?.build()?;
 
                 info!(
                     event = "HttpClientInitialized",
@@ -236,8 +244,8 @@ mod tests {
             .1
             .to_string();
 
-        assert!(source.contains("let fs = config . filesystem . builder () . build ()"));
-        assert!(source.contains("let _http_client = config . network . builder () . build ()"));
+        assert!(source.contains("let fs = config . filesystem . builder () ?"));
+        assert!(source.contains("let _http_client = config . network . builder () ?"));
         assert!(source.contains("event = \"FilesystemInitialized\""));
         assert!(source.contains("event = \"HttpClientInitialized\""));
         assert!(source.contains("build_agent (database . clone () , fs . clone ()"));

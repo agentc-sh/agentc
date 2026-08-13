@@ -7,7 +7,7 @@ pub mod mcp;
 
 use agentc_compiler::generator::{
     blocks::{BlockSet, fragment::FragmentBlock},
-    extension::Contribution,
+    extension::{Contribution, RenderedTokenStream},
 };
 
 use crate::{
@@ -40,8 +40,8 @@ impl Baseline {
                     .add(
                         FragmentBlock::builder()
                             .id("baseline_mcp_agent")
-                            .contribute(Contribution::<String>::strict("agent::use"))
-                            .contribute(Contribution::<String>::strict("agent::tools"))
+                            .contribute(Contribution::<RenderedTokenStream>::strict("agent::use"))
+                            .contribute(Contribution::<RenderedTokenStream>::strict("agent::tools"))
                             .contribute(Contribution::<CargoDependencies>::strict(
                                 "cargo::dependencies",
                             ))
@@ -51,8 +51,8 @@ impl Baseline {
                     .add(
                         FragmentBlock::builder()
                             .id("baseline_a2a_agent")
-                            .contribute(Contribution::<String>::strict("agent::use"))
-                            .contribute(Contribution::<String>::strict("agent::tools"))
+                            .contribute(Contribution::<RenderedTokenStream>::strict("agent::use"))
+                            .contribute(Contribution::<RenderedTokenStream>::strict("agent::tools"))
                             .contribute(Contribution::<CargoDependencies>::strict(
                                 "cargo::dependencies",
                             ))

@@ -35,6 +35,7 @@ impl ExtensionPoint for ConfigSectionsExtensionPoint {
                     .as_str()
                     .to_string()
             })
+            .filter(|slot| !slot.is_empty())
             .collect::<Vec<_>>()
             .join("\n"))
     }
@@ -106,6 +107,21 @@ mod tests {
             )
             .unwrap(),
             "pub a : A ,",
+        );
+    }
+
+    #[test]
+    fn a_section_with_an_empty_slot_contributes_nothing_to_it() {
+        assert_eq!(
+            ExtensionPoint::reduce(
+                &point(ConfigSectionSlot::Types),
+                vec![
+                    sections(ConfigSectionContribution::new("aaa")),
+                    sections(ConfigSectionContribution::new("zzz").types(quote! { struct Z; })),
+                ],
+            )
+            .unwrap(),
+            "struct Z ;",
         );
     }
 }

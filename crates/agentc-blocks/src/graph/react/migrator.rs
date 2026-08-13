@@ -7,8 +7,10 @@ use quote::quote;
 use std::path::PathBuf;
 
 use agentc_compiler::generator::{
-    blocks::codegen::CodeGen, context::GenerationContext, errors::GeneratorError,
-    extension::ExtensionRegistry,
+    blocks::codegen::CodeGen,
+    context::GenerationContext,
+    errors::GeneratorError,
+    extension::{ErasedContributionValue, ExtensionRegistry, RenderedTokenStream},
 };
 
 use crate::context::ResolvedContext;
@@ -20,11 +22,13 @@ impl CodeGen<ResolvedContext> for MigratorCodeGen {
         &self,
         _ctx: &GenerationContext<ResolvedContext>,
         point: &str,
-    ) -> Result<TokenStream, GeneratorError> {
+    ) -> Result<ErasedContributionValue, GeneratorError> {
         match point {
-            "main::modules" => Ok(quote! {
-                mod migrator;
-            }),
+            "main::modules" => {
+                Ok(ErasedContributionValue::new(RenderedTokenStream::from(quote! {
+                    mod migrator;
+                })))
+            }
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
     }
@@ -105,6 +109,9 @@ mod tests {
         let source = MigratorCodeGen
             .generate_contribution(&context(), "main::modules")
             .unwrap()
+            .downcast::<RenderedTokenStream>()
+            .unwrap()
+            .as_str()
             .to_string();
 
         assert!(source.contains("mod migrator ;"));

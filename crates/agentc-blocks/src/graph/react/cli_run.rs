@@ -90,8 +90,8 @@ impl CodeGen<ResolvedContext> for CliRunCodeGen {
                         .await?,
                 );
 
-                let fs = config.filesystem.builder().build()?;
-                let _http_client = config.network.builder().build()?;
+                let fs = config.filesystem.builder()?.build()?;
+                let _http_client = config.network.builder()?.build()?;
 
                 let agent = build_agent(database.clone(), fs.clone(), &config, shutdown).await?;
                 let service = ApplicationService::builder()
@@ -215,8 +215,8 @@ mod tests {
             .to_string();
 
         assert!(source.contains("pub no_migrations : bool"));
-        assert!(source.contains("config . filesystem . builder () . build ()"));
-        assert!(source.contains("config . network . builder () . build ()"));
+        assert!(source.contains("config . filesystem . builder () ?"));
+        assert!(source.contains("config . network . builder () ?"));
         assert!(source.contains("build_agent (database . clone () , fs . clone ()"));
     }
 
@@ -228,8 +228,8 @@ mod tests {
             .1
             .to_string();
 
-        assert!(source.contains("config . filesystem . builder () . build ()"));
-        assert!(source.contains("config . network . builder () . build ()"));
+        assert!(source.contains("config . filesystem . builder () ?"));
+        assert!(source.contains("config . network . builder () ?"));
         assert!(source.contains("build_agent (database . clone () , fs . clone ()"));
     }
 }

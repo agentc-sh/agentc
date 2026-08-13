@@ -7,8 +7,10 @@ use quote::quote;
 use std::path::PathBuf;
 
 use agentc_compiler::generator::{
-    blocks::codegen::CodeGen, context::GenerationContext, errors::GeneratorError,
-    extension::ExtensionRegistry,
+    blocks::codegen::CodeGen,
+    context::GenerationContext,
+    errors::GeneratorError,
+    extension::{ErasedContributionValue, ExtensionRegistry, RenderedTokenStream},
 };
 
 use crate::{
@@ -276,35 +278,45 @@ impl CodeGen<ResolvedContext> for AgentCodeGen {
         &self,
         ctx: &GenerationContext<ResolvedContext>,
         point: &str,
-    ) -> Result<TokenStream, GeneratorError> {
+    ) -> Result<ErasedContributionValue, GeneratorError> {
         match point {
-            "config::fields" => Ok(quote! {
-                pub react: ConfigReAct,
-            }),
-            "config::impls" => Ok(quote! {
-                #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default)]
-                #[serde(default)]
-                pub struct ConfigReAct {
-                    pub model: ConfigReActModel,
-                }
+            "config::fields" => {
+                Ok(ErasedContributionValue::new(RenderedTokenStream::from(quote! {
+                    pub react: ConfigReAct,
+                })))
+            }
+            "config::impls" => {
+                Ok(ErasedContributionValue::new(RenderedTokenStream::from(quote! {
+                    #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default)]
+                    #[serde(default)]
+                    pub struct ConfigReAct {
+                        pub model: ConfigReActModel,
+                    }
 
-                #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default)]
-                #[serde(default)]
-                pub struct ConfigReActModel {
-                    pub timeout: Option<u64>,
-                    pub retry: Option<ConfigReActModelRetry>,
-                }
+                    #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default)]
+                    #[serde(default)]
+                    pub struct ConfigReActModel {
+                        pub timeout: Option<u64>,
+                        pub retry: Option<ConfigReActModelRetry>,
+                    }
 
-                #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-                pub struct ConfigReActModelRetry {
-                    pub max_attempts: u32,
-                    pub initial_backoff: u64,
-                    pub max_backoff: u64,
-                }
-            }),
-            "config::loader" => Ok(self.config_loader_calls()),
-            "config::mapper" => Ok(self.config_mapper_fields()),
-            "tools::features" => Ok(ToolsCodeGen::features(ctx)),
+                    #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+                    pub struct ConfigReActModelRetry {
+                        pub max_attempts: u32,
+                        pub initial_backoff: u64,
+                        pub max_backoff: u64,
+                    }
+                })))
+            }
+            "config::loader" => Ok(ErasedContributionValue::new(RenderedTokenStream::from(
+                self.config_loader_calls(),
+            ))),
+            "config::mapper" => Ok(ErasedContributionValue::new(RenderedTokenStream::from(
+                self.config_mapper_fields(),
+            ))),
+            "tools::features" => {
+                Ok(ErasedContributionValue::new(ToolsCodeGen::features(ctx).to_string()))
+            }
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
     }
@@ -470,21 +482,32 @@ mod tests {
         let impls = codegen
             .generate_contribution(&context, "config::impls")
             .unwrap()
+            .downcast::<RenderedTokenStream>()
+            .unwrap()
+            .as_str()
             .to_string();
         let loader = codegen
             .generate_contribution(&context, "config::loader")
             .unwrap()
+            .downcast::<RenderedTokenStream>()
+            .unwrap()
+            .as_str()
             .to_string();
         let mapper = codegen
             .generate_contribution(&context, "config::mapper")
             .unwrap()
+            .downcast::<RenderedTokenStream>()
+            .unwrap()
+            .as_str()
             .to_string();
 
         assert!(
             codegen
                 .generate_contribution(&context, "config::fields")
                 .unwrap()
-                .to_string()
+                .downcast::<RenderedTokenStream>()
+                .unwrap()
+                .as_str()
                 .contains("react : ConfigReAct")
         );
         assert!(impls.contains("struct ConfigReActModel"));
