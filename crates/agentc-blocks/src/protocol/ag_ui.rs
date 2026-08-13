@@ -14,7 +14,7 @@ use agentc_compiler::generator::{
     },
     context::GenerationContext,
     errors::GeneratorError,
-    extension::{Contribution, ErasedContributionValue, ExtensionRegistry},
+    extension::{Contribution, ErasedContributionValue, ExtensionRegistry, RenderedTokenStream},
 };
 
 use crate::{
@@ -41,24 +41,26 @@ impl CodeGen<ResolvedContext> for AgUiCodeGen {
         &self,
         _ctx: &GenerationContext<ResolvedContext>,
         point: &str,
-    ) -> Result<TokenStream, GeneratorError> {
+    ) -> Result<ErasedContributionValue, GeneratorError> {
         match point {
             "server::routers" => {
                 let config_path = &self.config.path;
 
-                Ok(quote! {
-                    builder = builder.with_router(
-                        utoipa_axum::router::OpenApiRouter::new()
-                            .nest(
-                                #config_path,
-                                agentc_protocol_ag_ui::router::router(
-                                    service.clone(),
-                                    default_tenant_id.clone(),
-                                    task_queue.clone(),
-                                ),
-                            )
-                    );
-                })
+                Ok(ErasedContributionValue::new(RenderedTokenStream::from(
+                    quote! {
+                        builder = builder.with_router(
+                            utoipa_axum::router::OpenApiRouter::new()
+                                .nest(
+                                    #config_path,
+                                    agentc_protocol_ag_ui::router::router(
+                                        service.clone(),
+                                        default_tenant_id.clone(),
+                                        task_queue.clone(),
+                                    ),
+                                )
+                        );
+                    },
+                )))
             }
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
@@ -121,7 +123,7 @@ impl Protocol for AgUiProtocol {
                         .add(
                             CodeGenBlock::builder()
                                 .id("protocol_ag_ui")
-                                .contribute(Contribution::<String>::strict("server::routers"))
+                                .contribute(Contribution::<RenderedTokenStream>::strict("server::routers"))
                                 .build(AgUiCodeGen { config }),
                         )
                         .add(
@@ -220,6 +222,9 @@ mod tests {
         let rendered = codegen
             .generate_contribution(&GenerationContext::new(context()), "server::routers")
             .unwrap()
+            .downcast::<RenderedTokenStream>()
+            .unwrap()
+            .as_str()
             .to_string();
 
         assert!(rendered.contains("custom-ag-ui"));

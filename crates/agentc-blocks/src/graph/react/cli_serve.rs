@@ -7,8 +7,10 @@ use quote::quote;
 use std::path::PathBuf;
 
 use agentc_compiler::generator::{
-    blocks::codegen::CodeGen, context::GenerationContext, errors::GeneratorError,
-    extension::ExtensionRegistry,
+    blocks::codegen::CodeGen,
+    context::GenerationContext,
+    errors::GeneratorError,
+    extension::{ErasedContributionValue, ExtensionRegistry, RenderedTokenStream},
 };
 
 use crate::context::ResolvedContext;
@@ -20,18 +22,24 @@ impl CodeGen<ResolvedContext> for CliServeCodeGen {
         &self,
         _ctx: &GenerationContext<ResolvedContext>,
         point: &str,
-    ) -> Result<TokenStream, GeneratorError> {
+    ) -> Result<ErasedContributionValue, GeneratorError> {
         match point {
-            "cli::mod::use" => Ok(quote! {
-                mod serve;
-            }),
-            "cli::mod::variants" => Ok(quote! {
-                /// Start the HTTP server.
-                Serve(serve::ServeArgs),
-            }),
-            "cli::mod::arms" => Ok(quote! {
-                Command::Serve(args) => serve::run(args).await,
-            }),
+            "cli::mod::use" => Ok(ErasedContributionValue::new(RenderedTokenStream::from(
+                quote! {
+                    mod serve;
+                },
+            ))),
+            "cli::mod::variants" => Ok(ErasedContributionValue::new(RenderedTokenStream::from(
+                quote! {
+                    /// Start the HTTP server.
+                    Serve(serve::ServeArgs),
+                },
+            ))),
+            "cli::mod::arms" => Ok(ErasedContributionValue::new(RenderedTokenStream::from(
+                quote! {
+                    Command::Serve(args) => serve::run(args).await,
+                },
+            ))),
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
     }

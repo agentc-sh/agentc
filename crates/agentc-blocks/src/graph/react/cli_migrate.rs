@@ -7,8 +7,10 @@ use quote::quote;
 use std::path::PathBuf;
 
 use agentc_compiler::generator::{
-    blocks::codegen::CodeGen, context::GenerationContext, errors::GeneratorError,
-    extension::ExtensionRegistry,
+    blocks::codegen::CodeGen,
+    context::GenerationContext,
+    errors::GeneratorError,
+    extension::{ErasedContributionValue, ExtensionRegistry, RenderedTokenStream},
 };
 
 use crate::context::ResolvedContext;
@@ -20,18 +22,24 @@ impl CodeGen<ResolvedContext> for CliMigrateCodeGen {
         &self,
         _ctx: &GenerationContext<ResolvedContext>,
         point: &str,
-    ) -> Result<TokenStream, GeneratorError> {
+    ) -> Result<ErasedContributionValue, GeneratorError> {
         match point {
-            "cli::mod::use" => Ok(quote! {
-                mod migrate;
-            }),
-            "cli::mod::variants" => Ok(quote! {
-                /// Apply pending database migrations and exit.
-                Migrate,
-            }),
-            "cli::mod::arms" => Ok(quote! {
-                Command::Migrate => migrate::migrate().await,
-            }),
+            "cli::mod::use" => Ok(ErasedContributionValue::new(RenderedTokenStream::from(
+                quote! {
+                    mod migrate;
+                },
+            ))),
+            "cli::mod::variants" => Ok(ErasedContributionValue::new(RenderedTokenStream::from(
+                quote! {
+                    /// Apply pending database migrations and exit.
+                    Migrate,
+                },
+            ))),
+            "cli::mod::arms" => Ok(ErasedContributionValue::new(RenderedTokenStream::from(
+                quote! {
+                    Command::Migrate => migrate::migrate().await,
+                },
+            ))),
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
     }
@@ -94,21 +102,27 @@ mod tests {
             CliMigrateCodeGen
                 .generate_contribution(&context(), "cli::mod::use")
                 .unwrap()
-                .to_string()
+                .downcast::<RenderedTokenStream>()
+                .unwrap()
+                .as_str()
                 .contains("mod migrate ;")
         );
         assert!(
             CliMigrateCodeGen
                 .generate_contribution(&context(), "cli::mod::variants")
                 .unwrap()
-                .to_string()
+                .downcast::<RenderedTokenStream>()
+                .unwrap()
+                .as_str()
                 .contains("Migrate ,")
         );
         assert!(
             CliMigrateCodeGen
                 .generate_contribution(&context(), "cli::mod::arms")
                 .unwrap()
-                .to_string()
+                .downcast::<RenderedTokenStream>()
+                .unwrap()
+                .as_str()
                 .contains("Command :: Migrate => migrate :: migrate ()")
         );
     }

@@ -204,11 +204,11 @@ impl Archetype for StandaloneArchetype {
             .add(
                 CodeGenBlock::builder()
                     .id("config_rs")
-                    .extension_point("config::use", reducers::concat)
-                    .extension_point("config::fields", reducers::concat)
-                    .extension_point("config::impls", reducers::concat)
-                    .extension_point("config::loader", reducers::concat)
-                    .extension_point("config::mapper", reducers::concat)
+                    .token_stream_extension_point("config::use", reducers::concat)
+                    .token_stream_extension_point("config::fields", reducers::concat)
+                    .token_stream_extension_point("config::impls", reducers::concat)
+                    .token_stream_extension_point("config::loader", reducers::concat)
+                    .token_stream_extension_point("config::mapper", reducers::concat)
                     .typed_extension_point(ConfigSectionsExtensionPoint::new(
                         "config::sections::use",
                         ConfigSectionSlot::Use,
@@ -234,9 +234,9 @@ impl Archetype for StandaloneArchetype {
             .add(
                 CodeGenBlock::builder()
                     .id("cli_mod")
-                    .extension_point("cli::mod::use", reducers::concat)
-                    .extension_point("cli::mod::variants", reducers::concat)
-                    .extension_point("cli::mod::arms", reducers::concat)
+                    .token_stream_extension_point("cli::mod::use", reducers::concat)
+                    .token_stream_extension_point("cli::mod::variants", reducers::concat)
+                    .token_stream_extension_point("cli::mod::arms", reducers::concat)
                     .build(CliModCodeGen),
             )
             .add(
@@ -252,7 +252,7 @@ impl Archetype for StandaloneArchetype {
             .add(
                 CodeGenBlock::builder()
                     .id("main_rs")
-                    .extension_point("main::modules", reducers::concat)
+                    .token_stream_extension_point("main::modules", reducers::concat)
                     .build(EntrypointCodeGen),
             );
 

@@ -170,6 +170,41 @@ impl ExtensionPoint for StringExtensionPoint {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct TokenStreamExtensionPoint {
+    name: String,
+    reducer: fn(Vec<String>) -> String,
+}
+
+impl TokenStreamExtensionPoint {
+    pub fn new(name: impl Into<String>, reducer: fn(Vec<String>) -> String) -> Self {
+        Self { name: name.into(), reducer }
+    }
+}
+
+impl ExtensionPoint for TokenStreamExtensionPoint {
+    type Contribution = RenderedTokenStream;
+
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn reduce(&self, contributions: Vec<Self::Contribution>) -> Result<String, GeneratorError> {
+        // Empty contributions are dropped so a block with nothing to say for this point
+        // cannot introduce a blank element. Under `reducers::last` this makes the rule
+        // "last non-empty".
+        Ok(
+            (self.reducer)(
+                contributions
+                    .iter()
+                    .filter(|rendered| !rendered.is_empty())
+                    .map(|rendered| rendered.as_str().to_string())
+                    .collect(),
+            )
+        )
+    }
+}
+
 /// A declaration that a block intends to contribute content into a named
 /// extension point.
 ///
@@ -499,5 +534,36 @@ mod tests {
     #[test]
     fn rendered_token_stream_is_empty_when_default() {
         assert!(RenderedTokenStream::default().is_empty());
+    }
+
+    #[test]
+    fn token_stream_point_reduces_rendered_contributions() {
+        assert_eq!(
+            ExtensionPoint::reduce(
+                &TokenStreamExtensionPoint::new("tokens", reducers::concat),
+                vec![
+                    RenderedTokenStream::from(quote::quote! { mod first; }),
+                    RenderedTokenStream::from(quote::quote! { mod second; }),
+                ],
+            )
+            .unwrap(),
+            "mod first ;\nmod second ;",
+        );
+    }
+
+    #[test]
+    fn token_stream_point_drops_empty_contributions() {
+        assert_eq!(
+            ExtensionPoint::reduce(
+                &TokenStreamExtensionPoint::new("tokens", reducers::concat),
+                vec![
+                    RenderedTokenStream::default(),
+                    RenderedTokenStream::from(quote::quote! { mod only; }),
+                    RenderedTokenStream::default(),
+                ],
+            )
+            .unwrap(),
+            "mod only ;",
+        );
     }
 }

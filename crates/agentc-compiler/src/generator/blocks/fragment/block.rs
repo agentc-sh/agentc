@@ -12,7 +12,7 @@ use crate::generator::{
     errors::GeneratorError,
     extension::{
         Contribution, ErasedContribution, ErasedContributionValue, ErasedExtensionPoint,
-        ExtensionPoint, ExtensionRegistry, StringExtensionPoint,
+        ExtensionPoint, ExtensionRegistry, StringExtensionPoint, TokenStreamExtensionPoint,
     },
     vfs::VirtualFileSystem,
 };
@@ -116,6 +116,16 @@ where
     ) -> Self {
         self.extension_points
             .push(Box::new(StringExtensionPoint::new(name, reducer)));
+        self
+    }
+
+    pub fn token_stream_extension_point(
+        mut self,
+        name: impl Into<String>,
+        reducer: fn(Vec<String>) -> String,
+    ) -> Self {
+        self.extension_points
+            .push(Box::new(TokenStreamExtensionPoint::new(name, reducer)));
         self
     }
 

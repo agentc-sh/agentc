@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 
 use agentc_compiler::generator::{
     blocks::{BlockSet, codegen::CodeGenBlock, fragment::FragmentBlock},
-    extension::{Contribution, reducers},
+    extension::{Contribution, RenderedTokenStream, reducers},
 };
 
 use crate::{
@@ -93,12 +93,12 @@ impl AgentGraph for ReActGraph {
             .add(
                 CodeGenBlock::builder()
                     .id("agent_rs")
-                    .extension_point("agent::use", reducers::concat)
-                    .extension_point("agent::tools", reducers::concat)
-                    .contribute(Contribution::<String>::lenient("config::fields"))
-                    .contribute(Contribution::<String>::lenient("config::impls"))
-                    .contribute(Contribution::<String>::lenient("config::loader"))
-                    .contribute(Contribution::<String>::lenient("config::mapper"))
+                    .token_stream_extension_point("agent::use", reducers::concat)
+                    .token_stream_extension_point("agent::tools", reducers::concat)
+                    .contribute(Contribution::<RenderedTokenStream>::lenient("config::fields"))
+                    .contribute(Contribution::<RenderedTokenStream>::lenient("config::impls"))
+                    .contribute(Contribution::<RenderedTokenStream>::lenient("config::loader"))
+                    .contribute(Contribution::<RenderedTokenStream>::lenient("config::mapper"))
                     .contribute(Contribution::<String>::lenient("tools::features"))
                     .build(AgentCodeGen { fields: fields.clone(), config }),
             )
@@ -111,15 +111,15 @@ impl AgentGraph for ReActGraph {
             .add(
                 CodeGenBlock::builder()
                     .id("migrator_rs")
-                    .contribute(Contribution::<String>::strict("main::modules"))
+                    .contribute(Contribution::<RenderedTokenStream>::strict("main::modules"))
                     .build(MigratorCodeGen),
             )
             .add(
                 CodeGenBlock::builder()
                     .id("cli_migrate")
-                    .contribute(Contribution::<String>::strict("cli::mod::use"))
-                    .contribute(Contribution::<String>::strict("cli::mod::variants"))
-                    .contribute(Contribution::<String>::strict("cli::mod::arms"))
+                    .contribute(Contribution::<RenderedTokenStream>::strict("cli::mod::use"))
+                    .contribute(Contribution::<RenderedTokenStream>::strict("cli::mod::variants"))
+                    .contribute(Contribution::<RenderedTokenStream>::strict("cli::mod::arms"))
                     .build(CliMigrateCodeGen),
             )
             .add(
@@ -172,17 +172,17 @@ impl AgentGraph for ReActGraph {
                     .add(
                         CodeGenBlock::builder()
                             .id("server_rs")
-                            .extension_point("server::use", reducers::concat)
-                            .extension_point("server::routers", reducers::concat)
-                            .contribute(Contribution::<String>::strict("main::modules"))
+                            .token_stream_extension_point("server::use", reducers::concat)
+                            .token_stream_extension_point("server::routers", reducers::concat)
+                            .contribute(Contribution::<RenderedTokenStream>::strict("main::modules"))
                             .build(ServerCodeGen { fields: fields.clone() }),
                     )
                     .add(
                         CodeGenBlock::builder()
                             .id("cli_serve")
-                            .contribute(Contribution::<String>::strict("cli::mod::use"))
-                            .contribute(Contribution::<String>::strict("cli::mod::variants"))
-                            .contribute(Contribution::<String>::strict("cli::mod::arms"))
+                            .contribute(Contribution::<RenderedTokenStream>::strict("cli::mod::use"))
+                            .contribute(Contribution::<RenderedTokenStream>::strict("cli::mod::variants"))
+                            .contribute(Contribution::<RenderedTokenStream>::strict("cli::mod::arms"))
                             .build(CliServeCodeGen),
                     )
                     .add(

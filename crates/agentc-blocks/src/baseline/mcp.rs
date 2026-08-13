@@ -6,7 +6,7 @@ use quote::quote;
 
 use agentc_compiler::generator::{
     blocks::fragment::Fragment, context::GenerationContext, errors::GeneratorError,
-    extension::ErasedContributionValue,
+    extension::{ErasedContributionValue, RenderedTokenStream},
 };
 
 use crate::{
@@ -26,7 +26,7 @@ impl Fragment<ResolvedContext> for McpAgentFragment {
         point: &str,
     ) -> Result<ErasedContributionValue, GeneratorError> {
         match point {
-            "agent::use" => Ok(ErasedContributionValue::new(
+            "agent::use" => Ok(ErasedContributionValue::new(RenderedTokenStream::from(
                 quote! {
                     use agentc_mcp::{
                         builder::AgentBuilderMcpExt,
@@ -35,10 +35,9 @@ impl Fragment<ResolvedContext> for McpAgentFragment {
                     };
 
                     use crate::config::ConfigMcpTransport;
-                }
-                .to_string(),
-            )),
-            "agent::tools" => Ok(ErasedContributionValue::new(
+                },
+            ))),
+            "agent::tools" => Ok(ErasedContributionValue::new(RenderedTokenStream::from(
                 quote! {
                     if !config.mcp.servers.is_empty() {
                         let mut mcp_builder = McpRegistry::builder();
@@ -62,9 +61,8 @@ impl Fragment<ResolvedContext> for McpAgentFragment {
 
                         builder = builder.with_mcp_registry(&mcp_builder.build().await?).await;
                     }
-                }
-                .to_string(),
-            )),
+                },
+            ))),
             "cargo::dependencies" => Ok(ErasedContributionValue::new(
                 CargoDependencies::from_entries([CargoDependencyContribution::runtime(
                     RuntimeDependencyContribution::new("agentc-mcp"),

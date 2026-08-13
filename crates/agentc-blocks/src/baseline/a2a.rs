@@ -6,7 +6,7 @@ use quote::quote;
 
 use agentc_compiler::generator::{
     blocks::fragment::Fragment, context::GenerationContext, errors::GeneratorError,
-    extension::ErasedContributionValue,
+    extension::{ErasedContributionValue, RenderedTokenStream},
 };
 
 use crate::{
@@ -26,7 +26,7 @@ impl Fragment<ResolvedContext> for A2aAgentFragment {
         point: &str,
     ) -> Result<ErasedContributionValue, GeneratorError> {
         match point {
-            "agent::use" => Ok(ErasedContributionValue::new(
+            "agent::use" => Ok(ErasedContributionValue::new(RenderedTokenStream::from(
                 quote! {
                     use agentc_protocol_a2a::{
                         client::{A2aClient, A2aClientConfig},
@@ -34,10 +34,9 @@ impl Fragment<ResolvedContext> for A2aAgentFragment {
                     };
 
                     use crate::config::ConfigA2aAgentTenant;
-                }
-                .to_string(),
-            )),
-            "agent::tools" => Ok(ErasedContributionValue::new(
+                },
+            ))),
+            "agent::tools" => Ok(ErasedContributionValue::new(RenderedTokenStream::from(
                 quote! {
                     for (name, agent) in &config.a2a.agents {
                         if !agent.enabled {
@@ -77,9 +76,8 @@ impl Fragment<ResolvedContext> for A2aAgentFragment {
                             .with_typed_tool(target.get_task_tool())
                             .with_typed_tool(target.cancel_task_tool());
                     }
-                }
-                .to_string(),
-            )),
+                },
+            ))),
             "cargo::dependencies" => Ok(ErasedContributionValue::new(
                 CargoDependencies::from_entries([CargoDependencyContribution::runtime(
                     RuntimeDependencyContribution::new("agentc-protocol-a2a")
@@ -133,8 +131,10 @@ mod tests {
         A2aAgentFragment
             .generate_contribution(&context(), point)
             .unwrap()
-            .downcast::<String>()
+            .downcast::<RenderedTokenStream>()
             .unwrap()
+            .as_str()
+            .to_string()
     }
 
     #[test]
