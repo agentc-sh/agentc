@@ -164,34 +164,13 @@ impl StructTree {
             current_path.push(field_name.clone());
 
             match node {
-                StructNode::Leaf { value, .. } => match value {
-                    FieldValue::Constant { value } => {
-                        let json_tokens = value
-                            .to_string()
-                            .parse::<TokenStream>()
-                            .unwrap();
+                StructNode::Leaf { value, .. } => {
+                    let tokens = value.loader_tokens(&current_path);
 
-                        constants.push(quote! {
-                            .constant(path![#(#current_path),*], serde_json::json!(#json_tokens))
-                        });
-                    }
-                    FieldValue::Runtime { env, default, .. } => {
-                        field_mappings.push(quote! {
-                            .field(path![#(#current_path),*], #env)
-                        });
-
-                        if let Some(default_val) = default {
-                            let json_tokens = default_val
-                                .to_string()
-                                .parse::<TokenStream>()
-                                .unwrap();
-
-                            defaults.push(quote! {
-                                .default(path![#(#current_path),*], serde_json::json!(#json_tokens))
-                            });
-                        }
-                    }
-                },
+                    constants.extend(tokens.constant);
+                    defaults.extend(tokens.default);
+                    field_mappings.extend(tokens.field);
+                }
                 StructNode::Interior(subtree) => {
                     subtree.generate_loader_calls(
                         &current_path,
@@ -227,6 +206,10 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
         _ctx: &GenerationContext<ResolvedContext>,
         registry: &ExtensionRegistry,
     ) -> Result<Vec<(PathBuf, TokenStream)>, GeneratorError> {
+        let config_mods = registry
+            .get("config::mods")
+            .and_then(|s| s.parse::<TokenStream>().ok());
+
         let extra_use = registry
             .get("config::use")
             .and_then(|s| s.parse::<TokenStream>().ok());
@@ -312,6 +295,8 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
         };
 
         let source = quote! {
+            #config_mods
+
             use std::collections::HashMap;
             use serde::{Serialize, Deserialize};
             use anyhow::Result;
@@ -354,7 +339,7 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
             #extra_impls
         };
 
-        Ok(vec![("src/config.rs".into(), source)])
+        Ok(vec![("src/config/mod.rs".into(), source)])
     }
 }
 
@@ -393,7 +378,7 @@ mod tests {
             .generate_files(&context(), &ExtensionRegistry::empty())
             .unwrap()
             .into_iter()
-            .find(|(path, _)| path == &PathBuf::from("src/config.rs"))
+            .find(|(path, _)| path == &PathBuf::from("src/config/mod.rs"))
             .expect("config file should be generated")
             .1
             .to_string()

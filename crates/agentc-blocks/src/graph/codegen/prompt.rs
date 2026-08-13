@@ -227,7 +227,8 @@ mod tests {
     use crate::{
         context::{
             ResolvedContextAgent, ResolvedContextAgentModel, ResolvedContextAgentPromptMessage,
-            ResolvedContextAgentPromptMessageRole, ResolvedContextRuntime,
+            ResolvedContextAgentPromptMessageRole, ResolvedContextFilesystem,
+            ResolvedContextNetwork, ResolvedContextRuntime,
         },
         types::RuntimeValue,
     };
@@ -258,6 +259,8 @@ mod tests {
                 tools: HashMap::new(),
                 skills: HashMap::new(),
                 http_server: None,
+                network: ResolvedContextNetwork::default(),
+                filesystem: ResolvedContextFilesystem::default(),
             }
         }
 

@@ -13,4 +13,4 @@ pub mod types;
 
 pub use spec::{FieldSpec, FieldsSpec, IntoFieldSpecs};
 pub use tools::NamedTool;
-pub use types::{FieldValue, IntoTypeTokens};
+pub use types::{FieldValue, IntoTypeTokens, LeafTokens};

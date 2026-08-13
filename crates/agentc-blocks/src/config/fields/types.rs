@@ -116,6 +116,12 @@ where
     }
 }
 
+pub struct LeafTokens {
+    pub constant: Option<TokenStream>,
+    pub default: Option<TokenStream>,
+    pub field: Option<TokenStream>,
+}
+
 #[derive(Debug, Clone)]
 pub enum FieldValue {
     /// Baked in at compile time
@@ -126,6 +132,43 @@ pub enum FieldValue {
         default: Option<Value>,
         secret: bool,
     },
+}
+
+impl FieldValue {
+    pub fn loader_tokens(&self, path: &[String]) -> LeafTokens {
+        match self {
+            FieldValue::Constant { value } => {
+                let json_tokens = value
+                    .to_string()
+                    .parse::<TokenStream>()
+                    .unwrap();
+
+                LeafTokens {
+                    constant: Some(quote! {
+                        .constant(path![#(#path),*], serde_json::json!(#json_tokens))
+                    }),
+                    default: None,
+                    field: None,
+                }
+            }
+            FieldValue::Runtime { env, default, .. } => LeafTokens {
+                constant: None,
+                default: default.as_ref().map(|default_val| {
+                    let json_tokens = default_val
+                        .to_string()
+                        .parse::<TokenStream>()
+                        .unwrap();
+
+                    quote! {
+                        .default(path![#(#path),*], serde_json::json!(#json_tokens))
+                    }
+                }),
+                field: Some(quote! {
+                    .field(path![#(#path),*], #env)
+                }),
+            },
+        }
+    }
 }
 
 impl<T: serde::Serialize> From<&RuntimeValue<T>> for FieldValue {
