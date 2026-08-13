@@ -24,22 +24,22 @@ impl CodeGen<ResolvedContext> for CliServeCodeGen {
         point: &str,
     ) -> Result<ErasedContributionValue, GeneratorError> {
         match point {
-            "cli::mod::use" => Ok(ErasedContributionValue::new(RenderedTokenStream::from(
-                quote! {
+            "cli::mod::use" => {
+                Ok(ErasedContributionValue::new(RenderedTokenStream::from(quote! {
                     mod serve;
-                },
-            ))),
-            "cli::mod::variants" => Ok(ErasedContributionValue::new(RenderedTokenStream::from(
-                quote! {
+                })))
+            }
+            "cli::mod::variants" => {
+                Ok(ErasedContributionValue::new(RenderedTokenStream::from(quote! {
                     /// Start the HTTP server.
                     Serve(serve::ServeArgs),
-                },
-            ))),
-            "cli::mod::arms" => Ok(ErasedContributionValue::new(RenderedTokenStream::from(
-                quote! {
+                })))
+            }
+            "cli::mod::arms" => {
+                Ok(ErasedContributionValue::new(RenderedTokenStream::from(quote! {
                     Command::Serve(args) => serve::run(args).await,
-                },
-            ))),
+                })))
+            }
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
     }

@@ -24,11 +24,11 @@ impl CodeGen<ResolvedContext> for MigratorCodeGen {
         point: &str,
     ) -> Result<ErasedContributionValue, GeneratorError> {
         match point {
-            "main::modules" => Ok(ErasedContributionValue::new(RenderedTokenStream::from(
-                quote! {
+            "main::modules" => {
+                Ok(ErasedContributionValue::new(RenderedTokenStream::from(quote! {
                     mod migrator;
-                },
-            ))),
+                })))
+            }
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
     }

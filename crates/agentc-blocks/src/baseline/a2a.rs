@@ -5,7 +5,9 @@
 use quote::quote;
 
 use agentc_compiler::generator::{
-    blocks::fragment::Fragment, context::GenerationContext, errors::GeneratorError,
+    blocks::fragment::Fragment,
+    context::GenerationContext,
+    errors::GeneratorError,
     extension::{ErasedContributionValue, RenderedTokenStream},
 };
 
@@ -26,58 +28,54 @@ impl Fragment<ResolvedContext> for A2aAgentFragment {
         point: &str,
     ) -> Result<ErasedContributionValue, GeneratorError> {
         match point {
-            "agent::use" => Ok(ErasedContributionValue::new(RenderedTokenStream::from(
-                quote! {
-                    use agentc_protocol_a2a::{
-                        client::{A2aClient, A2aClientConfig},
-                        tools::{A2aTenantPolicy, A2aToolTarget},
-                    };
+            "agent::use" => Ok(ErasedContributionValue::new(RenderedTokenStream::from(quote! {
+                use agentc_protocol_a2a::{
+                    client::{A2aClient, A2aClientConfig},
+                    tools::{A2aTenantPolicy, A2aToolTarget},
+                };
 
-                    use crate::config::ConfigA2aAgentTenant;
-                },
-            ))),
-            "agent::tools" => Ok(ErasedContributionValue::new(RenderedTokenStream::from(
-                quote! {
-                    for (name, agent) in &config.a2a.agents {
-                        if !agent.enabled {
-                            continue;
-                        }
-
-                        let mut client_config = A2aClientConfig::new(agent.url.clone())
-                            .timeout(std::time::Duration::from_secs(agent.timeout_secs));
-
-                        if let Some(token) = &agent.auth_token {
-                            client_config = client_config.try_header(
-                                "Authorization",
-                                format!("Bearer {token}"),
-                            )?;
-                        }
-
-                        for (key, value) in &agent.headers {
-                            client_config = client_config.try_header(key, value)?;
-                        }
-
-                        let target = A2aToolTarget::builder()
-                            .id(name)
-                            .name(agent.description.as_deref().unwrap_or(name))
-                            .client(A2aClient::new(client_config)?)
-                            .tenant_policy(match &agent.tenant {
-                                ConfigA2aAgentTenant::Inherit => A2aTenantPolicy::Inherit,
-                                ConfigA2aAgentTenant::None => A2aTenantPolicy::None,
-                                ConfigA2aAgentTenant::Fixed { id } => A2aTenantPolicy::Fixed(id.clone()),
-                            })
-                            .capabilities(agent.capabilities.clone())
-                            .default_accepted_output_modes(agent.default_accepted_output_modes.clone())
-                            .build()?;
-
-                        builder = builder
-                            .with_typed_tool(target.send_task_tool())
-                            .with_typed_tool(target.stream_task_tool())
-                            .with_typed_tool(target.get_task_tool())
-                            .with_typed_tool(target.cancel_task_tool());
+                use crate::config::ConfigA2aAgentTenant;
+            }))),
+            "agent::tools" => Ok(ErasedContributionValue::new(RenderedTokenStream::from(quote! {
+                for (name, agent) in &config.a2a.agents {
+                    if !agent.enabled {
+                        continue;
                     }
-                },
-            ))),
+
+                    let mut client_config = A2aClientConfig::new(agent.url.clone())
+                        .timeout(std::time::Duration::from_secs(agent.timeout_secs));
+
+                    if let Some(token) = &agent.auth_token {
+                        client_config = client_config.try_header(
+                            "Authorization",
+                            format!("Bearer {token}"),
+                        )?;
+                    }
+
+                    for (key, value) in &agent.headers {
+                        client_config = client_config.try_header(key, value)?;
+                    }
+
+                    let target = A2aToolTarget::builder()
+                        .id(name)
+                        .name(agent.description.as_deref().unwrap_or(name))
+                        .client(A2aClient::new(client_config)?)
+                        .tenant_policy(match &agent.tenant {
+                            ConfigA2aAgentTenant::Inherit => A2aTenantPolicy::Inherit,
+                            ConfigA2aAgentTenant::None => A2aTenantPolicy::None,
+                            ConfigA2aAgentTenant::Fixed { id } => A2aTenantPolicy::Fixed(id.clone()),
+                        })
+                        .capabilities(agent.capabilities.clone())
+                        .default_accepted_output_modes(agent.default_accepted_output_modes.clone())
+                        .build()?;
+
+                    builder = builder
+                        .with_typed_tool(target.send_task_tool())
+                        .with_typed_tool(target.stream_task_tool())
+                        .with_typed_tool(target.get_task_tool())
+                        .with_typed_tool(target.cancel_task_tool());
+                }
+            }))),
             "cargo::dependencies" => Ok(ErasedContributionValue::new(
                 CargoDependencies::from_entries([CargoDependencyContribution::runtime(
                     RuntimeDependencyContribution::new("agentc-protocol-a2a")

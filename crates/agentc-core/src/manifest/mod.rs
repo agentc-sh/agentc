@@ -860,18 +860,57 @@ impl Manifest {
             user_agent: self.network.user_agent.clone(),
             headers: self.network.headers.clone(),
             limits: ResolvedContextNetworkLimits {
-                connect_timeout_ms: self.network.limits.connect_timeout_ms.clone(),
-                read_timeout_ms: self.network.limits.read_timeout_ms.clone(),
-                request_timeout_ms: self.network.limits.request_timeout_ms.clone(),
-                max_redirects: self.network.limits.max_redirects.clone(),
-                max_response_bytes: self.network.limits.max_response_bytes.clone(),
-                concurrency_limit: self.network.limits.concurrency_limit.clone(),
+                connect_timeout_ms: self
+                    .network
+                    .limits
+                    .connect_timeout_ms
+                    .clone(),
+                read_timeout_ms: self
+                    .network
+                    .limits
+                    .read_timeout_ms
+                    .clone(),
+                request_timeout_ms: self
+                    .network
+                    .limits
+                    .request_timeout_ms
+                    .clone(),
+                max_redirects: self
+                    .network
+                    .limits
+                    .max_redirects
+                    .clone(),
+                max_response_bytes: self
+                    .network
+                    .limits
+                    .max_response_bytes
+                    .clone(),
+                concurrency_limit: self
+                    .network
+                    .limits
+                    .concurrency_limit
+                    .clone(),
             },
             policy: ResolvedContextNetworkPolicy {
                 addresses: ResolvedContextNetworkPolicyAddresses {
-                    allow_loopback: self.network.policy.addresses.allow_loopback.clone(),
-                    allow_private: self.network.policy.addresses.allow_private.clone(),
-                    allow_link_local: self.network.policy.addresses.allow_link_local.clone(),
+                    allow_loopback: self
+                        .network
+                        .policy
+                        .addresses
+                        .allow_loopback
+                        .clone(),
+                    allow_private: self
+                        .network
+                        .policy
+                        .addresses
+                        .allow_private
+                        .clone(),
+                    allow_link_local: self
+                        .network
+                        .policy
+                        .addresses
+                        .allow_link_local
+                        .clone(),
                 },
                 methods: self.network.policy.methods.clone(),
                 allow: match &self.network.policy.allow {
@@ -1323,10 +1362,7 @@ network {
             .await
             .expect("manifest should resolve");
 
-        assert_eq!(
-            resolved.network.limits.max_redirects,
-            RuntimeValue::Constant(3)
-        );
+        assert_eq!(resolved.network.limits.max_redirects, RuntimeValue::Constant(3));
         assert!(matches!(
             &resolved.network.policy.addresses.allow_private,
             RuntimeValue::Runtime { env, default, .. }

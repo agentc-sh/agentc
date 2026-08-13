@@ -46,25 +46,23 @@ impl CodeGen<ResolvedContext> for A2aCodeGen {
             "server::routers" => {
                 let config_path = &self.config.path;
 
-                Ok(ErasedContributionValue::new(RenderedTokenStream::from(
-                    quote! {
-                        builder = builder.with_router(
-                            utoipa_axum::router::OpenApiRouter::new()
-                                .nest(
-                                    #config_path,
-                                    agentc_protocol_a2a::router::router(
-                                        service.clone(),
-                                        agentc_protocol_a2a::protocol::AgentInterface::new(
-                                            #config_path,
-                                            "HTTP+JSON",
-                                        ),
-                                        default_tenant_id.clone(),
-                                        task_queue.clone(),
+                Ok(ErasedContributionValue::new(RenderedTokenStream::from(quote! {
+                    builder = builder.with_router(
+                        utoipa_axum::router::OpenApiRouter::new()
+                            .nest(
+                                #config_path,
+                                agentc_protocol_a2a::router::router(
+                                    service.clone(),
+                                    agentc_protocol_a2a::protocol::AgentInterface::new(
+                                        #config_path,
+                                        "HTTP+JSON",
                                     ),
-                                )
-                        );
-                    },
-                )))
+                                    default_tenant_id.clone(),
+                                    task_queue.clone(),
+                                ),
+                            )
+                    );
+                })))
             }
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
@@ -129,7 +127,9 @@ impl Protocol for A2aProtocol {
                         .add(
                             CodeGenBlock::builder()
                                 .id("protocol_a2a")
-                                .contribute(Contribution::<RenderedTokenStream>::strict("server::routers"))
+                                .contribute(Contribution::<RenderedTokenStream>::strict(
+                                    "server::routers",
+                                ))
                                 .build(A2aCodeGen { config }),
                         )
                         .add(

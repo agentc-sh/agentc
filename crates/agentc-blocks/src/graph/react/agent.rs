@@ -280,13 +280,13 @@ impl CodeGen<ResolvedContext> for AgentCodeGen {
         point: &str,
     ) -> Result<ErasedContributionValue, GeneratorError> {
         match point {
-            "config::fields" => Ok(ErasedContributionValue::new(RenderedTokenStream::from(
-                quote! {
+            "config::fields" => {
+                Ok(ErasedContributionValue::new(RenderedTokenStream::from(quote! {
                     pub react: ConfigReAct,
-                },
-            ))),
-            "config::impls" => Ok(ErasedContributionValue::new(RenderedTokenStream::from(
-                quote! {
+                })))
+            }
+            "config::impls" => {
+                Ok(ErasedContributionValue::new(RenderedTokenStream::from(quote! {
                     #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default)]
                     #[serde(default)]
                     pub struct ConfigReAct {
@@ -306,17 +306,17 @@ impl CodeGen<ResolvedContext> for AgentCodeGen {
                         pub initial_backoff: u64,
                         pub max_backoff: u64,
                     }
-                },
-            ))),
+                })))
+            }
             "config::loader" => Ok(ErasedContributionValue::new(RenderedTokenStream::from(
                 self.config_loader_calls(),
             ))),
             "config::mapper" => Ok(ErasedContributionValue::new(RenderedTokenStream::from(
                 self.config_mapper_fields(),
             ))),
-            "tools::features" => Ok(ErasedContributionValue::new(
-                ToolsCodeGen::features(ctx).to_string(),
-            )),
+            "tools::features" => {
+                Ok(ErasedContributionValue::new(ToolsCodeGen::features(ctx).to_string()))
+            }
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
     }

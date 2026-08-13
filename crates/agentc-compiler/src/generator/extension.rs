@@ -193,15 +193,13 @@ impl ExtensionPoint for TokenStreamExtensionPoint {
         // Empty contributions are dropped so a block with nothing to say for this point
         // cannot introduce a blank element. Under `reducers::last` this makes the rule
         // "last non-empty".
-        Ok(
-            (self.reducer)(
-                contributions
-                    .iter()
-                    .filter(|rendered| !rendered.is_empty())
-                    .map(|rendered| rendered.as_str().to_string())
-                    .collect(),
-            )
-        )
+        Ok((self.reducer)(
+            contributions
+                .iter()
+                .filter(|rendered| !rendered.is_empty())
+                .map(|rendered| rendered.as_str().to_string())
+                .collect(),
+        ))
     }
 }
 

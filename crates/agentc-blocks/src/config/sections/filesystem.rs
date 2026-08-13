@@ -63,12 +63,9 @@ impl FilesystemSection {
     }
 
     fn section(&self) -> Result<ConfigSections, GeneratorError> {
-        ConfigSections::from_entries([
-            ConfigSectionContribution::new(Self::NAME)
-                .fields(quote! {
-                    pub filesystem: filesystem::ConfigFilesystem,
-                }),
-        ])
+        ConfigSections::from_entries([ConfigSectionContribution::new(Self::NAME).fields(quote! {
+            pub filesystem: filesystem::ConfigFilesystem,
+        })])
         .map_err(|error| GeneratorError::unexpected(error.to_string()))
     }
 }
@@ -151,11 +148,9 @@ impl CodeGen<ResolvedContext> for FilesystemSection {
             | "config::sections::fields"
             | "config::sections::loader"
             | "config::sections::mapper" => Ok(ErasedContributionValue::new(self.section()?)),
-            "config::mods" => Ok(ErasedContributionValue::new(RenderedTokenStream::from(
-                quote! {
-                    pub mod filesystem;
-                },
-            ))),
+            "config::mods" => Ok(ErasedContributionValue::new(RenderedTokenStream::from(quote! {
+                pub mod filesystem;
+            }))),
             "filesystem::topology" => Ok(ErasedContributionValue::new(RenderedTokenStream::from(
                 self.topology_tokens(&ctx.filesystem),
             ))),
@@ -212,10 +207,7 @@ mod tests {
     #[test]
     fn contributes_the_fs_dependency_with_the_embedded_feature() {
         let dependencies = FilesystemSection
-            .generate_contribution(
-                &context(json!({ "mounts": [] })),
-                "cargo::dependencies",
-            )
+            .generate_contribution(&context(json!({ "mounts": [] })), "cargo::dependencies")
             .unwrap()
             .downcast::<CargoDependencies>()
             .unwrap();
@@ -252,10 +244,7 @@ mod tests {
     #[test]
     fn the_section_declares_a_module_qualified_config_field() {
         let sections = FilesystemSection
-            .generate_contribution(
-                &context(json!({ "mounts": [] })),
-                "config::sections::fields",
-            )
+            .generate_contribution(&context(json!({ "mounts": [] })), "config::sections::fields")
             .unwrap()
             .downcast::<ConfigSections>()
             .unwrap();

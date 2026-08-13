@@ -60,9 +60,9 @@ impl ManifestFilesystemBackend {
                 root: root.clone(),
                 follow_symlinks: *follow_symlinks,
             },
-            Self::ReadOnly { inner } => ResolvedContextFilesystemBackend::ReadOnly {
-                inner: Box::new(inner.resolve()),
-            },
+            Self::ReadOnly { inner } => {
+                ResolvedContextFilesystemBackend::ReadOnly { inner: Box::new(inner.resolve()) }
+            }
             Self::Overlay { upper, lower } => ResolvedContextFilesystemBackend::Overlay {
                 upper: Box::new(upper.resolve()),
                 lower: Box::new(lower.resolve()),

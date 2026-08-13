@@ -335,7 +335,8 @@ mod tests {
     use super::*;
     use crate::context::{
         ResolvedContextAgent, ResolvedContextAgentModel, ResolvedContextFilesystem,
-        ResolvedContextNetwork, ResolvedContextRuntime, ResolvedContextTool, ResolvedContextToolA2a,
+        ResolvedContextNetwork, ResolvedContextRuntime, ResolvedContextTool,
+        ResolvedContextToolA2a,
     };
 
     struct A2aSectionFixture;

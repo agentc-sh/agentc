@@ -29,7 +29,12 @@ impl ExtensionPoint for ConfigSectionsExtensionPoint {
         Ok(ConfigSections::merge_all(contributions)
             .map_err(|error| GeneratorError::unexpected(error.to_string()))?
             .into_values()
-            .map(|section| section.slot(self.slot).as_str().to_string())
+            .map(|section| {
+                section
+                    .slot(self.slot)
+                    .as_str()
+                    .to_string()
+            })
             .filter(|slot| !slot.is_empty())
             .collect::<Vec<_>>()
             .join("\n"))

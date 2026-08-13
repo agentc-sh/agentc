@@ -46,21 +46,19 @@ impl CodeGen<ResolvedContext> for AgUiCodeGen {
             "server::routers" => {
                 let config_path = &self.config.path;
 
-                Ok(ErasedContributionValue::new(RenderedTokenStream::from(
-                    quote! {
-                        builder = builder.with_router(
-                            utoipa_axum::router::OpenApiRouter::new()
-                                .nest(
-                                    #config_path,
-                                    agentc_protocol_ag_ui::router::router(
-                                        service.clone(),
-                                        default_tenant_id.clone(),
-                                        task_queue.clone(),
-                                    ),
-                                )
-                        );
-                    },
-                )))
+                Ok(ErasedContributionValue::new(RenderedTokenStream::from(quote! {
+                    builder = builder.with_router(
+                        utoipa_axum::router::OpenApiRouter::new()
+                            .nest(
+                                #config_path,
+                                agentc_protocol_ag_ui::router::router(
+                                    service.clone(),
+                                    default_tenant_id.clone(),
+                                    task_queue.clone(),
+                                ),
+                            )
+                    );
+                })))
             }
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
@@ -123,7 +121,9 @@ impl Protocol for AgUiProtocol {
                         .add(
                             CodeGenBlock::builder()
                                 .id("protocol_ag_ui")
-                                .contribute(Contribution::<RenderedTokenStream>::strict("server::routers"))
+                                .contribute(Contribution::<RenderedTokenStream>::strict(
+                                    "server::routers",
+                                ))
                                 .build(AgUiCodeGen { config }),
                         )
                         .add(

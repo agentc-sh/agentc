@@ -24,22 +24,22 @@ impl CodeGen<ResolvedContext> for CliMigrateCodeGen {
         point: &str,
     ) -> Result<ErasedContributionValue, GeneratorError> {
         match point {
-            "cli::mod::use" => Ok(ErasedContributionValue::new(RenderedTokenStream::from(
-                quote! {
+            "cli::mod::use" => {
+                Ok(ErasedContributionValue::new(RenderedTokenStream::from(quote! {
                     mod migrate;
-                },
-            ))),
-            "cli::mod::variants" => Ok(ErasedContributionValue::new(RenderedTokenStream::from(
-                quote! {
+                })))
+            }
+            "cli::mod::variants" => {
+                Ok(ErasedContributionValue::new(RenderedTokenStream::from(quote! {
                     /// Apply pending database migrations and exit.
                     Migrate,
-                },
-            ))),
-            "cli::mod::arms" => Ok(ErasedContributionValue::new(RenderedTokenStream::from(
-                quote! {
+                })))
+            }
+            "cli::mod::arms" => {
+                Ok(ErasedContributionValue::new(RenderedTokenStream::from(quote! {
                     Command::Migrate => migrate::migrate().await,
-                },
-            ))),
+                })))
+            }
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
     }

@@ -174,15 +174,23 @@ impl AgentGraph for ReActGraph {
                             .id("server_rs")
                             .token_stream_extension_point("server::use", reducers::concat)
                             .token_stream_extension_point("server::routers", reducers::concat)
-                            .contribute(Contribution::<RenderedTokenStream>::strict("main::modules"))
+                            .contribute(Contribution::<RenderedTokenStream>::strict(
+                                "main::modules",
+                            ))
                             .build(ServerCodeGen { fields: fields.clone() }),
                     )
                     .add(
                         CodeGenBlock::builder()
                             .id("cli_serve")
-                            .contribute(Contribution::<RenderedTokenStream>::strict("cli::mod::use"))
-                            .contribute(Contribution::<RenderedTokenStream>::strict("cli::mod::variants"))
-                            .contribute(Contribution::<RenderedTokenStream>::strict("cli::mod::arms"))
+                            .contribute(Contribution::<RenderedTokenStream>::strict(
+                                "cli::mod::use",
+                            ))
+                            .contribute(Contribution::<RenderedTokenStream>::strict(
+                                "cli::mod::variants",
+                            ))
+                            .contribute(Contribution::<RenderedTokenStream>::strict(
+                                "cli::mod::arms",
+                            ))
                             .build(CliServeCodeGen),
                     )
                     .add(

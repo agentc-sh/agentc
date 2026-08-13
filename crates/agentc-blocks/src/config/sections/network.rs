@@ -46,12 +46,13 @@ impl NetworkSection {
                 vec!["network".into(), "user_agent".into()],
                 FieldValue::from(&network.user_agent),
             ),
+            (vec!["network".into(), "headers".into()], FieldValue::from(&network.headers)),
             (
-                vec!["network".into(), "headers".into()],
-                FieldValue::from(&network.headers),
-            ),
-            (
-                vec!["network".into(), "limits".into(), "connect_timeout_ms".into()],
+                vec![
+                    "network".into(),
+                    "limits".into(),
+                    "connect_timeout_ms".into(),
+                ],
                 FieldValue::from(&network.limits.connect_timeout_ms),
             ),
             (
@@ -59,7 +60,11 @@ impl NetworkSection {
                 FieldValue::from(&network.limits.read_timeout_ms),
             ),
             (
-                vec!["network".into(), "limits".into(), "request_timeout_ms".into()],
+                vec![
+                    "network".into(),
+                    "limits".into(),
+                    "request_timeout_ms".into(),
+                ],
                 FieldValue::from(&network.limits.request_timeout_ms),
             ),
             (
@@ -67,11 +72,19 @@ impl NetworkSection {
                 FieldValue::from(&network.limits.max_redirects),
             ),
             (
-                vec!["network".into(), "limits".into(), "max_response_bytes".into()],
+                vec![
+                    "network".into(),
+                    "limits".into(),
+                    "max_response_bytes".into(),
+                ],
                 FieldValue::from(&network.limits.max_response_bytes),
             ),
             (
-                vec!["network".into(), "limits".into(), "concurrency_limit".into()],
+                vec![
+                    "network".into(),
+                    "limits".into(),
+                    "concurrency_limit".into(),
+                ],
                 FieldValue::from(&network.limits.concurrency_limit),
             ),
             (
@@ -99,7 +112,12 @@ impl NetworkSection {
                     "addresses".into(),
                     "allow_link_local".into(),
                 ],
-                FieldValue::from(&network.policy.addresses.allow_link_local),
+                FieldValue::from(
+                    &network
+                        .policy
+                        .addresses
+                        .allow_link_local,
+                ),
             ),
             (
                 vec!["network".into(), "policy".into(), "methods".into()],
@@ -455,12 +473,9 @@ mod tests {
             .get(&NetworkSection::NAME)
             .unwrap();
 
-        assert!(
-            section
-                .mapper
-                .as_str()
-                .contains(r#". field (path ! ["network" , "limits" , "max_redirects"] , "NETWORK_MAX_REDIRECTS")"#)
-        );
+        assert!(section.mapper.as_str().contains(
+            r#". field (path ! ["network" , "limits" , "max_redirects"] , "NETWORK_MAX_REDIRECTS")"#
+        ));
         assert!(
             section
                 .loader
