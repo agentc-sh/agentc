@@ -4,12 +4,15 @@
 
 use proc_macro2::TokenStream;
 use quote::quote;
+use std::path::PathBuf;
 
 use agentc_compiler::generator::{
-    blocks::fragment::{Fragment, FragmentBlock},
+    blocks::codegen::{CodeGen, CodeGenBlock},
     context::GenerationContext,
     errors::GeneratorError,
-    extension::{Contribution, ErasedContributionValue, reducers},
+    extension::{
+        Contribution, ErasedContributionValue, ExtensionRegistry, RenderedTokenStream, reducers,
+    },
 };
 
 use crate::{
@@ -29,13 +32,14 @@ pub struct FilesystemSection;
 impl FilesystemSection {
     pub const NAME: &'static str = "filesystem";
 
-    pub fn block(id: &'static str) -> FragmentBlock<ResolvedContext> {
-        FragmentBlock::<ResolvedContext>::builder()
+    pub fn block(id: &'static str) -> CodeGenBlock<ResolvedContext> {
+        CodeGenBlock::<ResolvedContext>::builder()
             .id(id)
             .contribute_config_sections()
-            .extension_point("filesystem::mounts", reducers::concat)
-            .extension_point("filesystem::topology", reducers::last)
-            .contribute(Contribution::<String>::strict("filesystem::topology"))
+            .token_stream_extension_point("filesystem::mounts", reducers::concat)
+            .token_stream_extension_point("filesystem::topology", reducers::last)
+            .contribute(Contribution::<RenderedTokenStream>::strict("filesystem::topology"))
+            .contribute(Contribution::<RenderedTokenStream>::strict("config::mods"))
             .contribute(Contribution::<CargoDependencies>::strict("cargo::dependencies"))
             .contribute(Contribution::<CargoPatches>::strict("cargo::patches"))
             .build(Self)
@@ -59,21 +63,68 @@ impl FilesystemSection {
     }
 
     fn section(&self) -> Result<ConfigSections, GeneratorError> {
-        ConfigSections::from_entries([ConfigSectionContribution::new(Self::NAME)
-            .uses(quote! {
-                use agentc_fs::{
-                    fs::{Fs, FsBuilder},
-                    host::HostFs,
-                    memory::MemoryFs,
-                    overlay::OverlayFs,
-                    readonly::ReadOnlyFs,
-                };
-            })
-            .types(quote! {
+        ConfigSections::from_entries([
+            ConfigSectionContribution::new(Self::NAME)
+                .fields(quote! {
+                    pub filesystem: filesystem::ConfigFilesystem,
+                }),
+        ])
+        .map_err(|error| GeneratorError::unexpected(error.to_string()))
+    }
+}
+
+impl CodeGen<ResolvedContext> for FilesystemSection {
+    fn generate_files(
+        &self,
+        _ctx: &GenerationContext<ResolvedContext>,
+        registry: &ExtensionRegistry,
+    ) -> Result<Vec<(PathBuf, TokenStream)>, GeneratorError> {
+        let mounts = registry
+            .get("filesystem::mounts")
+            .and_then(|s| s.parse::<TokenStream>().ok());
+
+        let topology = registry
+            .get("filesystem::topology")
+            .and_then(|s| s.parse::<TokenStream>().ok());
+
+        Ok(vec![(
+            "src/config/filesystem.rs".into(),
+            quote! {
+                use serde::{Deserialize, Serialize};
+
+                use agentc_fs::fs::{Fs, FsBuilder};
+
                 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
                 #[serde(default)]
                 pub struct ConfigFilesystem {
                     pub binds: Vec<ConfigFilesystemBind>,
+                }
+
+                impl ConfigFilesystem {
+                    pub fn builder(&self) -> Result<FsBuilder, agentc_fs::errors::Error> {
+                        let mut builder = Fs::builder();
+
+                        #mounts
+                        #topology
+
+                        for bind in &self.binds {
+                            let host = agentc_fs::host::HostFs::builder()
+                                .root(bind.root.clone())
+                                .follow_symlinks(bind.follow_symlinks)
+                                .build()?;
+
+                            builder = if bind.readonly {
+                                builder.mount(
+                                    bind.path.clone(),
+                                    agentc_fs::readonly::ReadOnlyFs::new(host),
+                                )
+                            } else {
+                                builder.mount(bind.path.clone(), host)
+                            };
+                        }
+
+                        Ok(builder)
+                    }
                 }
 
                 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -85,15 +136,10 @@ impl FilesystemSection {
                     #[serde(default)]
                     pub follow_symlinks: bool,
                 }
-            })
-            .fields(quote! {
-                pub filesystem: ConfigFilesystem,
-            })])
-        .map_err(|error| GeneratorError::unexpected(error.to_string()))
+            },
+        )])
     }
-}
 
-impl Fragment<ResolvedContext> for FilesystemSection {
     fn generate_contribution(
         &self,
         ctx: &GenerationContext<ResolvedContext>,
@@ -105,10 +151,14 @@ impl Fragment<ResolvedContext> for FilesystemSection {
             | "config::sections::fields"
             | "config::sections::loader"
             | "config::sections::mapper" => Ok(ErasedContributionValue::new(self.section()?)),
-            "filesystem::topology" => Ok(ErasedContributionValue::new(
-                self.topology_tokens(&ctx.filesystem)
-                    .to_string(),
-            )),
+            "config::mods" => Ok(ErasedContributionValue::new(RenderedTokenStream::from(
+                quote! {
+                    pub mod filesystem;
+                },
+            ))),
+            "filesystem::topology" => Ok(ErasedContributionValue::new(RenderedTokenStream::from(
+                self.topology_tokens(&ctx.filesystem),
+            ))),
             "cargo::dependencies" => Ok(ErasedContributionValue::new(
                 CargoDependencies::from_entries([CargoDependencyContribution::runtime(
                     RuntimeDependencyContribution::new("agentc-fs")
@@ -183,43 +233,54 @@ mod tests {
     }
 
     #[test]
-    fn the_section_defines_filesystem_config_with_only_binds_and_no_builder_impl() {
+    fn the_section_emits_its_own_file_with_the_config_struct_and_builder() {
+        let source = FilesystemSection
+            .generate_files(&context(json!({ "mounts": [] })), &ExtensionRegistry::empty())
+            .unwrap()
+            .into_iter()
+            .find(|(path, _)| path == &PathBuf::from("src/config/filesystem.rs"))
+            .expect("the filesystem section generates its own config file")
+            .1
+            .to_string();
+
+        assert!(source.contains("pub struct ConfigFilesystem"));
+        assert!(source.contains("pub binds : Vec < ConfigFilesystemBind >"));
+        assert!(source.contains("impl ConfigFilesystem"));
+        assert!(source.contains("pub fn builder (& self)"));
+    }
+
+    #[test]
+    fn the_section_declares_a_module_qualified_config_field() {
         let sections = FilesystemSection
             .generate_contribution(
                 &context(json!({ "mounts": [] })),
-                "config::sections::types",
+                "config::sections::fields",
             )
             .unwrap()
             .downcast::<ConfigSections>()
             .unwrap();
-        let section = sections
-            .get(&FilesystemSection::NAME)
-            .expect("filesystem section is contributed");
 
         assert!(
-            section
-                .types
-                .as_str()
-                .contains("pub struct ConfigFilesystem")
-        );
-        assert!(
-            section
-                .types
-                .as_str()
-                .contains("pub binds : Vec < ConfigFilesystemBind >")
-        );
-        assert!(
-            !section
-                .types
-                .as_str()
-                .contains("fn builder")
-        );
-        assert!(
-            section
+            sections
+                .get(&FilesystemSection::NAME)
+                .expect("filesystem section is contributed")
                 .fields
                 .as_str()
-                .contains("pub filesystem : ConfigFilesystem")
+                .contains("pub filesystem : filesystem :: ConfigFilesystem")
         );
+    }
+
+    #[test]
+    fn contributes_its_module_declaration() {
+        let module = FilesystemSection
+            .generate_contribution(&context(json!({ "mounts": [] })), "config::mods")
+            .unwrap()
+            .downcast::<RenderedTokenStream>()
+            .unwrap()
+            .as_str()
+            .to_string();
+
+        assert!(module.contains("pub mod filesystem ;"));
     }
 
     #[test]
@@ -247,14 +308,16 @@ mod tests {
                 "filesystem::topology",
             )
             .unwrap()
-            .downcast::<String>()
-            .unwrap();
+            .downcast::<RenderedTokenStream>()
+            .unwrap()
+            .as_str()
+            .to_string();
 
-        assert!(topology.contains(r#"builder = builder . mount ("/" , MemoryFs :: new ())"#));
-        assert!(
-            topology.contains(
-                r#"ReadOnlyFs :: new (HostFs :: builder () . root ("/var/lib/agent/data")"#
-            )
-        );
+        assert!(topology.contains(
+            r#"builder = builder . mount ("/" , agentc_fs :: memory :: MemoryFs :: new ())"#
+        ));
+        assert!(topology.contains(
+            r#"agentc_fs :: readonly :: ReadOnlyFs :: new (agentc_fs :: host :: HostFs :: builder () . root ("/var/lib/agent/data")"#
+        ));
     }
 }

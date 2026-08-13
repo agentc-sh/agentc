@@ -40,10 +40,10 @@ impl ResolvedContextFilesystemBackend {
     pub fn tokens(&self) -> TokenStream {
         match self {
             Self::Memory => quote! {
-                MemoryFs::new()
+                agentc_fs::memory::MemoryFs::new()
             },
             Self::Host { root, follow_symlinks } => quote! {
-                HostFs::builder()
+                agentc_fs::host::HostFs::builder()
                     .root(#root)
                     .follow_symlinks(#follow_symlinks)
                     .build()?
@@ -51,13 +51,13 @@ impl ResolvedContextFilesystemBackend {
             Self::ReadOnly { inner } => {
                 let inner = inner.tokens();
 
-                quote! { ReadOnlyFs::new(#inner) }
+                quote! { agentc_fs::readonly::ReadOnlyFs::new(#inner) }
             }
             Self::Overlay { upper, lower } => {
                 let upper = upper.tokens();
                 let lower = lower.tokens();
 
-                quote! { OverlayFs::new(#upper, #lower) }
+                quote! { agentc_fs::overlay::OverlayFs::new(#upper, #lower) }
             }
         }
     }

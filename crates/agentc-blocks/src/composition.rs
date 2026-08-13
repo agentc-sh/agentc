@@ -494,8 +494,8 @@ mod tests {
             .get("Cargo.toml")
             .expect("Cargo.toml is generated");
         let config_rs = vfs
-            .get("src/config.rs")
-            .expect("src/config.rs is generated");
+            .get("src/config/mod.rs")
+            .expect("src/config/mod.rs is generated");
 
         assert!(!cargo_toml.contains("jobq"));
         assert!(!cargo_toml.contains("subway"));
@@ -541,8 +541,8 @@ mod tests {
             .get("Cargo.toml")
             .expect("Cargo.toml is generated");
         let config_rs = vfs
-            .get("src/config.rs")
-            .expect("src/config.rs is generated");
+            .get("src/config/mod.rs")
+            .expect("src/config/mod.rs is generated");
 
         assert_eq!(
             config_rs

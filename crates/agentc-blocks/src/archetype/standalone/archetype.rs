@@ -204,6 +204,7 @@ impl Archetype for StandaloneArchetype {
             .add(
                 CodeGenBlock::builder()
                     .id("config_rs")
+                    .token_stream_extension_point("config::mods", reducers::concat)
                     .token_stream_extension_point("config::use", reducers::concat)
                     .token_stream_extension_point("config::fields", reducers::concat)
                     .token_stream_extension_point("config::impls", reducers::concat)
