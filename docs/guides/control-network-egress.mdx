@@ -1,0 +1,141 @@
+---
+title: Control network egress
+description: Decide which hosts, methods, and addresses your agent's components may reach.
+---
+
+The runtime HTTP client is always present, but what it can reach is first shaped by the manifest
+and then adjusted further at startup through runtime configuration. This guide shows how to start
+from the default policy and narrow it to the exact network surface a component needs.
+
+## Start from the default
+
+With no `network` block, outbound requests are unrestricted by URL pattern. Loopback, private, and
+link-local addresses are still refused by default.
+
+The manifest is the first place network policy is defined. Runtime configuration can also control
+the policy at startup, including when the manifest omits the `network` block entirely, so one
+compiled binary can still be tightened or relaxed per deployment.
+
+## Allow one API host
+
+Add a `network` block with a single `allow` pattern when the component should reach one API host
+and nothing else.
+
+```hcl title="agent.acl"
+network {
+  policy {
+    allow = [
+      {
+        protocol = "https"
+        hostname = "api.example.com"
+      }
+    ]
+  }
+}
+```
+
+Requests to any other host are now refused.
+
+## Narrow the methods
+
+Add `methods` to limit which HTTP methods the client may use. When `methods` is unset, methods are
+unrestricted.
+
+```hcl title="agent.acl"
+network {
+  policy {
+    methods = ["GET", "POST"]
+
+    allow = [
+      {
+        protocol = "https"
+        hostname = "api.example.com"
+      }
+    ]
+  }
+}
+```
+
+## Set a timeout
+
+Add `request_timeout_ms` when the whole request should have a deadline. Use `runtime()` when the
+operator should be able to adjust the value at startup.
+
+```hcl title="agent.acl"
+network {
+  limits {
+    request_timeout_ms = runtime("NETWORK_REQUEST_TIMEOUT_MS", 5000)
+  }
+
+  policy {
+    allow = [
+      {
+        protocol = "https"
+        hostname = "api.example.com"
+      }
+    ]
+  }
+}
+```
+
+## Permit an address class for local development
+
+Loopback is off by default because allowing it lets component code talk to services bound on the
+same machine, which is usually broader access than a production agent should have. Make it runtime
+configurable when local development needs it.
+
+```hcl title="agent.acl"
+network {
+  policy {
+    addresses {
+      allow_loopback = runtime("NETWORK_ALLOW_LOOPBACK", false)
+    }
+
+    allow = [
+      {
+        protocol = "http"
+        hostname = "127.0.0.1"
+        port     = "3000"
+      }
+    ]
+  }
+}
+```
+
+The default stays off, but an operator can enable it where it is explicitly wanted.
+
+## Make a request from a component
+
+Use `agentc:http` from JavaScript component code:
+
+<Tabs defaultValue="javascript">
+  <TabsList>
+    <TabsTrigger value="javascript">JavaScript</TabsTrigger>
+  </TabsList>
+  <TabsContent value="javascript">
+```ts title="src/index.ts"
+import { fetch } from "agentc:http";
+
+try {
+  const response = await fetch("https://api.example.com/status");
+
+  if (!response.ok) {
+    throw new Error(`upstream returned ${response.status}`);
+  }
+
+  const body = await response.text();
+  console.log(body);
+} catch (error) {
+  console.error(String(error));
+}
+```
+  </TabsContent>
+</Tabs>
+
+If the request violates the egress policy, `fetch` rejects and the error message explains the
+refusal.
+
+## Where to go next
+
+- [network reference](/reference/manifest/network)
+- [agentc:http](/reference/runtime/http)

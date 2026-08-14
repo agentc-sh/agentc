@@ -40,6 +40,10 @@ instead allow clients to extend or replace that set per session, which is useful
 callers should have different reach. The practical recipe for setting all of this up is in
 [Control tool access with capabilities](/guides/control-tool-access-with-capabilities).
 
+Capabilities decide which tools the model may call. Every component that runs sees
+the same runtime libraries and the same environment regardless of its capabilities. See
+[Runtime libraries](/concepts/runtime-libraries).
+
 ## State and activity
 
 Tools are aware of the agent's state. When invoked, a tool can receive a snapshot of the current
