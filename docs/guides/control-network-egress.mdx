@@ -106,14 +106,14 @@ The default stays off, but an operator can enable it where it is explicitly want
 
 ## Make a request from a component
 
-Use `agentc:http` from JavaScript component code:
+Send a request from a component using the corresponding runtime library.
 
-<Tabs defaultValue="javascript">
+<Tabs defaultValue="typescript">
   <TabsList>
-    <TabsTrigger value="javascript">JavaScript</TabsTrigger>
+    <TabsTrigger value="typescript">TypeScript</TabsTrigger>
   </TabsList>
-  <TabsContent value="javascript">
-```ts title="src/index.ts"
+  <TabsContent value="typescript">
+```typescript
 import { fetch } from "agentc:http";
 
 try {

@@ -10,12 +10,12 @@ describing what it does and a page per language describing its surface.
 
 | Library | Purpose | Languages |
 | ------- | ------- | --------- |
-| [agentc:fs](/reference/runtime/fs) | A POSIX-style virtual filesystem assembled by the runtime. | JavaScript |
-| [agentc:http](/reference/runtime/http) | An HTTP client whose outbound requests pass the runtime's egress policy. | JavaScript |
+| [agentc:fs](/reference/runtime/fs) | A POSIX-style virtual filesystem assembled by the runtime. | TypeScript |
+| [agentc:http](/reference/runtime/http) | An HTTP client whose outbound requests pass the runtime's egress policy. | TypeScript |
 
 ## How the libraries are bound
 
-Any compiled output containing a JavaScript component contains both libraries. The
+Any compiled output containing a TypeScript component contains both libraries. The
 manifest controls what each library does, which is the filesystem's contents and the network's
 policy, not whether the library is present.
 

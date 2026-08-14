@@ -1,15 +1,15 @@
 ---
-title: agentc:fs
+title: Filesystem
 description: The virtual filesystem the runtime provides to component code.
 ---
 
-`agentc:fs` is a POSIX-style filesystem assembled by the runtime. It is not the host filesystem.
+The filesystem is a POSIX-style filesystem assembled by the runtime. It is not the host filesystem.
 What a component sees at a path is what the agent's manifest mounted there, which may be an
 in-memory store, a directory on the host, a read-only view of either, or an overlay of two.
 
 <LibAvailability>
-  <LibLanguage name="JavaScript" specifier="agentc:fs">
-    The runtime provides `agentc:fs` to every JavaScript component it executes.
+  <LibLanguage name="TypeScript" specifier="agentc:fs">
+    The runtime provides `agentc:fs` to every TypeScript component it executes.
   </LibLanguage>
 </LibAvailability>
 
@@ -57,4 +57,4 @@ Their absence is deliberate.
 
 ## Bindings
 
-See [JavaScript](/reference/runtime/fs/javascript) for every export of `agentc:fs`.
+See [TypeScript](/reference/runtime/fs/typescript) for every export of `agentc:fs`.

@@ -1,4 +1,4 @@
 {
-  "title": "agentc:http",
-  "pages": ["...index", "javascript"]
+  "title": "HTTP",
+  "pages": ["...index", "typescript"]
 }

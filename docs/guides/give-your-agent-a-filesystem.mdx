@@ -133,14 +133,14 @@ With those two variables set, `/workspace` resolves to `/srv/agent-workspace` on
 
 ## Read and write from a component
 
-Use `agentc:fs` from JavaScript component code:
+Send a request from a component using the corresponding runtime library.
 
-<Tabs defaultValue="javascript">
+<Tabs defaultValue="typescript">
   <TabsList>
-    <TabsTrigger value="javascript">JavaScript</TabsTrigger>
+    <TabsTrigger value="typescript">TypeScript</TabsTrigger>
   </TabsList>
-  <TabsContent value="javascript">
-```ts title="src/index.ts"
+  <TabsContent value="typescript">
+```typescript
 import { readFile, writeFile } from "agentc:fs";
 
 const existing = await readFile("/workspace/notes.md", "utf8");
