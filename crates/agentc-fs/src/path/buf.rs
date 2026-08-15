@@ -35,6 +35,10 @@ impl Path {
         UnixPath::new(self.as_bytes()).is_relative()
     }
 
+    pub fn is_root(&self) -> bool {
+        self.as_bytes() == b"/"
+    }
+
     pub fn parent(&self) -> Option<&Path> {
         UnixPath::new(self.as_bytes())
             .parent()

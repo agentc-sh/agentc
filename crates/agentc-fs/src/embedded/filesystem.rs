@@ -37,14 +37,6 @@ impl EmbeddedFs {
         }
     }
 
-    fn rejects_open(options: &OpenOptions) -> bool {
-        options.is_write()
-            || options.is_append()
-            || options.is_truncate()
-            || options.is_create()
-            || options.is_create_new()
-    }
-
     fn metadata(file_type: FileType, len: u64) -> Metadata {
         Metadata::new(
             file_type,
@@ -54,10 +46,6 @@ impl EmbeddedFs {
                 _ => 0o444,
             }),
         )
-    }
-
-    fn is_root(path: &Path) -> bool {
-        path.as_bytes() == b"/"
     }
 
     fn relative_path(path: &Path) -> String {
@@ -78,35 +66,6 @@ impl EmbeddedFs {
                 .into_bytes(),
         ))
     }
-
-    fn child_path(parent: &Path, file_name: &Component) -> Result<PathBuf, Error> {
-        PathBuf::parse(parent.as_bytes())?.join(file_name.as_bytes())
-    }
-
-    fn directory_entry(parent: &Path, entry: &IncludeDirEntry<'static>) -> Result<DirEntry, Error> {
-        match entry {
-            IncludeDirEntry::Dir(directory) => {
-                let file_name = Self::file_name(directory.path())?;
-
-                Ok(DirEntry::new(
-                    Self::child_path(parent, &file_name)?,
-                    file_name,
-                    FileType::Directory,
-                    Self::metadata(FileType::Directory, directory.entries().len() as u64),
-                ))
-            }
-            IncludeDirEntry::File(file) => {
-                let file_name = Self::file_name(file.path())?;
-
-                Ok(DirEntry::new(
-                    Self::child_path(parent, &file_name)?,
-                    file_name,
-                    FileType::File,
-                    Self::metadata(FileType::File, file.contents().len() as u64),
-                ))
-            }
-        }
-    }
 }
 
 #[async_trait]
@@ -119,12 +78,17 @@ impl Backend for EmbeddedFs {
     }
 
     async fn open(&self, path: &Path, options: &OpenOptions) -> Result<Self::File, Error> {
-        if Self::rejects_open(options) {
+        if options.is_write()
+            || options.is_append()
+            || options.is_truncate()
+            || options.is_create()
+            || options.is_create_new()
+        {
             return Err(Error::permission_denied(path));
         }
 
         match &self.source {
-            EmbeddedSource::File { bytes } if Self::is_root(path) => {
+            EmbeddedSource::File { bytes } if path.is_root() => {
                 Ok(EmbeddedFile::new(PathBuf::from(path), *bytes))
             }
             EmbeddedSource::File { .. } => Err(Error::not_found(path)),
@@ -139,7 +103,7 @@ impl Backend for EmbeddedFs {
                 if directory
                     .get_dir(relative_path.as_str())
                     .is_some()
-                    || Self::is_root(path)
+                    || path.is_root()
                 {
                     return Err(Error::is_directory(path));
                 }
@@ -151,11 +115,11 @@ impl Backend for EmbeddedFs {
 
     async fn entries(&self, path: &Path) -> Result<Self::DirEntries, Error> {
         match &self.source {
-            EmbeddedSource::File { .. } if Self::is_root(path) => Err(Error::not_directory(path)),
+            EmbeddedSource::File { .. } if path.is_root() => Err(Error::not_directory(path)),
             EmbeddedSource::File { .. } => Err(Error::not_found(path)),
             EmbeddedSource::Directory { directory } => {
                 let directory = directory.as_inner();
-                let directory = if Self::is_root(path) {
+                let directory = if path.is_root() {
                     directory
                 } else {
                     let relative_path = Self::relative_path(path);
@@ -174,7 +138,28 @@ impl Backend for EmbeddedFs {
                 let mut entries = Vec::new();
 
                 for entry in directory.entries() {
-                    entries.push(Self::directory_entry(path, entry));
+                    entries.push(match entry {
+                        IncludeDirEntry::Dir(directory) => {
+                            let file_name = Self::file_name(directory.path())?;
+
+                            Ok(DirEntry::new(
+                                PathBuf::parse(path.as_bytes())?.join(file_name.as_bytes())?,
+                                file_name,
+                                FileType::Directory,
+                                Self::metadata(FileType::Directory, directory.entries().len() as u64),
+                            ))
+                        }
+                        IncludeDirEntry::File(file) => {
+                            let file_name = Self::file_name(file.path())?;
+
+                            Ok(DirEntry::new(
+                                PathBuf::parse(path.as_bytes())?.join(file_name.as_bytes())?,
+                                file_name,
+                                FileType::File,
+                                Self::metadata(FileType::File, file.contents().len() as u64),
+                            ))
+                        }
+                    });
                 }
 
                 Ok(stream::iter(entries))
@@ -184,13 +169,13 @@ impl Backend for EmbeddedFs {
 
     async fn metadata(&self, path: &Path, _options: &MetadataOptions) -> Result<Metadata, Error> {
         match &self.source {
-            EmbeddedSource::File { bytes } if Self::is_root(path) => {
+            EmbeddedSource::File { bytes } if path.is_root() => {
                 Ok(Self::metadata(FileType::File, bytes.len() as u64))
             }
             EmbeddedSource::File { .. } => Err(Error::not_found(path)),
             EmbeddedSource::Directory { directory } => {
                 let directory = directory.as_inner();
-                if Self::is_root(path) {
+                if path.is_root() {
                     return Ok(Self::metadata(
                         FileType::Directory,
                         directory.entries().len() as u64,
