@@ -1,0 +1,1669 @@
+---
+title: TypeScript
+description: Every export of agentc:fs for TypeScript components.
+---
+
+```js
+import { readFile, writeFile } from "agentc:fs"
+```
+
+`Dirent`, `Stats`, and `FileHandle` are also installed as globals. See
+[fs](/reference/runtime/fs) for the semantics that hold in every language.
+
+## Overview
+
+<LibSymbols label="Reading and writing files">
+  <LibSymbolRow name="readFile" also="readFileSync">Read the entire contents of a file.</LibSymbolRow>
+  <LibSymbolRow name="writeFile" also="writeFileSync">Write data to a file, replacing any existing contents.</LibSymbolRow>
+  <LibSymbolRow name="appendFile" also="appendFileSync">Append data to a file.</LibSymbolRow>
+  <LibSymbolRow name="copyFile" also="copyFileSync">Copy a file to another path.</LibSymbolRow>
+  <LibSymbolRow name="truncate" also="truncateSync">Resize a file to a given length.</LibSymbolRow>
+</LibSymbols>
+
+<LibSymbols label="Directories">
+  <LibSymbolRow name="mkdir" also="mkdirSync">Create a directory.</LibSymbolRow>
+  <LibSymbolRow name="mkdtemp" also="mkdtempSync">Create a uniquely named directory from a prefix.</LibSymbolRow>
+  <LibSymbolRow name="readdir" also="readdirSync">List directory entries.</LibSymbolRow>
+  <LibSymbolRow name="rmdir" also="rmdirSync">Remove a directory.</LibSymbolRow>
+</LibSymbols>
+
+<LibSymbols label="Removing and renaming">
+  <LibSymbolRow name="rm" also="rmSync">Remove a path.</LibSymbolRow>
+  <LibSymbolRow name="unlink" also="unlinkSync">Remove a file or symbolic link.</LibSymbolRow>
+  <LibSymbolRow name="rename" also="renameSync">Move a path to a new location.</LibSymbolRow>
+</LibSymbols>
+
+<LibSymbols label="Metadata and permissions">
+  <LibSymbolRow name="stat" also="statSync">Read metadata, following a final symbolic link.</LibSymbolRow>
+  <LibSymbolRow name="lstat" also="lstatSync">Read metadata without following a final symbolic link.</LibSymbolRow>
+  <LibSymbolRow name="access" also="accessSync">Check that a path is reachable with a given access mode.</LibSymbolRow>
+  <LibSymbolRow name="chmod" also="chmodSync">Replace permission bits on a path.</LibSymbolRow>
+  <LibSymbolRow name="chown" also="chownSync">Replace the owning user and group on a path.</LibSymbolRow>
+  <LibSymbolRow name="lchown" also="lchownSync">Replace the owning user and group on a symbolic link itself.</LibSymbolRow>
+</LibSymbols>
+
+<LibSymbols label="Symbolic links">
+  <LibSymbolRow name="symlink" also="symlinkSync">Create a symbolic link.</LibSymbolRow>
+  <LibSymbolRow name="readlink" also="readlinkSync">Read the absolute target of a symbolic link.</LibSymbolRow>
+</LibSymbols>
+
+<LibSymbols label="File descriptors">
+  <LibSymbolRow name="open" also="openSync">Open a file.</LibSymbolRow>
+  <LibSymbolRow name="closeSync">Close a descriptor.</LibSymbolRow>
+  <LibSymbolRow name="readSync">Read bytes from a descriptor into a buffer.</LibSymbolRow>
+  <LibSymbolRow name="writeSync">Write bytes from a buffer to a descriptor.</LibSymbolRow>
+  <LibSymbolRow name="fstatSync">Read metadata about an open descriptor.</LibSymbolRow>
+  <LibSymbolRow name="ftruncateSync">Resize the file behind a descriptor.</LibSymbolRow>
+  <LibSymbolRow name="fsyncSync">Flush the file behind a descriptor.</LibSymbolRow>
+  <LibSymbolRow name="fdatasyncSync">Flush file data behind a descriptor.</LibSymbolRow>
+</LibSymbols>
+
+<LibSymbols label="Classes">
+  <LibSymbolRow name="FileHandle">An open file returned by `open`.</LibSymbolRow>
+  <LibSymbolRow name="Stats">Metadata about a path.</LibSymbolRow>
+  <LibSymbolRow name="Dirent">A directory entry returned by `readdir`.</LibSymbolRow>
+</LibSymbols>
+
+<LibSymbols label="Types">
+  <LibSymbolRow name="FileEncoding">Supported string encodings.</LibSymbolRow>
+  <LibSymbolRow name="FileOptions">Common file options.</LibSymbolRow>
+  <LibSymbolRow name="MkdirOptions">Directory creation options.</LibSymbolRow>
+  <LibSymbolRow name="ReaddirOptions">Directory listing options.</LibSymbolRow>
+  <LibSymbolRow name="RmOptions">Removal options.</LibSymbolRow>
+  <LibSymbolRow name="RmdirOptions">Directory removal options.</LibSymbolRow>
+  <LibSymbolRow name="ReadOptions">Low-level read options.</LibSymbolRow>
+  <LibSymbolRow name="ReadResult">The result of a descriptor or handle read.</LibSymbolRow>
+  <LibSymbolRow name="WriteBufferResult">The result of a buffer write.</LibSymbolRow>
+  <LibSymbolRow name="WriteStringResult">The result of a string write.</LibSymbolRow>
+</LibSymbols>
+
+<LibSymbols label="Constants">
+  <LibSymbolRow name="constants">Access modes, file kinds, permission bits, open flags, and copy flags.</LibSymbolRow>
+</LibSymbols>
+
+## Reading and writing files
+
+### readFile
+
+<LibTags>
+  <LibTag name="async" />
+  <LibTag name="sync" />
+</LibTags>
+
+<LibSignature>
+```ts
+readFile(path: string, options: FileEncoding | (FileOptions & { encoding: FileEncoding })): Promise<string>
+readFile(path: string, options?: FileOptions): Promise<Uint8Array>
+readFileSync(path: string, options: FileEncoding | (FileOptions & { encoding: FileEncoding })): string
+readFileSync(path: string, options?: FileOptions): Uint8Array
+```
+</LibSignature>
+
+Reads the entire contents of a file.
+
+<LibParams>
+  <LibParam name="path" type="string" required>
+    The path to operate on.
+  </LibParam>
+  <LibParam
+    name="options"
+    type={<><Link href="#fileencoding">FileEncoding</Link>{" | "}<Link href="#fileoptions">FileOptions</Link></>}
+  >
+    An encoding name, or an options object.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="Promise<Uint8Array> | Promise<string> | Uint8Array | string">
+  The file contents, decoded when an encoding was given and raw bytes otherwise.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the path does not exist" />
+  <LibThrow when="the path is a directory" />
+  <LibThrow when="the mount refuses the read" />
+</LibThrows>
+
+### writeFile
+
+<LibTags>
+  <LibTag name="async" />
+  <LibTag name="sync" />
+</LibTags>
+
+<LibSignature>
+```ts
+writeFile(path: string, data: string | Uint8Array, options?: FileEncoding | FileOptions): Promise<void>
+writeFileSync(path: string, data: string | Uint8Array, options?: FileEncoding | FileOptions): void
+```
+</LibSignature>
+
+Writes data to a file, replacing any contents it already had.
+
+<LibParams>
+  <LibParam name="path" type="string" required>
+    The path to operate on.
+  </LibParam>
+  <LibParam name="data" type="string | Uint8Array" required>
+    The bytes to write, or a string to encode.
+  </LibParam>
+  <LibParam
+    name="options"
+    type={<><Link href="#fileencoding">FileEncoding</Link>{" | "}<Link href="#fileoptions">FileOptions</Link></>}
+  >
+    An encoding name, or an options object.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="Promise<void> | void">
+  Nothing.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the parent directory does not exist" />
+  <LibThrow when="the path is a directory" />
+  <LibThrow when="the mount is read only" />
+</LibThrows>
+
+### appendFile
+
+<LibTags>
+  <LibTag name="async" />
+  <LibTag name="sync" />
+</LibTags>
+
+<LibSignature>
+```ts
+appendFile(path: string, data: string | Uint8Array, options?: FileEncoding | FileOptions): Promise<void>
+appendFileSync(path: string, data: string | Uint8Array, options?: FileEncoding | FileOptions): void
+```
+</LibSignature>
+
+Appends data to the end of a file, creating the file when it is absent.
+
+<LibParams>
+  <LibParam name="path" type="string" required>
+    The path to operate on.
+  </LibParam>
+  <LibParam name="data" type="string | Uint8Array" required>
+    The bytes to write, or a string to encode.
+  </LibParam>
+  <LibParam
+    name="options"
+    type={<><Link href="#fileencoding">FileEncoding</Link>{" | "}<Link href="#fileoptions">FileOptions</Link></>}
+  >
+    An encoding name, or an options object.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="Promise<void> | void">
+  Nothing.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the parent directory does not exist" />
+  <LibThrow when="the path is a directory" />
+  <LibThrow when="the mount is read only" />
+</LibThrows>
+
+### copyFile
+
+<LibTags>
+  <LibTag name="async" />
+  <LibTag name="sync" />
+</LibTags>
+
+<LibSignature>
+```ts
+copyFile(path: string, destination: string, mode?: number): Promise<void>
+copyFileSync(path: string, destination: string, mode?: number): void
+```
+</LibSignature>
+
+Copies a file to another path.
+
+<LibParams>
+  <LibParam name="path" type="string" required>
+    The path to operate on.
+  </LibParam>
+  <LibParam name="destination" type="string" required>
+    The destination path.
+  </LibParam>
+  <LibParam name="mode" type="number">
+    Copy behaviour, built from the `COPYFILE_*` constants.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="Promise<void> | void">
+  Nothing.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the source does not exist" />
+  <LibThrow when="`COPYFILE_EXCL` was given and the destination exists" />
+  <LibThrow when="the destination mount is read only" />
+</LibThrows>
+
+### truncate
+
+<LibTags>
+  <LibTag name="async" />
+  <LibTag name="sync" />
+</LibTags>
+
+<LibSignature>
+```ts
+truncate(path: string, len?: number): Promise<void>
+truncateSync(path: string, len?: number): void
+```
+</LibSignature>
+
+Shortens or extends a file to a given length.
+
+<LibParams>
+  <LibParam name="path" type="string" required>
+    The path to operate on.
+  </LibParam>
+  <LibParam name="len" type="number">
+    The length to truncate to. Defaults to zero.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="Promise<void> | void">
+  Nothing.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the path does not exist" />
+  <LibThrow when="the path is a directory" />
+</LibThrows>
+
+## Directories
+
+### mkdir
+
+<LibTags>
+  <LibTag name="async" />
+  <LibTag name="sync" />
+</LibTags>
+
+<LibSignature>
+```ts
+mkdir(path: string, options?: MkdirOptions): Promise<string>
+mkdirSync(path: string, options?: MkdirOptions): string
+```
+</LibSignature>
+
+Creates a directory and returns the path it created.
+
+<LibParams>
+  <LibParam name="path" type="string" required>
+    The path to operate on.
+  </LibParam>
+  <LibParam name="options" type={<><Link href="#mkdiroptions">MkdirOptions</Link></>}>
+    The directory creation options.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="Promise<string> | string">
+  The path that was created.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the parent does not exist and `recursive` was not set" />
+  <LibThrow when="the path already exists" />
+</LibThrows>
+
+### mkdtemp
+
+<LibTags>
+  <LibTag name="async" />
+  <LibTag name="sync" />
+</LibTags>
+
+<LibSignature>
+```ts
+mkdtemp(prefix: string): Promise<string>
+mkdtempSync(prefix: string): string
+```
+</LibSignature>
+
+Creates a uniquely named directory from a prefix and returns the path it created.
+
+<LibParams>
+  <LibParam name="prefix" type="string" required>
+    The path prefix to create beneath.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="Promise<string> | string">
+  The path that was created.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the parent directory does not exist" />
+  <LibThrow when="the mount is read only" />
+</LibThrows>
+
+### readdir
+
+<LibTags>
+  <LibTag name="async" />
+  <LibTag name="sync" />
+</LibTags>
+
+<LibSignature>
+```ts
+readdir(path: string, options: ReaddirOptions & { withFileTypes: true }): Promise<Dirent[]>
+readdir(path: string, options?: ReaddirOptions): Promise<string[]>
+readdirSync(path: string, options: ReaddirOptions & { withFileTypes: true }): Dirent[]
+readdirSync(path: string, options?: ReaddirOptions): string[]
+```
+</LibSignature>
+
+Lists the entries directly inside a directory, sorted by name.
+
+<LibParams>
+  <LibParam name="path" type="string" required>
+    The path to operate on.
+  </LibParam>
+  <LibParam name="options" type={<><Link href="#readdiroptions">ReaddirOptions</Link></>}>
+    Directory listing options. `withFileTypes` changes the result to `Dirent[]`, and `recursive` walks the whole tree.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="Promise<string[] | Dirent[]> | string[] | Dirent[]">
+  A sorted list of names, or `Dirent` objects when `withFileTypes` was set.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the path does not exist" />
+  <LibThrow when="the path is not a directory" />
+</LibThrows>
+
+### rmdir
+
+<LibTags>
+  <LibTag name="async" />
+  <LibTag name="sync" />
+</LibTags>
+
+<LibSignature>
+```ts
+rmdir(path: string, options?: RmdirOptions): Promise<void>
+rmdirSync(path: string, options?: RmdirOptions): void
+```
+</LibSignature>
+
+Removes a directory.
+
+<LibParams>
+  <LibParam name="path" type="string" required>
+    The path to operate on.
+  </LibParam>
+  <LibParam name="options" type={<><Link href="#rmdiroptions">RmdirOptions</Link></>}>
+    Directory removal options.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="Promise<void> | void">
+  Nothing.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the path does not exist" />
+  <LibThrow when="the path is not a directory" />
+  <LibThrow when="the directory is not empty and `recursive` was not set" />
+</LibThrows>
+
+## Removing and renaming
+
+### rm
+
+<LibTags>
+  <LibTag name="async" />
+  <LibTag name="sync" />
+</LibTags>
+
+<LibSignature>
+```ts
+rm(path: string, options?: RmOptions): Promise<void>
+rmSync(path: string, options?: RmOptions): void
+```
+</LibSignature>
+
+Removes a file, a symbolic link, or with `recursive` a whole directory tree.
+
+<LibParams>
+  <LibParam name="path" type="string" required>
+    The path to operate on.
+  </LibParam>
+  <LibParam name="options" type={<><Link href="#rmoptions">RmOptions</Link></>}>
+    Removal options. A symbolic link is removed rather than followed.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="Promise<void> | void">
+  Nothing.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the path does not exist and `force` was not set" />
+  <LibThrow when="the mount refuses the removal" />
+</LibThrows>
+
+### unlink
+
+<LibTags>
+  <LibTag name="async" />
+  <LibTag name="sync" />
+</LibTags>
+
+<LibSignature>
+```ts
+unlink(path: string): Promise<void>
+unlinkSync(path: string): void
+```
+</LibSignature>
+
+Removes a file or a symbolic link.
+
+<LibParams>
+  <LibParam name="path" type="string" required>
+    The path to operate on.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="Promise<void> | void">
+  Nothing.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the path does not exist" />
+  <LibThrow when="the path is a directory" />
+</LibThrows>
+
+### rename
+
+<LibTags>
+  <LibTag name="async" />
+  <LibTag name="sync" />
+</LibTags>
+
+<LibSignature>
+```ts
+rename(oldPath: string, newPath: string): Promise<void>
+renameSync(oldPath: string, newPath: string): void
+```
+</LibSignature>
+
+Moves a path to a new location.
+
+<LibParams>
+  <LibParam name="oldPath" type="string" required>
+    The source path.
+  </LibParam>
+  <LibParam name="newPath" type="string" required>
+    The destination path.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="Promise<void> | void">
+  Nothing.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the source does not exist" />
+  <LibThrow when="the two paths live on different backends" />
+</LibThrows>
+
+## Metadata and permissions
+
+### stat
+
+<LibTags>
+  <LibTag name="async" />
+  <LibTag name="sync" />
+</LibTags>
+
+<LibSignature>
+```ts
+stat(path: string): Promise<Stats>
+statSync(path: string): Stats
+```
+</LibSignature>
+
+Reads metadata about a path, following a final symbolic link.
+
+<LibParams>
+  <LibParam name="path" type="string" required>
+    The path to operate on.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="Promise<Stats> | Stats">
+  The path metadata.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the path does not exist" />
+</LibThrows>
+
+### lstat
+
+<LibTags>
+  <LibTag name="async" />
+  <LibTag name="sync" />
+</LibTags>
+
+<LibSignature>
+```ts
+lstat(path: string): Promise<Stats>
+lstatSync(path: string): Stats
+```
+</LibSignature>
+
+Reads metadata about a path without following a final symbolic link.
+
+<LibParams>
+  <LibParam name="path" type="string" required>
+    The path to operate on.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="Promise<Stats> | Stats">
+  The path metadata.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the path does not exist" />
+</LibThrows>
+
+### access
+
+<LibTags>
+  <LibTag name="async" />
+  <LibTag name="sync" />
+</LibTags>
+
+<LibSignature>
+```ts
+access(path: string, mode?: number): Promise<void>
+accessSync(path: string, mode?: number): void
+```
+</LibSignature>
+
+Checks that a path is reachable with a given access mode.
+
+<LibParams>
+  <LibParam name="path" type="string" required>
+    The path to operate on.
+  </LibParam>
+  <LibParam name="mode" type="number">
+    The access mode to check, built from the `F_OK`, `R_OK`, `W_OK`, and `X_OK` constants. Defaults to an existence check.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="Promise<void> | void">
+  Nothing.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the path does not exist" />
+  <LibThrow when="the mode is refused" />
+</LibThrows>
+
+### chmod
+
+<LibTags>
+  <LibTag name="async" />
+  <LibTag name="sync" />
+</LibTags>
+
+<LibSignature>
+```ts
+chmod(path: string, mode: number): Promise<void>
+chmodSync(path: string, mode: number): void
+```
+</LibSignature>
+
+Replaces the permission bits on a path.
+
+<LibParams>
+  <LibParam name="path" type="string" required>
+    The path to operate on.
+  </LibParam>
+  <LibParam name="mode" type="number" required>
+    The permission bits to set.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="Promise<void> | void">
+  Nothing.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the path does not exist" />
+  <LibThrow when="the mount is read only" />
+</LibThrows>
+
+### chown
+
+<LibTags>
+  <LibTag name="async" />
+  <LibTag name="sync" />
+</LibTags>
+
+<LibSignature>
+```ts
+chown(path: string, uid: number, gid: number): Promise<void>
+chownSync(path: string, uid: number, gid: number): void
+```
+</LibSignature>
+
+Replaces the owning user and group on a path.
+
+<LibParams>
+  <LibParam name="path" type="string" required>
+    The path to operate on.
+  </LibParam>
+  <LibParam name="uid" type="number" required>
+    The owning user, and the owning group.
+  </LibParam>
+  <LibParam name="gid" type="number" required>
+    The owning user, and the owning group.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="Promise<void> | void">
+  Nothing.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the path does not exist" />
+  <LibThrow when="the mount refuses the change" />
+</LibThrows>
+
+### lchown
+
+<LibTags>
+  <LibTag name="async" />
+  <LibTag name="sync" />
+</LibTags>
+
+<LibSignature>
+```ts
+lchown(path: string, uid: number, gid: number): Promise<void>
+lchownSync(path: string, uid: number, gid: number): void
+```
+</LibSignature>
+
+Replaces the owning user and group on a symbolic link itself rather than on its target.
+
+<LibParams>
+  <LibParam name="path" type="string" required>
+    The path to operate on.
+  </LibParam>
+  <LibParam name="uid" type="number" required>
+    The owning user, and the owning group.
+  </LibParam>
+  <LibParam name="gid" type="number" required>
+    The owning user, and the owning group.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="Promise<void> | void">
+  Nothing.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the path does not exist" />
+  <LibThrow when="the mount refuses the change" />
+</LibThrows>
+
+## Symbolic links
+
+### symlink
+
+<LibTags>
+  <LibTag name="async" />
+  <LibTag name="sync" />
+</LibTags>
+
+<LibSignature>
+```ts
+symlink(target: string, path: string, type?: string): Promise<void>
+symlinkSync(target: string, path: string, type?: string): void
+```
+</LibSignature>
+
+Creates a symbolic link at a path, pointing at a target.
+
+<LibParams>
+  <LibParam name="target" type="string" required>
+    The target path. It is resolved against the working directory and stored absolute.
+  </LibParam>
+  <LibParam name="path" type="string" required>
+    The path to operate on.
+  </LibParam>
+  <LibParam name="type" type="string">
+    An optional link type hint.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="Promise<void> | void">
+  Nothing.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the link path already exists" />
+  <LibThrow when="the mount is read only" />
+</LibThrows>
+
+### readlink
+
+<LibTags>
+  <LibTag name="async" />
+  <LibTag name="sync" />
+</LibTags>
+
+<LibSignature>
+```ts
+readlink(path: string): Promise<string>
+readlinkSync(path: string): string
+```
+</LibSignature>
+
+Reads the absolute target of a symbolic link.
+
+<LibParams>
+  <LibParam name="path" type="string" required>
+    The path to operate on.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="Promise<string> | string">
+  The absolute target path.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the path does not exist" />
+  <LibThrow when="the path is not a symbolic link" />
+</LibThrows>
+
+## File descriptors
+
+### open
+
+<LibTags>
+  <LibTag name="async" />
+  <LibTag name="sync" />
+</LibTags>
+
+<LibSignature>
+```ts
+open(path: string, flags?: string | number, mode?: number): Promise<FileHandle>
+openSync(path: string, flags?: string | number, mode?: number): number
+```
+</LibSignature>
+
+Opens a file, resolving to a `FileHandle` in the asynchronous form and returning a descriptor number in the synchronous form.
+
+<LibParams>
+  <LibParam name="path" type="string" required>
+    The path to operate on.
+  </LibParam>
+  <LibParam name="flags" type="string | number">
+    The open flags.
+  </LibParam>
+  <LibParam name="mode" type="number">
+    The permission bits to set.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="Promise<FileHandle> | number">
+  A `FileHandle` in the asynchronous form, or a descriptor number in the synchronous form.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the path does not exist and `O_CREAT` was not given" />
+  <LibThrow when="`O_EXCL` was given and the path exists" />
+</LibThrows>
+
+### closeSync
+
+<LibTags>
+  <LibTag name="sync only" />
+</LibTags>
+
+<LibSignature>
+```ts
+closeSync(fd: number): void
+```
+</LibSignature>
+
+Closes a descriptor.
+
+<LibParams>
+  <LibParam name="fd" type="number" required>
+    A descriptor returned by `openSync`.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="void">
+  Nothing.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the descriptor is invalid" />
+</LibThrows>
+
+### readSync
+
+<LibTags>
+  <LibTag name="sync only" />
+</LibTags>
+
+<LibSignature>
+```ts
+readSync(fd: number, buffer: Uint8Array, offset?: number, length?: number, position?: number): number
+```
+</LibSignature>
+
+Reads bytes from a descriptor into a buffer and returns how many were read.
+
+<LibParams>
+  <LibParam name="fd" type="number" required>
+    A descriptor returned by `openSync`.
+  </LibParam>
+  <LibParam name="buffer" type="Uint8Array" required>
+    The buffer to fill.
+  </LibParam>
+  <LibParam name="offset" type="number">
+    Where in the buffer to start.
+  </LibParam>
+  <LibParam name="length" type="number">
+    How many bytes to transfer.
+  </LibParam>
+  <LibParam name="position" type="number">
+    Where in the file to start. Defaults to the current position.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="number">
+  The number of bytes read.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the descriptor is invalid" />
+</LibThrows>
+
+### writeSync
+
+<LibTags>
+  <LibTag name="sync only" />
+</LibTags>
+
+<LibSignature>
+```ts
+writeSync(fd: number, buffer: Uint8Array, offset?: number, length?: number, position?: number): number
+```
+</LibSignature>
+
+Writes bytes from a buffer to a descriptor and returns how many were written.
+
+<LibParams>
+  <LibParam name="fd" type="number" required>
+    A descriptor returned by `openSync`.
+  </LibParam>
+  <LibParam name="buffer" type="Uint8Array" required>
+    The bytes to write, or a string to encode.
+  </LibParam>
+  <LibParam name="offset" type="number">
+    Where in the buffer to start.
+  </LibParam>
+  <LibParam name="length" type="number">
+    How many bytes to transfer.
+  </LibParam>
+  <LibParam name="position" type="number">
+    Where in the file to start. Defaults to the current position.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="number">
+  The number of bytes written.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the descriptor is invalid" />
+</LibThrows>
+
+### fstatSync
+
+<LibTags>
+  <LibTag name="sync only" />
+</LibTags>
+
+<LibSignature>
+```ts
+fstatSync(fd: number): Stats
+```
+</LibSignature>
+
+Reads metadata about an open descriptor.
+
+<LibParams>
+  <LibParam name="fd" type="number" required>
+    A descriptor returned by `openSync`.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="Stats">
+  The descriptor metadata.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the descriptor is invalid" />
+</LibThrows>
+
+### ftruncateSync
+
+<LibTags>
+  <LibTag name="sync only" />
+</LibTags>
+
+<LibSignature>
+```ts
+ftruncateSync(fd: number, len?: number): void
+```
+</LibSignature>
+
+Shortens or extends the file behind a descriptor.
+
+<LibParams>
+  <LibParam name="fd" type="number" required>
+    A descriptor returned by `openSync`.
+  </LibParam>
+  <LibParam name="len" type="number">
+    The length to truncate to. Defaults to zero.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="void">
+  Nothing.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the descriptor is invalid" />
+</LibThrows>
+
+### fsyncSync
+
+<LibTags>
+  <LibTag name="sync only" />
+</LibTags>
+
+<LibSignature>
+```ts
+fsyncSync(fd: number): void
+```
+</LibSignature>
+
+Flushes the file behind a descriptor, both its data and its metadata.
+
+<LibParams>
+  <LibParam name="fd" type="number" required>
+    A descriptor returned by `openSync`.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="void">
+  Nothing.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the descriptor is invalid" />
+</LibThrows>
+
+### fdatasyncSync
+
+<LibTags>
+  <LibTag name="sync only" />
+</LibTags>
+
+<LibSignature>
+```ts
+fdatasyncSync(fd: number): void
+```
+</LibSignature>
+
+Flushes the data behind a descriptor, without its metadata.
+
+<LibParams>
+  <LibParam name="fd" type="number" required>
+    A descriptor returned by `openSync`.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="void">
+  Nothing.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the descriptor is invalid" />
+</LibThrows>
+
+## Classes
+
+### FileHandle
+
+<LibTags>
+  <LibTag name="not constructible" />
+</LibTags>
+
+An open file, returned by `open`.
+
+<LibProperties>
+  <LibProperty name="fd" type="number" readonly>
+    The descriptor number behind this handle.
+  </LibProperty>
+</LibProperties>
+
+#### close
+
+<LibSignature>
+```ts
+close(): Promise<void>
+```
+</LibSignature>
+
+Closes this file handle.
+
+<LibReturns type="Promise<void>">
+  Nothing.
+</LibReturns>
+
+#### stat
+
+<LibSignature>
+```ts
+stat(): Promise<Stats>
+```
+</LibSignature>
+
+Reads metadata about this file handle.
+
+<LibReturns type="Promise<Stats>">
+  The file metadata.
+</LibReturns>
+
+#### chmod
+
+<LibSignature>
+```ts
+chmod(mode: number): Promise<void>
+```
+</LibSignature>
+
+Replaces the permission bits on this file.
+
+<LibParams>
+  <LibParam name="mode" type="number" required>
+    The permission bits to set.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="Promise<void>">
+  Nothing.
+</LibReturns>
+
+#### chown
+
+<LibSignature>
+```ts
+chown(uid: number, gid: number): Promise<void>
+```
+</LibSignature>
+
+Replaces the owning user and group on this file.
+
+<LibParams>
+  <LibParam name="uid" type="number" required>
+    The owning user, and the owning group.
+  </LibParam>
+  <LibParam name="gid" type="number" required>
+    The owning user, and the owning group.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="Promise<void>">
+  Nothing.
+</LibReturns>
+
+#### truncate
+
+<LibSignature>
+```ts
+truncate(len?: number): Promise<void>
+```
+</LibSignature>
+
+Shortens or extends this file to a given length.
+
+<LibParams>
+  <LibParam name="len" type="number">
+    The length to truncate to. Defaults to zero.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="Promise<void>">
+  Nothing.
+</LibReturns>
+
+#### sync
+
+<LibSignature>
+```ts
+sync(): Promise<void>
+```
+</LibSignature>
+
+Flushes this file's data and metadata.
+
+<LibReturns type="Promise<void>">
+  Nothing.
+</LibReturns>
+
+#### datasync
+
+<LibSignature>
+```ts
+datasync(): Promise<void>
+```
+</LibSignature>
+
+Flushes this file's data without its metadata.
+
+<LibReturns type="Promise<void>">
+  Nothing.
+</LibReturns>
+
+#### readFile
+
+<LibSignature>
+```ts
+readFile(options?: FileEncoding | FileOptions): Promise<string | Uint8Array>
+```
+</LibSignature>
+
+Reads the entire contents of this file handle.
+
+<LibParams>
+  <LibParam
+    name="options"
+    type={<><Link href="#fileencoding">FileEncoding</Link>{" | "}<Link href="#fileoptions">FileOptions</Link></>}
+  >
+    An encoding name, or an options object.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="Promise<string | Uint8Array>">
+  The file contents, decoded when an encoding was given and raw bytes otherwise.
+</LibReturns>
+
+#### writeFile
+
+<LibSignature>
+```ts
+writeFile(data: string | Uint8Array, options?: FileEncoding | FileOptions): Promise<void>
+```
+</LibSignature>
+
+Writes data to this file handle.
+
+<LibParams>
+  <LibParam name="data" type="string | Uint8Array" required>
+    The bytes to write, or a string to encode.
+  </LibParam>
+  <LibParam
+    name="options"
+    type={<><Link href="#fileencoding">FileEncoding</Link>{" | "}<Link href="#fileoptions">FileOptions</Link></>}
+  >
+    An encoding name, or an options object.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="Promise<void>">
+  Nothing.
+</LibReturns>
+
+#### read
+
+<LibSignature>
+```ts
+read(buffer: Uint8Array, offset?: number, length?: number, position?: number): Promise<ReadResult>
+read(options: ReadOptions): Promise<ReadResult>
+read(): Promise<ReadResult>
+```
+</LibSignature>
+
+Reads bytes from this handle.
+
+<LibParams>
+  <LibParam name="buffer" type="Uint8Array">
+    The buffer to fill.
+  </LibParam>
+  <LibParam name="offset" type="number">
+    Where in the buffer to start.
+  </LibParam>
+  <LibParam name="length" type="number">
+    How many bytes to transfer.
+  </LibParam>
+  <LibParam name="position" type="number">
+    Where in the file to start. Defaults to the current position.
+  </LibParam>
+  <LibParam name="options" type={<><Link href="#readoptions">ReadOptions</Link></>}>
+    Low-level read options.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="Promise<ReadResult>">
+  The number of bytes read and the filled buffer.
+</LibReturns>
+
+#### write
+
+<LibSignature>
+```ts
+write(buffer: Uint8Array, offset?: number, length?: number, position?: number): Promise<WriteBufferResult>
+write(data: string, position?: number, encoding?: FileEncoding): Promise<WriteStringResult>
+```
+</LibSignature>
+
+Writes bytes or a string through this handle.
+
+<LibParams>
+  <LibParam name="buffer" type="Uint8Array">
+    The bytes to write, or a string to encode.
+  </LibParam>
+  <LibParam name="data" type="string">
+    The bytes to write, or a string to encode.
+  </LibParam>
+  <LibParam name="offset" type="number">
+    Where in the buffer to start.
+  </LibParam>
+  <LibParam name="length" type="number">
+    How many bytes to transfer.
+  </LibParam>
+  <LibParam name="position" type="number">
+    Where in the file to start. Defaults to the current position.
+  </LibParam>
+  <LibParam name="encoding" type={<><Link href="#fileencoding">FileEncoding</Link></>}>
+    The string encoding to use.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="Promise<WriteBufferResult | WriteStringResult>">
+  The number of bytes written and the original buffer or string.
+</LibReturns>
+
+### Stats
+
+<LibTags>
+  <LibTag name="not constructible" />
+  <LibTag name="read-only" />
+</LibTags>
+
+Metadata about a path, returned by `stat`, `lstat`, and `fstatSync`.
+
+<LibProperties>
+  <LibProperty name="dev" type="number" readonly />
+  <LibProperty name="ino" type="number" readonly />
+  <LibProperty name="mode" type="number" readonly />
+  <LibProperty name="nlink" type="number" readonly />
+  <LibProperty name="uid" type="number" readonly />
+  <LibProperty name="gid" type="number" readonly />
+  <LibProperty name="rdev" type="number" readonly />
+  <LibProperty name="size" type="number" readonly />
+  <LibProperty name="blksize" type="number" readonly />
+  <LibProperty name="blocks" type="number" readonly />
+  <LibProperty name="atimeMs" type="number" readonly />
+  <LibProperty name="mtimeMs" type="number" readonly />
+  <LibProperty name="ctimeMs" type="number" readonly />
+  <LibProperty name="birthtimeMs" type="number" readonly />
+  <LibProperty name="atime" type="Date" readonly />
+  <LibProperty name="mtime" type="Date" readonly />
+  <LibProperty name="ctime" type="Date" readonly />
+  <LibProperty name="birthtime" type="Date" readonly />
+</LibProperties>
+
+`isDir` and `isDirectory` are the same test. `isSymlink` and `isSymbolicLink` are the same test.
+
+#### isFile
+
+<LibSignature>
+```ts
+isFile(): boolean
+```
+</LibSignature>
+
+Checks whether the path is a regular file.
+
+<LibReturns type="boolean">
+  `true` when the path is a regular file.
+</LibReturns>
+
+#### isDir
+
+<LibSignature>
+```ts
+isDir(): boolean
+```
+</LibSignature>
+
+Checks whether the path is a directory.
+
+<LibReturns type="boolean">
+  `true` when the path is a directory.
+</LibReturns>
+
+#### isDirectory
+
+<LibSignature>
+```ts
+isDirectory(): boolean
+```
+</LibSignature>
+
+Checks whether the path is a directory.
+
+<LibReturns type="boolean">
+  `true` when the path is a directory.
+</LibReturns>
+
+#### isSymlink
+
+<LibSignature>
+```ts
+isSymlink(): boolean
+```
+</LibSignature>
+
+Checks whether the path is a symbolic link.
+
+<LibReturns type="boolean">
+  `true` when the path is a symbolic link.
+</LibReturns>
+
+#### isSymbolicLink
+
+<LibSignature>
+```ts
+isSymbolicLink(): boolean
+```
+</LibSignature>
+
+Checks whether the path is a symbolic link.
+
+<LibReturns type="boolean">
+  `true` when the path is a symbolic link.
+</LibReturns>
+
+#### isFIFO
+
+<LibSignature>
+```ts
+isFIFO(): boolean
+```
+</LibSignature>
+
+Checks whether the path is a FIFO.
+
+<LibReturns type="boolean">
+  `true` when the path is a FIFO.
+</LibReturns>
+
+#### isBlockDevice
+
+<LibSignature>
+```ts
+isBlockDevice(): boolean
+```
+</LibSignature>
+
+Checks whether the path is a block device.
+
+<LibReturns type="boolean">
+  `true` when the path is a block device.
+</LibReturns>
+
+#### isCharacterDevice
+
+<LibSignature>
+```ts
+isCharacterDevice(): boolean
+```
+</LibSignature>
+
+Checks whether the path is a character device.
+
+<LibReturns type="boolean">
+  `true` when the path is a character device.
+</LibReturns>
+
+#### isSocket
+
+<LibSignature>
+```ts
+isSocket(): boolean
+```
+</LibSignature>
+
+Checks whether the path is a socket.
+
+<LibReturns type="boolean">
+  `true` when the path is a socket.
+</LibReturns>
+
+### Dirent
+
+<LibTags>
+  <LibTag name="not constructible" />
+  <LibTag name="read-only" />
+</LibTags>
+
+A directory entry, returned by `readdir` when `withFileTypes` is set.
+
+<LibProperties>
+  <LibProperty name="name" type="string" readonly />
+  <LibProperty name="parentPath" type="string" readonly />
+</LibProperties>
+
+#### isFile
+
+<LibSignature>
+```ts
+isFile(): boolean
+```
+</LibSignature>
+
+Checks whether this entry is a file.
+
+<LibReturns type="boolean">
+  `true` when this entry is a file.
+</LibReturns>
+
+#### isDirectory
+
+<LibSignature>
+```ts
+isDirectory(): boolean
+```
+</LibSignature>
+
+Checks whether this entry is a directory.
+
+<LibReturns type="boolean">
+  `true` when this entry is a directory.
+</LibReturns>
+
+#### isSymbolicLink
+
+<LibSignature>
+```ts
+isSymbolicLink(): boolean
+```
+</LibSignature>
+
+Checks whether this entry is a symbolic link.
+
+<LibReturns type="boolean">
+  `true` when this entry is a symbolic link.
+</LibReturns>
+
+#### isFIFO
+
+<LibSignature>
+```ts
+isFIFO(): boolean
+```
+</LibSignature>
+
+Checks whether this entry is a FIFO.
+
+<LibReturns type="boolean">
+  `true` when this entry is a FIFO.
+</LibReturns>
+
+#### isBlockDevice
+
+<LibSignature>
+```ts
+isBlockDevice(): boolean
+```
+</LibSignature>
+
+Checks whether this entry is a block device.
+
+<LibReturns type="boolean">
+  `true` when this entry is a block device.
+</LibReturns>
+
+#### isCharacterDevice
+
+<LibSignature>
+```ts
+isCharacterDevice(): boolean
+```
+</LibSignature>
+
+Checks whether this entry is a character device.
+
+<LibReturns type="boolean">
+  `true` when this entry is a character device.
+</LibReturns>
+
+#### isSocket
+
+<LibSignature>
+```ts
+isSocket(): boolean
+```
+</LibSignature>
+
+Checks whether this entry is a socket.
+
+<LibReturns type="boolean">
+  `true` when this entry is a socket.
+</LibReturns>
+
+## Types
+
+### FileEncoding
+
+<LibSignature>
+```ts
+type FileEncoding = 'utf8' | 'utf-8' | 'hex' | 'base64' | 'latin1' | 'binary' | 'ascii'
+```
+</LibSignature>
+
+The supported string encodings.
+
+### FileOptions
+
+<LibProperties>
+  <LibProperty name="encoding" type={<><Link href="#fileencoding">FileEncoding</Link></>} optional />
+  <LibProperty name="mode" type="number" optional />
+  <LibProperty name="flag" type="string" optional />
+</LibProperties>
+
+### MkdirOptions
+
+<LibProperties>
+  <LibProperty name="recursive" type="boolean" optional />
+  <LibProperty name="mode" type="number" optional />
+</LibProperties>
+
+### ReaddirOptions
+
+<LibProperties>
+  <LibProperty name="withFileTypes" type="boolean" optional />
+  <LibProperty name="recursive" type="boolean" optional />
+</LibProperties>
+
+### RmOptions
+
+<LibProperties>
+  <LibProperty name="recursive" type="boolean" optional />
+  <LibProperty name="force" type="boolean" optional />
+</LibProperties>
+
+### RmdirOptions
+
+<LibProperties>
+  <LibProperty name="recursive" type="boolean" optional />
+</LibProperties>
+
+### ReadOptions
+
+<LibProperties>
+  <LibProperty name="buffer" type="Uint8Array" optional />
+  <LibProperty name="offset" type="number" optional />
+  <LibProperty name="length" type="number" optional />
+  <LibProperty name="position" type="number" optional />
+</LibProperties>
+
+### ReadResult
+
+<LibProperties>
+  <LibProperty name="bytesRead" type="number" />
+  <LibProperty name="buffer" type="Uint8Array" />
+</LibProperties>
+
+### WriteBufferResult
+
+<LibProperties>
+  <LibProperty name="bytesWritten" type="number" />
+  <LibProperty name="buffer" type="Uint8Array" />
+</LibProperties>
+
+### WriteStringResult
+
+<LibProperties>
+  <LibProperty name="bytesWritten" type="number" />
+  <LibProperty name="buffer" type="string" />
+</LibProperties>
+
+## Constants
+
+### constants
+
+The exported constants object groups access modes, file kinds, permission bits, open flags, and
+copy flags.
+
+| Group | Members |
+| ------- | ------- |
+| Access modes | `F_OK`, `R_OK`, `W_OK`, `X_OK` |
+| File kind mask and values | `S_IFMT`, `S_IFREG`, `S_IFDIR`, `S_IFCHR`, `S_IFBLK`, `S_IFIFO`, `S_IFLNK`, `S_IFSOCK` |
+| Permission bits | `S_IRWXU`, `S_IRUSR`, `S_IWUSR`, `S_IXUSR`, `S_IRWXG`, `S_IRGRP`, `S_IWGRP`, `S_IXGRP`, `S_IRWXO`, `S_IROTH`, `S_IWOTH`, `S_IXOTH` |
+| Open flags | `O_RDONLY`, `O_WRONLY`, `O_RDWR`, `O_CREAT`, `O_EXCL`, `O_TRUNC`, `O_APPEND`, `O_NOFOLLOW` |
+| Copy flags | `COPYFILE_EXCL`, `COPYFILE_FICLONE`, `COPYFILE_FICLONE_FORCE` |

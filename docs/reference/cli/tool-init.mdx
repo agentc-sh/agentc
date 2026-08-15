@@ -33,7 +33,7 @@ Scaffold a Python tool:
 agentc tool init weather --language python
 ```
 
-Scaffold a TypeScript tool:
+Scaffold a JavaScript tool:
 
 ```bash
 agentc tool init math --language javascript
@@ -48,8 +48,16 @@ On success, the command prints:
 ```
 
 The generated package is immediately usable. For Python, install dependencies with `uv sync`. For
-JavaScript, install with `pnpm install`. The TDK dependency is pre-configured in both cases so you
-can start implementing tool logic right away.
+JavaScript, install with `pnpm install`. The TDK dependency and the runtime stubs are pre-configured
+in both cases so you can start implementing tool logic right away.
+
+## Generated package
+
+For JavaScript, the command writes a ready-to-use package with the tool development kit, runtime
+type stub reference, package metadata, and entry point already configured.
+
+For Python, the command writes a ready-to-use package with a `pyproject.toml`, the tool
+development kit dependency, and a typed package directory for the tool implementation.
 
 See [Write a tool](/guides/write-a-tool) for details on the tool API and how to declare the tool in
 your manifest.

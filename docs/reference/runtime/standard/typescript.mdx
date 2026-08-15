@@ -1,0 +1,328 @@
+---
+title: TypeScript
+description: The node modules and globals the runtime implements for TypeScript components.
+---
+
+The modules below are implemented as a subset of their Node counterparts. Each one is available as
+both `node:name` and `name`.
+
+## Modules
+
+<LibSymbols>
+  <LibSymbolRow name="node:buffer" href="#nodebuffer">Binary data, base64 helpers, and buffer limits.</LibSymbolRow>
+  <LibSymbolRow name="node:console" href="#nodeconsole">The `Console` class.</LibSymbolRow>
+  <LibSymbolRow name="node:timers" href="#nodetimers">Timeout, interval, immediate, and microtask scheduling.</LibSymbolRow>
+  <LibSymbolRow name="node:url" href="#nodeurl">URL parsing, URL search params, and URL conversion helpers.</LibSymbolRow>
+  <LibSymbolRow name="node:os" href="#nodeos">Host operating system facts exposed to guest code.</LibSymbolRow>
+  <LibSymbolRow name="node:stream/web" href="#nodestreamweb">WHATWG stream classes and related interfaces.</LibSymbolRow>
+</LibSymbols>
+
+<div id="nodebuffer" />
+
+### node:buffer
+
+<LibProperties>
+  <LibProperty name="Buffer" type="interface and constructor">
+    The `Uint8Array` subclass used for binary data, plus its constructor object and static methods.
+  </LibProperty>
+  <LibProperty name="atob" type="(data: string) => string">
+    Decodes a base64-encoded string.
+  </LibProperty>
+  <LibProperty name="btoa" type="(data: string) => string">
+    Encodes a string as base64.
+  </LibProperty>
+  <LibProperty name="constants" type="{ MAX_LENGTH: number; MAX_STRING_LENGTH: number }">
+    Buffer size limits.
+  </LibProperty>
+</LibProperties>
+
+<div id="nodeconsole" />
+
+### node:console
+
+<LibProperties>
+  <LibProperty name="Console" type="class">
+    The class form of the console API. The `console` global exposes a larger surface.
+  </LibProperty>
+</LibProperties>
+
+<div id="nodetimers" />
+
+### node:timers
+
+<LibProperties>
+  <LibProperty name="setTimeout" type="(callback: () => void, delay?: number) => number">
+    Schedules a callback to run once.
+  </LibProperty>
+  <LibProperty name="clearTimeout" type="(id?: number) => void">
+    Cancels a timeout.
+  </LibProperty>
+  <LibProperty name="setInterval" type="(callback: () => void, delay?: number) => number">
+    Schedules a callback to run repeatedly.
+  </LibProperty>
+  <LibProperty name="clearInterval" type="(id?: number) => void">
+    Cancels an interval.
+  </LibProperty>
+  <LibProperty name="setImmediate" type="(callback: () => void) => number">
+    Schedules a callback to run on the next immediate turn.
+  </LibProperty>
+  <LibProperty name="queueMicrotask" type="(callback: () => void) => void">
+    Schedules a callback as a microtask.
+  </LibProperty>
+</LibProperties>
+
+<div id="nodeurl" />
+
+### node:url
+
+<LibProperties>
+  <LibProperty name="URL" type="class">
+    Parses, formats, and mutates URLs.
+  </LibProperty>
+  <LibProperty name="URLSearchParams" type="class">
+    Reads and writes URL query parameters.
+  </LibProperty>
+  <LibProperty name="HttpOptions" type="interface">
+    The object shape returned by `urlToHttpOptions`.
+  </LibProperty>
+  <LibProperty name="urlToHttpOptions" type="(url: URL) => HttpOptions">
+    Converts a `URL` into an HTTP options object.
+  </LibProperty>
+  <LibProperty name="domainToUnicode" type="(domain: string) => string">
+    Converts a domain name to its Unicode form.
+  </LibProperty>
+  <LibProperty name="domainToASCII" type="(domain: string) => string">
+    Converts a domain name to its ASCII form.
+  </LibProperty>
+  <LibProperty name="fileURLToPath" type="(url: string | URL) => string">
+    Converts a file URL into a path string.
+  </LibProperty>
+  <LibProperty name="pathToFileURL" type="(path: string) => URL">
+    Converts a path string into a file URL.
+  </LibProperty>
+  <LibProperty name="format" type="(url: URL, options?: unknown) => string">
+    Formats a URL as a string.
+  </LibProperty>
+</LibProperties>
+
+<div id="nodeos" />
+
+### node:os
+
+<LibProperties>
+  <LibProperty name="arch" type="() => string">
+    Returns the CPU architecture.
+  </LibProperty>
+  <LibProperty name="availableParallelism" type="() => number">
+    Returns the runtime's view of available parallelism.
+  </LibProperty>
+  <LibProperty name="devNull" type="string" readonly>
+    The platform null device path.
+  </LibProperty>
+  <LibProperty name="endianness" type="() => 'LE' | 'BE'">
+    Returns the CPU endianness.
+  </LibProperty>
+  <LibProperty name="EOL" type="string" readonly>
+    The platform line ending.
+  </LibProperty>
+  <LibProperty name="getPriority" type="(who?: number) => number">
+    Reads a process priority value.
+  </LibProperty>
+  <LibProperty name="homedir" type="() => string">
+    Returns the current home directory.
+  </LibProperty>
+  <LibProperty name="platform" type="() => string">
+    Returns the current platform identifier.
+  </LibProperty>
+  <LibProperty name="release" type="() => string">
+    Returns the operating system release.
+  </LibProperty>
+  <LibProperty name="setPriority" type="(priority: number) => void; (who: number, priority: number) => void">
+    Sets a process priority value.
+  </LibProperty>
+  <LibProperty name="tmpdir" type="() => string">
+    Returns the temporary directory path.
+  </LibProperty>
+  <LibProperty name="type" type="() => string">
+    Returns the operating system name.
+  </LibProperty>
+  <LibProperty name="userInfo" type="(options?: unknown) => UserInfo">
+    Returns the current user information.
+  </LibProperty>
+  <LibProperty name="version" type="() => string">
+    Returns the operating system version.
+  </LibProperty>
+  <LibProperty name="UserInfo" type="interface">
+    The user information shape returned by `userInfo`.
+  </LibProperty>
+</LibProperties>
+
+<div id="nodestreamweb" />
+
+### node:stream/web
+
+<LibProperties>
+  <LibProperty name="ReadableStream" type="class">
+    A readable WHATWG stream.
+  </LibProperty>
+  <LibProperty name="ReadableStreamDefaultReader" type="class">
+    The default reader for a `ReadableStream`.
+  </LibProperty>
+  <LibProperty name="ReadableStreamBYOBReader" type="class">
+    A bring-your-own-buffer reader for byte streams.
+  </LibProperty>
+  <LibProperty name="ReadableStreamDefaultController" type="class">
+    The default controller for a readable stream.
+  </LibProperty>
+  <LibProperty name="ReadableByteStreamController" type="class">
+    The controller for a readable byte stream.
+  </LibProperty>
+  <LibProperty name="ReadableStreamBYOBRequest" type="class">
+    A pending BYOB read request.
+  </LibProperty>
+  <LibProperty name="WritableStream" type="class">
+    A writable WHATWG stream.
+  </LibProperty>
+  <LibProperty name="WritableStreamDefaultWriter" type="class">
+    The default writer for a `WritableStream`.
+  </LibProperty>
+  <LibProperty name="WritableStreamDefaultController" type="class">
+    The default controller for a writable stream.
+  </LibProperty>
+  <LibProperty name="TransformStream" type="class">
+    A duplex stream that transforms input into output.
+  </LibProperty>
+  <LibProperty name="TransformStreamDefaultController" type="class">
+    The controller for a transform stream.
+  </LibProperty>
+  <LibProperty name="ByteLengthQueuingStrategy" type="class">
+    A queueing strategy based on byte length.
+  </LibProperty>
+  <LibProperty name="CountQueuingStrategy" type="class">
+    A queueing strategy based on item count.
+  </LibProperty>
+  <LibProperty name="QueuingStrategy" type="interface">
+    The shared queueing strategy shape.
+  </LibProperty>
+  <LibProperty name="ReadableStreamGetReaderOptions" type="interface">
+    Options passed to `getReader`.
+  </LibProperty>
+  <LibProperty name="StreamPipeOptions" type="interface">
+    Options passed to `pipeThrough` and `pipeTo`.
+  </LibProperty>
+  <LibProperty name="ReadableWritablePair" type="interface">
+    The readable and writable pair shape used by `pipeThrough`.
+  </LibProperty>
+  <LibProperty name="ReadableStreamReadResult" type="interface">
+    The result object returned by stream reads.
+  </LibProperty>
+</LibProperties>
+
+## Globals
+
+The runtime also installs a small set of globals so component code can use the same values without
+importing them explicitly.
+
+<LibProperties>
+  <LibProperty name="fetch" type="typeof import('agentc:http').fetch">
+    The same `fetch` function exported by `agentc:http`.
+  </LibProperty>
+  <LibProperty name="Headers" type="typeof import('agentc:http').Headers">
+    The same `Headers` class exported by `agentc:http`.
+  </LibProperty>
+  <LibProperty name="Response" type="typeof import('agentc:http').Response">
+    The same `Response` class exported by `agentc:http`.
+  </LibProperty>
+  <LibProperty name="Dirent" type="typeof import('agentc:fs').Dirent">
+    The same `Dirent` class exported by `agentc:fs`.
+  </LibProperty>
+  <LibProperty name="Stats" type="typeof import('agentc:fs').Stats">
+    The same `Stats` class exported by `agentc:fs`.
+  </LibProperty>
+  <LibProperty name="FileHandle" type="typeof import('agentc:fs').FileHandle">
+    The same `FileHandle` class exported by `agentc:fs`.
+  </LibProperty>
+  <LibProperty name="Buffer" type="typeof import('node:buffer').Buffer">
+    The `Buffer` constructor from `node:buffer`.
+  </LibProperty>
+  <LibProperty name="Blob" type="class">
+    A binary large object with `size`, `type`, `text()`, `arrayBuffer()`, `bytes()`, and `slice()`.
+  </LibProperty>
+  <LibProperty name="File" type="class">
+    A file-like object with `name`, `lastModified`, `size`, `type`, `text()`, `arrayBuffer()`, `bytes()`, and `slice()`.
+  </LibProperty>
+  <LibProperty name="console" type="object">
+    The global console object with `assert`, `clear`, `count`, `countReset`, `debug`, `error`, `info`, `log`, `time`, `timeEnd`, `timeLog`, `trace`, and `warn`.
+  </LibProperty>
+  <LibProperty name="setTimeout" type="typeof import('node:timers').setTimeout">
+    The timeout scheduler from `node:timers`.
+  </LibProperty>
+  <LibProperty name="clearTimeout" type="typeof import('node:timers').clearTimeout">
+    The timeout canceller from `node:timers`.
+  </LibProperty>
+  <LibProperty name="setInterval" type="typeof import('node:timers').setInterval">
+    The interval scheduler from `node:timers`.
+  </LibProperty>
+  <LibProperty name="clearInterval" type="typeof import('node:timers').clearInterval">
+    The interval canceller from `node:timers`.
+  </LibProperty>
+  <LibProperty name="setImmediate" type="typeof import('node:timers').setImmediate">
+    The immediate scheduler from `node:timers`.
+  </LibProperty>
+  <LibProperty name="queueMicrotask" type="typeof import('node:timers').queueMicrotask">
+    The microtask scheduler from `node:timers`.
+  </LibProperty>
+  <LibProperty name="URL" type="typeof import('node:url').URL">
+    The `URL` class from `node:url`.
+  </LibProperty>
+  <LibProperty name="URLSearchParams" type="typeof import('node:url').URLSearchParams">
+    The `URLSearchParams` class from `node:url`.
+  </LibProperty>
+  <LibProperty name="ReadableStream" type="typeof import('node:stream/web').ReadableStream">
+    The readable stream class from `node:stream/web`.
+  </LibProperty>
+  <LibProperty name="ReadableStreamDefaultReader" type="typeof import('node:stream/web').ReadableStreamDefaultReader">
+    The default reader class from `node:stream/web`.
+  </LibProperty>
+  <LibProperty name="ReadableStreamBYOBReader" type="typeof import('node:stream/web').ReadableStreamBYOBReader">
+    The BYOB reader class from `node:stream/web`.
+  </LibProperty>
+  <LibProperty name="ReadableStreamDefaultController" type="typeof import('node:stream/web').ReadableStreamDefaultController">
+    The default controller class from `node:stream/web`.
+  </LibProperty>
+  <LibProperty name="ReadableByteStreamController" type="typeof import('node:stream/web').ReadableByteStreamController">
+    The byte stream controller class from `node:stream/web`.
+  </LibProperty>
+  <LibProperty name="ReadableStreamBYOBRequest" type="typeof import('node:stream/web').ReadableStreamBYOBRequest">
+    The BYOB request class from `node:stream/web`.
+  </LibProperty>
+  <LibProperty name="WritableStream" type="typeof import('node:stream/web').WritableStream">
+    The writable stream class from `node:stream/web`.
+  </LibProperty>
+  <LibProperty name="WritableStreamDefaultWriter" type="typeof import('node:stream/web').WritableStreamDefaultWriter">
+    The default writer class from `node:stream/web`.
+  </LibProperty>
+  <LibProperty name="WritableStreamDefaultController" type="typeof import('node:stream/web').WritableStreamDefaultController">
+    The default controller class from `node:stream/web`.
+  </LibProperty>
+  <LibProperty name="TransformStream" type="typeof import('node:stream/web').TransformStream">
+    The transform stream class from `node:stream/web`.
+  </LibProperty>
+  <LibProperty name="TransformStreamDefaultController" type="typeof import('node:stream/web').TransformStreamDefaultController">
+    The transform controller class from `node:stream/web`.
+  </LibProperty>
+  <LibProperty name="ByteLengthQueuingStrategy" type="typeof import('node:stream/web').ByteLengthQueuingStrategy">
+    The byte-length queueing strategy from `node:stream/web`.
+  </LibProperty>
+  <LibProperty name="CountQueuingStrategy" type="typeof import('node:stream/web').CountQueuingStrategy">
+    The count-based queueing strategy from `node:stream/web`.
+  </LibProperty>
+  <LibProperty name="process" type="{ readonly env: Record<string, string | undefined> }" readonly>
+    The runtime populates `env` from the process environment and sets nothing else on this object.
+  </LibProperty>
+</LibProperties>
+
+## What is not here
+
+If a module or global is not listed on this page, the runtime does not provide it. The filesystem is
+an agentc runtime library rather than part of this surface. See [agentc:fs](/reference/runtime/fs).

@@ -1,0 +1,39 @@
+---
+title: Runtime
+description: The libraries the runtime provides to component code, and the environment they run in.
+---
+
+The runtime provides these libraries to every component it executes. Each library has its own page
+describing what it does and a page per language describing its surface.
+
+## Libraries
+
+| Library | Purpose | Languages |
+| ------- | ------- | --------- |
+| [fs](/reference/runtime/fs) | A POSIX-style virtual filesystem assembled by the runtime. | TypeScript |
+| [http](/reference/runtime/http) | An HTTP client whose outbound requests pass the runtime's egress policy. | TypeScript |
+
+## How the libraries are bound
+
+Any compiled output containing a TypeScript component contains both libraries. The
+manifest controls what each library does, which is the filesystem's contents and the network's
+policy, not whether the library is present.
+
+## The language's own surface
+
+The runtime also implements a subset of the language's standard library. That subset is enumerated
+in [Standard library](/reference/runtime/standard).
+
+## Editor support
+
+agentc provides type stub packages to enable IDE autocompletion and type checking for the runtime surface. These packages carry type declarations and no implementation, ensuring your editor accurately reports what the runtime provides.
+
+Depending on these packages is optional. A component that does not depend on them compiles and runs identically, and the only thing their absence costs is editor knowledge.
+
+### TypeScript
+
+For TypeScript, the type stub package is `@agentc-sh/runtime`. 
+
+Installing it requires a version of `11.10.0` or later for npm and `9.0.0` for pnpm. This is because it resolves as a git subdirectory dependency, and older package manager versions do not honor the subdirectory fragment.
+
+For more information on how to install it, see the [README](https://github.com/agentc-sh/agentc/tree/dev/packages/typescript/runtime).

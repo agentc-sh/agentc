@@ -3,6 +3,8 @@
   "pages": [
     "author-a-manifest",
     "write-a-tool",
+    "give-your-agent-a-filesystem",
+    "control-network-egress",
     "connect-external-tools-via-mcp",
     "connect-agents-via-a2a",
     "use-the-bash-tool",
