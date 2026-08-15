@@ -10,8 +10,8 @@ describing what it does and a page per language describing its surface.
 
 | Library | Purpose | Languages |
 | ------- | ------- | --------- |
-| [agentc:fs](/reference/runtime/fs) | A POSIX-style virtual filesystem assembled by the runtime. | TypeScript |
-| [agentc:http](/reference/runtime/http) | An HTTP client whose outbound requests pass the runtime's egress policy. | TypeScript |
+| [fs](/reference/runtime/fs) | A POSIX-style virtual filesystem assembled by the runtime. | TypeScript |
+| [http](/reference/runtime/http) | An HTTP client whose outbound requests pass the runtime's egress policy. | TypeScript |
 
 ## How the libraries are bound
 
@@ -26,11 +26,14 @@ in [Standard library](/reference/runtime/standard).
 
 ## Editor support
 
-`@agentc-sh/runtime` is a type stub package. It carries TypeScript declarations for the runtime
-surface and no implementation, so an editor reports what the runtime actually provides.
+agentc provides type stub packages to enable IDE autocompletion and type checking for the runtime surface. These packages carry type declarations and no implementation, ensuring your editor accurately reports what the runtime provides.
 
-Depending on it is optional. A component that does not depend on it compiles and runs identically,
-and the only thing its absence costs is editor knowledge.
+Depending on these packages is optional. A component that does not depend on them compiles and runs identically, and the only thing their absence costs is editor knowledge.
 
-Installing it requires a version of `11.10.0` or later for npm and `9.0.0` for pnpm, because it
-resolves as a git subdirectory dependency and older versions do not honor the subdirectory fragment.
+### TypeScript
+
+For TypeScript, the type stub package is `@agentc-sh/runtime`. 
+
+Installing it requires a version of `11.10.0` or later for npm and `9.0.0` for pnpm. This is because it resolves as a git subdirectory dependency, and older package manager versions do not honor the subdirectory fragment.
+
+For more information on how to install it, see the [README](https://github.com/agentc-sh/agentc/tree/dev/packages/typescript/runtime).
