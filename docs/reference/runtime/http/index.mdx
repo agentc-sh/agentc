@@ -1,0 +1,46 @@
+---
+title: HTTP
+description: The HTTP client the runtime provides to component code.
+---
+
+The agentc HTTP library makes outbound HTTP requests. Every request passes the rules the runtime was
+configured with, and component code cannot go around them.
+
+<LibAvailability>
+  <LibLanguage name="TypeScript" specifier="agentc:http">
+    The runtime provides `agentc:http` to every TypeScript component it executes.
+  </LibLanguage>
+</LibAvailability>
+
+## What the runtime controls
+
+The rules apply to the initial request, to every redirect hop, to the response head, and to every
+address a host name resolves to. A permitted host name that resolves into a refused address range
+is refused. A refusal is an ordinary error the calling code can catch, and the message names the
+rule that refused it. See [network](/reference/manifest/network) for the configuration surface.
+
+## Addresses
+
+Loopback, private, and link-local addresses are refused unless the corresponding category is
+permitted. Loopback covers addresses such as `127.0.0.1`. Private covers RFC 1918 private network
+ranges. Link-local covers link-local addresses, including the cloud instance metadata address.
+
+## Limits
+
+- A connect timeout limits how long the client waits to establish a connection.
+- A read timeout limits how long the client waits between response body chunks.
+- A whole-request deadline limits the full request lifetime.
+- A redirect limit caps how many redirect hops a request may follow.
+- A response body limit caps how many bytes may be read from the response body.
+- A concurrency limit caps how many requests may be in flight at once.
+
+See [network](/reference/manifest/network) for the configured defaults.
+
+## Absent by design
+
+There is no cookie store, no proxy discovery from the environment, and no referer forwarding across
+redirects.
+
+## Bindings
+
+See [TypeScript](/reference/runtime/http/typescript) for every export of `agentc:http`.

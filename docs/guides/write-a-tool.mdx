@@ -28,13 +28,11 @@ cd math
 pnpm install
 ```
 
-This creates a `package.json`, a `tsconfig.json`, `src/index.ts`, and `src/agentc-env.d.ts`, with the
-TDK, esbuild, and the runtime type declarations already configured.
+This creates a ready-to-use package with the entry point, package metadata, and editor type
+support already configured. `agentc.d.ts` is one line, and it is what tells an editor the shape of
+the runtime surface.
 
-The scaffolded `package.json` declares `"packageManager": "pnpm@11.1.2"`, and the compiler installs
-your dependencies with whichever manager that field names. If you change it to npm, also change the
-`@agentc-sh/runtime` specifier's `&` separator to `::`, because the two managers spell a git
-subdirectory differently. Both forms are given in that package's README.
+The compiler installs dependencies with the package manager configured for the scaffolded package.
   </TabsContent>
   <TabsContent value="python">
 ```bash
@@ -128,9 +126,9 @@ A single package can define as many tool classes as you need.
   </TabsContent>
 </Tabs>
 
-## What the TypeScript runtime provides
+## What the JavaScript runtime provides
 
-TypeScript tools do not run in Node. They run in an embedded JavaScript engine, and the environment
+JavaScript tools do not run in Node. They run in an embedded JavaScript engine, and the environment
 they see is assembled by the host, so it is neither Node's nor a browser's. The runtime libraries the
 host does provide live under the `agentc:` prefix and are imported like any other module.
 
@@ -147,12 +145,12 @@ exports, so the import is optional for those three.
 const response = await fetch("https://example.com");
 ```
 
-Alongside these, the host binds a set of Node-compatible modules: `node:buffer`, `node:console`,
-`node:timers`, `node:url`, `node:os`, `node:stream/web`, `node:fs`, and `node:fs/promises`. Each is a
-subset of its Node counterpart rather than a full implementation.
+The runtime libraries are catalogued at [runtime libraries](/reference/runtime), and the JavaScript
+surface the host binds is enumerated at [standard](/reference/runtime/standard).
 
 The shapes of all of it come from `@agentc-sh/runtime`, which the scaffold installs and references for
-you, so your editor reports what the host actually provides rather than guessing.
+you, so your editor reports what the host actually provides rather than guessing. The package is
+optional. A component that does not depend on it compiles and runs identically.
 
 <Callout type="note" title="`@types/node` is deliberately absent">
 The scaffold does not depend on `@types/node`, and its `tsconfig.json` sets `types` to an empty array

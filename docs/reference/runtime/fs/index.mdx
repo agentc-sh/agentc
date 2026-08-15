@@ -1,0 +1,60 @@
+---
+title: Filesystem
+description: The virtual filesystem the runtime provides to component code.
+---
+
+The filesystem is a POSIX-style filesystem assembled by the runtime. It is not the host filesystem.
+What a component sees at a path is what the agent's manifest mounted there, which may be an
+in-memory store, a directory on the host, a read-only view of either, or an overlay of two.
+
+<LibAvailability>
+  <LibLanguage name="TypeScript" specifier="agentc:fs">
+    The runtime provides `agentc:fs` to every TypeScript component it executes.
+  </LibLanguage>
+</LibAvailability>
+
+## What the runtime controls
+
+The filesystem a component sees is assembled from mounts, and component code cannot reach around it.
+There is no path that escapes the mount table, and a mount backed by a host directory exposes that
+directory and nothing above it. See [filesystem](/reference/manifest/filesystem) for how the mounts
+are declared.
+
+## Paths
+
+Paths are POSIX-style regardless of the host platform, so separators are forward slashes on every
+host. An absolute path resolves from the root of the virtual filesystem. A relative path resolves
+against the working directory.
+
+## Errors
+
+Every failure is an error the calling code can catch. Errors carry a message, and matching on the
+message is how code distinguishes them.
+
+| Category | Raised when |
+| ------- | ------- |
+| Not found | A path that must exist does not. |
+| Already exists | A path that must not exist does. |
+| Not a directory | A path component that must be a directory is not. |
+| Is a directory | An operation on a file was given a directory. |
+| Permission denied | The mode bits, or a read-only mount, refuse the operation. |
+| Path escapes authority | A path resolves outside the authority the mount grants. |
+| Cross-backend rename | A rename would move a path from one backend to another. |
+| Unsupported | The backend does not implement the operation. |
+
+## Differences you can observe
+
+- `readlink` returns an absolute path, because a symbolic link's target is resolved against the
+  working directory and stored absolute when the link is created.
+- `readdir` results are sorted.
+- `rm` removes a symbolic link itself rather than following it to its target.
+- `mkdir` and `mkdtemp` return the path they created.
+
+## Operations that are absent
+
+`link`, `utimes`, `futimes`, `realpath`, `statfs`, `watch`, `cp`, and `opendir` are not present.
+Their absence is deliberate.
+
+## Bindings
+
+See [TypeScript](/reference/runtime/fs/typescript) for every export of `agentc:fs`.

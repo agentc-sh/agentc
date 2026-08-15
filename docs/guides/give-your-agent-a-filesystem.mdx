@@ -1,0 +1,159 @@
+---
+title: Give your agent a filesystem
+description: Mount a filesystem for your agent's components and adjust it at deploy time.
+---
+
+Every agent already runs with a virtual filesystem. Its shape is defined in the manifest, and at
+startup the runtime can only add extra host binds on top of that declared topology. This guide
+shows how to move from the default in-memory root to host-backed mounts, read-only views, overlays,
+and deploy-time rebinding.
+
+## Start from the default
+
+When the manifest omits `filesystem`, the agent still has a writable in-memory filesystem mounted
+at `/`. A component can read and write immediately, but nothing survives a restart.
+
+Unlike the network policy, the filesystem topology itself is declared in the manifest. Runtime
+configuration does not replace that structure. It only contributes additional host binds.
+
+```hcl title="agent.acl"
+build {
+  archetype = "standalone"
+}
+
+providers {
+  anthropic {
+    models = ["claude-haiku-4-5"]
+
+    config {
+      api_key = secret(runtime("ANTHROPIC_API_KEY"))
+    }
+  }
+}
+
+agent "assistant" {
+  graph {
+    type = "react"
+  }
+
+  prompt = "You are a helpful assistant."
+
+  model {
+    provider = "anthropic"
+    name     = "claude-haiku-4-5"
+  }
+}
+```
+
+## Mount a host directory
+
+Add a `filesystem` block with a `host` backend to expose a real directory inside the virtual
+filesystem. Only that directory is reachable through the mount.
+
+```hcl title="agent.acl"
+filesystem {
+  mounts = [
+    {
+      path = "/workspace"
+      backend = {
+        kind = "host"
+        root = "./workspace"
+      }
+    }
+  ]
+}
+```
+
+A component that reads `/workspace/notes.md` now reads `./workspace/notes.md` from the host.
+
+## Make it read only
+
+Wrap the `host` backend in `read_only` when components should see the directory but must not modify
+it.
+
+```hcl title="agent.acl"
+filesystem {
+  mounts = [
+    {
+      path = "/reference"
+      backend = {
+        kind = "read_only"
+        inner = {
+          kind = "host"
+          root = "./reference"
+        }
+      }
+    }
+  ]
+}
+```
+
+Every write through `/reference` is now refused.
+
+## Compose an overlay
+
+Put a `memory` backend over a read-only host mount when components should be able to write without
+changing the host directory. Reads check the in-memory upper layer first and then fall through to
+the host-backed lower layer.
+
+```hcl title="agent.acl"
+filesystem {
+  mounts = [
+    {
+      path = "/workspace"
+      backend = {
+        kind = "overlay"
+        upper = { kind = "memory" }
+        lower = {
+          kind = "read_only"
+          inner = {
+            kind = "host"
+            root = "./workspace"
+          }
+        }
+      }
+    }
+  ]
+}
+```
+
+This is the usual shape when the host directory is input and the component needs scratch writes.
+
+## Redirect at deploy time
+
+Operator binds let you point a mount path at a different host directory without recompiling. Set the
+bind path and bind root in the deployment environment:
+
+```bash
+export AGENT__FILESYSTEM__BINDS__0__PATH=/workspace
+export AGENT__FILESYSTEM__BINDS__0__ROOT=/srv/agent-workspace
+```
+
+With those two variables set, `/workspace` resolves to `/srv/agent-workspace` on the host.
+
+## Read and write from a component
+
+Send a request from a component using the corresponding runtime library.
+
+<Tabs defaultValue="typescript">
+  <TabsList>
+    <TabsTrigger value="typescript">TypeScript</TabsTrigger>
+  </TabsList>
+  <TabsContent value="typescript">
+```typescript
+import { readFile, writeFile } from "agentc:fs";
+
+const existing = await readFile("/workspace/notes.md", "utf8");
+
+await writeFile(
+  "/workspace/notes.out.md",
+  existing.toUpperCase(),
+);
+```
+  </TabsContent>
+</Tabs>
+
+## Where to go next
+
+- [filesystem reference](/reference/manifest/filesystem)
+- [fs](/reference/runtime/fs)

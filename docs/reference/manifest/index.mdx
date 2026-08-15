@@ -4,9 +4,10 @@ description: The agent.acl manifest and the top-level blocks that make up an age
 ---
 
 An agent is defined by a single `agent.acl` manifest. The manifest is a set of top-level blocks whose
-order does not matter: `build` selects the output shape, `providers` declares the models, `agent`
-defines the agent itself, `tool` and `skill` extend what it can do, `http_server` exposes it over the
-network, and `locals` factors out repeated values. Each block has its own reference page linked below.
+order does not matter: `build` selects the output shape, `filesystem` and `network` decide what the
+agent's components can reach, `providers` declares the models, `agent` defines the agent itself,
+`tool` and `skill` extend what it can do, `http_server` exposes it over the network, and `locals`
+factors out repeated values. Each block has its own reference page linked below.
 
 The manifest below is a complete example that uses every top-level block:
 
@@ -21,6 +22,26 @@ build {
 
 runtime {
   default_tenant_id = "default"
+}
+
+filesystem {
+  mounts = [
+    {
+      path = "/"
+      backend = { kind = "memory" }
+    }
+  ]
+}
+
+network {
+  policy {
+    allow = [
+      {
+        protocol = "https"
+        hostname = "api.example.com"
+      }
+    ]
+  }
 }
 
 providers {
@@ -88,6 +109,8 @@ values, see [The manifest](/concepts/the-manifest).
 | [build](/reference/manifest/build) | Selects the archetype and output shape of the artifact. |
 | [locals](/reference/manifest/locals) | Build-time constants referenced elsewhere in the manifest. |
 | [runtime](/reference/manifest/runtime) | Runtime settings such as the default tenant and storage. |
+| [filesystem](/reference/manifest/filesystem) | The virtual filesystem the agent's components see. |
+| [network](/reference/manifest/network) | The egress policy and limits for outbound requests. |
 | [providers](/reference/manifest/providers) | Model providers and their connection and inference configuration. |
 | [agent](/reference/manifest/agent) | The agent's identity, graph, model, prompt, and capabilities. |
 | [graph](/reference/manifest/graph) | The graph selection inside the agent. |

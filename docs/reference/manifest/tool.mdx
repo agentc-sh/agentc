@@ -29,8 +29,10 @@ These fields apply to all tool kinds.
 
 ## javascript
 
-A JavaScript tool is a Node.js package bundled by `esbuild` at compile time. The bundle is
-embedded in the binary; no Node.js installation is required at runtime.
+A JavaScript tool is a TypeScript or JavaScript package bundled by `esbuild` at compile time and
+executed in the runtime's embedded engine. See [runtime libraries](/reference/runtime) for the
+environment that engine provides. The bundle is embedded in the binary; no Node.js installation is
+required at runtime.
 
 ```hcl
 tool "adder" {

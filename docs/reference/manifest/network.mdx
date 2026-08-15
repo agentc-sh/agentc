@@ -1,0 +1,105 @@
+---
+title: network
+description: The network block declares the egress policy and limits for outbound requests.
+---
+
+The `network` block declares what the agent's outbound HTTP client may do.
+
+```hcl title="agent.acl"
+network {
+  user_agent = runtime("NETWORK_USER_AGENT", "my-agent/1.0")
+
+  headers = {
+    "X-Env" = "production"
+  }
+
+  limits {
+    request_timeout_ms = runtime("NETWORK_REQUEST_TIMEOUT_MS", 5000)
+  }
+
+  policy {
+    allow = [
+      {
+        protocol = "https"
+        hostname = "api.example.com"
+      }
+    ]
+  }
+}
+```
+
+## Fields
+
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `user_agent` | string | no | yes | unset | The `User-Agent` header sent with every request. |
+| `headers` | map of string to string | no | yes | empty | Additional headers sent with every request. |
+| `limits` | block | no | | defaults below | Connection, timeout, and size limits. |
+| `policy` | block | no | | defaults below | The egress policy applied to every request. |
+
+## limits
+
+| Field | Type | Default |
+|-------|------|---------|
+| `connect_timeout_ms` | number | unset |
+| `read_timeout_ms` | number | unset |
+| `request_timeout_ms` | number | unset |
+| `max_redirects` | number | `5` |
+| `max_response_bytes` | number | unset |
+| `concurrency_limit` | number | unset |
+
+- `connect_timeout_ms` is the time allowed to establish a connection.
+- `read_timeout_ms` is the time allowed between response body chunks.
+- `request_timeout_ms` is the deadline for the whole request.
+- `max_redirects` is how many redirects one request may follow.
+- `max_response_bytes` is how many response body bytes are accepted.
+- `concurrency_limit` is how many requests may be in flight at once.
+
+An unset limit is not enforced.
+
+## policy
+
+The `policy` block contains `addresses`, `methods`, and `allow`.
+
+### addresses
+
+| Field | Default |
+|-------|---------|
+| `allow_loopback` | `false` |
+| `allow_private` | `false` |
+| `allow_link_local` | `false` |
+
+These permit categories of destination address. The checks apply to every address a host name
+resolves to. The link-local category is the one covering the cloud instance metadata address.
+
+### methods
+
+`methods` is a set of HTTP method names. When it is unset, methods are unrestricted.
+
+### allow
+
+`allow` is a list of WHATWG
+[`URLPattern`](https://developer.mozilla.org/en-US/docs/Web/API/URL_Pattern_API) objects. An empty
+list means URL patterns are unrestricted. Each pattern uses the `protocol`, `hostname`, `port`, and
+`pathname` components. An omitted component matches anything.
+
+| Component | Matches |
+|-----------|---------|
+| `protocol` | The URL scheme, for example `https`. |
+| `hostname` | The host name. |
+| `port` | The port. |
+| `pathname` | The path. |
+
+### Host name patterns
+
+Host name matching follows `URLPattern` hostname semantics, which are label-aware rather than plain
+substring matches.
+
+- `*.acme.com` matches any number of leading labels.
+- `:sub.acme.com` matches exactly one leading label.
+- `api.acme.com` matches both patterns.
+- `deep.api.acme.com` matches `*.acme.com`, but not `:sub.acme.com`.
+- `evilacme.com` matches neither pattern, because `acme.com` is not a separate host label there.
+
+See [agentc:http](/reference/runtime/http) for what component code sees and
+[Control network egress](/guides/control-network-egress) for the step-by-step recipe.
