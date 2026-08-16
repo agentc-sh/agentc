@@ -44,6 +44,10 @@ impl<'a> ComponentsIter<'a> {
     pub(crate) fn new(inner: UnixComponents<'a>) -> Self {
         ComponentsIter { inner }
     }
+
+    pub fn segments(self) -> SegmentsIter<'a> {
+        SegmentsIter { inner: self }
+    }
 }
 
 impl Iterator for ComponentsIter<'_> {
@@ -53,6 +57,24 @@ impl Iterator for ComponentsIter<'_> {
         self.inner
             .next()
             .map(|component| Component::new(component.as_bytes()))
+    }
+}
+
+pub struct SegmentsIter<'a> {
+    inner: ComponentsIter<'a>,
+}
+
+impl Iterator for SegmentsIter<'_> {
+    type Item = Component;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while let Some(component) = self.inner.next() {
+            if !matches!(component.as_bytes(), b"/" | b".") {
+                return Some(component);
+            }
+        }
+
+        None
     }
 }
 
@@ -131,6 +153,19 @@ mod tests {
                 .map(|component| component.to_string_lossy())
                 .collect::<Vec<_>>(),
             vec!["/", "workspace", "file.txt"]
+        );
+    }
+
+    #[test]
+    fn segments_skip_root_and_current_directory_components() {
+        assert_eq!(
+            PathBuf::parse("/./workspace/../file.txt")
+                .unwrap()
+                .components()
+                .segments()
+                .map(|component| component.to_string_lossy())
+                .collect::<Vec<_>>(),
+            vec!["workspace", "..", "file.txt"]
         );
     }
 

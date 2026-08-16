@@ -35,6 +35,10 @@ impl Path {
         UnixPath::new(self.as_bytes()).is_relative()
     }
 
+    pub fn is_root(&self) -> bool {
+        self.as_bytes() == b"/"
+    }
+
     pub fn parent(&self) -> Option<&Path> {
         UnixPath::new(self.as_bytes())
             .parent()
@@ -260,6 +264,12 @@ impl From<PathBuf> for Vec<u8> {
 impl From<&Path> for PathBuf {
     fn from(path: &Path) -> Self {
         PathBuf { inner: path.as_bytes().to_vec() }
+    }
+}
+
+impl From<&PathBuf> for PathBuf {
+    fn from(path: &PathBuf) -> Self {
+        path.clone()
     }
 }
 

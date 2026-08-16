@@ -37,14 +37,6 @@ impl OverlayFs {
         }
     }
 
-    fn mutates_open(options: &OpenOptions) -> bool {
-        options.is_write()
-            || options.is_append()
-            || options.is_truncate()
-            || options.is_create()
-            || options.is_create_new()
-    }
-
     async fn is_whiteout(&self, path: &Path) -> bool {
         self.whiteouts
             .read()
@@ -213,14 +205,24 @@ impl Backend for OverlayFs {
 
     async fn open(&self, path: &Path, options: &OpenOptions) -> Result<Self::File, Error> {
         if self.is_whiteout(path).await {
-            if !Self::mutates_open(options) {
+            if !options.is_write()
+                || options.is_append()
+                || options.is_truncate()
+                || options.is_create()
+                || options.is_create_new()
+            {
                 return Err(Error::not_found(path));
             }
 
             self.clear_whiteout(path).await;
         }
 
-        if Self::mutates_open(options) {
+        if !options.is_write()
+            || options.is_append()
+            || options.is_truncate()
+            || options.is_create()
+            || options.is_create_new()
+        {
             self.copy_lower_file_to_upper(path, options)
                 .await?;
 
