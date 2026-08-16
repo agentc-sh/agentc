@@ -50,7 +50,7 @@ impl<S: GraphState + 'static> TypedTool<S> for ReadSkillFileTool {
     }
 
     fn capabilities(&self) -> CapabilitySet {
-        CapabilitySet::empty()
+        CapabilitySet::from(["skills::read"])
     }
 
     async fn execute(
