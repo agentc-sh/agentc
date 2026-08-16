@@ -429,6 +429,7 @@ name = "agentc-fs"
 version = "0.3.1"
 dependencies = [
  "agentc-executor-typescript",
+ "arc-swap",
  "async-trait",
  "bstr",
  "bytes",

@@ -89,6 +89,14 @@ impl Metadata {
         }
     }
 
+    pub fn file(len: u64, permissions: Permissions) -> Self {
+        Metadata::new(FileType::File, len, permissions)
+    }
+
+    pub fn directory(permissions: Permissions) -> Self {
+        Metadata::new(FileType::Directory, 0, permissions)
+    }
+
     pub fn file_type(&self) -> FileType {
         self.file_type
     }

@@ -32,6 +32,10 @@ impl Node {
         Node::File(MemoryFileNode::new(ino))
     }
 
+    pub(crate) fn file_with_content(ino: u64, content: Vec<u8>) -> Self {
+        Node::File(MemoryFileNode::with_content(ino, content))
+    }
+
     pub(crate) fn symlink(ino: u64, target: PathBuf) -> Self {
         Node::Symlink(MemorySymlinkNode::new(ino, target))
     }
@@ -128,6 +132,22 @@ impl MemoryFileNode {
 
         MemoryFileNode {
             content: Arc::new(Mutex::new(Vec::new())),
+            permissions: Permissions::new(Permissions::FILE),
+            accessed: Some(now),
+            modified: Some(now),
+            created: Some(now),
+            changed: Some(now),
+            ino,
+            uid: 0,
+            gid: 0,
+        }
+    }
+
+    fn with_content(ino: u64, content: Vec<u8>) -> Self {
+        let now = SystemTime::now();
+
+        MemoryFileNode {
+            content: Arc::new(Mutex::new(content)),
             permissions: Permissions::new(Permissions::FILE),
             accessed: Some(now),
             modified: Some(now),

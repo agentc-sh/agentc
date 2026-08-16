@@ -7,10 +7,12 @@ use std::sync::Arc;
 use crate::{
     backend::Backend,
     errors::Error,
-    fs::filesystem::Fs,
-    mount::{Mount, MountFs, MountKind},
+    fs::{
+        filesystem::Fs,
+        namespace::{Mount, MountKind, Namespace},
+    },
     path::{IntoPathBuf, PathBuf},
-    policy::{Policy, PolicyFs},
+    policy::Policy,
 };
 
 pub struct FsBuilder {
@@ -28,7 +30,7 @@ impl FsBuilder {
         }
     }
 
-    fn mount_path(path: impl IntoPathBuf) -> Result<PathBuf, Error> {
+    pub(crate) fn mount_path(path: impl IntoPathBuf) -> Result<PathBuf, Error> {
         let path = path.into_path_buf()?.normalize()?;
 
         if path.is_relative() {
@@ -66,6 +68,20 @@ impl FsBuilder {
         self
     }
 
+    pub fn mount_fs(mut self, path: impl IntoPathBuf, fs: Fs) -> Self {
+        match Self::mount_path(path) {
+            Ok(path) => self.mounts.push(Mount {
+                path,
+                kind: MountKind::Directory,
+                backend: fs.namespace,
+                dev: 0,
+            }),
+            Err(error) => self.error = Some(error),
+        }
+
+        self
+    }
+
     pub fn policy(mut self, policy: impl Policy) -> Self {
         self.policies.push(Arc::new(policy));
         self
@@ -76,11 +92,7 @@ impl FsBuilder {
             return Err(error);
         }
 
-        if self.policies.is_empty() {
-            return Ok(Fs::new(MountFs::new(self.mounts)));
-        }
-
-        Ok(Fs::new(PolicyFs::from_policies(MountFs::new(self.mounts), self.policies)))
+        Ok(Fs::from_namespace(Namespace::new(self.mounts, self.policies)))
     }
 }
 

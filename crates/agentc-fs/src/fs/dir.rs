@@ -14,7 +14,7 @@ use futures::{
 };
 
 use crate::{
-    backend::DirectoryCursor,
+    backend::{Backend, DirectoryCursor},
     errors::Error,
     fs::{
         file::File,
@@ -40,9 +40,7 @@ impl Dir {
     }
 
     fn path_components(&self, path: &PathBuf) -> Vec<Component> {
-        path.components()
-            .filter(|component| !matches!(component.as_bytes(), b"/" | b"."))
-            .collect()
+        path.components().segments().collect()
     }
 
     fn path_bytes(components: Vec<Component>) -> Vec<u8> {
@@ -83,7 +81,7 @@ impl Dir {
     ) -> Result<File, Error> {
         Ok(File::new(
             self.fs
-                .backend
+                .namespace
                 .open(self.resolve(path)?.as_path(), options)
                 .await?,
         ))
@@ -94,7 +92,7 @@ impl Dir {
 
         if self
             .fs
-            .backend
+            .namespace
             .metadata(path.as_path(), &MetadataOptions::new().follow_symlinks(false))
             .await?
             .file_type()
@@ -111,7 +109,7 @@ impl Dir {
 
         let created = self
             .fs
-            .backend
+            .namespace
             .create_dir(path.as_path(), &CreateDirOptions::new())
             .await?;
 
@@ -123,7 +121,7 @@ impl Dir {
 
         let created = self
             .fs
-            .backend
+            .namespace
             .create_dir(path.as_path(), &CreateDirOptions::new().recursive(true))
             .await?;
 
@@ -142,13 +140,13 @@ impl Dir {
 
             match self
                 .fs
-                .backend
+                .namespace
                 .create_dir(path.as_path(), &CreateDirOptions::new())
                 .await
             {
                 Ok(true) => {
                     self.fs
-                        .backend
+                        .namespace
                         .set_permissions(path.as_path(), Permissions::new(0o700))
                         .await?;
 
@@ -166,7 +164,7 @@ impl Dir {
     pub async fn entries(&self) -> Result<DirEntries, Error> {
         Ok(DirEntries::new(
             self.fs
-                .backend
+                .namespace
                 .entries(self.path.as_path())
                 .await?,
         ))
@@ -187,7 +185,7 @@ impl Dir {
                             Ok(Some(entry)) => {
                                 if entry.file_type() == FileType::Directory
                                     && let Ok(children) = fs
-                                        .backend
+                                        .namespace
                                         .entries(entry.path().as_path())
                                         .await
                                 {
@@ -209,7 +207,7 @@ impl Dir {
         let path = self.resolve(path)?;
         let metadata = self
             .fs
-            .backend
+            .namespace
             .metadata(path.as_path(), &MetadataOptions::new().follow_symlinks(false))
             .await?;
         let file_name = path
@@ -221,14 +219,14 @@ impl Dir {
 
     pub async fn metadata(&self, path: impl IntoPathBuf) -> Result<Metadata, Error> {
         self.fs
-            .backend
+            .namespace
             .metadata(self.resolve(path)?.as_path(), &MetadataOptions::new().follow_symlinks(true))
             .await
     }
 
     pub async fn symlink_metadata(&self, path: impl IntoPathBuf) -> Result<Metadata, Error> {
         self.fs
-            .backend
+            .namespace
             .metadata(self.resolve(path)?.as_path(), &MetadataOptions::new().follow_symlinks(false))
             .await
     }
@@ -239,7 +237,7 @@ impl Dir {
         options: &AccessOptions,
     ) -> Result<(), Error> {
         self.fs
-            .backend
+            .namespace
             .access(self.resolve(path)?.as_path(), options)
             .await
     }
@@ -250,7 +248,7 @@ impl Dir {
         permissions: Permissions,
     ) -> Result<(), Error> {
         self.fs
-            .backend
+            .namespace
             .set_permissions(self.resolve(path)?.as_path(), permissions)
             .await
     }
@@ -261,21 +259,21 @@ impl Dir {
         link: impl IntoPathBuf,
     ) -> Result<(), Error> {
         self.fs
-            .backend
+            .namespace
             .symlink(self.resolve(target)?.as_path(), self.resolve(link)?.as_path())
             .await
     }
 
     pub async fn read_link(&self, path: impl IntoPathBuf) -> Result<PathBuf, Error> {
         self.fs
-            .backend
+            .namespace
             .read_link(self.resolve(path)?.as_path())
             .await
     }
 
     pub async fn rename(&self, from: impl IntoPathBuf, to: impl IntoPathBuf) -> Result<(), Error> {
         self.fs
-            .backend
+            .namespace
             .rename(self.resolve(from)?.as_path(), self.resolve(to)?.as_path())
             .await
     }
@@ -290,28 +288,28 @@ impl Dir {
 
     pub async fn remove_file(&self, path: impl IntoPathBuf) -> Result<(), Error> {
         self.fs
-            .backend
+            .namespace
             .remove_file(self.resolve(path)?.as_path())
             .await
     }
 
     pub async fn remove_dir(&self, path: impl IntoPathBuf) -> Result<(), Error> {
         self.fs
-            .backend
+            .namespace
             .remove_dir(self.resolve(path)?.as_path(), &RemoveDirOptions::new())
             .await
     }
 
     pub async fn remove_dir_all(&self, path: impl IntoPathBuf) -> Result<(), Error> {
         self.fs
-            .backend
+            .namespace
             .remove_dir(self.resolve(path)?.as_path(), &RemoveDirOptions::new().recursive(true))
             .await
     }
 
     pub async fn truncate(&self, path: impl IntoPathBuf, len: u64) -> Result<(), Error> {
         self.fs
-            .backend
+            .namespace
             .truncate(self.resolve(path)?.as_path(), len)
             .await
     }
@@ -328,7 +326,7 @@ impl Dir {
         options: &SetOwnerOptions,
     ) -> Result<(), Error> {
         self.fs
-            .backend
+            .namespace
             .set_owner(self.resolve(path)?.as_path(), owner, options)
             .await
     }

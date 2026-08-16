@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 use std::{
+    collections::BTreeMap,
     sync::{
         Arc,
         atomic::{AtomicU64, Ordering},
@@ -28,7 +29,7 @@ use crate::{
         file::MemoryFile,
         node::{Node, NodeRef},
     },
-    path::{Component, Path, PathBuf},
+    path::{Component, IntoPathBuf, Path, PathBuf},
 };
 
 pub struct MemoryFs {
@@ -44,6 +45,10 @@ impl MemoryFs {
         }
     }
 
+    pub fn builder() -> MemoryFsBuilder {
+        MemoryFsBuilder::new()
+    }
+
     fn next_ino(&self) -> u64 {
         self.next_ino
             .fetch_add(1, Ordering::Relaxed)
@@ -56,7 +61,10 @@ impl MemoryFs {
     ) -> BoxFuture<'a, Result<NodeRef, Error>> {
         Box::pin(async move {
             let mut current = self.root.clone();
-            let components = self.components(path);
+            let components = path
+                .components()
+                .segments()
+                .collect::<Vec<_>>();
 
             for (index, component) in components.iter().enumerate() {
                 let next = match &*current.read().await {
@@ -118,21 +126,176 @@ impl MemoryFs {
             _ => Err(Error::not_directory(path)),
         }
     }
-
-    fn components(&self, path: &Path) -> Vec<Component> {
-        path.components()
-            .filter(|component| !matches!(component.as_bytes(), b"/" | b"."))
-            .collect()
-    }
-
-    fn child_path(&self, parent: &Path, file_name: &Component) -> Result<PathBuf, Error> {
-        PathBuf::parse(parent.as_bytes())?.join(file_name.as_bytes())
-    }
 }
 
 impl Default for MemoryFs {
     fn default() -> Self {
         MemoryFs::new()
+    }
+}
+
+enum MemoryFsEntry {
+    File(PathBuf, Vec<u8>),
+    Dir(PathBuf),
+}
+
+#[derive(Default)]
+struct PendingDir {
+    dirs: BTreeMap<Vec<u8>, PendingDir>,
+    files: BTreeMap<Vec<u8>, Vec<u8>>,
+}
+
+impl PendingDir {
+    fn insert_file(&mut self, path: &PathBuf, contents: Vec<u8>) -> Result<(), Error> {
+        let mut components = path
+            .components()
+            .segments()
+            .collect::<Vec<_>>();
+
+        let name = components
+            .pop()
+            .ok_or_else(|| Error::invalid_path("memory builder file path has no name"))?;
+
+        let mut current = self;
+
+        for component in components {
+            if current
+                .files
+                .contains_key(component.as_bytes())
+            {
+                return Err(Error::not_directory(path));
+            }
+
+            current = current
+                .dirs
+                .entry(component.as_bytes().to_vec())
+                .or_default();
+        }
+
+        if current
+            .dirs
+            .contains_key(name.as_bytes())
+        {
+            return Err(Error::is_directory(path));
+        }
+
+        current
+            .files
+            .insert(name.as_bytes().to_vec(), contents);
+
+        Ok(())
+    }
+
+    fn insert_dir(&mut self, path: &PathBuf) -> Result<(), Error> {
+        let mut current = self;
+
+        for component in path.components().segments() {
+            if current
+                .files
+                .contains_key(component.as_bytes())
+            {
+                return Err(Error::not_directory(path));
+            }
+
+            current = current
+                .dirs
+                .entry(component.as_bytes().to_vec())
+                .or_default();
+        }
+
+        Ok(())
+    }
+
+    fn into_node(self, ino: u64, next_ino: &mut u64) -> NodeRef {
+        let mut node = Node::directory(ino);
+
+        if let Node::Directory(directory) = &mut node {
+            for (name, contents) in self.files {
+                let file_ino = *next_ino;
+                *next_ino += 1;
+
+                directory.entries_mut().insert(
+                    name,
+                    Arc::new(RwLock::new(Node::file_with_content(file_ino, contents))),
+                );
+            }
+
+            for (name, child) in self.dirs {
+                let child_ino = *next_ino;
+                *next_ino += 1;
+
+                directory
+                    .entries_mut()
+                    .insert(name, child.into_node(child_ino, next_ino));
+            }
+        }
+
+        Arc::new(RwLock::new(node))
+    }
+}
+
+pub struct MemoryFsBuilder {
+    entries: Vec<MemoryFsEntry>,
+    error: Option<Error>,
+}
+
+impl MemoryFsBuilder {
+    pub fn new() -> Self {
+        MemoryFsBuilder { entries: Vec::new(), error: None }
+    }
+
+    fn entry_path(path: impl IntoPathBuf) -> Result<PathBuf, Error> {
+        PathBuf::root().join(path)?.normalize()
+    }
+
+    pub fn file(mut self, path: impl IntoPathBuf, contents: impl Into<Vec<u8>>) -> Self {
+        match Self::entry_path(path) {
+            Ok(path) => self
+                .entries
+                .push(MemoryFsEntry::File(path, contents.into())),
+            Err(error) => self.error = Some(error),
+        }
+
+        self
+    }
+
+    pub fn dir(mut self, path: impl IntoPathBuf) -> Self {
+        match Self::entry_path(path) {
+            Ok(path) => self
+                .entries
+                .push(MemoryFsEntry::Dir(path)),
+            Err(error) => self.error = Some(error),
+        }
+
+        self
+    }
+
+    pub fn build(self) -> Result<MemoryFs, Error> {
+        if let Some(error) = self.error {
+            return Err(error);
+        }
+
+        let mut root = PendingDir::default();
+
+        for entry in self.entries {
+            match entry {
+                MemoryFsEntry::File(path, contents) => root.insert_file(&path, contents)?,
+                MemoryFsEntry::Dir(path) => root.insert_dir(&path)?,
+            }
+        }
+
+        let mut next_ino = 2;
+
+        Ok(MemoryFs {
+            root: root.into_node(1, &mut next_ino),
+            next_ino: AtomicU64::new(next_ino),
+        })
+    }
+}
+
+impl Default for MemoryFsBuilder {
+    fn default() -> Self {
+        MemoryFsBuilder::new()
     }
 }
 
@@ -252,7 +415,7 @@ impl Backend for MemoryFs {
             let file_name = Component::new(file_name);
 
             entries.push(Ok(DirEntry::new(
-                self.child_path(path, &file_name)?,
+                PathBuf::parse(path.as_bytes())?.join(file_name.as_bytes())?,
                 file_name,
                 child.file_type(),
                 child.metadata(),
@@ -313,7 +476,7 @@ impl Backend for MemoryFs {
         let mut current = self.root.clone();
         let mut created = false;
 
-        for component in self.components(path) {
+        for component in path.components().segments() {
             current = {
                 match &mut *current.write().await {
                     Node::Directory(directory) => match directory
@@ -937,7 +1100,7 @@ mod tests {
     async fn memory_reports_ownership_capability() {
         assert!(
             Fs::memory()
-                .backend
+                .namespace
                 .capabilities()
                 .supports_owner()
         );
@@ -1425,5 +1588,122 @@ mod tests {
             .await
             .unwrap();
         assert!(created);
+    }
+
+    #[tokio::test]
+    async fn builder_seeds_file_content() {
+        assert_eq!(
+            Fs::new(
+                MemoryFs::builder()
+                    .file("/notes.txt", b"seeded".to_vec())
+                    .build()
+                    .unwrap(),
+            )
+            .root()
+            .open_file("/notes.txt")
+            .await
+            .unwrap()
+            .read_to_end()
+            .await
+            .unwrap(),
+            b"seeded"
+        );
+    }
+
+    #[tokio::test]
+    async fn builder_creates_nested_file_ancestors() {
+        let root = Fs::new(
+            MemoryFs::builder()
+                .file("/a/b/c.txt", b"nested".to_vec())
+                .build()
+                .unwrap(),
+        )
+        .root();
+
+        assert_eq!(
+            root.metadata("/a")
+                .await
+                .unwrap()
+                .file_type(),
+            FileType::Directory
+        );
+        assert_eq!(
+            root.metadata("/a/b")
+                .await
+                .unwrap()
+                .file_type(),
+            FileType::Directory
+        );
+        assert_eq!(
+            root.open_file("/a/b/c.txt")
+                .await
+                .unwrap()
+                .read_to_end()
+                .await
+                .unwrap(),
+            b"nested"
+        );
+    }
+
+    #[tokio::test]
+    async fn builder_creates_empty_directories() {
+        assert!(
+            Fs::new(
+                MemoryFs::builder()
+                    .dir("/workspace")
+                    .build()
+                    .unwrap(),
+            )
+            .root()
+            .open_dir("/workspace")
+            .await
+            .unwrap()
+            .entries()
+            .await
+            .unwrap()
+            .next()
+            .await
+            .unwrap()
+            .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn builder_output_can_be_readonly() {
+        let root = Fs::new(ReadOnlyFs::new(
+            MemoryFs::builder()
+                .file("/notes.txt", b"readonly".to_vec())
+                .build()
+                .unwrap(),
+        ))
+        .root();
+
+        assert_eq!(
+            root.open_file("/notes.txt")
+                .await
+                .unwrap()
+                .read_to_end()
+                .await
+                .unwrap(),
+            b"readonly"
+        );
+        assert!(matches!(
+            root.options()
+                .write(true)
+                .open("/notes.txt")
+                .await,
+            Err(Error::PermissionDenied(path)) if path.to_string_lossy() == "/notes.txt"
+        ));
+    }
+
+    #[test]
+    fn builder_rejects_file_directory_conflicts() {
+        assert!(matches!(
+            MemoryFs::builder()
+                .file("/a", Vec::new())
+                .dir("/a/b")
+                .build(),
+            Err(Error::NotDirectory(path)) if path.to_string_lossy() == "/a/b"
+        ));
     }
 }

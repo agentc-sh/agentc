@@ -25,18 +25,9 @@ impl ReadOnlyFs {
         ReadOnlyFs { inner: Arc::new(backend) }
     }
 
-    fn rejects_open(options: &OpenOptions) -> bool {
-        options.is_write()
-            || options.is_append()
-            || options.is_truncate()
-            || options.is_create()
-            || options.is_create_new()
-    }
-
     fn readonly_metadata(metadata: Metadata) -> Metadata {
-        let permissions = Permissions::new(metadata.permissions().mode() & !0o222);
-
-        metadata.with_permissions(permissions)
+        let readonly = Permissions::new(metadata.permissions().mode() & !0o222);
+        metadata.with_permissions(readonly)
     }
 }
 
@@ -53,7 +44,12 @@ impl Backend for ReadOnlyFs {
     }
 
     async fn open(&self, path: &Path, options: &OpenOptions) -> Result<Self::File, Error> {
-        if Self::rejects_open(options) {
+        if options.is_write()
+            || options.is_append()
+            || options.is_truncate()
+            || options.is_create()
+            || options.is_create_new()
+        {
             return Err(Error::permission_denied(path));
         }
 
@@ -232,7 +228,7 @@ mod tests {
     async fn readonly_reports_no_permission_support() {
         assert!(
             !Fs::new(ReadOnlyFs::new(MemoryFs::new()))
-                .backend
+                .namespace
                 .capabilities()
                 .supports_permissions()
         );
