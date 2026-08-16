@@ -41,7 +41,7 @@ impl Dir {
 
     fn path_components(&self, path: &PathBuf) -> Vec<Component> {
         path.components()
-            .filter(|component| !matches!(component.as_bytes(), b"/" | b"."))
+            .segments()
             .collect()
     }
 

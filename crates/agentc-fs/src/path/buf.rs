@@ -267,6 +267,12 @@ impl From<&Path> for PathBuf {
     }
 }
 
+impl From<&PathBuf> for PathBuf {
+    fn from(path: &PathBuf) -> Self {
+        path.clone()
+    }
+}
+
 pub trait IntoPathBuf {
     fn into_path_buf(self) -> Result<PathBuf, Error>;
 }
