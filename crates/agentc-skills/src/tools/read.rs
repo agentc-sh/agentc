@@ -50,7 +50,7 @@ impl<S: GraphState + 'static> TypedTool<S> for ReadSkillFileTool {
     }
 
     fn capabilities(&self) -> CapabilitySet {
-        CapabilitySet::empty()
+        CapabilitySet::from(["skills::read"])
     }
 
     async fn execute(
@@ -59,11 +59,7 @@ impl<S: GraphState + 'static> TypedTool<S> for ReadSkillFileTool {
     ) -> Result<TypedToolOutput<String, ()>, ToolError> {
         Ok(TypedToolOutput::ok(
             self.registry
-                .get(&input.args.skill_name)
-                .ok_or_else(|| {
-                    ToolError::not_found(format!("skill '{}' not found", input.args.skill_name))
-                })?
-                .read_resource(&input.args.file_path)
+                .read_file(&input.args.skill_name, &input.args.file_path)
                 .await
                 .map_err(|e| ToolError::execution_error("read_skill_file", e.to_string()))?,
         ))

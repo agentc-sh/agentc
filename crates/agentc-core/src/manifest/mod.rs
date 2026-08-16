@@ -774,37 +774,16 @@ impl Manifest {
                         ))?
                         .clone();
 
-                    let skill_md_path = skill_md_artifact
-                        .to_string_lossy()
-                        .to_string();
-
-                    // The skill directory is the parent of the SKILL.md artifact.
-                    let skill_dir = skill_md_artifact
-                        .parent()
-                        .ok_or_else(|| {
-                            ManifestError::resolution(format!(
-                                "could not determine skill directory for `{name}`."
-                            ))
-                        })?
-                        .to_path_buf();
-
-                    let resources = transformed
-                        .artifacts_of("resource")
-                        .into_iter()
-                        .filter_map(|a| {
-                            let path = a.as_path()?;
-                            let rel = path
-                                .strip_prefix(&skill_dir)
-                                .ok()?
-                                .to_string_lossy()
-                                .to_string();
-                            Some((rel, path.to_string_lossy().to_string()))
-                        })
-                        .collect();
-
                     ResolvedContextSkillKind::Source(ResolvedContextSkillSource {
-                        skill_md_path,
-                        resources,
+                        dir: skill_md_artifact
+                            .parent()
+                            .ok_or_else(|| {
+                                ManifestError::resolution(format!(
+                                    "could not determine skill directory for `{name}`."
+                                ))
+                            })?
+                            .to_string_lossy()
+                            .to_string(),
                     })
                 }
 

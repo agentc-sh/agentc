@@ -45,7 +45,7 @@ impl<S: GraphState + 'static> TypedTool<S> for ListSkillsTool {
     }
 
     fn capabilities(&self) -> CapabilitySet {
-        CapabilitySet::empty()
+        CapabilitySet::from(["skills::list"])
     }
 
     async fn execute(
