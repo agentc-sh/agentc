@@ -171,11 +171,13 @@ mod tests {
         }));
 
         assert!(rendered.contains("let mut skills = SkillRegistryBuilder :: default"));
-        assert!(rendered.contains(
-            "fs . mount_fs (agentc_skills :: registry :: SKILLS_ROOT , skills . fs ())"
-        ));
-        assert!(rendered.contains(
-            "with_skill_registry (skills , MaterializationPolicy :: OnDemand)"
-        ));
+        assert!(
+            rendered.contains(
+                "fs . mount_fs (agentc_skills :: registry :: SKILLS_ROOT , skills . fs ())"
+            )
+        );
+        assert!(
+            rendered.contains("with_skill_registry (skills , MaterializationPolicy :: OnDemand)")
+        );
     }
 }

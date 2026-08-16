@@ -337,9 +337,17 @@ impl Dir {
         let mut components = if path.is_absolute() {
             Vec::new()
         } else {
-            self.path.components().segments().collect()
+            self.path
+                .components()
+                .segments()
+                .collect()
         };
-        let root_len = self.root.components().segments().collect::<Vec<_>>().len();
+        let root_len = self
+            .root
+            .components()
+            .segments()
+            .collect::<Vec<_>>()
+            .len();
 
         for component in path.components() {
             match component.as_bytes() {

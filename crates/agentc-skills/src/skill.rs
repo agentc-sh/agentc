@@ -8,10 +8,7 @@ use regex::Regex;
 use sanitizer::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{
-    collections::HashMap,
-    path::Path,
-};
+use std::{collections::HashMap, path::Path};
 use tokio::fs::read_dir;
 use validator::Validate;
 
@@ -241,7 +238,9 @@ impl Skill {
         }
 
         Skill::from_files(
-            dir.file_name().and_then(|name| name.to_str()).unwrap_or(""),
+            dir.file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or(""),
             files,
         )
     }
@@ -359,8 +358,7 @@ mod tests {
 
     #[test]
     fn skill_parse_valid_minimal() {
-        let skill =
-            Skill::parse(minimal_skill_md(), "my-skill", vec![]).unwrap();
+        let skill = Skill::parse(minimal_skill_md(), "my-skill", vec![]).unwrap();
         assert_eq!(skill.name, "my-skill");
         assert_eq!(skill.description, "Does something useful.");
         assert_eq!(skill.body, "Instructions here.");

@@ -2,8 +2,8 @@
 //
 // SPDX-License-Identifier: MIT
 
-use async_trait::async_trait;
 use agentc_fs::{Fs, embedded::EmbeddedFs, memory::MemoryFs, readonly::ReadOnlyFs};
+use async_trait::async_trait;
 use indexmap::IndexMap;
 use serde_json::{Value, json};
 use std::path::Path;
@@ -11,7 +11,10 @@ use tokio::fs::read_dir;
 
 use agentc_prompt::vars::{TemplateVars, TemplateVarsError};
 
-use crate::{errors::SkillError, skill::{SKILL_FILENAME, Skill}};
+use crate::{
+    errors::SkillError,
+    skill::{SKILL_FILENAME, Skill},
+};
 
 pub const SKILLS_ROOT: &str = "/skills";
 
@@ -50,23 +53,18 @@ impl SkillRegistry {
         self.fs.clone()
     }
 
-    pub async fn read_file(
-        &self,
-        skill_name: &str,
-        rel_path: &str,
-    ) -> Result<String, SkillError> {
+    pub async fn read_file(&self, skill_name: &str, rel_path: &str) -> Result<String, SkillError> {
         if !self.skills.contains_key(skill_name) {
             return Err(SkillError::resource_not_found(skill_name, rel_path));
         }
 
-        Ok(
-            self.fs
-                .root()
-                .open_file(format!("/{skill_name}/{rel_path}"))
-                .await?
-                .read_to_string()
-                .await?,
-        )
+        Ok(self
+            .fs
+            .root()
+            .open_file(format!("/{skill_name}/{rel_path}"))
+            .await?
+            .read_to_string()
+            .await?)
     }
 }
 
@@ -108,8 +106,10 @@ impl SkillRegistryBuilder {
             memory = memory.file(format!("/{path}"), content);
         }
 
-        self.fs.mount(format!("/{}", skill.name), ReadOnlyFs::new(memory.build()?))?;
-        self.skills.insert(skill.name.clone(), skill);
+        self.fs
+            .mount(format!("/{}", skill.name), ReadOnlyFs::new(memory.build()?))?;
+        self.skills
+            .insert(skill.name.clone(), skill);
 
         Ok(self)
     }
@@ -179,10 +179,7 @@ impl SkillRegistryBuilder {
 
 impl Default for SkillRegistryBuilder {
     fn default() -> Self {
-        SkillRegistryBuilder {
-            fs: Fs::empty(),
-            skills: IndexMap::new(),
-        }
+        SkillRegistryBuilder { fs: Fs::empty(), skills: IndexMap::new() }
     }
 }
 
@@ -318,7 +315,9 @@ mod tests {
             .build()
             .unwrap();
 
-        process.mount_fs(SKILLS_ROOT, registry.fs()).unwrap();
+        process
+            .mount_fs(SKILLS_ROOT, registry.fs())
+            .unwrap();
 
         assert_eq!(
             process
@@ -344,15 +343,19 @@ mod tests {
             .build()
             .unwrap();
 
-        process.mount_fs(SKILLS_ROOT, registry.fs()).unwrap();
+        process
+            .mount_fs(SKILLS_ROOT, registry.fs())
+            .unwrap();
 
-        assert!(process
-            .root()
-            .options()
-            .write(true)
-            .open("/skills/skill-a/scripts/run.sh")
-            .await
-            .is_err());
+        assert!(
+            process
+                .root()
+                .options()
+                .write(true)
+                .open("/skills/skill-a/scripts/run.sh")
+                .await
+                .is_err()
+        );
     }
 
     // -------------------------------------------------------------------------
