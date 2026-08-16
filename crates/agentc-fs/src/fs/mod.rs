@@ -6,6 +6,7 @@ mod builder;
 mod dir;
 mod file;
 mod filesystem;
+mod namespace;
 mod types;
 
 pub use builder::FsBuilder;

@@ -19,7 +19,6 @@ pub mod typescript;
 
 pub mod host;
 pub mod memory;
-pub mod mount;
 pub mod overlay;
 pub mod policy;
 pub mod readonly;

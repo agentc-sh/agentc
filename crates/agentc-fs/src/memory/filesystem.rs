@@ -937,7 +937,7 @@ mod tests {
     async fn memory_reports_ownership_capability() {
         assert!(
             Fs::memory()
-                .backend
+                .namespace
                 .capabilities()
                 .supports_owner()
         );
