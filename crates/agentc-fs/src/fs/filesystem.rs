@@ -35,9 +35,7 @@ impl Fs {
     }
 
     pub(crate) fn from_namespace(namespace: Namespace) -> Self {
-        Fs {
-            namespace: Arc::new(namespace),
-        }
+        Fs { namespace: Arc::new(namespace) }
     }
 
     pub fn root(&self) -> Dir {
@@ -71,7 +69,7 @@ impl Fs {
 mod tests {
     use crate::{
         backend::Backend,
-        fs::{filesystem::Fs, File, OpenOptions},
+        fs::{File, OpenOptions, filesystem::Fs},
         memory::MemoryFs,
         path::PathBuf,
     };
@@ -86,7 +84,9 @@ mod tests {
                 Backend::open(
                     &fs,
                     path.as_path(),
-                    &OpenOptions::new().write(true).create(true),
+                    &OpenOptions::new()
+                        .write(true)
+                        .create(true),
                 )
                 .await
                 .unwrap(),
@@ -109,16 +109,16 @@ mod tests {
             .mount_fs(
                 "/skills",
                 Fs::builder()
-                    .mount(
-                        "/",
-                        MemorySource::with_file("/reference.md", b"grafted").await,
-                    )
+                    .mount("/", MemorySource::with_file("/reference.md", b"grafted").await)
                     .build()
                     .unwrap(),
             )
             .unwrap();
 
-        let mut file = root.open_file("/skills/reference.md").await.unwrap();
+        let mut file = root
+            .open_file("/skills/reference.md")
+            .await
+            .unwrap();
 
         assert_eq!(file.read_to_string().await.unwrap(), "grafted");
     }
@@ -130,7 +130,8 @@ mod tests {
             .build()
             .unwrap();
 
-        fs.mount("/data", MemoryFs::new()).unwrap();
+        fs.mount("/data", MemoryFs::new())
+            .unwrap();
 
         let root = fs.root();
         let mut file = root
@@ -141,10 +142,15 @@ mod tests {
             .await
             .unwrap();
 
-        file.write_all(b"runtime").await.unwrap();
+        file.write_all(b"runtime")
+            .await
+            .unwrap();
         file.flush().await.unwrap();
 
-        let mut file = root.open_file("/data/notes.txt").await.unwrap();
+        let mut file = root
+            .open_file("/data/notes.txt")
+            .await
+            .unwrap();
 
         assert_eq!(file.read_to_string().await.unwrap(), "runtime");
     }
@@ -156,10 +162,7 @@ mod tests {
             .mount_fs(
                 "/data",
                 Fs::builder()
-                    .mount(
-                        "/",
-                        MemorySource::with_file("/notes.txt", b"built").await,
-                    )
+                    .mount("/", MemorySource::with_file("/notes.txt", b"built").await)
                     .build()
                     .unwrap(),
             )

@@ -40,9 +40,7 @@ impl Dir {
     }
 
     fn path_components(&self, path: &PathBuf) -> Vec<Component> {
-        path.components()
-            .segments()
-            .collect()
+        path.components().segments().collect()
     }
 
     fn path_bytes(components: Vec<Component>) -> Vec<u8> {

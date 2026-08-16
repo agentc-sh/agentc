@@ -146,7 +146,10 @@ impl Backend for EmbeddedFs {
                                 PathBuf::parse(path.as_bytes())?.join(file_name.as_bytes())?,
                                 file_name,
                                 FileType::Directory,
-                                Self::metadata(FileType::Directory, directory.entries().len() as u64),
+                                Self::metadata(
+                                    FileType::Directory,
+                                    directory.entries().len() as u64,
+                                ),
                             ))
                         }
                         IncludeDirEntry::File(file) => {

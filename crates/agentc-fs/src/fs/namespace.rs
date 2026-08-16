@@ -57,15 +57,9 @@ impl Mount {
     fn local_path(&self, path: &Path) -> Result<PathBuf, Error> {
         match self.kind {
             MountKind::File => PathBuf::parse("/"),
-            MountKind::Directory if self.path == PathBuf::root() => {
-                PathBuf::parse(path.as_bytes())
-            }
-            MountKind::Directory if path.as_bytes() == self.path.as_bytes() => {
-                PathBuf::parse("/")
-            }
-            MountKind::Directory => {
-                PathBuf::parse(&path.as_bytes()[self.path.as_bytes().len()..])
-            }
+            MountKind::Directory if self.path == PathBuf::root() => PathBuf::parse(path.as_bytes()),
+            MountKind::Directory if path.as_bytes() == self.path.as_bytes() => PathBuf::parse("/"),
+            MountKind::Directory => PathBuf::parse(&path.as_bytes()[self.path.as_bytes().len()..]),
         }
     }
 }
@@ -106,8 +100,12 @@ impl MountTable {
     }
 
     fn is_descendant(parent: &PathBuf, path: &Path) -> bool {
-        path.as_bytes().starts_with(parent.as_bytes())
-            && path.as_bytes().get(parent.as_bytes().len()) == Some(&b'/')
+        path.as_bytes()
+            .starts_with(parent.as_bytes())
+            && path
+                .as_bytes()
+                .get(parent.as_bytes().len())
+                == Some(&b'/')
     }
 
     fn child_mount_name(ancestor: &Path, mount_path: &PathBuf) -> Option<Component> {
@@ -154,12 +152,7 @@ impl MountTable {
         self.mounts
             .iter()
             .find(|mount| mount.matches(path))
-            .map(|mount| {
-                Ok(Route {
-                    mount,
-                    path: mount.local_path(path)?,
-                })
-            })
+            .map(|mount| Ok(Route { mount, path: mount.local_path(path)? }))
             .transpose()?
             .ok_or_else(|| Error::not_found(path))
     }
@@ -203,13 +196,12 @@ impl Route<'_> {
     }
 
     async fn metadata(self, options: &MetadataOptions) -> Result<Metadata, Error> {
-        Ok(
-            self.mount
-                .backend
-                .metadata(self.path.as_path(), options)
-                .await?
-                .with_dev(self.mount.dev),
-        )
+        Ok(self
+            .mount
+            .backend
+            .metadata(self.path.as_path(), options)
+            .await?
+            .with_dev(self.mount.dev))
     }
 
     async fn access(self, options: &AccessOptions) -> Result<(), Error> {
@@ -227,7 +219,10 @@ impl Route<'_> {
     }
 
     async fn remove_file(self) -> Result<(), Error> {
-        self.mount.backend.remove_file(self.path.as_path()).await
+        self.mount
+            .backend
+            .remove_file(self.path.as_path())
+            .await
     }
 
     async fn remove_dir(self, options: &RemoveDirOptions) -> Result<(), Error> {
@@ -238,11 +233,17 @@ impl Route<'_> {
     }
 
     async fn truncate(self, len: u64) -> Result<(), Error> {
-        self.mount.backend.truncate(self.path.as_path(), len).await
+        self.mount
+            .backend
+            .truncate(self.path.as_path(), len)
+            .await
     }
 
     async fn read_link(self) -> Result<PathBuf, Error> {
-        self.mount.backend.read_link(self.path.as_path()).await
+        self.mount
+            .backend
+            .read_link(self.path.as_path())
+            .await
     }
 
     async fn set_permissions(self, permissions: Permissions) -> Result<(), Error> {
@@ -271,10 +272,7 @@ impl Namespace {
         let mounts = mounts
             .into_iter()
             .enumerate()
-            .map(|(index, mount)| Mount {
-                dev: index as u64 + 1,
-                ..mount
-            })
+            .map(|(index, mount)| Mount { dev: index as u64 + 1, ..mount })
             .collect::<Vec<_>>();
 
         Namespace {
@@ -381,15 +379,14 @@ impl Namespace {
     }
 
     pub(crate) fn insert(&self, mount: Mount) {
-        let dev = self.next_dev.fetch_add(1, Ordering::Relaxed);
+        let dev = self
+            .next_dev
+            .fetch_add(1, Ordering::Relaxed);
 
         self.table.rcu(|current| {
             let mut mounts = current.mounts.clone();
 
-            mounts.push(Mount {
-                dev,
-                ..mount.clone()
-            });
+            mounts.push(Mount { dev, ..mount.clone() });
 
             MountTable::new(mounts)
         });
@@ -422,7 +419,10 @@ impl Backend for Namespace {
             self.check_write(&WriteContext::new(path, Some(options), None, None, None))?;
         }
 
-        self.snapshot().route(path)?.open(options).await
+        self.snapshot()
+            .route(path)?
+            .open(options)
+            .await
     }
 
     async fn entries(&self, path: &Path) -> Result<Self::DirEntries, Error> {
@@ -475,7 +475,10 @@ impl Backend for Namespace {
         }
 
         Ok(Box::new(stream::iter(
-            entries.into_values().map(Ok).collect::<Vec<_>>(),
+            entries
+                .into_values()
+                .map(Ok)
+                .collect::<Vec<_>>(),
         )))
     }
 
@@ -521,25 +524,37 @@ impl Backend for Namespace {
     async fn create_dir(&self, path: &Path, options: &CreateDirOptions) -> Result<bool, Error> {
         self.check_write(&WriteContext::new(path, None, Some(options), None, None))?;
 
-        self.snapshot().route(path)?.create_dir(options).await
+        self.snapshot()
+            .route(path)?
+            .create_dir(options)
+            .await
     }
 
     async fn remove_file(&self, path: &Path) -> Result<(), Error> {
         self.check_remove(&RemoveContext::new(path, None))?;
 
-        self.snapshot().route(path)?.remove_file().await
+        self.snapshot()
+            .route(path)?
+            .remove_file()
+            .await
     }
 
     async fn remove_dir(&self, path: &Path, options: &RemoveDirOptions) -> Result<(), Error> {
         self.check_remove(&RemoveContext::new(path, Some(options)))?;
 
-        self.snapshot().route(path)?.remove_dir(options).await
+        self.snapshot()
+            .route(path)?
+            .remove_dir(options)
+            .await
     }
 
     async fn truncate(&self, path: &Path, len: u64) -> Result<(), Error> {
         self.check_write(&WriteContext::new(path, None, None, None, None))?;
 
-        self.snapshot().route(path)?.truncate(len).await
+        self.snapshot()
+            .route(path)?
+            .truncate(len)
+            .await
     }
 
     async fn rename(&self, from: &Path, to: &Path) -> Result<(), Error> {
@@ -581,7 +596,10 @@ impl Backend for Namespace {
     async fn read_link(&self, path: &Path) -> Result<PathBuf, Error> {
         self.check_metadata(path, &MetadataOptions::new().follow_symlinks(false))?;
 
-        self.snapshot().route(path)?.read_link().await
+        self.snapshot()
+            .route(path)?
+            .read_link()
+            .await
     }
 
     async fn set_permissions(&self, path: &Path, permissions: Permissions) -> Result<(), Error> {
@@ -601,7 +619,10 @@ impl Backend for Namespace {
     ) -> Result<(), Error> {
         self.check_write(&WriteContext::new(path, None, None, None, Some(&owner)))?;
 
-        self.snapshot().route(path)?.set_owner(owner, options).await
+        self.snapshot()
+            .route(path)?
+            .set_owner(owner, options)
+            .await
     }
 }
 
@@ -613,9 +634,7 @@ mod tests {
         fs::{AccessOptions, File, FileType, Fs, OpenOptions, Owner},
         memory::MemoryFs,
         path::PathBuf,
-        policy::{
-            AccessContext, Denied, OpenContext, Policy, RenameContext, WriteContext,
-        },
+        policy::{AccessContext, Denied, OpenContext, Policy, RenameContext, WriteContext},
     };
 
     #[cfg(feature = "embedded")]
@@ -631,7 +650,9 @@ mod tests {
                 Backend::open(
                     &fs,
                     path.as_path(),
-                    &OpenOptions::new().write(true).create(true),
+                    &OpenOptions::new()
+                        .write(true)
+                        .create(true),
                 )
                 .await
                 .unwrap(),
@@ -739,10 +760,7 @@ mod tests {
     #[tokio::test]
     async fn routes_directory_mount_descendants() {
         let mut file = Fs::builder()
-            .mount(
-                "/workspace",
-                MemorySource::with_file("/notes.txt", b"workspace").await,
-            )
+            .mount("/workspace", MemorySource::with_file("/notes.txt", b"workspace").await)
             .build()
             .unwrap()
             .root()
@@ -811,8 +829,16 @@ mod tests {
             .unwrap()
             .root();
 
-        let left = root.metadata("/left/file.txt").await.unwrap().dev();
-        let right = root.metadata("/right/file.txt").await.unwrap().dev();
+        let left = root
+            .metadata("/left/file.txt")
+            .await
+            .unwrap()
+            .dev();
+        let right = root
+            .metadata("/right/file.txt")
+            .await
+            .unwrap()
+            .dev();
 
         assert_ne!(left, 0);
         assert_ne!(right, 0);
@@ -822,14 +848,17 @@ mod tests {
     #[tokio::test]
     async fn mounted_directory_entries_carry_the_mount_device() {
         let root = Fs::builder()
-            .mount(
-                "/workspace",
-                MemorySource::with_file("/notes.txt", b"workspace").await,
-            )
+            .mount("/workspace", MemorySource::with_file("/notes.txt", b"workspace").await)
             .build()
             .unwrap()
             .root();
-        let mut entries = root.open_dir("/workspace").await.unwrap().entries().await.unwrap();
+        let mut entries = root
+            .open_dir("/workspace")
+            .await
+            .unwrap()
+            .entries()
+            .await
+            .unwrap();
 
         assert_eq!(
             entries
@@ -840,17 +869,17 @@ mod tests {
                 .metadata()
                 .unwrap()
                 .dev(),
-            root.metadata("/workspace/notes.txt").await.unwrap().dev()
+            root.metadata("/workspace/notes.txt")
+                .await
+                .unwrap()
+                .dev()
         );
     }
 
     #[tokio::test]
     async fn allows_operations_when_policies_allow() {
         let mut file = Fs::builder()
-            .mount(
-                "/",
-                MemorySource::with_file("/notes.txt", b"allowed").await,
-            )
+            .mount("/", MemorySource::with_file("/notes.txt", b"allowed").await)
             .build()
             .unwrap()
             .root()
@@ -882,10 +911,7 @@ mod tests {
     #[tokio::test]
     async fn a_policy_can_deny_access_through_the_namespace() {
         let root = Fs::builder()
-            .mount(
-                "/",
-                MemorySource::with_file("/notes.txt", b"access").await,
-            )
+            .mount("/", MemorySource::with_file("/notes.txt", b"access").await)
             .policy(DenyAccess)
             .build()
             .unwrap()
@@ -896,7 +922,9 @@ mod tests {
             Err(Error::PermissionDenied(path)) if path.to_string_lossy() == "/notes.txt"
         ));
 
-        root.metadata("/notes.txt").await.unwrap();
+        root.metadata("/notes.txt")
+            .await
+            .unwrap();
     }
 
     #[tokio::test]
@@ -938,10 +966,7 @@ mod tests {
     #[tokio::test]
     async fn a_policy_can_deny_set_owner_by_inspecting_the_owner_through_the_namespace() {
         let root = Fs::builder()
-            .mount(
-                "/",
-                MemorySource::with_file("/notes.txt", b"owner").await,
-            )
+            .mount("/", MemorySource::with_file("/notes.txt", b"owner").await)
             .policy(DenyOwner)
             .build()
             .unwrap()
@@ -963,10 +988,7 @@ mod tests {
     async fn listing_a_mount_parent_shows_the_mount_point() {
         let mut entries = Fs::builder()
             .mount("/", MemoryFs::new())
-            .mount(
-                "/workspace",
-                MemorySource::with_file("/notes.txt", b"workspace").await,
-            )
+            .mount("/workspace", MemorySource::with_file("/notes.txt", b"workspace").await)
             .build()
             .unwrap()
             .root()
@@ -983,14 +1005,17 @@ mod tests {
     #[tokio::test]
     async fn listing_an_unbacked_ancestor_shows_child_mounts() {
         let root = Fs::builder()
-            .mount(
-                "/skills/pdf",
-                MemorySource::with_file("/reference.md", b"reference").await,
-            )
+            .mount("/skills/pdf", MemorySource::with_file("/reference.md", b"reference").await)
             .build()
             .unwrap()
             .root();
-        let mut entries = root.open_dir("/skills").await.unwrap().entries().await.unwrap();
+        let mut entries = root
+            .open_dir("/skills")
+            .await
+            .unwrap()
+            .entries()
+            .await
+            .unwrap();
         let entry = entries.next().await.unwrap().unwrap();
 
         assert_eq!(entry.file_name().as_bytes(), b"pdf");
@@ -1009,14 +1034,8 @@ mod tests {
     #[tokio::test]
     async fn a_mount_point_shadows_a_covering_backend_entry() {
         let mut entries = Fs::builder()
-            .mount(
-                "/",
-                MemorySource::with_file("/skills", b"file-not-dir").await,
-            )
-            .mount(
-                "/skills",
-                MemorySource::with_file("/inner.md", b"inner").await,
-            )
+            .mount("/", MemorySource::with_file("/skills", b"file-not-dir").await)
+            .mount("/skills", MemorySource::with_file("/inner.md", b"inner").await)
             .build()
             .unwrap()
             .root()
@@ -1034,10 +1053,7 @@ mod tests {
     async fn a_walk_crosses_mount_boundaries_with_full_paths() {
         let mut walk = Fs::builder()
             .mount("/", MemorySource::with_file("/top.txt", b"top").await)
-            .mount(
-                "/nested",
-                MemorySource::with_file("/leaf.txt", b"leaf").await,
-            )
+            .mount("/nested", MemorySource::with_file("/leaf.txt", b"leaf").await)
             .build()
             .unwrap()
             .root()

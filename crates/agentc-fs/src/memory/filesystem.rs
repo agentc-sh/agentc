@@ -159,7 +159,10 @@ impl PendingDir {
         let mut current = self;
 
         for component in components {
-            if current.files.contains_key(component.as_bytes()) {
+            if current
+                .files
+                .contains_key(component.as_bytes())
+            {
                 return Err(Error::not_directory(path));
             }
 
@@ -169,7 +172,10 @@ impl PendingDir {
                 .or_default();
         }
 
-        if current.dirs.contains_key(name.as_bytes()) {
+        if current
+            .dirs
+            .contains_key(name.as_bytes())
+        {
             return Err(Error::is_directory(path));
         }
 
@@ -183,11 +189,11 @@ impl PendingDir {
     fn insert_dir(&mut self, path: &PathBuf) -> Result<(), Error> {
         let mut current = self;
 
-        for component in path
-            .components()
-            .segments()
-        {
-            if current.files.contains_key(component.as_bytes()) {
+        for component in path.components().segments() {
+            if current
+                .files
+                .contains_key(component.as_bytes())
+            {
                 return Err(Error::not_directory(path));
             }
 
@@ -235,10 +241,7 @@ pub struct MemoryFsBuilder {
 
 impl MemoryFsBuilder {
     pub fn new() -> Self {
-        MemoryFsBuilder {
-            entries: Vec::new(),
-            error: None,
-        }
+        MemoryFsBuilder { entries: Vec::new(), error: None }
     }
 
     fn entry_path(path: impl IntoPathBuf) -> Result<PathBuf, Error> {
@@ -258,7 +261,9 @@ impl MemoryFsBuilder {
 
     pub fn dir(mut self, path: impl IntoPathBuf) -> Self {
         match Self::entry_path(path) {
-            Ok(path) => self.entries.push(MemoryFsEntry::Dir(path)),
+            Ok(path) => self
+                .entries
+                .push(MemoryFsEntry::Dir(path)),
             Err(error) => self.error = Some(error),
         }
 
