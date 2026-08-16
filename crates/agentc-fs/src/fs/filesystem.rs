@@ -26,12 +26,16 @@ impl Fs {
         FsBuilder::new()
     }
 
-    pub fn new(backend: impl Backend) -> Self {
-        Fs::from_namespace(Namespace::single_root(Arc::new(backend)))
-    }
-
     pub fn memory() -> Self {
         Fs::new(MemoryFs::new())
+    }
+
+    pub fn empty() -> Self {
+        Fs::from_namespace(Namespace::empty())
+    }
+
+    pub fn new(backend: impl Backend) -> Self {
+        Fs::from_namespace(Namespace::single_root(Arc::new(backend)))
     }
 
     pub(crate) fn from_namespace(namespace: Namespace) -> Self {

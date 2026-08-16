@@ -282,10 +282,6 @@ impl Skill {
 mod tests {
     use super::*;
 
-    // -------------------------------------------------------------------------
-    // AllowedTool::parse
-    // -------------------------------------------------------------------------
-
     #[test]
     fn allowed_tool_parse_simple_name() {
         let t = AllowedTool::parse("Read").unwrap();
@@ -324,10 +320,6 @@ mod tests {
         assert!(AllowedTool::parse("(git:*)").is_none());
     }
 
-    // -------------------------------------------------------------------------
-    // AllowedTool::permits
-    // -------------------------------------------------------------------------
-
     #[test]
     fn allowed_tool_permits_exact_match() {
         let t = AllowedTool::parse("Bash(git:*)").unwrap();
@@ -341,10 +333,6 @@ mod tests {
         assert!(!t.permits("read"));
         assert!(!t.permits("READ"));
     }
-
-    // -------------------------------------------------------------------------
-    // Skill::parse
-    // -------------------------------------------------------------------------
 
     fn minimal_skill_md() -> &'static str {
         "---\nname: my-skill\ndescription: Does something useful.\n---\nInstructions here."
@@ -423,10 +411,6 @@ mod tests {
         let skill = Skill::parse(content, "my-skill", None, vec![], HashMap::new()).unwrap();
         assert_eq!(skill.body, "Body text.");
     }
-
-    // -------------------------------------------------------------------------
-    // Skill::required_capabilities
-    // -------------------------------------------------------------------------
 
     fn skill_with_allowed_tools(tools: &str) -> Skill {
         let content =

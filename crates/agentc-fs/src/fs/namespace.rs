@@ -294,6 +294,10 @@ impl Namespace {
         )
     }
 
+    pub(crate) fn empty() -> Self {
+        Namespace::new(Vec::new(), Vec::new())
+    }
+
     fn snapshot(&self) -> Arc<MountTable> {
         self.table.load_full()
     }
