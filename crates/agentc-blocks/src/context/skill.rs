@@ -19,26 +19,16 @@ pub struct ResolvedContextSkill {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ResolvedContextSkillKind {
-    /// A skill loaded from a directory on disk and baked in via `include_str!`.
+    /// A skill loaded from a directory on disk and baked into the binary.
     Source(ResolvedContextSkillSource),
     /// A skill whose body and optional resources are inlined in the manifest.
     Content(ResolvedContextSkillContent),
 }
 
 /// Resolved data for a skill baked in from a directory.
-///
-/// All paths are absolute and suitable for direct use in `include_str!` calls.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResolvedContextSkillSource {
-    /// Absolute path to the `SKILL.md` artifact.
-    pub skill_md_path: String,
-    /// Resource files bundled with this skill.
-    ///
-    /// Each entry is `(relative_path, absolute_artifact_path)`, where
-    /// `relative_path` is the path as it will be keyed in the skill registry
-    /// (e.g. `"scripts/run.sh"`) and `absolute_artifact_path` is the path
-    /// used in the `include_str!` call.
-    pub resources: Vec<(String, String)>,
+    pub dir: String,
 }
 
 /// Resolved data for a fully inlined skill.
