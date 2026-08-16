@@ -2,19 +2,24 @@
 //
 // SPDX-License-Identifier: MIT
 
+use agentc_fs::fs::{Dir, FileType};
+use futures::TryStreamExt;
 use regex::Regex;
 use sanitizer::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
+    path::Path,
 };
+use tokio::fs::read_dir;
 use validator::Validate;
 
 use agentc_agent::types::capability::{Capability, CapabilitySet};
 
 use crate::errors::SkillError;
+
+pub const SKILL_FILENAME: &str = "SKILL.md";
 
 lazy_static::lazy_static! {
     static ref FRONTMATTER_RE: Regex =
@@ -106,15 +111,10 @@ pub struct Skill {
     pub description: String,
     /// The markdown body of the SKILL.md with frontmatter stripped.
     pub body: String,
-    /// Absolute path to the skill directory. None for embedded skills.
-    pub base_dir: Option<PathBuf>,
-    /// Relative paths to bundled resource files under `base_dir`.
+    /// Relative paths to bundled resource files.
     pub resources: Vec<String>,
     /// Frontmatter fields beyond the known fields, exposed by `describe_skill`.
     pub extra_frontmatter: Value,
-    /// Content of each resource file keyed by relative path. Populated for
-    /// embedded (compile-time) skills; empty for filesystem-loaded skills.
-    pub resource_content: HashMap<String, String>,
     /// Tools pre-approved for this skill, as declared in `allowed-tools`.
     ///
     /// Each entry is a raw spec string such as `"Bash(git:*)"` or `"Read"`.
@@ -123,26 +123,28 @@ pub struct Skill {
 }
 
 impl Skill {
-    /// Read the content of a bundled resource file at `rel_path`.
-    ///
-    /// For embedded skills the content is returned directly from
-    /// [`resource_content`](Skill::resource_content). For filesystem skills
-    /// the file is read from [`base_dir`](Skill::base_dir).
-    ///
-    /// Returns `Err` if the path is not present in either location.
-    pub async fn read_resource(&self, rel_path: &str) -> Result<String, SkillError> {
-        if let Some(content) = self.resource_content.get(rel_path) {
-            return Ok(content.clone());
-        }
+    fn from_files(
+        dir_name: &str,
+        files: Vec<(String, String)>,
+    ) -> Result<(Skill, Vec<(String, String)>), SkillError> {
+        let skill_md = files
+            .iter()
+            .find(|(path, _)| path == SKILL_FILENAME)
+            .map(|(_, content)| content.as_str())
+            .ok_or_else(|| SkillError::resource_not_found(dir_name, SKILL_FILENAME))?;
 
-        if let Some(base_dir) = &self.base_dir {
-            let path = base_dir.join(rel_path);
-            return tokio::fs::read_to_string(&path)
-                .await
-                .map_err(|e| SkillError::io_error(path.display().to_string(), e));
-        }
-
-        Err(SkillError::resource_not_found(&self.name, rel_path))
+        Ok((
+            Skill::parse(
+                skill_md,
+                dir_name,
+                files
+                    .iter()
+                    .map(|(path, _)| path.clone())
+                    .filter(|path| path != SKILL_FILENAME)
+                    .collect(),
+            )?,
+            files,
+        ))
     }
 
     /// Returns the [`CapabilitySet`] implied by this skill's `allowed-tools`
@@ -168,59 +170,80 @@ impl Skill {
         )
     }
 
-    /// Load a skill from a directory on the filesystem.
-    ///
-    /// Reads `SKILL.md` from the given directory, enumerates all other files
-    /// within it up to depth 6, and calls [`Skill::parse`].
-    ///
-    /// Returns `Err` if the directory cannot be read, the `SKILL.md` cannot be
-    /// read, or parsing fails.
-    pub async fn load(dir: &Path) -> Result<Skill, SkillError> {
-        let skill_md_path = dir.join("SKILL.md");
+    pub async fn load_fs(dir: &Dir) -> Result<(Skill, Vec<(String, String)>), SkillError> {
+        Skill::from_files(
+            "",
+            dir.walk()
+                .await?
+                .try_filter_map(|entry| async move {
+                    if entry.file_type() != FileType::File {
+                        return Ok(None);
+                    }
 
-        let content = tokio::fs::read_to_string(&skill_md_path)
-            .await
-            .map_err(|e| SkillError::io_error(skill_md_path.display().to_string(), e))?;
+                    Ok(Some((
+                        entry
+                            .path()
+                            .to_string_lossy()
+                            .trim_start_matches('/')
+                            .to_string(),
+                        dir.open_file(entry.path())
+                            .await?
+                            .read_to_string()
+                            .await?,
+                    )))
+                })
+                .try_collect()
+                .await?,
+        )
+    }
 
-        let dir_name = dir
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("")
-            .to_string();
-
-        let mut resources = Vec::new();
+    pub async fn load_host(dir: &Path) -> Result<(Skill, Vec<(String, String)>), SkillError> {
+        let mut files = Vec::new();
         let mut stack = vec![dir.to_path_buf()];
 
         while let Some(current) = stack.pop() {
-            let mut entries = tokio::fs::read_dir(&current)
+            let mut entries = read_dir(&current)
                 .await
-                .map_err(|e| SkillError::io_error(current.display().to_string(), e))?;
+                .map_err(|error| SkillError::io_error(current.display().to_string(), error))?;
 
             while let Some(entry) = entries
                 .next_entry()
                 .await
-                .map_err(|e| SkillError::io_error(current.display().to_string(), e))?
+                .map_err(|error| SkillError::io_error(current.display().to_string(), error))?
             {
                 let path = entry.path();
 
-                if path == skill_md_path {
+                if path.is_dir() {
+                    stack.push(path);
+
                     continue;
                 }
 
-                if path.is_dir() {
-                    stack.push(path);
-                } else if path.is_file()
-                    && let Some(rel) = path
-                        .strip_prefix(dir)
-                        .ok()
-                        .and_then(|r| r.to_str())
+                if !path.is_file() {
+                    continue;
+                }
+
+                if let Some(relative_path) = path
+                    .strip_prefix(dir)
+                    .ok()
+                    .and_then(|path| path.to_str())
                 {
-                    resources.push(rel.to_string());
+                    files.push((
+                        relative_path.to_string(),
+                        tokio::fs::read_to_string(&path)
+                            .await
+                            .map_err(|error| {
+                                SkillError::io_error(path.display().to_string(), error)
+                            })?,
+                    ));
                 }
             }
         }
 
-        Skill::parse(&content, &dir_name, Some(dir.to_path_buf()), resources, HashMap::new())
+        Skill::from_files(
+            dir.file_name().and_then(|name| name.to_str()).unwrap_or(""),
+            files,
+        )
     }
 
     /// Parse a SKILL.md file following the Agent Skills specification.
@@ -233,9 +256,7 @@ impl Skill {
     pub fn parse(
         content: &str,
         dir_name: &str,
-        base_dir: Option<PathBuf>,
         resources: Vec<String>,
-        resource_content: HashMap<String, String>,
     ) -> Result<Skill, SkillError> {
         let caps = FRONTMATTER_RE
             .captures(content)
@@ -269,10 +290,8 @@ impl Skill {
             name,
             description: info.description,
             body: caps[2].trim().to_string(),
-            base_dir,
             resources,
             extra_frontmatter: Value::Object(info.extra.into_iter().collect()),
-            resource_content,
             allowed_tools,
         })
     }
@@ -341,7 +360,7 @@ mod tests {
     #[test]
     fn skill_parse_valid_minimal() {
         let skill =
-            Skill::parse(minimal_skill_md(), "my-skill", None, vec![], HashMap::new()).unwrap();
+            Skill::parse(minimal_skill_md(), "my-skill", vec![]).unwrap();
         assert_eq!(skill.name, "my-skill");
         assert_eq!(skill.description, "Does something useful.");
         assert_eq!(skill.body, "Instructions here.");
@@ -351,7 +370,7 @@ mod tests {
     #[test]
     fn skill_parse_name_falls_back_to_dir_name() {
         let content = "---\ndescription: No name in frontmatter.\n---\nBody.";
-        let skill = Skill::parse(content, "fallback-name", None, vec![], HashMap::new()).unwrap();
+        let skill = Skill::parse(content, "fallback-name", vec![]).unwrap();
         assert_eq!(skill.name, "fallback-name");
     }
 
@@ -360,7 +379,7 @@ mod tests {
         // An empty (or whitespace-only) description fails validation after trimming.
         let content = "---\nname: no-desc\ndescription: \"   \"\n---\nBody.";
         assert!(matches!(
-            Skill::parse(content, "no-desc", None, vec![], HashMap::new()),
+            Skill::parse(content, "no-desc", vec![]),
             Err(SkillError::MissingDescription { .. })
         ));
     }
@@ -370,7 +389,7 @@ mod tests {
         // A completely absent description fails deserialization.
         let content = "---\nname: no-desc\n---\nBody.";
         assert!(matches!(
-            Skill::parse(content, "no-desc", None, vec![], HashMap::new()),
+            Skill::parse(content, "no-desc", vec![]),
             Err(SkillError::UnparsableFrontmatter(_))
         ));
     }
@@ -379,7 +398,7 @@ mod tests {
     fn skill_parse_missing_frontmatter_errors() {
         let content = "No frontmatter at all.";
         assert!(matches!(
-            Skill::parse(content, "x", None, vec![], HashMap::new()),
+            Skill::parse(content, "x", vec![]),
             Err(SkillError::UnparsableFrontmatter(_))
         ));
     }
@@ -387,7 +406,7 @@ mod tests {
     #[test]
     fn skill_parse_allowed_tools_split_correctly() {
         let content = "---\nname: my-skill\ndescription: Desc.\nallowed-tools: Bash(git:*) Read Write\n---\nBody.";
-        let skill = Skill::parse(content, "my-skill", None, vec![], HashMap::new()).unwrap();
+        let skill = Skill::parse(content, "my-skill", vec![]).unwrap();
         assert_eq!(skill.allowed_tools, vec!["Bash(git:*)", "Read", "Write"]);
     }
 
@@ -395,7 +414,7 @@ mod tests {
     fn skill_parse_extra_frontmatter_captured() {
         let content =
             "---\nname: my-skill\ndescription: Desc.\ncompatibility: Requires git\n---\nBody.";
-        let skill = Skill::parse(content, "my-skill", None, vec![], HashMap::new()).unwrap();
+        let skill = Skill::parse(content, "my-skill", vec![]).unwrap();
         assert_eq!(
             skill
                 .extra_frontmatter
@@ -408,19 +427,19 @@ mod tests {
     #[test]
     fn skill_parse_body_trimmed() {
         let content = "---\nname: my-skill\ndescription: Desc.\n---\n\n  Body text.  \n";
-        let skill = Skill::parse(content, "my-skill", None, vec![], HashMap::new()).unwrap();
+        let skill = Skill::parse(content, "my-skill", vec![]).unwrap();
         assert_eq!(skill.body, "Body text.");
     }
 
     fn skill_with_allowed_tools(tools: &str) -> Skill {
         let content =
             format!("---\nname: s\ndescription: D.\nallowed-tools: {}\n---\nBody.", tools,);
-        Skill::parse(&content, "s", None, vec![], HashMap::new()).unwrap()
+        Skill::parse(&content, "s", vec![]).unwrap()
     }
 
     #[test]
     fn required_capabilities_empty_when_no_allowed_tools() {
-        let skill = Skill::parse(minimal_skill_md(), "s", None, vec![], HashMap::new()).unwrap();
+        let skill = Skill::parse(minimal_skill_md(), "s", vec![]).unwrap();
         assert!(
             skill
                 .required_capabilities()

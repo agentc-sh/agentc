@@ -10,6 +10,9 @@ pub enum SkillError {
     #[error("skill frontmatter could not be parsed: {0}")]
     UnparsableFrontmatter(String),
 
+    #[error("skill filesystem operation failed: {0}")]
+    Filesystem(#[from] agentc_fs::Error),
+
     #[error("skill directory '{path}' could not be read: {source}")]
     IoError {
         path: String,

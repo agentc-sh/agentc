@@ -449,8 +449,9 @@ impl<S: GraphState + 'static> TypedTool<S> for RunSkillScriptTool {
             ));
         }
 
-        let content = skill
-            .read_resource(&input.args.script_path)
+        let content = self
+            .registry
+            .read_file(&input.args.skill_name, &input.args.script_path)
             .await
             .map_err(|e| ToolError::execution_error("run_skill_script", e.to_string()))?;
 

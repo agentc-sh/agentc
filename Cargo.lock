@@ -595,9 +595,11 @@ name = "agentc-skills"
 version = "0.3.1"
 dependencies = [
  "agentc-agent",
+ "agentc-fs",
  "agentc-prompt",
  "anyhow",
  "async-trait",
+ "futures",
  "indexmap",
  "lazy_static",
  "regex",
