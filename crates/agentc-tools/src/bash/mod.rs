@@ -2,9 +2,12 @@
 //
 // SPDX-License-Identifier: MIT
 
-pub mod command;
+pub mod passthrough;
 pub mod config;
+pub mod curl;
 pub mod errors;
+pub mod fs;
+pub mod scope;
 pub mod tool;
 
 pub use tool::BashTool;
