@@ -4,7 +4,7 @@
 
 use sanitizer::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use validator::{Validate, ValidateArgs, ValidationErrors};
 
 use agentc_blocks::types::RuntimeValue;
@@ -235,9 +235,9 @@ pub struct ManifestBashTool {
     #[serde(default)]
     pub commands: Vec<String>,
 
-    /// Filesystem backend configuration.
-    #[serde(default)]
-    pub fs: ManifestBashFs,
+    /// The initial working directory inside the process filesystem.
+    #[serde(default = "default_bash_cwd")]
+    pub cwd: String,
 
     /// Environment variable forwarding policy.
     #[serde(default)]
@@ -247,42 +247,13 @@ pub struct ManifestBashTool {
     #[serde(default)]
     pub limits: ManifestBashLimits,
 
-    /// Network access policy for sandboxed `curl` invocations.
+    /// Whether shell state is shared across invocations.
     #[serde(default)]
-    pub network: ManifestBashNetwork,
-}
-
-/// Filesystem backend configuration for a bash sandbox tool.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, Validate, Sanitizer)]
-pub struct ManifestBashFs {
-    /// Backend kind. Defaults to `"in_memory"`.
-    ///
-    /// Valid values: `"in_memory"`, `"overlay"`, `"read_write"`.
-    /// `"overlay"` and `"read_write"` require `path` to be set.
-    #[serde(default)]
-    pub kind: ManifestBashFsKind,
-
-    /// Host path used by `"overlay"` and `"read_write"` backends.
-    #[serde(default)]
-    pub path: Option<String>,
-
-    /// The current working directory inside the sandbox. Defaults to `"/home/agent"`.
-    #[serde(default = "default_bash_cwd")]
-    pub cwd: String,
+    pub shared: bool,
 }
 
 fn default_bash_cwd() -> String {
-    "/home/agent".to_string()
-}
-
-/// Filesystem backend kind for a bash sandbox tool.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum ManifestBashFsKind {
-    #[default]
-    InMemory,
-    Overlay,
-    ReadWrite,
+    String::from("/home/agent")
 }
 
 /// Environment variable forwarding policy for a bash sandbox tool.
@@ -330,27 +301,4 @@ pub struct ManifestBashLimits {
     /// Maximum number of loop iterations. Defaults to 10 000.
     #[serde(default)]
     pub max_loop_iterations: Option<usize>,
-}
-
-/// Network access policy for sandboxed `curl` in a bash sandbox tool.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, Validate, Sanitizer)]
-pub struct ManifestBashNetwork {
-    /// Whether sandboxed `curl` network access is enabled. Defaults to false.
-    #[serde(default)]
-    pub enabled: Option<bool>,
-    /// URL prefixes that sandboxed `curl` may contact.
-    #[serde(default)]
-    pub allowed_url_prefixes: Vec<String>,
-    /// HTTP methods that sandboxed `curl` may use.
-    #[serde(default)]
-    pub allowed_methods: HashSet<String>,
-    /// Maximum redirects `curl` may follow. Defaults to 0.
-    #[serde(default)]
-    pub max_redirects: Option<usize>,
-    /// Maximum response body size in bytes. Defaults to 10 MiB.
-    #[serde(default)]
-    pub max_response_size: Option<usize>,
-    /// Maximum duration of a `curl` request in seconds. Defaults to 30.
-    #[serde(default)]
-    pub network_timeout_secs: Option<u64>,
 }

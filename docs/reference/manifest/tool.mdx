@@ -78,39 +78,39 @@ See [Write a tool](/guides/write-a-tool) for how to write the tool source.
 
 ## bash
 
-A bash tool provides the agent with a sandboxed shell interpreter. Host programs, filesystem
-access, environment variables, and network access are all individually controlled.
+A Bash tool provides the agent with a shell interpreter. It uses the top-level
+[filesystem](/reference/manifest/filesystem) and [network](/reference/manifest/network)
+configuration. The agent must hold the built-in `bash` capability in addition to any capabilities
+declared on the tool.
 
 ```hcl
 tool "shell" {
   kind     = "bash"
   commands = ["git"]
+  cwd      = "/workspace"
+  shared   = false
 
   env {
-    kind = "inherit"
+    kind = "allow"
+    vars = ["HOME", "PATH"]
   }
 
   limits {
     max_execution_time_secs = 30
+    max_output_size         = 10485760
+    max_command_count       = 10000
+    max_loop_iterations     = 10000
   }
 }
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `commands` | list of strings | no | Additional host programs to register as passthrough commands. Each name is proxied to the real binary on the host. Common utilities such as `jq`, `sed`, `awk`, and `curl` are already built in and do not need listing. |
-| `fs` | block | no | Filesystem backend configuration. |
-| `env` | block | no | Environment variable forwarding policy. |
-| `limits` | block | no | Resource limits applied to each execution. |
-| `network` | block | no | Network access policy for sandboxed `curl` invocations. |
-
-### fs block
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `kind` | string | `"in_memory"` | Filesystem backend. One of `"in_memory"`, `"overlay"`, `"read_write"`. `"overlay"` and `"read_write"` require `path`. |
-| `path` | string | | Host path used by the `"overlay"` and `"read_write"` backends. |
-| `cwd` | string | `"/home/agent"` | Working directory inside the sandbox. |
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `commands` | list of strings | no | `[]` | Additional host programs to register as passthrough commands. Each program must be available on the host at runtime. |
+| `cwd` | string | no | `"/home/agent"` | Initial directory in the agent filesystem. The value is always a POSIX path. |
+| `env` | block | no | defaults below | Host environment variable forwarding policy. |
+| `limits` | block | no | defaults below | Resource limits applied to each invocation. |
+| `shared` | bool | no | `false` | Whether invocations share one interpreter. Shared invocations retain shell-local state and execute serially. |
 
 ### env block
 
@@ -121,27 +121,21 @@ tool "shell" {
 
 ### limits block
 
-All fields are optional and fall back to the interpreter's built-in defaults when absent.
+All fields are optional and use the following defaults when absent.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `max_execution_time_secs` | integer | `30` | Maximum wall-clock execution time in seconds. |
-| `max_output_size` | integer | `10485760` | Maximum combined output size in bytes (default 10 MiB). |
+| `max_output_size` | integer | `10485760` | Maximum combined output size in bytes. |
 | `max_command_count` | integer | `10000` | Maximum number of commands that may be dispatched. |
 | `max_loop_iterations` | integer | `10000` | Maximum number of loop iterations. |
 
-### network block
+With `shared = false`, each invocation gets a fresh interpreter. With `shared = true`, variables,
+functions, aliases, and working directory changes persist between invocations. Filesystem changes
+follow the configured filesystem backend in either mode.
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `enabled` | bool | `false` | Whether sandboxed `curl` network access is enabled. |
-| `allowed_url_prefixes` | list of strings | `[]` | URL prefixes that sandboxed `curl` may contact. |
-| `allowed_methods` | list of strings | `[]` | HTTP methods that sandboxed `curl` may use. |
-| `max_redirects` | integer | `0` | Maximum redirects `curl` may follow. |
-| `max_response_size` | integer | `10485760` | Maximum response body size in bytes (default 10 MiB). |
-| `network_timeout_secs` | integer | `30` | Maximum duration of a `curl` request in seconds. |
-
-See [Use the bash tool](/guides/use-the-bash-tool) for more detail and examples.
+The built-in `curl` command uses the agent's HTTP client and cannot bypass its network policy or
+limits. See [Use the Bash tool](/guides/use-the-bash-tool) for configuration and lifecycle examples.
 
 ## mcp
 

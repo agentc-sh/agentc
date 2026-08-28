@@ -590,8 +590,8 @@ impl Manifest {
                     })
                 }
 
-                ManifestToolKind::Mcp(mcp) => ResolvedContextToolKind::Mcp(
-                    ResolvedContextToolMcp {
+                ManifestToolKind::Mcp(mcp) => {
+                    ResolvedContextToolKind::Mcp(ResolvedContextToolMcp {
                         transport: match mcp {
                             ManifestMcpTool::Stdio { command, args, config } => {
                                 ResolvedContextToolMcpTransport::Stdio {
@@ -608,11 +608,11 @@ impl Manifest {
                                 }
                             }
                         },
-                    }
-                ),
+                    })
+                }
 
-                ManifestToolKind::A2a(a2a) => ResolvedContextToolKind::A2a(
-                    ResolvedContextToolA2a {
+                ManifestToolKind::A2a(a2a) => {
+                    ResolvedContextToolKind::A2a(ResolvedContextToolA2a {
                         url: a2a.url.clone(),
                         auth_token: a2a.auth_token.clone(),
                         headers: a2a.headers.clone(),
@@ -627,8 +627,8 @@ impl Manifest {
                         default_accepted_output_modes: a2a
                             .default_accepted_output_modes
                             .clone(),
-                    }
-                ),
+                    })
+                }
 
                 ManifestToolKind::Python(py) => {
                     let transformed = assets
@@ -678,53 +678,51 @@ impl Manifest {
                         site_packages_path,
                         module_name,
                         interpreter: match py.interpreter {
-                            ManifestPythonInterpreter::Embedded => ResolvedContextToolPythonInterpreter::Embedded,
-                            ManifestPythonInterpreter::Static   => ResolvedContextToolPythonInterpreter::Static,
+                            ManifestPythonInterpreter::Embedded => {
+                                ResolvedContextToolPythonInterpreter::Embedded
+                            }
+                            ManifestPythonInterpreter::Static => {
+                                ResolvedContextToolPythonInterpreter::Static
+                            }
                         },
                     })
                 }
 
-                ManifestToolKind::Bash(bash) => ResolvedContextToolKind::Bash(
-                    ResolvedContextToolBash {
+                ManifestToolKind::Bash(bash) => {
+                    ResolvedContextToolKind::Bash(ResolvedContextToolBash {
                         commands: bash.commands.clone(),
-                        fs: ResolvedContextToolBashFs {
-                            kind: match &bash.fs.kind {
-                                ManifestBashFsKind::InMemory  => ResolvedContextToolBashFsKind::InMemory,
-                                ManifestBashFsKind::Overlay   => ResolvedContextToolBashFsKind::Overlay(
-                                    bash.fs.path.clone().ok_or_else(|| ManifestError::resolution(
-                                        format!("tool `{name}`: fs kind `overlay` requires a `path`")
-                                    ))?
-                                ),
-                                ManifestBashFsKind::ReadWrite => ResolvedContextToolBashFsKind::ReadWrite(
-                                    bash.fs.path.clone().ok_or_else(|| ManifestError::resolution(
-                                        format!("tool `{name}`: fs kind `read_write` requires a `path`")
-                                    ))?
-                                ),
-                            },
-                            cwd: bash.fs.cwd.clone(),
-                        },
+                        cwd: bash.cwd.clone(),
                         env: match &bash.env.kind {
-                            ManifestBashEnvKind::Empty   => ResolvedContextToolBashEnv::Empty,
+                            ManifestBashEnvKind::Empty => ResolvedContextToolBashEnv::Empty,
                             ManifestBashEnvKind::Inherit => ResolvedContextToolBashEnv::Inherit,
-                            ManifestBashEnvKind::Allow   => ResolvedContextToolBashEnv::Allow(bash.env.vars.clone()),
-                            ManifestBashEnvKind::Deny    => ResolvedContextToolBashEnv::Deny(bash.env.vars.clone()),
+                            ManifestBashEnvKind::Allow => {
+                                ResolvedContextToolBashEnv::Allow(bash.env.vars.clone())
+                            }
+                            ManifestBashEnvKind::Deny => {
+                                ResolvedContextToolBashEnv::Deny(bash.env.vars.clone())
+                            }
                         },
                         limits: ResolvedContextToolBashLimits {
-                            max_execution_time_secs: bash.limits.max_execution_time_secs.unwrap_or(30),
-                            max_output_size:         bash.limits.max_output_size.unwrap_or(10 * 1024 * 1024),
-                            max_command_count:       bash.limits.max_command_count.unwrap_or(10_000),
-                            max_loop_iterations:     bash.limits.max_loop_iterations.unwrap_or(10_000),
+                            max_execution_time_secs: bash
+                                .limits
+                                .max_execution_time_secs
+                                .unwrap_or(30),
+                            max_output_size: bash
+                                .limits
+                                .max_output_size
+                                .unwrap_or(10 * 1024 * 1024),
+                            max_command_count: bash
+                                .limits
+                                .max_command_count
+                                .unwrap_or(10_000),
+                            max_loop_iterations: bash
+                                .limits
+                                .max_loop_iterations
+                                .unwrap_or(10_000),
                         },
-                        network: ResolvedContextToolBashNetwork {
-                            enabled:              bash.network.enabled.unwrap_or(false),
-                            allowed_url_prefixes: bash.network.allowed_url_prefixes.clone(),
-                            allowed_methods:      bash.network.allowed_methods.iter().cloned().collect(),
-                            max_redirects:        bash.network.max_redirects.unwrap_or(0),
-                            max_response_size:    bash.network.max_response_size.unwrap_or(10 * 1024 * 1024),
-                            network_timeout_secs: bash.network.network_timeout_secs.unwrap_or(30),
-                        },
-                    }
-                ),
+                        shared: bash.shared,
+                    })
+                }
             };
 
             resolved.insert(
@@ -1133,6 +1131,58 @@ agent "assistant" {{
         }
     }
 
+    struct BashManifestFixture;
+
+    impl BashManifestFixture {
+        fn manifest(body: &str) -> Manifest {
+            SpecFormat::hcl()
+                .with_hcl_deserialize_middleware(RuntimeFunctionDeserialize)
+                .deserialize_string::<Manifest>(&format!(
+                    r#"
+build {{
+  archetype = "standalone"
+}}
+
+providers {{}}
+
+agent "assistant" {{
+  graph {{
+    type = "react"
+  }}
+
+  model {{
+    provider = "anthropic"
+    name     = "claude-haiku-4-5"
+  }}
+}}
+
+tool "shell" {{
+  kind = "bash"
+  {body}
+}}
+"#
+                ))
+                .expect("manifest should deserialize")
+        }
+
+        async fn resolve(body: &str) -> ResolvedContextToolBash {
+            let (context, _) = Self::manifest(body)
+                .resolve(&EmptyLoader, &[])
+                .await
+                .expect("manifest should resolve");
+            let ResolvedContextToolKind::Bash(bash) = &context
+                .tools
+                .get("shell")
+                .expect("shell tool should exist")
+                .kind
+            else {
+                panic!("shell tool should resolve as Bash");
+            };
+
+            bash.clone()
+        }
+    }
+
     #[tokio::test]
     async fn resolves_langfuse_prompt_runtime_configuration() {
         let prompt = LangfuseManifestFixture::resolve("")
@@ -1449,5 +1499,56 @@ filesystem {
                             if root == "/var/lib/agent/base"
                     )
         ));
+    }
+
+    #[tokio::test]
+    async fn resolves_bash_tool_configuration() {
+        let bash = BashManifestFixture::resolve(
+            r#"
+commands = ["git", "rg"]
+cwd      = "/workspace"
+shared   = true
+
+env {
+  kind = "allow"
+  vars = ["HOME", "PATH"]
+}
+
+limits {
+  max_execution_time_secs = 7
+  max_output_size          = 512
+  max_command_count        = 23
+  max_loop_iterations      = 29
+}
+"#,
+        )
+        .await;
+
+        assert_eq!(bash.commands, ["git", "rg"]);
+        assert_eq!(bash.cwd, "/workspace");
+        assert!(matches!(
+            bash.env,
+            ResolvedContextToolBashEnv::Allow(vars)
+                if vars == ["HOME", "PATH"]
+        ));
+        assert_eq!(bash.limits.max_execution_time_secs, 7);
+        assert_eq!(bash.limits.max_output_size, 512);
+        assert_eq!(bash.limits.max_command_count, 23);
+        assert_eq!(bash.limits.max_loop_iterations, 29);
+        assert!(bash.shared);
+    }
+
+    #[tokio::test]
+    async fn resolves_bash_tool_defaults() {
+        let bash = BashManifestFixture::resolve("").await;
+
+        assert!(bash.commands.is_empty());
+        assert_eq!(bash.cwd, "/home/agent");
+        assert!(matches!(bash.env, ResolvedContextToolBashEnv::Empty));
+        assert_eq!(bash.limits.max_execution_time_secs, 30);
+        assert_eq!(bash.limits.max_output_size, 10 * 1024 * 1024);
+        assert_eq!(bash.limits.max_command_count, 10_000);
+        assert_eq!(bash.limits.max_loop_iterations, 10_000);
+        assert!(!bash.shared);
     }
 }

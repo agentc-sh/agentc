@@ -91,9 +91,16 @@ impl CodeGen<ResolvedContext> for CliRunCodeGen {
                 );
 
                 let fs = config.filesystem.builder()?.build()?;
-                let _http_client = config.network.builder()?.build()?;
+                let http = config.network.builder()?.build()?;
 
-                let agent = build_agent(database.clone(), fs.clone(), &config, shutdown).await?;
+                let agent = build_agent(
+                    database.clone(),
+                    fs.clone(),
+                    http.clone(),
+                    &config,
+                    shutdown,
+                )
+                .await?;
                 let service = ApplicationService::builder()
                     .with_agent(agent)
                     .with_database(database)
@@ -216,8 +223,11 @@ mod tests {
 
         assert!(source.contains("pub no_migrations : bool"));
         assert!(source.contains("config . filesystem . builder () ?"));
-        assert!(source.contains("config . network . builder () ?"));
-        assert!(source.contains("build_agent (database . clone () , fs . clone ()"));
+        assert!(source.contains("let http = config . network . builder () ? . build () ?"));
+        assert!(
+            source.contains("build_agent (database . clone () , fs . clone () , http . clone ()")
+        );
+        assert!(!source.contains("_http_client"));
     }
 
     #[test]
@@ -229,7 +239,10 @@ mod tests {
             .to_string();
 
         assert!(source.contains("config . filesystem . builder () ?"));
-        assert!(source.contains("config . network . builder () ?"));
-        assert!(source.contains("build_agent (database . clone () , fs . clone ()"));
+        assert!(source.contains("let http = config . network . builder () ? . build () ?"));
+        assert!(
+            source.contains("build_agent (database . clone () , fs . clone () , http . clone ()")
+        );
+        assert!(!source.contains("_http_client"));
     }
 }

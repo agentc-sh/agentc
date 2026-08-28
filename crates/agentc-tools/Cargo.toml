@@ -14,10 +14,22 @@ javascript = [
 ]
 python-embedded = ["dep:rustpython-vm", "dep:rustpython-stdlib", "dep:rustpython-pylib"]
 python-static = ["dep:pyo3", "dep:pythonize", "dep:include_dir"]
-bash = ["dep:rust-bash"]
+bash = [
+    "dep:agentc-fs",
+    "dep:agentc-http",
+    "dep:base64",
+    "dep:bashkit",
+    "dep:uuid",
+]
 
 [dependencies]
 agentc-agent = { path = "../agentc-agent", version = "0.3.1" }
+agentc-fs = { path = "../agentc-fs", version = "0.3.1", optional = true }
+agentc-http = { path = "../agentc-http", version = "0.3.1", default-features = false, features = ["client"], optional = true }
+agentc-executor-typescript = { path = "../agentc-executor-typescript", version = "0.3.1", optional = true }
+
+base64 = { workspace = true, optional = true }
+uuid = { workspace = true, optional = true }
 
 tokio = { workspace = true }
 tokio-util = { workspace = true }
@@ -43,6 +55,4 @@ pyo3 = { version = "0.29", features = ["chrono", "serde", "uuid", "macros"], opt
 pythonize = { version = "0.29", optional = true }
 include_dir = { version = "0.7", optional = true }
 
-rust-bash = { version = "0.3", optional = true }
-
-agentc-executor-typescript = { path = "../agentc-executor-typescript", version = "0.3.1", optional = true }
+bashkit = { version = "0.17.1", default-features = false, features = ["tzdata"], optional = true }

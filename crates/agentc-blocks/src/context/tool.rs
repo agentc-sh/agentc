@@ -81,37 +81,20 @@ pub struct ResolvedContextToolMcp {
 /// Resolved configuration for a bash sandbox tool.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResolvedContextToolBash {
-    /// Host program names registered as passthrough commands. Empty means no
-    /// additional programs beyond the interpreter's built-in set.
+    /// Host program names registered as passthrough commands.
     pub commands: Vec<String>,
-    /// Filesystem backend policy.
-    pub fs: ResolvedContextToolBashFs,
+
+    /// The initial working directory inside the process filesystem.
+    pub cwd: String,
+
     /// Environment variable forwarding policy.
     pub env: ResolvedContextToolBashEnv,
+
     /// Resource bounds applied to each execution.
     pub limits: ResolvedContextToolBashLimits,
-    /// Network access policy for sandboxed `curl` invocations.
-    pub network: ResolvedContextToolBashNetwork,
-}
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ResolvedContextToolBashFs {
-    /// The kind of filesystem backend to use.
-    pub kind: ResolvedContextToolBashFsKind,
-    /// The CWD inside the sandbox for each command execution.
-    pub cwd: String,
-}
-
-/// Filesystem backend policy for a bash sandbox tool.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum ResolvedContextToolBashFsKind {
-    /// All file operations are fully in-memory.
-    InMemory,
-    /// Copy-on-write overlay over the given host path.
-    Overlay(String),
-    /// Direct passthrough to the host filesystem at the given path.
-    ReadWrite(String),
+    /// Whether shell state is shared across invocations.
+    pub shared: bool,
 }
 
 /// Environment variable forwarding policy for a bash sandbox tool.
@@ -139,23 +122,6 @@ pub struct ResolvedContextToolBashLimits {
     pub max_command_count: usize,
     /// Maximum number of loop iterations across all loops.
     pub max_loop_iterations: usize,
-}
-
-/// Network access policy for sandboxed `curl` in a bash sandbox tool.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ResolvedContextToolBashNetwork {
-    /// Whether sandboxed `curl` network access is permitted.
-    pub enabled: bool,
-    /// URL prefixes `curl` is allowed to contact.
-    pub allowed_url_prefixes: Vec<String>,
-    /// HTTP methods `curl` is allowed to use.
-    pub allowed_methods: Vec<String>,
-    /// Maximum redirects `curl` may follow.
-    pub max_redirects: usize,
-    /// Maximum response body size in bytes that `curl` may receive.
-    pub max_response_size: usize,
-    /// Maximum duration of a `curl` request in seconds.
-    pub network_timeout_secs: u64,
 }
 
 /// Resolved configuration for a Python tool.
