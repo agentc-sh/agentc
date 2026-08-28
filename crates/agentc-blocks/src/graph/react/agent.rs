@@ -184,6 +184,7 @@ impl CodeGen<ResolvedContext> for AgentCodeGen {
 
             use agentc_database::Database;
             use agentc_fs::Fs;
+            use agentc_http::client::HttpClient;
             use agentc_prompt::{
                 compaction::TailWindow,
                 counter::TiktokenCounter,
@@ -220,6 +221,7 @@ impl CodeGen<ResolvedContext> for AgentCodeGen {
             pub async fn build_agent(
                 db: Arc<Database>,
                 fs: Fs,
+                http: HttpClient,
                 config: &Config,
                 shutdown: CancellationToken,
             ) -> Result<Agent<ReActNode, Event, Message>> {
@@ -328,7 +330,11 @@ mod tests {
 
     use super::*;
     use crate::{
-        context::{ResolvedContextAgentPromptSource, ResolvedContextAgentPromptSourceLangfuse},
+        context::{
+            ResolvedContextAgentPromptSource, ResolvedContextAgentPromptSourceLangfuse,
+            ResolvedContextTool, ResolvedContextToolBash, ResolvedContextToolBashEnv,
+            ResolvedContextToolBashLimits, ResolvedContextToolKind,
+        },
         graph::{ReActGraphModelConfig, ReActGraphModelRetryConfig},
     };
 
@@ -355,6 +361,35 @@ mod tests {
                 "http_server": null
             }))
             .unwrap()
+        }
+
+        fn bash_context() -> ResolvedContext {
+            let mut context = Self::context();
+
+            context.tools.insert(
+                String::from("shell"),
+                ResolvedContextTool {
+                    name: String::from("shell"),
+                    description: None,
+                    enabled: RuntimeValue::constant(true),
+                    capabilities: Vec::new(),
+                    config: Default::default(),
+                    kind: ResolvedContextToolKind::Bash(ResolvedContextToolBash {
+                        commands: vec![String::from("git")],
+                        cwd: String::from("/workspace"),
+                        env: ResolvedContextToolBashEnv::Empty,
+                        limits: ResolvedContextToolBashLimits {
+                            max_execution_time_secs: 7,
+                            max_output_size: 512,
+                            max_command_count: 23,
+                            max_loop_iterations: 29,
+                        },
+                        shared: true,
+                    }),
+                },
+            );
+
+            context
         }
 
         fn generated_agent() -> String {
@@ -428,12 +463,26 @@ mod tests {
     }
 
     #[test]
-    fn generated_agent_threads_the_process_filesystem() {
+    fn generated_agent_threads_process_resources() {
         let rendered = AgentCodeGenFixture::generated_agent();
 
         assert!(rendered.contains("use agentc_fs :: Fs"));
-        assert!(rendered.contains("fs : Fs"));
+        assert!(rendered.contains("use agentc_http :: client :: HttpClient"));
         assert!(rendered.contains("db : Arc < Database >"));
+        assert!(rendered.contains("fs : Fs"));
+        assert!(rendered.contains("http : HttpClient"));
+    }
+
+    #[test]
+    fn generated_agent_registers_bash_with_process_resources() {
+        let rendered =
+            AgentCodeGenFixture::generated_agent_for(AgentCodeGenFixture::bash_context());
+
+        assert!(rendered.contains("BashTool :: builder (fs . clone () , http . clone ())"));
+        assert!(rendered.contains("shared ()"));
+        assert!(!rendered.contains("FsPolicy"));
+        assert!(!rendered.contains("NetworkPolicy"));
+        assert!(!rendered.contains("fs_policy"));
     }
 
     #[test]

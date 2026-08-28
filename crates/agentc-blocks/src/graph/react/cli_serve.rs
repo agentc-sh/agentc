@@ -103,7 +103,7 @@ impl CodeGen<ResolvedContext> for CliServeCodeGen {
                     event = "FilesystemInitialized",
                 );
 
-                let _http_client = config.network.builder()?.build()?;
+                let http = config.network.builder()?.build()?;
 
                 info!(
                     event = "HttpClientInitialized",
@@ -116,7 +116,14 @@ impl CodeGen<ResolvedContext> for CliServeCodeGen {
                     kind = config.pubsub.kind(),
                 );
 
-                let agent = build_agent(database.clone(), fs.clone(), &config, shutdown.clone()).await?;
+                let agent = build_agent(
+                    database.clone(),
+                    fs.clone(),
+                    http.clone(),
+                    &config,
+                    shutdown.clone(),
+                )
+                .await?;
 
                 info!(
                     event = "AgentInitialized",
@@ -245,9 +252,12 @@ mod tests {
             .to_string();
 
         assert!(source.contains("let fs = config . filesystem . builder () ?"));
-        assert!(source.contains("let _http_client = config . network . builder () ?"));
+        assert!(source.contains("let http = config . network . builder () ? . build () ?"));
         assert!(source.contains("event = \"FilesystemInitialized\""));
         assert!(source.contains("event = \"HttpClientInitialized\""));
-        assert!(source.contains("build_agent (database . clone () , fs . clone ()"));
+        assert!(
+            source.contains("build_agent (database . clone () , fs . clone () , http . clone ()")
+        );
+        assert!(!source.contains("_http_client"));
     }
 }
