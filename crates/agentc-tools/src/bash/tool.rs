@@ -238,7 +238,9 @@ mod tests {
             let (mut stream, _) = listener.accept().await.unwrap();
             let mut buffer = [0u8; 1024];
 
-            stream.read(&mut buffer).await.unwrap();
+            let bytes_read = stream.read(&mut buffer).await.unwrap();
+            assert!(bytes_read > 0);
+
             stream
                 .write_all(
                     b"HTTP/1.1 200 OK\r\nContent-Length: 9\r\nConnection: close\r\n\r\nconverged",

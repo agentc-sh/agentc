@@ -171,13 +171,16 @@ mod tests {
     #[tokio::test]
     async fn factory_applies_the_configured_working_directory() {
         let fs = Fs::memory();
+
         fs.root()
             .create_dir_all("/workspace")
             .await
             .unwrap();
-        let mut config = BashConfig::default();
 
-        config.cwd = String::from("/workspace");
+        let config = BashConfig {
+            cwd: String::from("/workspace"),
+            ..Default::default()
+        };
 
         assert_eq!(
             FactoryScope::new(
