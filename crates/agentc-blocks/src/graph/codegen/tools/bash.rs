@@ -134,17 +134,19 @@ mod tests {
                         "enabled": true,
                         "capabilities": [],
                         "config": {},
-                        "kind": "bash",
-                        "commands": ["git", "rg"],
-                        "cwd": "/workspace",
-                        "env": { "allow": ["HOME", "PATH"] },
-                        "limits": {
-                            "max_execution_time_secs": 7,
-                            "max_output_size": 512,
-                            "max_command_count": 23,
-                            "max_loop_iterations": 29
-                        },
-                        "shared": true
+                        "kind": {
+                            "kind": "bash",
+                            "commands": ["git", "rg"],
+                            "cwd": "/workspace",
+                            "env": { "allow": ["HOME", "PATH"] },
+                            "limits": {
+                                "max_execution_time_secs": 7,
+                                "max_output_size": 512,
+                                "max_command_count": 23,
+                                "max_loop_iterations": 29
+                            },
+                            "shared": true
+                        }
                     }
                 },
                 "skills": {},
