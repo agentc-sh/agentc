@@ -67,7 +67,10 @@ impl<S: GraphState + 'static> TypedTool<S> for BashTool {
         &self,
         input: TypedToolInput<BashInput>,
     ) -> Result<TypedToolOutput<BashOutput, ()>, ToolError> {
-        let result = self.scope.run(&input.args.command).await?;
+        let result = self
+            .scope
+            .run(&input.args.command)
+            .await?;
 
         Ok(TypedToolOutput::ok(BashOutput {
             stdout: result.stdout.text_lossy().into_owned(),
@@ -200,10 +203,7 @@ mod tests {
         let tool = BashTool::builder(Fs::memory(), HttpClient::builder().build().unwrap()).build();
 
         assert_eq!(TypedTool::<TestState>::name(&tool), "bash");
-        assert_eq!(
-            TypedTool::<TestState>::description(&tool),
-            "Invoke bash commands and scripts.",
-        );
+        assert_eq!(TypedTool::<TestState>::description(&tool), "Invoke bash commands and scripts.",);
         assert_eq!(TypedTool::<TestState>::capabilities(&tool), ["bash"].into());
 
         let output = TypedTool::<TestState>::execute(
@@ -226,8 +226,13 @@ mod tests {
 
     #[tokio::test]
     async fn converges_filesystem_and_curl_through_the_tool_contract() {
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let address = listener.local_addr().unwrap().to_string();
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .unwrap();
+        let address = listener
+            .local_addr()
+            .unwrap()
+            .to_string();
 
         let handle = tokio::spawn(async move {
             let (mut stream, _) = listener.accept().await.unwrap();
@@ -235,7 +240,9 @@ mod tests {
 
             stream.read(&mut buffer).await.unwrap();
             stream
-                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 9\r\nConnection: close\r\n\r\nconverged")
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\nContent-Length: 9\r\nConnection: close\r\n\r\nconverged",
+                )
                 .await
                 .unwrap();
             stream.shutdown().await.unwrap();

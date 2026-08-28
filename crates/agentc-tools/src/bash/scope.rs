@@ -11,11 +11,11 @@ use bashkit::{Bash, ExecResult};
 use tokio::sync::Mutex;
 
 use crate::bash::{
-    passthrough::PassthroughCommand,
     config::{BashConfig, CommandPolicy},
     curl::Curl,
     errors::BashToolError,
     fs::BashkitFs,
+    passthrough::PassthroughCommand,
 };
 
 pub struct BashFactory {
@@ -70,7 +70,9 @@ impl ShellScope for FactoryScope {
     async fn run(&self, script: &str) -> Result<ExecResult, BashToolError> {
         let mut bash = self.factory.build();
 
-        bash.exec(script).await.map_err(BashToolError::execution)
+        bash.exec(script)
+            .await
+            .map_err(BashToolError::execution)
     }
 }
 
@@ -80,9 +82,7 @@ pub struct SharedScope {
 
 impl SharedScope {
     pub fn new(factory: BashFactory) -> Self {
-        SharedScope {
-            bash: Mutex::new(factory.build()),
-        }
+        SharedScope { bash: Mutex::new(factory.build()) }
     }
 }
 
@@ -119,7 +119,12 @@ mod tests {
         scope.run("value=first").await.unwrap();
 
         assert_eq!(
-            scope.run("printf %s \"$value\"").await.unwrap().stdout.as_bytes(),
+            scope
+                .run("printf %s \"$value\"")
+                .await
+                .unwrap()
+                .stdout
+                .as_bytes(),
             b""
         );
     }
@@ -131,7 +136,12 @@ mod tests {
         scope.run("value=first").await.unwrap();
 
         assert_eq!(
-            scope.run("printf %s \"$value\"").await.unwrap().stdout.as_bytes(),
+            scope
+                .run("printf %s \"$value\"")
+                .await
+                .unwrap()
+                .stdout
+                .as_bytes(),
             b"first"
         );
     }
@@ -141,7 +151,10 @@ mod tests {
         let fs = Fs::memory();
         let scope = FactoryScope::new(factory(fs.clone()));
 
-        scope.run("printf content > /shared.txt").await.unwrap();
+        scope
+            .run("printf content > /shared.txt")
+            .await
+            .unwrap();
 
         assert_eq!(
             fs.root()
@@ -158,17 +171,18 @@ mod tests {
     #[tokio::test]
     async fn factory_applies_the_configured_working_directory() {
         let fs = Fs::memory();
-        fs.root().create_dir_all("/workspace").await.unwrap();
+        fs.root()
+            .create_dir_all("/workspace")
+            .await
+            .unwrap();
         let mut config = BashConfig::default();
 
         config.cwd = String::from("/workspace");
 
         assert_eq!(
-            FactoryScope::new(BashFactory::new(
-                fs,
-                HttpClient::builder().build().unwrap(),
-                config,
-            ))
+            FactoryScope::new(
+                BashFactory::new(fs, HttpClient::builder().build().unwrap(), config,)
+            )
             .run("pwd")
             .await
             .unwrap()

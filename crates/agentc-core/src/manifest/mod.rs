@@ -590,8 +590,8 @@ impl Manifest {
                     })
                 }
 
-                ManifestToolKind::Mcp(mcp) => ResolvedContextToolKind::Mcp(
-                    ResolvedContextToolMcp {
+                ManifestToolKind::Mcp(mcp) => {
+                    ResolvedContextToolKind::Mcp(ResolvedContextToolMcp {
                         transport: match mcp {
                             ManifestMcpTool::Stdio { command, args, config } => {
                                 ResolvedContextToolMcpTransport::Stdio {
@@ -608,11 +608,11 @@ impl Manifest {
                                 }
                             }
                         },
-                    }
-                ),
+                    })
+                }
 
-                ManifestToolKind::A2a(a2a) => ResolvedContextToolKind::A2a(
-                    ResolvedContextToolA2a {
+                ManifestToolKind::A2a(a2a) => {
+                    ResolvedContextToolKind::A2a(ResolvedContextToolA2a {
                         url: a2a.url.clone(),
                         auth_token: a2a.auth_token.clone(),
                         headers: a2a.headers.clone(),
@@ -627,8 +627,8 @@ impl Manifest {
                         default_accepted_output_modes: a2a
                             .default_accepted_output_modes
                             .clone(),
-                    }
-                ),
+                    })
+                }
 
                 ManifestToolKind::Python(py) => {
                     let transformed = assets
@@ -678,8 +678,12 @@ impl Manifest {
                         site_packages_path,
                         module_name,
                         interpreter: match py.interpreter {
-                            ManifestPythonInterpreter::Embedded => ResolvedContextToolPythonInterpreter::Embedded,
-                            ManifestPythonInterpreter::Static   => ResolvedContextToolPythonInterpreter::Static,
+                            ManifestPythonInterpreter::Embedded => {
+                                ResolvedContextToolPythonInterpreter::Embedded
+                            }
+                            ManifestPythonInterpreter::Static => {
+                                ResolvedContextToolPythonInterpreter::Static
+                            }
                         },
                     })
                 }
@@ -699,13 +703,22 @@ impl Manifest {
                             }
                         },
                         limits: ResolvedContextToolBashLimits {
-                            max_execution_time_secs: bash.limits.max_execution_time_secs.unwrap_or(30),
+                            max_execution_time_secs: bash
+                                .limits
+                                .max_execution_time_secs
+                                .unwrap_or(30),
                             max_output_size: bash
                                 .limits
                                 .max_output_size
                                 .unwrap_or(10 * 1024 * 1024),
-                            max_command_count: bash.limits.max_command_count.unwrap_or(10_000),
-                            max_loop_iterations: bash.limits.max_loop_iterations.unwrap_or(10_000),
+                            max_command_count: bash
+                                .limits
+                                .max_command_count
+                                .unwrap_or(10_000),
+                            max_loop_iterations: bash
+                                .limits
+                                .max_loop_iterations
+                                .unwrap_or(10_000),
                         },
                         shared: bash.shared,
                     })

@@ -223,12 +223,10 @@ mod tests {
 
         assert!(source.contains("pub no_migrations : bool"));
         assert!(source.contains("config . filesystem . builder () ?"));
-        assert!(source.contains(
-            "let http = config . network . builder () ? . build () ?"
-        ));
-        assert!(source.contains(
-            "build_agent (database . clone () , fs . clone () , http . clone ()"
-        ));
+        assert!(source.contains("let http = config . network . builder () ? . build () ?"));
+        assert!(
+            source.contains("build_agent (database . clone () , fs . clone () , http . clone ()")
+        );
         assert!(!source.contains("_http_client"));
     }
 
@@ -241,12 +239,10 @@ mod tests {
             .to_string();
 
         assert!(source.contains("config . filesystem . builder () ?"));
-        assert!(source.contains(
-            "let http = config . network . builder () ? . build () ?"
-        ));
-        assert!(source.contains(
-            "build_agent (database . clone () , fs . clone () , http . clone ()"
-        ));
+        assert!(source.contains("let http = config . network . builder () ? . build () ?"));
+        assert!(
+            source.contains("build_agent (database . clone () , fs . clone () , http . clone ()")
+        );
         assert!(!source.contains("_http_client"));
     }
 }

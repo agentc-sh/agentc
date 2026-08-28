@@ -40,10 +40,7 @@ impl ToolCodeGen for BashTools<'_> {
             .then_some("bash")
     }
 
-    fn registrations(
-        &self,
-        _fields: &FieldsSpec,
-    ) -> Result<Vec<TokenStream>, GeneratorError> {
+    fn registrations(&self, _fields: &FieldsSpec) -> Result<Vec<TokenStream>, GeneratorError> {
         let mut registrations = Vec::new();
 
         for tool in self.0.tools.values() {
@@ -74,7 +71,9 @@ impl ToolCodeGen for BashTools<'_> {
             let max_output_size = bash.limits.max_output_size;
             let max_command_count = bash.limits.max_command_count;
             let max_loop_iterations = bash.limits.max_loop_iterations;
-            let shared = bash.shared.then(|| quote! { .shared() });
+            let shared = bash
+                .shared
+                .then(|| quote! { .shared() });
 
             registrations.push(quote! {
                 builder = builder.with_typed_tool(
@@ -190,9 +189,7 @@ mod tests {
     fn registers_configured_bashkit_tool_with_process_resources() {
         let registration = BashToolsFixture::registrations(&BashToolsFixture::context());
 
-        assert!(
-            registration.contains("BashTool :: builder (fs . clone () , http . clone ())")
-        );
+        assert!(registration.contains("BashTool :: builder (fs . clone () , http . clone ())"));
         assert!(registration.contains("CommandPolicy :: Allow"));
         assert!(registration.contains("\"git\""));
         assert!(registration.contains("\"rg\""));

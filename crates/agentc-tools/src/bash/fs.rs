@@ -70,8 +70,12 @@ impl IntoBashkitMetadata for FsMetadata {
             },
             size: self.len(),
             mode: self.permissions().mode(),
-            modified: self.modified().unwrap_or_else(SystemTime::now),
-            created: self.created().unwrap_or_else(SystemTime::now),
+            modified: self
+                .modified()
+                .unwrap_or_else(SystemTime::now),
+            created: self
+                .created()
+                .unwrap_or_else(SystemTime::now),
         }
     }
 }
@@ -151,7 +155,12 @@ impl FileSystem for BashkitFs {
                 .map(|_| ())
                 .map_err(IntoBashkitError::into_bashkit_error)
         } else {
-            match self.fs.root().create_dir(path.into_agentc_path()?).await {
+            match self
+                .fs
+                .root()
+                .create_dir(path.into_agentc_path()?)
+                .await
+            {
                 Ok((_, true)) => Ok(()),
                 Ok((_, false)) => {
                     Err(IoError::new(ErrorKind::AlreadyExists, "path already exists").into())
@@ -174,7 +183,10 @@ impl FileSystem for BashkitFs {
             == FsFileType::Directory
         {
             if recursive {
-                self.fs.root().remove_dir_all(path).await
+                self.fs
+                    .root()
+                    .remove_dir_all(path)
+                    .await
             } else {
                 self.fs.root().remove_dir(path).await
             }
@@ -224,7 +236,12 @@ impl FileSystem for BashkitFs {
     }
 
     async fn exists(&self, path: &BashkitPath) -> bashkit::Result<bool> {
-        match self.fs.root().metadata(path.into_agentc_path()?).await {
+        match self
+            .fs
+            .root()
+            .metadata(path.into_agentc_path()?)
+            .await
+        {
             Ok(_) => Ok(true),
             Err(FsError::NotFound(_)) => Ok(false),
             Err(error) => Err(error.into_bashkit_error()),
@@ -240,7 +257,8 @@ impl FileSystem for BashkitFs {
     }
 
     async fn copy(&self, from: &BashkitPath, to: &BashkitPath) -> bashkit::Result<()> {
-        self.write_file(to, &self.read_file(from).await?).await
+        self.write_file(to, &self.read_file(from).await?)
+            .await
     }
 
     async fn symlink(&self, target: &BashkitPath, link: &BashkitPath) -> bashkit::Result<()> {
@@ -310,7 +328,10 @@ mod tests {
     async fn delegates_directory_metadata_and_permission_operations() {
         let adapter = BashkitFs::new(Fs::memory());
 
-        adapter.mkdir(Path::new("/one/two"), true).await.unwrap();
+        adapter
+            .mkdir(Path::new("/one/two"), true)
+            .await
+            .unwrap();
         adapter
             .write_file(Path::new("/one/two/file.txt"), b"content")
             .await
@@ -321,11 +342,19 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            adapter.read_dir(Path::new("/one/two")).await.unwrap().len(),
+            adapter
+                .read_dir(Path::new("/one/two"))
+                .await
+                .unwrap()
+                .len(),
             1
         );
         assert_eq!(
-            adapter.stat(Path::new("/one/two/file.txt")).await.unwrap().mode,
+            adapter
+                .stat(Path::new("/one/two/file.txt"))
+                .await
+                .unwrap()
+                .mode,
             0o600
         );
     }
@@ -334,22 +363,48 @@ mod tests {
     async fn delegates_copy_rename_link_and_remove_operations() {
         let adapter = BashkitFs::new(Fs::memory());
 
-        adapter.write_file(Path::new("/a"), b"content").await.unwrap();
-        adapter.copy(Path::new("/a"), Path::new("/b")).await.unwrap();
-        adapter.rename(Path::new("/b"), Path::new("/c")).await.unwrap();
+        adapter
+            .write_file(Path::new("/a"), b"content")
+            .await
+            .unwrap();
+        adapter
+            .copy(Path::new("/a"), Path::new("/b"))
+            .await
+            .unwrap();
+        adapter
+            .rename(Path::new("/b"), Path::new("/c"))
+            .await
+            .unwrap();
         adapter
             .symlink(Path::new("/c"), Path::new("/link"))
             .await
             .unwrap();
 
-        assert_eq!(adapter.read_file(Path::new("/c")).await.unwrap(), b"content");
         assert_eq!(
-            adapter.read_link(Path::new("/link")).await.unwrap(),
+            adapter
+                .read_file(Path::new("/c"))
+                .await
+                .unwrap(),
+            b"content"
+        );
+        assert_eq!(
+            adapter
+                .read_link(Path::new("/link"))
+                .await
+                .unwrap(),
             Path::new("/c")
         );
 
-        adapter.remove(Path::new("/c"), false).await.unwrap();
+        adapter
+            .remove(Path::new("/c"), false)
+            .await
+            .unwrap();
 
-        assert!(!adapter.exists(Path::new("/c")).await.unwrap());
+        assert!(
+            !adapter
+                .exists(Path::new("/c"))
+                .await
+                .unwrap()
+        );
     }
 }

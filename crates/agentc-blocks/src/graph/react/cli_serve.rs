@@ -252,14 +252,12 @@ mod tests {
             .to_string();
 
         assert!(source.contains("let fs = config . filesystem . builder () ?"));
-        assert!(source.contains(
-            "let http = config . network . builder () ? . build () ?"
-        ));
+        assert!(source.contains("let http = config . network . builder () ? . build () ?"));
         assert!(source.contains("event = \"FilesystemInitialized\""));
         assert!(source.contains("event = \"HttpClientInitialized\""));
-        assert!(source.contains(
-            "build_agent (database . clone () , fs . clone () , http . clone ()"
-        ));
+        assert!(
+            source.contains("build_agent (database . clone () , fs . clone () , http . clone ()")
+        );
         assert!(!source.contains("_http_client"));
     }
 }

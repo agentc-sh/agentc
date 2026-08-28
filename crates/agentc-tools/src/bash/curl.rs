@@ -229,7 +229,9 @@ impl CurlOptions {
                     Self::next_value(args, &mut index)?;
                 }
                 "-F" | "--form" => {
-                    options.forms.push(Self::next_value(args, &mut index)?);
+                    options
+                        .forms
+                        .push(Self::next_value(args, &mut index)?);
                 }
                 "-u" | "--user" => {
                     options.basic_auth = Some(Self::next_value(args, &mut index)?);
@@ -279,10 +281,18 @@ impl CurlOptions {
             options.method = Method::POST;
         }
 
-        options.headers.entry(USER_AGENT).or_insert(
-            HeaderValue::from_str(options.user_agent.as_deref().unwrap_or(DEFAULT_USER_AGENT))
+        options
+            .headers
+            .entry(USER_AGENT)
+            .or_insert(
+                HeaderValue::from_str(
+                    options
+                        .user_agent
+                        .as_deref()
+                        .unwrap_or(DEFAULT_USER_AGENT),
+                )
                 .map_err(|_| ExecResult::err("curl: invalid user agent\n", 2))?,
-        );
+            );
 
         if let Some(credentials) = &options.basic_auth {
             options.headers.insert(
@@ -348,7 +358,11 @@ impl CurlOptions {
                 body.push(b'&');
             }
 
-            body.extend_from_slice(&part.resolve(context, &mut stdin_available).await?);
+            body.extend_from_slice(
+                &part
+                    .resolve(context, &mut stdin_available)
+                    .await?,
+            );
 
             if body.len() > MAX_REQUEST_BODY_BYTES {
                 return Err(ExecResult::err("curl: request body too large\n", 2));
@@ -409,7 +423,8 @@ impl CurlOptions {
                 );
             } else {
                 body.extend_from_slice(
-                    format!("Content-Disposition: form-data; name=\"{name}\"\r\n\r\n{value}").as_bytes(),
+                    format!("Content-Disposition: form-data; name=\"{name}\"\r\n\r\n{value}")
+                        .as_bytes(),
                 );
             }
 
@@ -458,7 +473,9 @@ impl CurlResponse {
         let mut output = format!(
             "HTTP/1.1 {} {}\r\n",
             self.status.as_u16(),
-            self.status.canonical_reason().unwrap_or("")
+            self.status
+                .canonical_reason()
+                .unwrap_or("")
         )
         .into_bytes();
 
@@ -553,15 +570,24 @@ impl Builtin for Curl {
             if let Err(error) = context
                 .fs
                 .write_file(
-                    &context.cwd.join(match options.output.as_deref() {
-                        Some(path) => path,
-                        None => match response.url.split('/').rfind(|segment| !segment.is_empty()) {
-                            Some(filename) => filename,
-                            None => {
-                                return Ok(ExecResult::err("curl: remote URL has no filename\n", 23));
-                            }
-                        },
-                    }),
+                    &context
+                        .cwd
+                        .join(match options.output.as_deref() {
+                            Some(path) => path,
+                            None => match response
+                                .url
+                                .split('/')
+                                .rfind(|segment| !segment.is_empty())
+                            {
+                                Some(filename) => filename,
+                                None => {
+                                    return Ok(ExecResult::err(
+                                        "curl: remote URL has no filename\n",
+                                        23,
+                                    ));
+                                }
+                            },
+                        }),
                     &response.body,
                 )
                 .await
@@ -648,8 +674,9 @@ mod tests {
                 let read = stream.read(&mut chunk).await.unwrap();
                 buffer.extend_from_slice(&chunk[..read]);
 
-                if let Some(position) =
-                    buffer.windows(4).position(|window| window == b"\r\n\r\n")
+                if let Some(position) = buffer
+                    .windows(4)
+                    .position(|window| window == b"\r\n\r\n")
                 {
                     break position;
                 }
@@ -657,9 +684,18 @@ mod tests {
 
             let head = String::from_utf8_lossy(&buffer[..header_end]).into_owned();
             let mut lines = head.split("\r\n");
-            let mut request_parts = lines.next().unwrap_or_default().split(' ');
-            let method = request_parts.next().unwrap_or_default().to_owned();
-            let path = request_parts.next().unwrap_or_default().to_owned();
+            let mut request_parts = lines
+                .next()
+                .unwrap_or_default()
+                .split(' ');
+            let method = request_parts
+                .next()
+                .unwrap_or_default()
+                .to_owned();
+            let path = request_parts
+                .next()
+                .unwrap_or_default()
+                .to_owned();
             let headers = lines
                 .filter_map(|line| {
                     line.split_once(':')
@@ -728,7 +764,10 @@ mod tests {
                 )
                 .await
                 .unwrap();
-            stream.write_all(self.body).await.unwrap();
+            stream
+                .write_all(self.body)
+                .await
+                .unwrap();
             stream.shutdown().await.unwrap();
         }
     }
@@ -740,8 +779,13 @@ mod tests {
 
     impl TestServer {
         async fn start(expected: usize, response: TestResponse) -> Self {
-            let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-            let address = listener.local_addr().unwrap().to_string();
+            let listener = TcpListener::bind("127.0.0.1:0")
+                .await
+                .unwrap();
+            let address = listener
+                .local_addr()
+                .unwrap()
+                .to_string();
 
             let handle = tokio::spawn(async move {
                 let mut requests = Vec::new();
@@ -798,7 +842,14 @@ mod tests {
         }
 
         async fn read(&self, path: &str) -> Vec<u8> {
-            self.fs.root().open_file(path).await.unwrap().read_to_end().await.unwrap()
+            self.fs
+                .root()
+                .open_file(path)
+                .await
+                .unwrap()
+                .read_to_end()
+                .await
+                .unwrap()
         }
     }
 
@@ -826,7 +877,12 @@ mod tests {
         .unwrap();
 
         assert_eq!(
-            options.headers.get("X-Test").unwrap().to_str().unwrap(),
+            options
+                .headers
+                .get("X-Test")
+                .unwrap()
+                .to_str()
+                .unwrap(),
             "value"
         );
     }
@@ -985,7 +1041,9 @@ mod tests {
         let server = TestServer::start(1, TestResponse::ok(b"downloaded")).await;
         let mut shell = TestShell::allowing(&server);
 
-        let result = shell.curl(&format!("-o /download.txt {}", server.url("/file"))).await;
+        let result = shell
+            .curl(&format!("-o /download.txt {}", server.url("/file")))
+            .await;
 
         assert!(result.stdout.as_bytes().is_empty());
         assert_eq!(shell.read("/download.txt").await, b"downloaded");
@@ -997,7 +1055,9 @@ mod tests {
         let server = TestServer::start(1, TestResponse::ok(b"remote")).await;
         let mut shell = TestShell::allowing(&server);
 
-        shell.curl(&format!("-O {}", server.url("/named.txt"))).await;
+        shell
+            .curl(&format!("-O {}", server.url("/named.txt")))
+            .await;
 
         assert_eq!(shell.read("/named.txt").await, b"remote");
         server.requests().await;
@@ -1008,7 +1068,9 @@ mod tests {
         let server = TestServer::start(1, TestResponse::ok(b"ignored")).await;
         let mut shell = TestShell::allowing(&server);
 
-        let result = shell.curl(&format!("-I {}", server.url("/head"))).await;
+        let result = shell
+            .curl(&format!("-I {}", server.url("/head")))
+            .await;
         let stdout = result.stdout.text_lossy();
 
         assert!(stdout.starts_with("HTTP/1.1 200"));
@@ -1022,7 +1084,9 @@ mod tests {
             TestServer::start(1, TestResponse::ok(b"missing").status(404, "Not Found")).await;
         let mut shell = TestShell::allowing(&server);
 
-        let result = shell.curl(&format!("-f {}", server.url("/missing"))).await;
+        let result = shell
+            .curl(&format!("-f {}", server.url("/missing")))
+            .await;
 
         assert_eq!(result.exit_code, 22);
         assert!(result.stdout.as_bytes().is_empty());
@@ -1055,7 +1119,9 @@ mod tests {
                 .await;
         let mut shell = TestShell::allowing(&server);
 
-        let result = shell.curl(&format!("-m 0.05 {}", server.url("/slow"))).await;
+        let result = shell
+            .curl(&format!("-m 0.05 {}", server.url("/slow")))
+            .await;
 
         assert_eq!(result.exit_code, 28);
         server.handle.abort();
@@ -1066,7 +1132,9 @@ mod tests {
         let server = TestServer::start(0, TestResponse::ok(b"unused")).await;
         let mut shell = TestShell::new(denied_client());
 
-        let result = shell.curl(&server.url("/blocked")).await;
+        let result = shell
+            .curl(&server.url("/blocked"))
+            .await;
 
         assert_eq!(result.exit_code, 7);
         assert!(server.requests().await.is_empty());
@@ -1074,12 +1142,9 @@ mod tests {
 
     #[tokio::test]
     async fn a_response_size_limit_violation_maps_to_exit_sixty_three() {
-        let server =
-            TestServer::start(1, TestResponse::ok(b"this response is too large")).await;
+        let server = TestServer::start(1, TestResponse::ok(b"this response is too large")).await;
         let client = HttpClient::builder()
-            .policy(
-                PatternPolicy::allow([UrlPattern::parse(server.url("/*")).unwrap()]).unwrap(),
-            )
+            .policy(PatternPolicy::allow([UrlPattern::parse(server.url("/*")).unwrap()]).unwrap())
             .max_response_bytes(4u64)
             .build()
             .unwrap();

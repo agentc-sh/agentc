@@ -19,15 +19,21 @@ impl PassthroughCommand {
 #[async_trait]
 impl Builtin for PassthroughCommand {
     async fn execute(&self, context: BuiltinContext<'_>) -> bashkit::Result<ExecResult> {
-        Ok(match Command::new(&self.name).args(context.args).output().await {
-            Ok(output) => ExecResult {
-                stdout: output.stdout.into(),
-                stderr: output.stderr.into(),
-                exit_code: output.status.code().unwrap_or(-1),
-                ..Default::default()
+        Ok(
+            match Command::new(&self.name)
+                .args(context.args)
+                .output()
+                .await
+            {
+                Ok(output) => ExecResult {
+                    stdout: output.stdout.into(),
+                    stderr: output.stderr.into(),
+                    exit_code: output.status.code().unwrap_or(-1),
+                    ..Default::default()
+                },
+                Err(error) => ExecResult::err(format!("{}: {error}\n", self.name), 127),
             },
-            Err(error) => ExecResult::err(format!("{}: {error}\n", self.name), 127),
-        })
+        )
     }
 }
 
@@ -43,10 +49,18 @@ mod tests {
             .builtin("rustc", Box::new(PassthroughCommand::new("rustc")))
             .build();
 
-        let result = bash.exec("rustc --version").await.unwrap();
+        let result = bash
+            .exec("rustc --version")
+            .await
+            .unwrap();
 
         assert_eq!(result.exit_code, 0);
-        assert!(result.stdout.text_lossy().starts_with("rustc "));
+        assert!(
+            result
+                .stdout
+                .text_lossy()
+                .starts_with("rustc ")
+        );
         assert!(result.stderr.as_bytes().is_empty());
     }
 
@@ -60,6 +74,11 @@ mod tests {
         let result = bash.exec(name).await.unwrap();
 
         assert_eq!(result.exit_code, 127);
-        assert!(result.stderr.text_lossy().contains(name));
+        assert!(
+            result
+                .stderr
+                .text_lossy()
+                .contains(name)
+        );
     }
 }
