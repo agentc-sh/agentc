@@ -8,7 +8,9 @@ license.workspace = true
 readme.workspace = true
 
 [features]
-default = []
+default = ["rustpython"]
+rustpython = ["guestpy/rustpython"]
+pyo3 = ["guestpy/pyo3"]
 
 [dependencies]
 tokio = { workspace = true }
@@ -22,8 +24,6 @@ git = "https://github.com/wizrds/guestpy.git"
 rev = "0.2.0"
 features = [
     "tokio",
-    "pyo3",
-    "rustpython",
     "embedded",
     "serde",
     "bytes",

@@ -20,7 +20,7 @@ use crate::{
     context::Context,
     error::Error,
     execution::Execution,
-    job::{Job, TypedJob},
+    job::TypedJob,
     lease::WorkerLease,
     worker::{
         ExecutionContext, ExecutorId, RuntimeConfiguration, WorkerConfig, WorkerHandle, WorkerId,
@@ -361,7 +361,7 @@ mod tests {
     };
 
     use guestpy::{bundle::Bundle, handle::Coroutine, pyo3::CPython, rustpython::RustPython};
-    use tokio::sync::{Barrier, Notify};
+    use tokio::sync::Barrier;
     use tokio_util::sync::CancellationToken;
 
     use crate::{
