@@ -27,6 +27,7 @@ members = [
     "crates/agentc-config",
     "crates/agentc-prompt",
     "crates/agentc-executor-typescript",
+    "crates/agentc-executor-python",
     "crates/agentc-compiler",
     "crates/agentc-blocks",
     "crates/agentc-core",
