@@ -14,11 +14,7 @@ pub struct Context<B: ExecutorBackend> {
 
 impl<B: ExecutorBackend> Context<B> {
     pub(crate) fn new(runtime: Runtime<B>, guest: Guest<B>, module: Module<B>) -> Self {
-        Self {
-            runtime,
-            guest,
-            module,
-        }
+        Self { runtime, guest, module }
     }
 
     async fn close(
@@ -64,11 +60,7 @@ impl<B: ExecutorBackend> Context<B> {
     }
 
     pub(crate) async fn shutdown(self) -> Result<(), guestpy::errors::Error> {
-        let Self {
-            runtime,
-            guest,
-            module,
-        } = self;
+        let Self { runtime, guest, module } = self;
 
         Self::close(runtime, guest, Some(module)).await
     }

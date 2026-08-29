@@ -20,9 +20,7 @@ impl<T> Execution<T> {
     where
         F: Future<Output = Result<T, Error>> + Send + 'static,
     {
-        Self {
-            future: Box::pin(future),
-        }
+        Self { future: Box::pin(future) }
     }
 
     pub(crate) fn ready(result: Result<T, Error>) -> Self

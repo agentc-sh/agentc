@@ -10,10 +10,7 @@ pub use guestpy;
 #[macro_export]
 macro_rules! bundle {
     ($path:literal) => {
-        $crate::guestpy::bundle!(
-            $path,
-            crate_path = $crate::guestpy,
-        )
+        $crate::guestpy::bundle!($path, crate_path = $crate::guestpy,)
     };
 }
 

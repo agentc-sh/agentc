@@ -141,23 +141,13 @@ impl<B: ExecutorBackend> WorkerHandle<B> {
     pub(crate) fn spawn(
         config: WorkerConfig<B>,
         queue_capacity: usize,
-    ) -> Result<
-        (
-            Self,
-            oneshot::Receiver<Result<(), Error>>,
-            JoinHandle<Result<(), Error>>,
-        ),
-        Error,
-    > {
+    ) -> Result<(Self, oneshot::Receiver<Result<(), Error>>, JoinHandle<Result<(), Error>>), Error>
+    {
         let worker = config.worker;
         let (sender, receiver) = mpsc::channel(queue_capacity);
         let (startup, ready) = oneshot::channel();
         let thread = std::thread::Builder::new()
-            .name(format!(
-                "agentc-python-{}-{}",
-                config.executor.value(),
-                worker.index(),
-            ))
+            .name(format!("agentc-python-{}-{}", config.executor.value(), worker.index(),))
             .spawn(move || Worker::run(config, receiver, startup))
             .map_err(|error| Error::worker_spawn(worker, error))?;
 

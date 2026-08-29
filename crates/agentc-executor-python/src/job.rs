@@ -19,9 +19,7 @@ pub(crate) struct TypedJob<F, T> {
 }
 
 impl<F, T> TypedJob<F, T> {
-    pub(crate) fn prepare<B>(
-        operation: F,
-    ) -> (Box<dyn Job<B>>, oneshot::Receiver<Result<T, Error>>)
+    pub(crate) fn prepare<B>(operation: F) -> (Box<dyn Job<B>>, oneshot::Receiver<Result<T, Error>>)
     where
         B: ExecutorBackend,
         F: for<'a> FnOnce(&'a Context<B>) -> LocalBoxFuture<'a, Result<T, guestpy::errors::Error>>
@@ -47,7 +45,11 @@ where
         let Self { operation, response } = *self;
 
         Box::pin(async move {
-            let _ = response.send(operation(context.as_ref()).await.map_err(Error::guest));
+            let _ = response.send(
+                operation(context.as_ref())
+                    .await
+                    .map_err(Error::guest),
+            );
         })
     }
 }

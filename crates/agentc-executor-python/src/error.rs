@@ -267,10 +267,7 @@ impl Error {
     }
 
     /// Creates an [`Error::WorkerInitialization`] error.
-    pub fn worker_initialization(
-        worker: impl Into<usize>,
-        source: impl Into<GuestError>,
-    ) -> Self {
+    pub fn worker_initialization(worker: impl Into<usize>, source: impl Into<GuestError>) -> Self {
         Self::WorkerInitialization {
             worker: worker.into(),
             source: source.into(),
@@ -279,16 +276,12 @@ impl Error {
 
     /// Creates an [`Error::WorkerUnavailable`] error.
     pub fn worker_unavailable(worker: impl Into<usize>) -> Self {
-        Self::WorkerUnavailable {
-            worker: worker.into(),
-        }
+        Self::WorkerUnavailable { worker: worker.into() }
     }
 
     /// Creates an [`Error::WorkerResponseDropped`] error.
     pub fn worker_response_dropped(worker: impl Into<usize>) -> Self {
-        Self::WorkerResponseDropped {
-            worker: worker.into(),
-        }
+        Self::WorkerResponseDropped { worker: worker.into() }
     }
 
     /// Creates an [`Error::WorkerShutdown`] error.
@@ -311,9 +304,7 @@ impl Error {
 
     /// Creates an [`Error::WorkerPanicked`] error.
     pub fn worker_panicked(worker: impl Into<usize>) -> Self {
-        Self::WorkerPanicked {
-            worker: worker.into(),
-        }
+        Self::WorkerPanicked { worker: worker.into() }
     }
 
     /// Creates an [`Error::HostRuntimeStopped`] error.

@@ -45,7 +45,11 @@ impl<B: ExecutorBackend> ExecutorInner<B> {
     }
 
     pub(crate) fn next_worker(&self) -> WorkerId {
-        WorkerId::new(self.next_worker.fetch_add(1, Ordering::Relaxed) % self.workers.len())
+        WorkerId::new(
+            self.next_worker
+                .fetch_add(1, Ordering::Relaxed)
+                % self.workers.len(),
+        )
     }
 
     pub(crate) fn dispatch<F, T>(&self, selected: WorkerId, operation: F) -> Execution<T>
@@ -91,7 +95,11 @@ impl<B: ExecutorBackend> ExecutorInner<B> {
 
         drop(tokio::task::spawn_local(job.execute(context)));
 
-        Execution::new(async move { response.await.map_err(|_| Error::executor_shutdown())? })
+        Execution::new(async move {
+            response
+                .await
+                .map_err(|_| Error::executor_shutdown())?
+        })
     }
 
     pub(crate) async fn join_workers(
@@ -135,9 +143,7 @@ pub struct Executor<B: ExecutorBackend> {
 
 impl<B: ExecutorBackend> Clone for Executor<B> {
     fn clone(&self) -> Self {
-        Self {
-            inner: self.inner.clone(),
-        }
+        Self { inner: self.inner.clone() }
     }
 }
 
@@ -156,10 +162,13 @@ impl<B: ExecutorBackend> Executor<B> {
         T: Send + 'static,
     {
         if let Some(context) = ExecutionContext::for_executor::<B>(self.inner.id()) {
-            return self.inner.dispatch_local(context, operation);
+            return self
+                .inner
+                .dispatch_local(context, operation);
         }
 
-        self.inner.dispatch(self.inner.next_worker(), operation)
+        self.inner
+            .dispatch(self.inner.next_worker(), operation)
     }
 
     /// Creates a stable handle to one worker selected by round robin.
@@ -269,7 +278,8 @@ impl<B: ExecutorBackend> ExecutorBuilder<B> {
     where
         F: Fn(RuntimeBuilder<B>) -> RuntimeBuilder<B> + Send + Sync + 'static,
     {
-        self.configurations.push(Arc::new(configure));
+        self.configurations
+            .push(Arc::new(configure));
         self
     }
 
@@ -400,7 +410,12 @@ def fail():
 
         fn increment(executor: &Executor<RustPython>) -> Execution<i64> {
             executor.execute(|context| {
-                Box::pin(async move { context.module().function("increment")?.call::<_, i64>(()) })
+                Box::pin(async move {
+                    context
+                        .module()
+                        .function("increment")?
+                        .call::<_, i64>(())
+                })
             })
         }
 
@@ -412,7 +427,10 @@ def fail():
 
             executor.execute(move |context| {
                 Box::pin(async move {
-                    let value = context.module().function("increment")?.call::<_, i64>(())?;
+                    let value = context
+                        .module()
+                        .function("increment")?
+                        .call::<_, i64>(())?;
 
                     if depth == 1 {
                         return Ok(vec![value]);
@@ -456,7 +474,10 @@ def fail():
             assert_eq!(
                 executor
                     .execute(|context| Box::pin(async move {
-                        context.module().function("increment")?.call::<_, i64>(())
+                        context
+                            .module()
+                            .function("increment")?
+                            .call::<_, i64>(())
                     }))
                     .await
                     .unwrap(),
@@ -476,13 +497,23 @@ def fail():
             let lease = executor.lease();
             let first = lease
                 .execute(|context| {
-                    Box::pin(async move { context.module().function("increment")?.call::<_, i64>(()) })
+                    Box::pin(async move {
+                        context
+                            .module()
+                            .function("increment")?
+                            .call::<_, i64>(())
+                    })
                 })
                 .await
                 .unwrap();
             let second = lease
                 .execute(|context| {
-                    Box::pin(async move { context.module().function("increment")?.call::<_, i64>(()) })
+                    Box::pin(async move {
+                        context
+                            .module()
+                            .function("increment")?
+                            .call::<_, i64>(())
+                    })
                 })
                 .await
                 .unwrap();
@@ -556,10 +587,18 @@ def fail():
 
         assert_eq!(
             [
-                TestExecutor::increment(&executor).await.unwrap(),
-                TestExecutor::increment(&executor).await.unwrap(),
-                TestExecutor::increment(&executor).await.unwrap(),
-                TestExecutor::increment(&executor).await.unwrap(),
+                TestExecutor::increment(&executor)
+                    .await
+                    .unwrap(),
+                TestExecutor::increment(&executor)
+                    .await
+                    .unwrap(),
+                TestExecutor::increment(&executor)
+                    .await
+                    .unwrap(),
+                TestExecutor::increment(&executor)
+                    .await
+                    .unwrap(),
             ],
             [1, 1, 2, 2],
         );
@@ -610,11 +649,17 @@ def fail():
                 Duration::from_secs(1),
                 executor.execute(move |context| {
                     Box::pin(async move {
-                        let first = context.module().function("increment")?.call::<_, i64>(())?;
+                        let first = context
+                            .module()
+                            .function("increment")?
+                            .call::<_, i64>(())?;
                         let second = nested
                             .execute(|context| {
                                 Box::pin(async move {
-                                    context.module().function("increment")?.call::<_, i64>(())
+                                    context
+                                        .module()
+                                        .function("increment")?
+                                        .call::<_, i64>(())
                                 })
                             })
                             .await
@@ -663,7 +708,12 @@ def fail():
                 Box::pin(async move {
                     Ok(nested
                         .execute(|context| {
-                            Box::pin(async move { context.module().function("fail")?.call::<_, ()>(()) })
+                            Box::pin(async move {
+                                context
+                                    .module()
+                                    .function("fail")?
+                                    .call::<_, ()>(())
+                            })
                         })
                         .await)
                 })
@@ -674,7 +724,12 @@ def fail():
         .unwrap();
 
         assert!(matches!(result, Err(Error::Guest(_))));
-        assert_eq!(TestExecutor::increment(&executor).await.unwrap(), 1);
+        assert_eq!(
+            TestExecutor::increment(&executor)
+                .await
+                .unwrap(),
+            1
+        );
 
         executor.shutdown().await.unwrap();
     }
@@ -798,7 +853,12 @@ def fail():
 
         let Err(Error::Guest(GuestError::Unsupported { ref message })) = executor
             .execute(|context| {
-                Box::pin(async move { context.guest().import("native_fixture._native").map(|_| ()) })
+                Box::pin(async move {
+                    context
+                        .guest()
+                        .import("native_fixture._native")
+                        .map(|_| ())
+                })
             })
             .await
         else {

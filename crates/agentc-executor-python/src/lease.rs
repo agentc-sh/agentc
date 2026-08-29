@@ -43,8 +43,12 @@ impl<B: ExecutorBackend> WorkerLease<B> {
         T: Send + 'static,
     {
         match ExecutionContext::for_worker::<B>(self.executor.id(), self.worker) {
-            Some(context) => self.executor.dispatch_local(context, operation),
-            None => self.executor.dispatch(self.worker, operation),
+            Some(context) => self
+                .executor
+                .dispatch_local(context, operation),
+            None => self
+                .executor
+                .dispatch(self.worker, operation),
         }
     }
 
@@ -76,7 +80,12 @@ def increment():
     impl TestLease {
         fn increment(lease: &WorkerLease<RustPython>) -> Execution<i64> {
             lease.execute(|context| {
-                Box::pin(async move { context.module().function("increment")?.call::<_, i64>(()) })
+                Box::pin(async move {
+                    context
+                        .module()
+                        .function("increment")?
+                        .call::<_, i64>(())
+                })
             })
         }
     }
@@ -93,9 +102,15 @@ def increment():
 
         assert_eq!(
             [
-                TestLease::increment(&lease).await.unwrap(),
-                TestLease::increment(&lease).await.unwrap(),
-                TestLease::increment(&lease).await.unwrap(),
+                TestLease::increment(&lease)
+                    .await
+                    .unwrap(),
+                TestLease::increment(&lease)
+                    .await
+                    .unwrap(),
+                TestLease::increment(&lease)
+                    .await
+                    .unwrap(),
             ],
             [1, 2, 3],
         );
@@ -119,11 +134,17 @@ def increment():
                 Duration::from_secs(1),
                 lease.execute(move |context| {
                     Box::pin(async move {
-                        let first = context.module().function("increment")?.call::<_, i64>(())?;
+                        let first = context
+                            .module()
+                            .function("increment")?
+                            .call::<_, i64>(())?;
                         let second = nested
                             .execute(|context| {
                                 Box::pin(async move {
-                                    context.module().function("increment")?.call::<_, i64>(())
+                                    context
+                                        .module()
+                                        .function("increment")?
+                                        .call::<_, i64>(())
                                 })
                             })
                             .await
@@ -157,9 +178,6 @@ def increment():
         executor.shutdown().await.unwrap();
 
         assert!(lease.is_shutdown());
-        assert!(matches!(
-            TestLease::increment(&lease).await,
-            Err(Error::ExecutorShutdown),
-        ));
+        assert!(matches!(TestLease::increment(&lease).await, Err(Error::ExecutorShutdown),));
     }
 }
