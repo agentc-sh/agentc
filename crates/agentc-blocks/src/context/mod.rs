@@ -60,6 +60,13 @@ impl ResolvedContext {
             .values()
             .any(|tool| tool.kind.is_javascript())
     }
+
+    /// Whether any component in this context is implemented in Python.
+    pub fn has_python_components(&self) -> bool {
+        self.tools
+            .values()
+            .any(|tool| tool.kind.is_python())
+    }
 }
 
 #[cfg(test)]
@@ -114,5 +121,33 @@ mod tests {
     #[test]
     fn no_typescript_components_without_a_javascript_tool() {
         assert!(!context(json!({})).has_typescript_components());
+    }
+
+    #[test]
+    fn python_components_are_detected_from_python_tools() {
+        assert!(
+            context(json!({
+                "adder": {
+                    "name": "adder",
+                    "description": null,
+                    "enabled": true,
+                    "capabilities": [],
+                    "config": {},
+                    "kind": {
+                        "kind": "python",
+                        "project_path": "/artifacts/adder",
+                        "site_packages_path": "/artifacts/adder/.venv/site-packages",
+                        "module_name": "adder",
+                        "interpreter": "embedded"
+                    }
+                }
+            }))
+            .has_python_components()
+        );
+    }
+
+    #[test]
+    fn no_python_components_without_a_python_tool() {
+        assert!(!context(json!({})).has_python_components());
     }
 }
