@@ -282,9 +282,7 @@ impl Fragment<ResolvedContext> for PythonToolCargoFragment {
                 )])
                 .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
             )),
-            _ => Err(
-                GeneratorError::unexpected(format!("Unknown extension point '{}'", point)),
-            ),
+            _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
     }
 }
@@ -394,7 +392,12 @@ mod tests {
 
         assert!(registrations.contains("agentc_executor_python :: executor :: Executor"));
         assert!(registrations.contains("guestpy :: rustpython :: RustPython"));
-        assert_eq!(registrations.matches("bundle !").count(), 2);
+        assert_eq!(
+            registrations
+                .matches("bundle !")
+                .count(),
+            2
+        );
         assert!(registrations.contains("PythonTool :: builder"));
         assert!(registrations.contains("adder"));
         assert!(
@@ -415,7 +418,12 @@ mod tests {
 
         assert!(registrations.contains("agentc_executor_python :: executor :: Executor"));
         assert!(registrations.contains("guestpy :: pyo3 :: CPython"));
-        assert_eq!(registrations.matches("bundle !").count(), 2);
+        assert_eq!(
+            registrations
+                .matches("bundle !")
+                .count(),
+            2
+        );
         assert!(registrations.contains("PythonTool :: builder"));
         assert!(registrations.contains("adder"));
         assert!(
@@ -563,6 +571,10 @@ mod tests {
 
         assert!(imports.is_empty());
         assert!(registrations.is_empty());
-        assert!(ToolsCodeGen::features(&ctx).to_string().is_empty());
+        assert!(
+            ToolsCodeGen::features(&ctx)
+                .to_string()
+                .is_empty()
+        );
     }
 }

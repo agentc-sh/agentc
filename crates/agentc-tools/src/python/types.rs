@@ -10,11 +10,7 @@ use agentc_agent::{
 };
 use agentc_executor_python::{
     backend::ExecutorBackend,
-    guestpy::{
-        FromGuest,
-        host::function::HostFn,
-        marshal::serde::Serde,
-    },
+    guestpy::{FromGuest, host::function::HostFn, marshal::serde::Serde},
 };
 use json_patch::{Patch, PatchOperation};
 use serde::Deserialize;
@@ -35,7 +31,9 @@ pub(crate) struct PythonToolDefinition {
 impl PythonToolDefinition {
     pub(crate) fn into_definition(self, tool_name: &str) -> ToolDefinition {
         ToolDefinition {
-            name: self.name.unwrap_or_else(|| tool_name.to_string()),
+            name: self
+                .name
+                .unwrap_or_else(|| tool_name.to_string()),
             description: self.description.unwrap_or_default(),
             parameters: self.schema,
         }

@@ -173,9 +173,7 @@ impl AgentGraph for ReActGraph {
             core_blocks = core_blocks.add(
                 FragmentBlock::builder()
                     .id("python_tool_cargo")
-                    .contribute(Contribution::<CargoDependencies>::strict(
-                        "cargo::dependencies",
-                    ))
+                    .contribute(Contribution::<CargoDependencies>::strict("cargo::dependencies"))
                     .contribute(Contribution::<CargoPatches>::strict("cargo::patches"))
                     .build(PythonToolCargoFragment),
             );

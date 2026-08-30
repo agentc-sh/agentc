@@ -19,9 +19,7 @@ use agentc_agent::{
 use agentc_executor_python::{backend::ExecutorBackend, error::Error, executor::Executor};
 use async_trait::async_trait;
 
-use crate::python::{
-    types::{PythonToolDefinition, PythonToolInput, PythonToolResult},
-};
+use crate::python::types::{PythonToolDefinition, PythonToolInput, PythonToolResult};
 
 pub struct PythonTool<B: ExecutorBackend> {
     executor: Executor<B>,
@@ -64,13 +62,9 @@ where
             self.timeout,
             self.executor.execute(move |context| {
                 Box::pin(async move {
-                    let (positional, keyword, _emitter) = PythonToolInput::new(
-                        &tool_name,
-                        input.args,
-                        input.state,
-                        input.emitter,
-                    )
-                    .into_parts();
+                    let (positional, keyword, _emitter) =
+                        PythonToolInput::new(&tool_name, input.args, input.state, input.emitter)
+                            .into_parts();
 
                     context
                         .guest()
@@ -200,9 +194,7 @@ mod tests {
         },
     };
     use agentc_executor_python::{
-        backend::ExecutorBackend,
-        executor::Executor,
-        guestpy::bundle::Bundle,
+        backend::ExecutorBackend, executor::Executor, guestpy::bundle::Bundle,
     };
     use serde::{Deserialize, Serialize};
     use serde_json::{Value, json};
@@ -553,8 +545,7 @@ def call_retained():
         assert_eq!(
             TestHarness::execute(
                 &tool,
-                TestHarness::input(json!({}))
-                    .with_activity_emitter(ActivityEmitter::new(sender)),
+                TestHarness::input(json!({})).with_activity_emitter(ActivityEmitter::new(sender)),
             )
             .await
             .unwrap()
