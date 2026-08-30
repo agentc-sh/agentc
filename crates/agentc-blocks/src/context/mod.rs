@@ -7,7 +7,6 @@ pub mod block;
 pub mod filesystem;
 pub mod http_server;
 pub mod network;
-pub mod observability;
 pub mod provider;
 pub mod runtime;
 pub mod skill;
