@@ -33,6 +33,7 @@ tasks:
           -p agentc-database \
           -p agentc-domain \
           -p agentc-domain-sql \
+          -p agentc-executor-python \
           -p agentc-executor-typescript \
           -p agentc-http \
           -p agentc-fs \
@@ -72,12 +73,12 @@ tasks:
 
   test:
     cmds:
-      - cargo test --all-features {{.CLI_ARGS}}
+      - cargo test --all-features --release {{.CLI_ARGS}}
 
   test:compiler:
     cmds:
       - |
-        cargo test --all-features \
+        cargo test --all-features --release \
           -p agentc \
           -p agentc-blocks \
           -p agentc-compiler \
@@ -87,7 +88,7 @@ tasks:
   test:runtime:
     cmds:
       - |
-        cargo test --all-features \
+        cargo test --all-features --release \
           -p agentc-agent \
           -p agentc-agent-macros \
           -p agentc-agent-react \
@@ -95,6 +96,7 @@ tasks:
           -p agentc-database \
           -p agentc-domain \
           -p agentc-domain-sql \
+          -p agentc-executor-python \
           -p agentc-executor-typescript \
           -p agentc-http \
           -p agentc-mcp \
