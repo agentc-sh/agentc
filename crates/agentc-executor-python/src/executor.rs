@@ -18,7 +18,7 @@ use tokio_util::sync::CancellationToken;
 use crate::{
     backend::ExecutorBackend,
     context::Context,
-    error::Error,
+    errors::Error,
     execution::Execution,
     job::TypedJob,
     lease::WorkerLease,
@@ -376,7 +376,7 @@ mod tests {
 
     use crate::{
         backend::ExecutorBackend,
-        error::{Error, GuestError},
+        errors::{Error, GuestError},
         execution::Execution,
         executor::Executor,
     };

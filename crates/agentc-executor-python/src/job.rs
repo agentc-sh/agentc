@@ -7,7 +7,7 @@ use std::rc::Rc;
 use futures::future::LocalBoxFuture;
 use tokio::sync::oneshot;
 
-use crate::{backend::ExecutorBackend, context::Context, error::Error};
+use crate::{backend::ExecutorBackend, context::Context, errors::Error};
 
 pub(crate) trait Job<B: ExecutorBackend>: Send {
     fn execute(self: Box<Self>, context: Rc<Context<B>>) -> LocalBoxFuture<'static, ()>;
@@ -60,7 +60,7 @@ mod tests {
 
     use guestpy::{bundle::Bundle, runtime::Runtime, rustpython::RustPython};
 
-    use crate::{context::Context, error::Error, job::TypedJob};
+    use crate::{context::Context, errors::Error, job::TypedJob};
 
     struct TestContext;
 

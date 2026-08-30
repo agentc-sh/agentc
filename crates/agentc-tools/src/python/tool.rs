@@ -16,7 +16,7 @@ use agentc_agent::{
         tools::ToolDefinition,
     },
 };
-use agentc_executor_python::{backend::ExecutorBackend, error::Error, executor::Executor};
+use agentc_executor_python::{backend::ExecutorBackend, errors::Error, executor::Executor};
 use async_trait::async_trait;
 
 use crate::python::types::{PythonToolDefinition, PythonToolInput, PythonToolResult};

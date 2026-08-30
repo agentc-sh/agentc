@@ -8,7 +8,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use crate::error::Error;
+use crate::errors::Error;
 
 #[must_use = "execution results must be awaited"]
 pub struct Execution<T> {
@@ -41,7 +41,7 @@ impl<T> Future for Execution<T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{error::Error, execution::Execution};
+    use crate::{errors::Error, execution::Execution};
 
     #[tokio::test]
     async fn forwards_successful_result() {

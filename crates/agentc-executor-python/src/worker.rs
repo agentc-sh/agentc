@@ -20,7 +20,7 @@ use guestpy::{
 use tokio::sync::{mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
 
-use crate::{backend::ExecutorBackend, context::Context, error::Error, job::Job};
+use crate::{backend::ExecutorBackend, context::Context, errors::Error, job::Job};
 
 static NEXT_EXECUTOR_ID: AtomicU64 = AtomicU64::new(1);
 
