@@ -8,12 +8,13 @@ license.workspace = true
 readme.workspace = true
 
 [features]
-default = ["bash", "python-embedded"]
+default = ["bash", "python-rustpython"]
 javascript = [
     "dep:agentc-executor-typescript",
 ]
-python-embedded = ["dep:rustpython-vm", "dep:rustpython-stdlib", "dep:rustpython-pylib"]
-python-static = ["dep:pyo3", "dep:pythonize", "dep:include_dir"]
+python = ["dep:agentc-executor-python"]
+python-rustpython = ["python", "agentc-executor-python/rustpython"]
+python-cpython = ["python", "agentc-executor-python/pyo3"]
 bash = [
     "dep:agentc-fs",
     "dep:agentc-http",
@@ -27,6 +28,7 @@ agentc-agent = { path = "../agentc-agent", version = "0.3.1" }
 agentc-fs = { path = "../agentc-fs", version = "0.3.1", optional = true }
 agentc-http = { path = "../agentc-http", version = "0.3.1", default-features = false, features = ["client"], optional = true }
 agentc-executor-typescript = { path = "../agentc-executor-typescript", version = "0.3.1", optional = true }
+agentc-executor-python = { path = "../agentc-executor-python", version = "0.3.1", default-features = false, optional = true }
 
 base64 = { workspace = true, optional = true }
 uuid = { workspace = true, optional = true }
@@ -46,13 +48,5 @@ sanitizer = { workspace = true }
 json-patch = { workspace = true }
 
 schemars = { workspace = true }
-
-rustpython-vm = { git = "https://github.com/RustPython/RustPython", rev = "86e7ede", features = ["freeze-stdlib", "serde"], optional = true }
-rustpython-stdlib = { git = "https://github.com/RustPython/RustPython", rev = "86e7ede", optional = true }
-rustpython-pylib = { git = "https://github.com/RustPython/RustPython", rev = "86e7ede", features = ["freeze-stdlib"], optional = true }
-
-pyo3 = { version = "0.29", features = ["chrono", "serde", "uuid", "macros"], optional = true }
-pythonize = { version = "0.29", optional = true }
-include_dir = { version = "0.7", optional = true }
 
 bashkit = { version = "0.17.1", default-features = false, features = ["tzdata"], optional = true }

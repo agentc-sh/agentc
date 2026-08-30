@@ -1,6 +1,6 @@
-// SPDX-FileCopyrightText: 2026 Timothy Pogue
+// SPDX-FileCopyrightText: 2026 agentc Authors
 //
-// SPDX-License-Identifier: LicenseRef-Proprietary
+// SPDX-License-Identifier: MIT
 
 use std::{
     future::{Future, IntoFuture},
