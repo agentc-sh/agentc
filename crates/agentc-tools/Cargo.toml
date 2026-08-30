@@ -47,7 +47,7 @@ json-patch = { workspace = true }
 
 schemars = { workspace = true }
 
-rustpython-vm = { git = "https://github.com/RustPython/RustPython", rev = "86e7ede", features = ["freeze-stdlib", "serde", "threading"], optional = true }
+rustpython-vm = { git = "https://github.com/RustPython/RustPython", rev = "86e7ede", features = ["freeze-stdlib", "serde"], optional = true }
 rustpython-stdlib = { git = "https://github.com/RustPython/RustPython", rev = "86e7ede", optional = true }
 rustpython-pylib = { git = "https://github.com/RustPython/RustPython", rev = "86e7ede", features = ["freeze-stdlib"], optional = true }
 
