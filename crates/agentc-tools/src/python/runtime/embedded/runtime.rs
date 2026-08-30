@@ -258,7 +258,7 @@ impl InterpreterContext {
                                             "failed to deserialize keyword argument".to_owned(),
                                         )
                                     })
-                                    .map(|v| (k, ArgValue::Json(v)))
+                                    .map(|v| (k.to_string_lossy().into_owned(), ArgValue::Json(v)))
                             })
                             .collect::<rustpython_vm::PyResult<Vec<_>>>()?;
 
