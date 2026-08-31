@@ -6,8 +6,8 @@ use std::time::SystemTime;
 
 use agentc_executor_typescript::guestjs::{
     errors::Error,
-    handle::{Class, Object, Scoped, Value},
-    host::{ClassSpec, HostClass},
+    handle::{Class, Object, Value},
+    host::{ClassSpec, HostClass, Deferred},
     marshal::{FromGuest, FromGuestBound, ToGuestBound},
     runtime::Scope,
 };
@@ -112,28 +112,28 @@ impl HostClass for Stats {
         spec.getter("birthtimeMs", |stats, _scope| Ok(stats.created()));
         spec.getter("atime", |stats, _scope| {
             // Constructed through the guest `Date` global because guestjs has no `Date` marshalling.
-            Ok(Scoped::new({
+            Ok(Deferred::new({
                 let date = GuestDate::new(stats.accessed());
 
                 move |scope: &Scope| date.construct(scope)
             }))
         });
         spec.getter("mtime", |stats, _scope| {
-            Ok(Scoped::new({
+            Ok(Deferred::new({
                 let date = GuestDate::new(stats.modified());
 
                 move |scope: &Scope| date.construct(scope)
             }))
         });
         spec.getter("ctime", |stats, _scope| {
-            Ok(Scoped::new({
+            Ok(Deferred::new({
                 let date = GuestDate::new(stats.changed());
 
                 move |scope: &Scope| date.construct(scope)
             }))
         });
         spec.getter("birthtime", |stats, _scope| {
-            Ok(Scoped::new({
+            Ok(Deferred::new({
                 let date = GuestDate::new(stats.created());
 
                 move |scope: &Scope| date.construct(scope)
