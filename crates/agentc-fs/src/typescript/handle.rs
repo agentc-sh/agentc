@@ -4,8 +4,8 @@
 
 use agentc_executor_typescript::guestjs::{
     errors::Error,
-    handle::{BoundObject, Object, Scoped, Value},
-    host::{Args, ClassSpec, HostClass, HostObject},
+    handle::{BoundObject, Object, Value},
+    host::{Args, ClassSpec, HostClass, HostObject, Deferred},
     marshal::{FromGuest, FromGuestBound, ToGuest, ToGuestBound},
     runtime::Scope,
 };
@@ -312,7 +312,7 @@ impl HostClass for FileHandle {
                     .read(request.length, request.position)
                     .await?;
 
-                Ok(Scoped::new(move |scope| {
+                Ok(Deferred::new(move |scope| {
                     let buffer = match request.buffer {
                         Some(buffer) => {
                             let object = buffer.bind::<Object>(scope)?;
@@ -348,7 +348,7 @@ impl HostClass for FileHandle {
                     .write(request.bytes, request.position)
                     .await?;
 
-                Ok(Scoped::new(move |scope| {
+                Ok(Deferred::new(move |scope| {
                     Ok(Value::from_guest(
                         scope,
                         HostObject::build(|namespace| {
