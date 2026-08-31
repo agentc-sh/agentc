@@ -21,7 +21,7 @@ thiserror = { workspace = true }
 
 [dependencies.guestpy]
 git = "https://github.com/wizrds/guestpy.git"
-rev = "0.2.0"
+rev = "0.2.1"
 features = [
     "tokio",
     "embedded",

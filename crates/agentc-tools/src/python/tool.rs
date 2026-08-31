@@ -2,16 +2,11 @@
 //
 // SPDX-License-Identifier: MIT
 
-use async_trait::async_trait;
-use json_patch::Patch;
-use serde::Deserialize;
-use serde_json::{Value, from_value, json};
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
 
 use agentc_agent::{
     graph::state::GraphState,
     tools::{
-        activity::ActivityDelta,
         errors::ToolError,
         traits::Tool,
         types::{ToolInput, ToolOutput},
@@ -21,41 +16,34 @@ use agentc_agent::{
         tools::ToolDefinition,
     },
 };
+use agentc_executor_python::{backend::ExecutorBackend, errors::Error, executor::Executor};
+use async_trait::async_trait;
 
-use crate::python::runtime::{ArgValue, FunctionArgs, Runtime, RuntimeExt};
+use crate::python::types::{PythonToolDefinition, PythonToolInput, PythonToolResult};
 
-/// The shape of the JSON object that a Python tool's `invoke` method must return.
-///
-/// The Python `invoke` method should return a dict with an `output` key containing
-/// the tool result and an optional `state_update` key containing an RFC 6902 patch.
-#[derive(Debug, Deserialize)]
-struct ExecuteResult {
-    output: Value,
-    state_update: Option<Patch>,
-}
-
-pub struct PythonTool {
-    pool: Arc<dyn Runtime>,
+pub struct PythonTool<B: ExecutorBackend> {
+    executor: Executor<B>,
     tool_name: String,
     definition: ToolDefinition,
     capabilities: CapabilitySet,
     timeout: Duration,
 }
 
-impl PythonTool {
-    pub fn builder() -> PythonToolBuilder {
+impl<B: ExecutorBackend> PythonTool<B> {
+    pub fn builder() -> PythonToolBuilder<B> {
         PythonToolBuilder::new()
     }
 }
 
 #[async_trait]
-impl<S> Tool<S> for PythonTool
+impl<B, S> Tool<S> for PythonTool<B>
 where
+    B: ExecutorBackend + Send + Sync,
     S: GraphState + 'static,
     S::Update: Default,
 {
-    type State = Value;
-    type StateUpdate = Patch;
+    type State = serde_json::Value;
+    type StateUpdate = json_patch::Patch;
 
     fn definition(&self) -> ToolDefinition {
         self.definition.clone()
@@ -69,82 +57,58 @@ where
         &self,
         input: ToolInput<Self::State>,
     ) -> Result<ToolOutput<Self::StateUpdate>, ToolError> {
-        // We use a weak reference for the emitter in the callback because the keyword_callable method converts
-        // to an arc captured that gets passed into the Python runtime. This causes the runtime to have a strong
-        // reference on the emitter, preventing the drain from being dropped and causing a deadlock.
-        let emit_tx = Arc::new(input.emitter.and_then(|e| e.sender()));
-        let weak_tx = Arc::downgrade(&emit_tx);
+        let tool_name = self.tool_name.clone();
+        let result = tokio::time::timeout(
+            self.timeout,
+            self.executor.execute(move |context| {
+                Box::pin(async move {
+                    let (positional, keyword, _emitter) =
+                        PythonToolInput::new(&tool_name, input.args, input.state, input.emitter)
+                            .into_parts();
 
-        let result = self
-            .pool
-            .call_function_with_timeout::<ExecuteResult>(
-                "agentc_tdk",
-                "invoke_tool",
-                FunctionArgs::new()
-                    .positional(json!(self.tool_name))
-                    .positional(input.args)
-                    .positional(input.state.unwrap_or(Value::Null))
-                    .keyword_callable("emit", move |args| {
-                        if let Some(arc) = weak_tx.upgrade()
-                            && let Some(tx) = arc.as_ref()
-                        {
-                            let _ = tx.try_send(ActivityDelta {
-                                activity_type: match args.positional.first() {
-                                    Some(ArgValue::Json(Value::String(s))) => s.clone(),
-                                    _ => return Ok(Value::Null),
-                                },
-                                patch: match args.positional.get(1) {
-                                    Some(ArgValue::Json(v)) => {
-                                        from_value(v.clone()).unwrap_or_default()
-                                    }
-                                    _ => vec![],
-                                },
-                            });
-                        }
-
-                        Ok(Value::Null)
-                    }),
-                self.timeout,
-            )
-            .await
-            .map_err(ToolError::from)?;
+                    context
+                        .guest()
+                        .import("agentc_tdk")?
+                        .function("invoke_tool")?
+                        .call_with::<_, _, PythonToolResult>(positional, keyword)
+                })
+            }),
+        )
+        .await
+        .map_err(|_| ToolError::execution_error("python", "tool execution timed out"))?
+        .map_err(|error| {
+            ToolError::sourced_execution_error("python", error.to_string(), Some(error))
+        })?;
 
         let mut output = ToolOutput::ok(result.output);
 
-        if let Some(patch) = result.state_update {
-            output = output.with_state(patch);
+        if let Some(state_update) = result.state_update {
+            output = output.with_state(state_update);
         }
 
         Ok(output)
     }
 }
 
-pub struct PythonToolBuilder {
-    runtime: Option<Arc<dyn Runtime>>,
-    module: Option<String>,
+pub struct PythonToolBuilder<B: ExecutorBackend> {
+    executor: Option<Executor<B>>,
     tool_name: Option<String>,
     capabilities: CapabilitySet,
     timeout: Duration,
 }
 
-impl PythonToolBuilder {
+impl<B: ExecutorBackend> PythonToolBuilder<B> {
     pub fn new() -> Self {
         Self {
-            runtime: None,
-            module: None,
+            executor: None,
             tool_name: None,
-            capabilities: CapabilitySet::empty(),
+            capabilities: CapabilitySet::default(),
             timeout: Duration::from_secs(30),
         }
     }
 
-    pub fn runtime(mut self, runtime: Arc<dyn Runtime>) -> Self {
-        self.runtime = Some(runtime);
-        self
-    }
-
-    pub fn module(mut self, module: impl Into<String>) -> Self {
-        self.module = Some(module.into());
+    pub fn executor(mut self, executor: Executor<B>) -> Self {
+        self.executor = Some(executor);
         self
     }
 
@@ -153,18 +117,18 @@ impl PythonToolBuilder {
         self
     }
 
-    pub fn capability(mut self, cap: impl Into<Capability>) -> Self {
-        self.capabilities.insert(cap.into());
+    pub fn capability(mut self, capability: impl Into<Capability>) -> Self {
+        self.capabilities
+            .insert(capability.into());
         self
     }
 
-    pub fn capabilities<I, C>(mut self, caps: I) -> Self
+    pub fn capabilities<I, C>(mut self, capabilities: I) -> Self
     where
         I: IntoIterator<Item = C>,
         C: Into<Capability>,
     {
-        self.capabilities
-            .extend(caps.into_iter().map(Into::into));
+        self.capabilities.extend(capabilities);
         self
     }
 
@@ -173,122 +137,71 @@ impl PythonToolBuilder {
         self
     }
 
-    /// Discover the tool's definition from `agentc_tdk` and build the [`PythonTool`].
-    pub async fn build(self) -> Result<PythonTool, ToolError> {
-        let runtime = self
-            .runtime
-            .expect("runtime must be provided");
-        let module = self
-            .module
-            .expect("module must be provided");
+    pub async fn build(self) -> Result<PythonTool<B>, Error> {
+        let executor = self
+            .executor
+            .expect("executor must be provided to build a PythonTool");
         let tool_name = self
             .tool_name
-            .expect("tool_name must be provided");
+            .expect("tool_name must be provided to build a PythonTool");
+        let definition = tokio::time::timeout(
+            self.timeout,
+            executor.execute({
+                let tool_name = tool_name.clone();
 
-        runtime
-            .import_with_timeout(&module, self.timeout)
-            .await?;
-
-        let payload = runtime
-            .call_function_with_timeout::<Value>(
-                "agentc_tdk",
-                "get_tool_definition",
-                FunctionArgs::new().positional(json!(&tool_name)),
-                self.timeout,
-            )
-            .await
-            .map_err(ToolError::from)?;
+                move |context| {
+                    Box::pin(async move {
+                        context
+                            .guest()
+                            .import("agentc_tdk")?
+                            .function("get_tool_definition")?
+                            .call::<_, PythonToolDefinition>((tool_name,))
+                    })
+                }
+            }),
+        )
+        .await
+        .map_err(|_| Error::unexpected("tool definition discovery timed out", None))??
+        .into_definition(&tool_name);
 
         Ok(PythonTool {
-            pool: runtime,
-            tool_name: tool_name.clone(),
-            definition: ToolDefinition {
-                name: payload["name"]
-                    .as_str()
-                    .unwrap_or(&tool_name)
-                    .to_string(),
-                description: payload["description"]
-                    .as_str()
-                    .unwrap_or("")
-                    .to_string(),
-                parameters: payload["schema"].clone(),
-            },
+            executor,
+            tool_name,
+            definition,
             capabilities: self.capabilities,
             timeout: self.timeout,
         })
     }
 }
 
-impl Default for PythonToolBuilder {
+impl<B: ExecutorBackend> Default for PythonToolBuilder<B> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-#[cfg(all(test, any(feature = "python-embedded", feature = "python-static")))]
+#[cfg(all(test, any(feature = "python-rustpython", feature = "python-cpython")))]
 mod tests {
-    use super::PythonTool;
-    use crate::python::runtime::{Runtime, RuntimeExt};
+    use std::time::Duration;
+
     use agentc_agent::{
         graph::state::{GraphState, GraphStateInput, GraphStateUpdate},
         tools::{
             activity::{ActivityDelta, ActivityEmitter},
-            dispatcher::{DispatchOutcome, ToolRegistryExt},
-            registry::ToolRegistry,
-            types::ToolExecutionContext,
+            errors::ToolError,
+            traits::Tool,
+            types::{ToolExecutionContext, ToolInput, ToolOutput},
         },
-        types::tools::ToolCall,
+    };
+    use agentc_executor_python::{
+        backend::ExecutorBackend, executor::Executor, guestpy::bundle::Bundle,
     };
     use serde::{Deserialize, Serialize};
-    use serde_json::json;
-    use std::sync::Arc;
+    use serde_json::{Value, json};
+    use tokio::sync::mpsc;
 
-    #[cfg(feature = "python-embedded")]
-    use crate::python::EmbeddedRuntime;
+    use crate::python::tool::PythonTool;
 
-    #[cfg(feature = "python-static")]
-    use crate::python::StaticRuntime;
-
-    #[cfg(feature = "python-static")]
-    static STATIC_TEST_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
-
-    // Minimal concrete state types to satisfy Tool<U> trait bounds.
-    // None of these methods are exercised by PythonTool itself.
-
-    #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-    struct DummyState;
-
-    #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-    struct DummyUpdate {
-        k: i32,
-    }
-
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    struct DummyInput;
-
-    impl GraphState for DummyState {
-        type Update = DummyUpdate;
-        type Input = DummyInput;
-    }
-
-    impl GraphStateUpdate for DummyUpdate {
-        type State = DummyState;
-        fn apply(self, _: &mut DummyState) {}
-        fn merge(self, _other: Self) -> Self {
-            self
-        }
-    }
-
-    impl GraphStateInput for DummyInput {
-        type State = DummyState;
-        fn initialize(self) -> DummyState {
-            DummyState
-        }
-    }
-
-    /// Minimal pure-Python stub that mirrors the `agentc_tdk` public API.
-    /// Injected as `agentc_tdk` in sys.modules so tests don't depend on the
-    /// external package being installed in the interpreter.
     const AGENTC_TDK_STUB: &str = r#"
 from dataclasses import asdict, dataclass
 from typing import Any, ClassVar, Optional
@@ -308,7 +221,7 @@ class ToolInput:
 class ToolOutput:
     output: Any
     state_update: Any = None
-    
+
     def to_dict(self):
         return asdict(self)
 
@@ -343,354 +256,435 @@ def invoke_tool(name, args, state=None, emit=None):
     return __tool_registry__[name]().invoke(args, state=state, emit=emit)
 "#;
 
-    // Registers a Python module by name in sys.modules using exec.
-    // The source is transferred via a scope global to avoid string escaping issues.
-    async fn inject_module(runtime: &dyn Runtime, name: &str, src: &str) {
-        runtime
-            .set_global("_inject_src", src)
-            .await
-            .expect("set_global failed");
-
-        runtime
-            .exec(&format!(
-                "import sys as _sys, types as _types\n\
-                 _m = _types.ModuleType({name:?})\n\
-                 exec(_inject_src, _m.__dict__)\n\
-                 _sys.modules[{name:?}] = _m"
-            ))
-            .await
-            .expect("module injection failed");
-    }
-
-    async fn inject_agentc_tdk(runtime: &dyn Runtime) {
-        inject_module(runtime, "agentc_tdk", AGENTC_TDK_STUB).await;
-    }
-
-    // Two Python tools that live in the same module and share one runtime.
-    // Each routes to its own tool name and returns the correct computed result
-    // when dispatched through a ToolRegistry.
-    async fn multi_tool_shared_runtime(runtime: Arc<dyn Runtime>) {
-        inject_agentc_tdk(&runtime).await;
-
-        inject_module(
-            &runtime,
-            "math_tools",
-            r#"
+    const TOOL_SOURCE: &str = r#"
 from agentc_tdk import Tool, Args, ToolOutput
 from dataclasses import dataclass
+import time
+
 
 @dataclass
-class AddArgs(Args):
-    a: int
-    b: int
+class EmptyArgs(Args): ...
+
 
 @dataclass
-class DoubleArgs(Args):
-    x: int
+class ValueArgs(Args):
+    value: int
 
-class AddTool(Tool):
-    args = AddArgs
-    name = "add"
-    description = "add a and b"
+
+@dataclass
+class DelayArgs(Args):
+    delay: float
+    value: str
+
+
+class DirectTool(Tool):
+    args = ValueArgs
+    name = "direct"
+    description = "returns a direct result"
     schema = {}
 
     def execute(self, input):
-        return ToolOutput(output=input.args.a + input.args.b)
+        return ToolOutput(output=input.args.value)
+
 
 class DoubleTool(Tool):
-    args = DoubleArgs
+    args = ValueArgs
     name = "double"
-    description = "double x"
+    description = "doubles the value"
     schema = {}
 
     def execute(self, input):
-        return ToolOutput(output=input.args.x * 2)
-"#,
-        )
-        .await;
+        return ToolOutput(output=input.args.value * 2)
 
-        let add = PythonTool::builder()
-            .runtime(runtime.clone())
-            .module("math_tools")
-            .tool_name("add")
-            .build()
-            .await
-            .unwrap();
-
-        let double = PythonTool::builder()
-            .runtime(runtime.clone())
-            .module("math_tools")
-            .tool_name("double")
-            .build()
-            .await
-            .unwrap();
-
-        let dispatcher = ToolRegistry::builder()
-            .with_tool::<DummyState, _>(add)
-            .with_tool::<DummyState, _>(double)
-            .build()
-            .dispatcher();
-
-        let state = DummyState;
-
-        let out_add = dispatcher
-            .dispatch::<DummyState>(
-                ToolCall {
-                    id: "1".into(),
-                    name: "add".into(),
-                    arguments: json!({"a": 3, "b": 4}),
-                },
-                &state,
-                ToolExecutionContext {
-                    tenant_id: "test".to_string(),
-                    session_id: Default::default(),
-                    run_id: Default::default(),
-                },
-                None,
-            )
-            .await;
-
-        let out_double = dispatcher
-            .dispatch::<DummyState>(
-                ToolCall {
-                    id: "2".into(),
-                    name: "double".into(),
-                    arguments: json!({"x": 5}),
-                },
-                &state,
-                ToolExecutionContext {
-                    tenant_id: "test".to_string(),
-                    session_id: Default::default(),
-                    run_id: Default::default(),
-                },
-                None,
-            )
-            .await;
-
-        assert!(
-            matches!(out_add,    DispatchOutcome::Success { ref content, .. } if *content == json!(7))
-        );
-        assert!(
-            matches!(out_double, DispatchOutcome::Success { ref content, .. } if *content == json!(10))
-        );
-    }
-
-    // A Python tool that calls emit produces an ActivityDelta on the receiver
-    // provided via the ActivityEmitter passed to the dispatcher.
-    async fn emit_delivers_activity_delta(runtime: Arc<dyn Runtime>) {
-        inject_agentc_tdk(&runtime).await;
-
-        inject_module(
-            &runtime,
-            "emit_tool",
-            r#"
-from agentc_tdk import Tool, Args, ToolOutput
-from dataclasses import dataclass
-
-@dataclass
-class EmptyArgs(Args): ...
-
-class EmitterTool(Tool):
-    args = EmptyArgs
-    name = "emitter_tool"
-    description = "emits a delta then returns"
-    schema = {}
-
-    def execute(self, input):
-        if input.emit is not None:
-            input.emit("test_type", [{"op": "add", "path": "/foo", "value": 1}])
-        return ToolOutput(output="done")
-"#,
-        )
-        .await;
-
-        let tool = PythonTool::builder()
-            .runtime(runtime)
-            .module("emit_tool")
-            .tool_name("emitter_tool")
-            .build()
-            .await
-            .unwrap();
-
-        let dispatcher = ToolRegistry::builder()
-            .with_tool::<DummyState, _>(tool)
-            .build()
-            .dispatcher();
-
-        let state = DummyState;
-        let (tx, mut rx) = tokio::sync::mpsc::channel::<ActivityDelta>(8);
-
-        let outcome = dispatcher
-            .dispatch::<DummyState>(
-                ToolCall {
-                    id: "1".into(),
-                    name: "emitter_tool".into(),
-                    arguments: json!({}),
-                },
-                &state,
-                ToolExecutionContext {
-                    tenant_id: "test".to_string(),
-                    session_id: Default::default(),
-                    run_id: Default::default(),
-                },
-                Some(ActivityEmitter::new(tx)),
-            )
-            .await;
-
-        assert!(
-            matches!(outcome, DispatchOutcome::Success { ref content, .. } if *content == json!("done"))
-        );
-
-        let delta = rx
-            .recv()
-            .await
-            .expect("expected an activity delta");
-        assert_eq!(delta.activity_type, "test_type");
-        assert_eq!(delta.patch.len(), 1);
-    }
-
-    // A Python tool that returns a state_update patch propagates it through ToolOutput.
-    async fn state_update_propagates(runtime: Arc<dyn Runtime>) {
-        inject_agentc_tdk(&runtime).await;
-
-        inject_module(
-            &runtime,
-            "state_tool",
-            r#"
-from agentc_tdk import Tool, Args, ToolOutput
-from dataclasses import dataclass
-
-@dataclass
-class EmptyArgs(Args): ...
 
 class StateTool(Tool):
     args = EmptyArgs
-    name = "state_tool"
-    description = "returns a state patch"
+    name = "state"
+    description = "reads and updates state"
     schema = {}
 
     def execute(self, input):
         return ToolOutput(
-            output="patched",
-            state_update=[{"op": "add", "path": "/k", "value": 99}],
+            output=input.state["status"],
+            state_update=[{"op": "add", "path": "/count", "value": 2}],
         )
-"#,
-        )
-        .await;
 
-        let tool = PythonTool::builder()
-            .runtime(runtime)
-            .module("state_tool")
-            .tool_name("state_tool")
-            .build()
-            .await
-            .unwrap();
 
-        let dispatcher = ToolRegistry::builder()
-            .with_tool::<DummyState, _>(tool)
-            .build()
-            .dispatcher();
+class EmitterTool(Tool):
+    args = EmptyArgs
+    name = "emitter"
+    description = "emits activity"
+    schema = {}
 
-        let state = DummyState;
+    def execute(self, input):
+        if input.emit is None:
+            return ToolOutput(output="absent")
 
-        let outcome = dispatcher
-            .dispatch::<DummyState>(
-                ToolCall {
-                    id: "1".into(),
-                    name: "state_tool".into(),
-                    arguments: json!({}),
-                },
-                &state,
+        global retained_emit
+        retained_emit = input.emit
+        input.emit("first", [])
+        input.emit("second", [])
+        return ToolOutput(output="present")
+
+
+class FailureTool(Tool):
+    args = EmptyArgs
+    name = "failure"
+    description = "raises an exception"
+    schema = {}
+
+    def execute(self, input):
+        raise RuntimeError("tool failed")
+
+
+class DelayedTool(Tool):
+    args = DelayArgs
+    name = "delayed"
+    description = "returns after a delay"
+    schema = {}
+
+    def execute(self, input):
+        time.sleep(input.args.delay)
+        return ToolOutput(output=input.args.value)
+
+
+def call_retained():
+    retained_emit("third", [])
+"#;
+
+    #[derive(Clone, Debug, Default, Deserialize, Serialize)]
+    struct TestState;
+
+    #[derive(Clone, Debug, Default, Deserialize, Serialize)]
+    struct TestStateUpdate;
+
+    #[derive(Clone, Debug, Deserialize, Serialize)]
+    struct TestStateInput;
+
+    impl GraphState for TestState {
+        type Update = TestStateUpdate;
+        type Input = TestStateInput;
+    }
+
+    impl GraphStateUpdate for TestStateUpdate {
+        type State = TestState;
+
+        fn apply(self, _state: &mut Self::State) {}
+
+        fn merge(self, _other: Self) -> Self {
+            self
+        }
+    }
+
+    impl GraphStateInput for TestStateInput {
+        type State = TestState;
+
+        fn initialize(self) -> Self::State {
+            TestState
+        }
+    }
+
+    struct TestHarness;
+
+    impl TestHarness {
+        async fn executor<B: ExecutorBackend>(workers: usize) -> Executor<B> {
+            Executor::<B>::builder("test_tools")
+                .bundle(Bundle::single("agentc_tdk", AGENTC_TDK_STUB).unwrap())
+                .bundle(Bundle::single("test_tools", TOOL_SOURCE).unwrap())
+                .workers(workers)
+                .build()
+                .await
+                .unwrap()
+        }
+
+        async fn tool<B: ExecutorBackend>(
+            executor: &Executor<B>,
+            tool_name: &str,
+        ) -> PythonTool<B> {
+            PythonTool::builder()
+                .executor(executor.clone())
+                .tool_name(tool_name)
+                .build()
+                .await
+                .unwrap()
+        }
+
+        fn input(args: Value) -> ToolInput<Value> {
+            ToolInput::new(
+                args,
                 ToolExecutionContext {
                     tenant_id: "test".to_string(),
                     session_id: Default::default(),
                     run_id: Default::default(),
                 },
-                None,
             )
-            .await;
+        }
 
-        assert!(
-            matches!(outcome, DispatchOutcome::Success { ref content, .. } if *content == json!("patched"))
-        );
+        async fn execute<B: ExecutorBackend + Send + Sync>(
+            tool: &PythonTool<B>,
+            input: ToolInput<Value>,
+        ) -> Result<ToolOutput<json_patch::Patch>, ToolError> {
+            Tool::<TestState>::execute(tool, input).await
+        }
     }
 
-    // Builder returns an error when the tool name is not in the registry.
-    async fn builder_rejects_unknown_tool_name(runtime: Arc<dyn Runtime>) {
-        inject_agentc_tdk(&runtime).await;
+    macro_rules! parameterized {
+        ($($name:ident),+ $(,)?) => {
+            #[cfg(feature = "python-rustpython")]
+            mod rustpython {
+                use agentc_executor_python::guestpy::rustpython::RustPython;
 
-        let result = PythonTool::builder()
-            .runtime(runtime)
-            .module("nonexistent_module")
-            .tool_name("nonexistent_tool")
-            .build()
-            .await;
+                $(
+                    #[tokio::test]
+                    async fn $name() {
+                        crate::python::tool::tests::$name::<RustPython>().await;
+                    }
+                )+
+            }
 
-        assert!(result.is_err());
-    }
+            #[cfg(feature = "python-cpython")]
+            mod cpython {
+                use agentc_executor_python::guestpy::pyo3::CPython;
 
-    // The tests above drive PythonTool through the backend-agnostic Runtime seam, so each is
-    // instantiated once per enabled backend. Both matrices run in the same invocation when
-    // both features are on, and each is gated on its own feature.
-    macro_rules! backend_tests {
-        ($backend:ident, $runtime:expr, $guard:expr) => {
-            mod $backend {
-                use super::*;
-
-                #[tokio::test]
-                async fn multi_tool_shared_runtime() {
-                    let _guard = $guard;
-
-                    super::multi_tool_shared_runtime($runtime).await;
-                }
-
-                #[tokio::test]
-                async fn emit_delivers_activity_delta() {
-                    let _guard = $guard;
-
-                    super::emit_delivers_activity_delta($runtime).await;
-                }
-
-                #[tokio::test]
-                async fn state_update_propagates() {
-                    let _guard = $guard;
-
-                    super::state_update_propagates($runtime).await;
-                }
-
-                #[tokio::test]
-                async fn builder_rejects_unknown_tool_name() {
-                    let _guard = $guard;
-
-                    super::builder_rejects_unknown_tool_name($runtime).await;
-                }
+                $(
+                    #[tokio::test]
+                    async fn $name() {
+                        crate::python::tool::tests::$name::<CPython>().await;
+                    }
+                )+
             }
         };
     }
 
-    #[cfg(feature = "python-embedded")]
-    backend_tests!(
-        embedded,
-        Arc::new(
-            EmbeddedRuntime::builder()
-                .num_interpreters(1)
-                .channel_size(32)
-                .build()
-                .expect("failed to build EmbeddedRuntime"),
-        ),
-        ()
-    );
+    async fn shared_executor_dispatches_registered_tools<B: ExecutorBackend + Send + Sync>() {
+        let executor = TestHarness::executor::<B>(1).await;
+        let direct = TestHarness::tool(&executor, "direct").await;
+        let double = TestHarness::tool(&executor, "double").await;
 
-    #[cfg(feature = "python-static")]
-    backend_tests!(
-        r#static,
-        Arc::new(
-            StaticRuntime::builder()
-                .num_workers(1)
-                .channel_size(32)
+        assert_eq!(
+            TestHarness::execute(&direct, TestHarness::input(json!({"value": 4})))
+                .await
+                .unwrap()
+                .output,
+            json!(4),
+        );
+        assert_eq!(
+            TestHarness::execute(&double, TestHarness::input(json!({"value": 4})))
+                .await
+                .unwrap()
+                .output,
+            json!(8),
+        );
+
+        executor.shutdown().await.unwrap();
+    }
+
+    async fn definition_reports_registered_metadata<B: ExecutorBackend + Send + Sync>() {
+        let executor = TestHarness::executor::<B>(1).await;
+        let tool = TestHarness::tool(&executor, "direct").await;
+        let definition = Tool::<TestState>::definition(&tool);
+
+        assert_eq!(definition.name, "direct");
+        assert_eq!(definition.description, "returns a direct result");
+        assert_eq!(definition.parameters, json!({}));
+
+        executor.shutdown().await.unwrap();
+    }
+
+    async fn builder_rejects_unregistered_tool_name<B: ExecutorBackend + Send + Sync>() {
+        let executor = TestHarness::executor::<B>(1).await;
+
+        assert!(
+            PythonTool::<B>::builder()
+                .executor(executor.clone())
+                .tool_name("unknown")
                 .build()
-                .expect("failed to build StaticRuntime"),
-        ),
-        super::STATIC_TEST_LOCK.lock().await
+                .await
+                .is_err()
+        );
+
+        executor.shutdown().await.unwrap();
+    }
+
+    async fn transfers_arguments_and_state_update<B: ExecutorBackend + Send + Sync>() {
+        let executor = TestHarness::executor::<B>(1).await;
+        let tool = TestHarness::tool(&executor, "state").await;
+        let result = TestHarness::execute(
+            &tool,
+            TestHarness::input(json!({})).with_state(json!({"status": "ready"})),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(result.output, json!("ready"));
+        assert_eq!(
+            serde_json::to_value(result.state_update.unwrap()).unwrap(),
+            json!([{"op": "add", "path": "/count", "value": 2}]),
+        );
+
+        executor.shutdown().await.unwrap();
+    }
+
+    async fn activity_emitter_is_optional_and_preserves_order<B>()
+    where
+        B: ExecutorBackend + Send + Sync,
+    {
+        let executor = TestHarness::executor::<B>(1).await;
+        let tool = TestHarness::tool(&executor, "emitter").await;
+
+        assert_eq!(
+            TestHarness::execute(&tool, TestHarness::input(json!({})))
+                .await
+                .unwrap()
+                .output,
+            json!("absent"),
+        );
+
+        let (sender, mut receiver) = mpsc::channel::<ActivityDelta>(2);
+
+        assert_eq!(
+            TestHarness::execute(
+                &tool,
+                TestHarness::input(json!({})).with_activity_emitter(ActivityEmitter::new(sender)),
+            )
+            .await
+            .unwrap()
+            .output,
+            json!("present"),
+        );
+        assert_eq!(
+            receiver
+                .recv()
+                .await
+                .unwrap()
+                .activity_type,
+            "first",
+        );
+        assert_eq!(
+            receiver
+                .recv()
+                .await
+                .unwrap()
+                .activity_type,
+            "second",
+        );
+
+        executor.shutdown().await.unwrap();
+    }
+
+    async fn retained_emit_callable_does_not_retain_the_channel<B>()
+    where
+        B: ExecutorBackend + Send + Sync,
+    {
+        let executor = TestHarness::executor::<B>(1).await;
+        let tool = TestHarness::tool(&executor, "emitter").await;
+        let (sender, mut receiver) = mpsc::channel::<ActivityDelta>(2);
+
+        TestHarness::execute(
+            &tool,
+            TestHarness::input(json!({})).with_activity_emitter(ActivityEmitter::new(sender)),
+        )
+        .await
+        .unwrap();
+
+        receiver.recv().await.unwrap();
+        receiver.recv().await.unwrap();
+
+        executor
+            .execute(|context| {
+                Box::pin(async move {
+                    context
+                        .guest()
+                        .import("test_tools")?
+                        .function("call_retained")?
+                        .call::<_, ()>(())
+                })
+            })
+            .await
+            .unwrap();
+
+        assert!(receiver.recv().await.is_none());
+
+        executor.shutdown().await.unwrap();
+    }
+
+    async fn guest_exception_preserves_execution_source<B: ExecutorBackend + Send + Sync>() {
+        let executor = TestHarness::executor::<B>(1).await;
+        let tool = TestHarness::tool(&executor, "failure").await;
+
+        assert!(matches!(
+            TestHarness::execute(&tool, TestHarness::input(json!({}))).await,
+            Err(ToolError::ExecutionError { source: Some(_), .. })
+        ));
+
+        executor.shutdown().await.unwrap();
+    }
+
+    async fn invocation_timeout_is_tool_specific<B: ExecutorBackend + Send + Sync>() {
+        let executor = TestHarness::executor::<B>(1).await;
+        let tool = PythonTool::<B>::builder()
+            .executor(executor.clone())
+            .tool_name("delayed")
+            .timeout(Duration::from_millis(100))
+            .build()
+            .await
+            .unwrap();
+
+        assert!(matches!(
+            TestHarness::execute(
+                &tool,
+                TestHarness::input(json!({
+                    "delay": 0.2,
+                    "value": "late",
+                })),
+            )
+            .await,
+            Err(ToolError::ExecutionError {
+                message,
+                source: None,
+                ..
+            }) if message == "tool execution timed out"
+        ));
+
+        tokio::time::sleep(Duration::from_millis(250)).await;
+        executor.shutdown().await.unwrap();
+    }
+
+    async fn concurrent_calls_share_the_package_executor<B: ExecutorBackend + Send + Sync>() {
+        let executor = TestHarness::executor::<B>(2).await;
+        let tool = TestHarness::tool(&executor, "delayed").await;
+        let (first, second) = tokio::join!(
+            TestHarness::execute(
+                &tool,
+                TestHarness::input(json!({
+                    "delay": 0.05,
+                    "value": "first",
+                })),
+            ),
+            TestHarness::execute(
+                &tool,
+                TestHarness::input(json!({
+                    "delay": 0.05,
+                    "value": "second",
+                })),
+            ),
+        );
+
+        assert_eq!(first.unwrap().output, json!("first"));
+        assert_eq!(second.unwrap().output, json!("second"));
+
+        executor.shutdown().await.unwrap();
+    }
+
+    parameterized!(
+        shared_executor_dispatches_registered_tools,
+        definition_reports_registered_metadata,
+        builder_rejects_unregistered_tool_name,
+        transfers_arguments_and_state_update,
+        activity_emitter_is_optional_and_preserves_order,
+        retained_emit_callable_does_not_retain_the_channel,
+        guest_exception_preserves_execution_source,
+        invocation_timeout_is_tool_specific,
+        concurrent_calls_share_the_package_executor,
     );
 }

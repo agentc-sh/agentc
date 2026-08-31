@@ -11,7 +11,6 @@ pub mod graph;
 pub mod http_server;
 pub mod interpolate;
 pub mod network;
-pub mod observability;
 pub mod provider;
 pub mod runtime;
 pub mod skill;

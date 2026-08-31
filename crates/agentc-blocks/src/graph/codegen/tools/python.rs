@@ -7,7 +7,12 @@ use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 use std::collections::HashMap;
 
-use agentc_compiler::generator::{blocks::codegen::ToIdent, errors::GeneratorError};
+use agentc_compiler::generator::{
+    blocks::{codegen::ToIdent, fragment::Fragment},
+    context::GenerationContext,
+    errors::GeneratorError,
+    extension::ErasedContributionValue,
+};
 
 use crate::{
     config::fields::FieldsSpec,
@@ -15,30 +20,77 @@ use crate::{
         ResolvedContext, ResolvedContextToolKind, ResolvedContextToolPython,
         ResolvedContextToolPythonInterpreter,
     },
+    contributions::dependency::{
+        CargoDependencies, CargoDependencyContribution, CargoPatchContribution, CargoPatches,
+        RuntimeDependencyContribution,
+    },
     graph::codegen::tools::ToolCodeGen,
 };
 
-/// Code generation shared by both Python interpreter backends.
+trait PythonBackend {
+    const FEATURE: &'static str;
+    const EXECUTOR_FEATURE: &'static str;
+    const IDENT_PREFIX: &'static str;
+
+    fn selects(interpreter: &ResolvedContextToolPythonInterpreter) -> bool;
+
+    fn backend_type() -> TokenStream;
+}
+
 struct PythonTools;
 
 impl PythonTools {
-    /// Emits one `.with_tool(PythonTool::builder()...)` registration per Python tool.
-    ///
-    /// Backend-agnostic: it takes the `runtime_ident` bound by whichever backend emitted the
-    /// runtime binding, so both backends share one implementation. `PythonTool` is named by
-    /// its full path rather than imported, because both backends can appear in the same agent
-    /// and each generator's imports land in the same scope.
+    fn by_package<B: PythonBackend>(
+        ctx: &ResolvedContext,
+    ) -> HashMap<&str, Vec<(&str, &ResolvedContextToolPython)>> {
+        let mut by_package = HashMap::<&str, Vec<(&str, &ResolvedContextToolPython)>>::new();
+
+        for (tool_name, tool) in &ctx.tools {
+            if let ResolvedContextToolKind::Python(py) = &tool.kind
+                && B::selects(&py.interpreter)
+            {
+                by_package
+                    .entry(py.project_path.as_str())
+                    .or_default()
+                    .push((tool_name.as_str(), py));
+            }
+        }
+
+        by_package
+    }
+
+    fn executor_binding<B: PythonBackend>(
+        py: &ResolvedContextToolPython,
+        executor_ident: &Ident,
+    ) -> TokenStream {
+        let backend = B::backend_type();
+        let module_name = py.module_name.as_str();
+        let project_path = py.project_path.as_str();
+        let site_packages_path = py.site_packages_path.as_str();
+
+        quote! {
+            #[allow(non_snake_case, nonstandard_style)]
+            let #executor_ident =
+                agentc_executor_python::executor::Executor::<#backend>::builder(#module_name)
+                    .bundle(agentc_executor_python::bundle!(#project_path)?)
+                    .bundle(agentc_executor_python::bundle!(#site_packages_path)?)
+                    .workers(4)
+                    .queue_capacity(32)
+                    .cancellation(shutdown.clone())
+                    .build()
+                    .await?;
+        }
+    }
+
     fn tool_registrations(
         tools: &[(&str, &ResolvedContextToolPython)],
-        runtime_ident: &Ident,
+        executor_ident: &Ident,
         ctx: &ResolvedContext,
         fields: &FieldsSpec,
     ) -> Vec<TokenStream> {
         let mut registrations = Vec::new();
 
-        for (tool_name, py) in tools {
-            let module_name = py.module_name.as_str();
-
+        for (tool_name, _) in tools {
             let tool_caps = ctx
                 .tools
                 .get(*tool_name)
@@ -58,8 +110,7 @@ impl PythonTools {
 
             let build_tool = quote! {
                 agentc_tools::python::PythonTool::builder()
-                    .runtime(#runtime_ident.clone())
-                    .module(#module_name)
+                    .executor(#executor_ident.clone())
                     .tool_name(#tool_name)
                     #caps_call
                     .build()
@@ -91,223 +142,148 @@ impl PythonTools {
 
         registrations
     }
-}
 
-/// All embedded-interpreter Python tools in the context. Tools that share a
-/// `site_packages_path` share a single `EmbeddedRuntime`.
-pub struct EmbeddedPythonTools<'a>(pub &'a ResolvedContext);
-
-impl EmbeddedPythonTools<'_> {
-    fn has_embedded(ctx: &ResolvedContext) -> bool {
-        ctx.tools.values().any(|t| {
+    fn is_present<B: PythonBackend>(ctx: &ResolvedContext) -> bool {
+        ctx.tools.values().any(|tool| {
             matches!(
-                &t.kind,
-                ResolvedContextToolKind::Python(py)
-                    if matches!(py.interpreter, ResolvedContextToolPythonInterpreter::Embedded)
+                &tool.kind,
+                ResolvedContextToolKind::Python(py) if B::selects(&py.interpreter)
             )
         })
     }
 
-    /// Emits the `EmbeddedRuntime::builder()...` binding for a single site-packages group.
-    ///
-    /// The `site_packages_path` (installed dependencies, including `agentc_tdk`) and each
-    /// entry in `project_paths` (the tool package sources) are all frozen into the runtime
-    /// so that all tool code and its dependencies are embedded in the binary at compile time.
-    fn runtime_binding(
-        site_packages_path: &str,
-        project_paths: &[&str],
-        runtime_ident: &Ident,
-    ) -> TokenStream {
-        let project_frozen = project_paths.iter().map(|path| {
-            quote! {
-                .frozen(agentc_tools::python::runtime::embedded::py_freeze!(dir = #path))
-            }
-        });
-
-        quote! {
-            #[allow(non_snake_case, nonstandard_style)]
-            let #runtime_ident = std::sync::Arc::new(
-                EmbeddedRuntime::builder()
-                    .frozen(agentc_tools::python::runtime::embedded::py_freeze!(dir = #site_packages_path))
-                    #(#project_frozen)*
-                    .num_interpreters(4)
-                    .channel_size(32)
-                    .shutdown(shutdown.clone())
-                    .build()?
-            );
-        }
-    }
-}
-
-impl ToolCodeGen for EmbeddedPythonTools<'_> {
-    fn imports(&self) -> Option<TokenStream> {
-        Self::has_embedded(self.0).then(|| {
-            quote! {
-                use agentc_tools::python::EmbeddedRuntime;
-            }
-        })
-    }
-
-    fn feature(&self) -> Option<&'static str> {
-        Self::has_embedded(self.0).then_some("python-embedded")
-    }
-
-    fn registrations(&self, fields: &FieldsSpec) -> Result<Vec<TokenStream>, GeneratorError> {
-        let ctx = self.0;
+    fn registrations<B: PythonBackend>(
+        ctx: &ResolvedContext,
+        fields: &FieldsSpec,
+    ) -> Vec<TokenStream> {
         let mut registrations = Vec::new();
 
-        // Group embedded tools by site_packages_path so each unique venv shares one runtime.
-        let mut by_site_packages = HashMap::<&str, Vec<(&str, &ResolvedContextToolPython)>>::new();
-        for (tool_name, tool) in &ctx.tools {
-            if let ResolvedContextToolKind::Python(py) = &tool.kind
-                && matches!(py.interpreter, ResolvedContextToolPythonInterpreter::Embedded)
-            {
-                by_site_packages
-                    .entry(py.site_packages_path.as_str())
-                    .or_default()
-                    .push((tool_name.as_str(), py));
-            }
-        }
-
-        for (site_packages_path, tools) in &by_site_packages {
-            let runtime_ident = Ident::new(
-                &format!("py_embedded_runtime_{}", site_packages_path.to_ident()),
+        for (project_path, tools) in &Self::by_package::<B>(ctx) {
+            let executor_ident = Ident::new(
+                &format!("{}{}", B::IDENT_PREFIX, project_path.to_ident()),
                 Span::call_site(),
             );
 
-            // Collect the distinct project paths for all tools in this group so each
-            // tool package's source is also frozen into the shared runtime.
-            let mut project_paths = tools
-                .iter()
-                .map(|(_, py)| py.project_path.as_str())
-                .collect::<Vec<_>>();
-            project_paths.sort_unstable();
-            project_paths.dedup();
-
-            registrations.push(Self::runtime_binding(
-                site_packages_path,
-                &project_paths,
-                &runtime_ident,
-            ));
-            registrations.extend(PythonTools::tool_registrations(
-                tools,
-                &runtime_ident,
-                ctx,
-                fields,
-            ));
+            registrations.push(Self::executor_binding::<B>(tools[0].1, &executor_ident));
+            registrations.extend(Self::tool_registrations(tools, &executor_ident, ctx, fields));
         }
 
-        Ok(registrations)
+        registrations
     }
 }
 
-/// All static-interpreter Python tools in the context. Tools that share a
-/// `site_packages_path` share a single `StaticRuntime`.
-pub struct StaticPythonTools<'a>(pub &'a ResolvedContext);
+pub struct RustPythonTools<'a>(pub &'a ResolvedContext);
 
-impl StaticPythonTools<'_> {
-    fn has_static(ctx: &ResolvedContext) -> bool {
-        ctx.tools.values().any(|t| {
-            matches!(
-                &t.kind,
-                ResolvedContextToolKind::Python(py)
-                    if matches!(py.interpreter, ResolvedContextToolPythonInterpreter::Static)
-            )
-        })
+impl PythonBackend for RustPythonTools<'_> {
+    const FEATURE: &'static str = "python-rustpython";
+    const EXECUTOR_FEATURE: &'static str = "rustpython";
+    const IDENT_PREFIX: &'static str = "py_rustpython_executor_";
+
+    fn selects(interpreter: &ResolvedContextToolPythonInterpreter) -> bool {
+        matches!(interpreter, ResolvedContextToolPythonInterpreter::Embedded)
     }
 
-    /// Emits the `StaticRuntime::builder()...` binding for a single site-packages group.
-    ///
-    /// The `site_packages_path` (installed dependencies, including `agentc_tdk`) and each
-    /// entry in `project_paths` (the tool package sources) are embedded into the binary as
-    /// directory trees, so tool code and its dependencies are embedded at compile time just
-    /// as they are for the embedded backend. The runtime unpacks them to a temporary
-    /// directory and places them on the interpreter's import path.
-    fn runtime_binding(
-        site_packages_path: &str,
-        project_paths: &[&str],
-        runtime_ident: &Ident,
-    ) -> TokenStream {
-        let project_embeds = project_paths.iter().map(|path| {
-            quote! {
-                .embed(agentc_tools::python::runtime::r#static::embed_dir!(#path))
-            }
-        });
-
-        quote! {
-            #[allow(non_snake_case, nonstandard_style)]
-            let #runtime_ident = std::sync::Arc::new(
-                StaticRuntime::builder()
-                    .embed(agentc_tools::python::runtime::r#static::embed_dir!(#site_packages_path))
-                    #(#project_embeds)*
-                    .num_workers(4)
-                    .channel_size(32)
-                    .shutdown(shutdown.clone())
-                    .build()?
-            );
-        }
+    fn backend_type() -> TokenStream {
+        quote! { agentc_executor_python::guestpy::rustpython::RustPython }
     }
 }
 
-impl ToolCodeGen for StaticPythonTools<'_> {
+impl RustPythonTools<'_> {
+    pub fn is_present(ctx: &ResolvedContext) -> bool {
+        PythonTools::is_present::<Self>(ctx)
+    }
+}
+
+impl ToolCodeGen for RustPythonTools<'_> {
     fn imports(&self) -> Option<TokenStream> {
-        Self::has_static(self.0).then(|| {
-            quote! {
-                use agentc_tools::python::StaticRuntime;
-            }
-        })
+        None
     }
 
     fn feature(&self) -> Option<&'static str> {
-        Self::has_static(self.0).then_some("python-static")
+        Self::is_present(self.0).then_some(Self::FEATURE)
     }
 
     fn registrations(&self, fields: &FieldsSpec) -> Result<Vec<TokenStream>, GeneratorError> {
-        let ctx = self.0;
-        let mut registrations = Vec::new();
+        Ok(PythonTools::registrations::<Self>(self.0, fields))
+    }
+}
 
-        // Group static tools by site_packages_path so each unique venv shares one runtime.
-        let mut by_site_packages = HashMap::<&str, Vec<(&str, &ResolvedContextToolPython)>>::new();
-        for (tool_name, tool) in &ctx.tools {
-            if let ResolvedContextToolKind::Python(py) = &tool.kind
-                && matches!(py.interpreter, ResolvedContextToolPythonInterpreter::Static)
-            {
-                by_site_packages
-                    .entry(py.site_packages_path.as_str())
-                    .or_default()
-                    .push((tool_name.as_str(), py));
-            }
+pub struct CPythonTools<'a>(pub &'a ResolvedContext);
+
+impl PythonBackend for CPythonTools<'_> {
+    const FEATURE: &'static str = "python-cpython";
+    const EXECUTOR_FEATURE: &'static str = "pyo3";
+    const IDENT_PREFIX: &'static str = "py_cpython_executor_";
+
+    fn selects(interpreter: &ResolvedContextToolPythonInterpreter) -> bool {
+        matches!(interpreter, ResolvedContextToolPythonInterpreter::Static)
+    }
+
+    fn backend_type() -> TokenStream {
+        quote! { agentc_executor_python::guestpy::pyo3::CPython }
+    }
+}
+
+impl CPythonTools<'_> {
+    pub fn is_present(ctx: &ResolvedContext) -> bool {
+        PythonTools::is_present::<Self>(ctx)
+    }
+}
+
+impl ToolCodeGen for CPythonTools<'_> {
+    fn imports(&self) -> Option<TokenStream> {
+        None
+    }
+
+    fn feature(&self) -> Option<&'static str> {
+        Self::is_present(self.0).then_some(Self::FEATURE)
+    }
+
+    fn registrations(&self, fields: &FieldsSpec) -> Result<Vec<TokenStream>, GeneratorError> {
+        Ok(PythonTools::registrations::<Self>(self.0, fields))
+    }
+}
+
+pub struct PythonToolCargoFragment;
+
+impl PythonToolCargoFragment {
+    fn dependency(ctx: &ResolvedContext) -> RuntimeDependencyContribution {
+        let mut dependency =
+            RuntimeDependencyContribution::new("agentc-executor-python").default_features(false);
+
+        if RustPythonTools::is_present(ctx) {
+            dependency = dependency.feature(RustPythonTools::EXECUTOR_FEATURE);
         }
 
-        for (site_packages_path, tools) in &by_site_packages {
-            let runtime_ident = Ident::new(
-                &format!("py_static_runtime_{}", site_packages_path.to_ident()),
-                Span::call_site(),
-            );
-
-            // Collect the distinct project paths for all tools in this group so each
-            // tool package's source is also embedded into the shared runtime.
-            let mut project_paths = tools
-                .iter()
-                .map(|(_, py)| py.project_path.as_str())
-                .collect::<Vec<_>>();
-            project_paths.sort_unstable();
-            project_paths.dedup();
-
-            registrations.push(Self::runtime_binding(
-                site_packages_path,
-                &project_paths,
-                &runtime_ident,
-            ));
-            registrations.extend(PythonTools::tool_registrations(
-                tools,
-                &runtime_ident,
-                ctx,
-                fields,
-            ));
+        if CPythonTools::is_present(ctx) {
+            dependency = dependency.feature(CPythonTools::EXECUTOR_FEATURE);
         }
 
-        Ok(registrations)
+        dependency
+    }
+}
+
+impl Fragment<ResolvedContext> for PythonToolCargoFragment {
+    fn generate_contribution(
+        &self,
+        ctx: &GenerationContext<ResolvedContext>,
+        point: &str,
+    ) -> Result<ErasedContributionValue, GeneratorError> {
+        match point {
+            "cargo::dependencies" => Ok(ErasedContributionValue::new(
+                CargoDependencies::from_entries([CargoDependencyContribution::runtime(
+                    Self::dependency(ctx.as_inner()),
+                )])
+                .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
+            )),
+            "cargo::patches" => Ok(ErasedContributionValue::new(
+                CargoPatches::from_entries([CargoPatchContribution::runtime(
+                    RuntimeDependencyContribution::new("agentc-executor-python"),
+                )])
+                .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
+            )),
+            _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
+        }
     }
 }
 
@@ -330,6 +306,7 @@ mod tests {
     impl PythonToolsFixture {
         fn tool(
             name: &str,
+            project_path: &str,
             interpreter: ResolvedContextToolPythonInterpreter,
         ) -> (String, ResolvedContextTool) {
             (
@@ -341,9 +318,13 @@ mod tests {
                     capabilities: vec![],
                     config: HashMap::new(),
                     kind: ResolvedContextToolKind::Python(ResolvedContextToolPython {
-                        project_path: format!("/artifacts/{name}"),
-                        site_packages_path: format!("/artifacts/{name}/.venv/site-packages"),
-                        module_name: name.to_string(),
+                        project_path: project_path.to_string(),
+                        site_packages_path: format!("{project_path}/.venv/site-packages"),
+                        module_name: project_path
+                            .rsplit('/')
+                            .next()
+                            .expect("project path has a final segment")
+                            .to_string(),
                         interpreter,
                     }),
                 },
@@ -401,42 +382,54 @@ mod tests {
     }
 
     #[test]
-    fn static_interpreter_generates_static_runtime_binding() {
+    fn rustpython_interpreter_generates_a_rustpython_executor() {
         let ctx = PythonToolsFixture::context([PythonToolsFixture::tool(
-            "static_adder",
-            ResolvedContextToolPythonInterpreter::Static,
+            "adder",
+            "/artifacts/adder",
+            ResolvedContextToolPythonInterpreter::Embedded,
         )]);
-        let (imports, registrations) = PythonToolsFixture::generated(&ctx);
+        let (_, registrations) = PythonToolsFixture::generated(&ctx);
 
-        assert!(imports.contains("StaticRuntime"));
-        assert!(registrations.contains("StaticRuntime :: builder"));
-        assert!(registrations.contains("embed_dir !"));
+        assert!(registrations.contains("agentc_executor_python :: executor :: Executor"));
+        assert!(registrations.contains("guestpy :: rustpython :: RustPython"));
+        assert_eq!(
+            registrations
+                .matches("bundle !")
+                .count(),
+            2
+        );
         assert!(registrations.contains("PythonTool :: builder"));
-        assert!(registrations.contains("static_adder"));
+        assert!(registrations.contains("adder"));
         assert!(
             ToolsCodeGen::features(&ctx)
                 .to_string()
-                .contains("python-static")
+                .contains("python-rustpython")
         );
     }
 
     #[test]
-    fn embedded_interpreter_generates_embedded_runtime_binding() {
+    fn cpython_interpreter_generates_a_cpython_executor() {
         let ctx = PythonToolsFixture::context([PythonToolsFixture::tool(
-            "embedded_adder",
-            ResolvedContextToolPythonInterpreter::Embedded,
+            "adder",
+            "/artifacts/adder",
+            ResolvedContextToolPythonInterpreter::Static,
         )]);
-        let (imports, registrations) = PythonToolsFixture::generated(&ctx);
+        let (_, registrations) = PythonToolsFixture::generated(&ctx);
 
-        assert!(imports.contains("EmbeddedRuntime"));
-        assert!(registrations.contains("EmbeddedRuntime :: builder"));
-        assert!(registrations.contains("py_freeze !"));
+        assert!(registrations.contains("agentc_executor_python :: executor :: Executor"));
+        assert!(registrations.contains("guestpy :: pyo3 :: CPython"));
+        assert_eq!(
+            registrations
+                .matches("bundle !")
+                .count(),
+            2
+        );
         assert!(registrations.contains("PythonTool :: builder"));
-        assert!(registrations.contains("embedded_adder"));
+        assert!(registrations.contains("adder"));
         assert!(
             ToolsCodeGen::features(&ctx)
                 .to_string()
-                .contains("python-embedded")
+                .contains("python-cpython")
         );
     }
 
@@ -445,18 +438,21 @@ mod tests {
         let ctx = PythonToolsFixture::context([
             PythonToolsFixture::tool(
                 "embedded_adder",
+                "/artifacts/embedded_adder",
                 ResolvedContextToolPythonInterpreter::Embedded,
             ),
-            PythonToolsFixture::tool("static_adder", ResolvedContextToolPythonInterpreter::Static),
+            PythonToolsFixture::tool(
+                "static_adder",
+                "/artifacts/static_adder",
+                ResolvedContextToolPythonInterpreter::Static,
+            ),
         ]);
         let (imports, registrations) = PythonToolsFixture::generated(&ctx);
         let features = ToolsCodeGen::features(&ctx).to_string();
 
-        assert!(imports.contains("EmbeddedRuntime"));
-        assert!(imports.contains("StaticRuntime"));
-        assert_eq!(imports.matches("PythonTool").count(), 0);
-        assert!(registrations.contains("EmbeddedRuntime :: builder"));
-        assert!(registrations.contains("StaticRuntime :: builder"));
+        assert!(imports.is_empty());
+        assert!(registrations.contains("guestpy :: rustpython :: RustPython"));
+        assert!(registrations.contains("guestpy :: pyo3 :: CPython"));
         assert_eq!(
             registrations
                 .matches("PythonTool :: builder")
@@ -465,7 +461,120 @@ mod tests {
         );
         assert!(registrations.contains("embedded_adder"));
         assert!(registrations.contains("static_adder"));
-        assert!(features.contains("python-embedded"));
-        assert!(features.contains("python-static"));
+        assert!(features.contains("python-rustpython"));
+        assert!(features.contains("python-cpython"));
+    }
+
+    #[test]
+    fn shared_package_generates_one_executor_for_all_tools() {
+        let ctx = PythonToolsFixture::context([
+            PythonToolsFixture::tool(
+                "adder",
+                "/artifacts/mathkit",
+                ResolvedContextToolPythonInterpreter::Embedded,
+            ),
+            PythonToolsFixture::tool(
+                "subtractor",
+                "/artifacts/mathkit",
+                ResolvedContextToolPythonInterpreter::Embedded,
+            ),
+        ]);
+        let (_, registrations) = PythonToolsFixture::generated(&ctx);
+
+        assert_eq!(
+            registrations
+                .matches("Executor :: < agentc_executor_python")
+                .count(),
+            1
+        );
+        assert_eq!(
+            registrations
+                .matches("PythonTool :: builder")
+                .count(),
+            2
+        );
+    }
+
+    #[test]
+    fn shared_package_clones_one_executor_into_each_tool() {
+        let ctx = PythonToolsFixture::context([
+            PythonToolsFixture::tool(
+                "adder",
+                "/artifacts/mathkit",
+                ResolvedContextToolPythonInterpreter::Embedded,
+            ),
+            PythonToolsFixture::tool(
+                "subtractor",
+                "/artifacts/mathkit",
+                ResolvedContextToolPythonInterpreter::Embedded,
+            ),
+        ]);
+        let (_, registrations) = PythonToolsFixture::generated(&ctx);
+
+        assert_eq!(
+            registrations
+                .matches(". executor (py_rustpython_executor_")
+                .count(),
+            2
+        );
+    }
+
+    #[test]
+    fn separate_packages_generate_separate_executors() {
+        let ctx = PythonToolsFixture::context([
+            PythonToolsFixture::tool(
+                "adder",
+                "/artifacts/mathkit",
+                ResolvedContextToolPythonInterpreter::Embedded,
+            ),
+            PythonToolsFixture::tool(
+                "greeter",
+                "/artifacts/textkit",
+                ResolvedContextToolPythonInterpreter::Embedded,
+            ),
+        ]);
+        let (_, registrations) = PythonToolsFixture::generated(&ctx);
+
+        assert_eq!(
+            registrations
+                .matches("Executor :: < agentc_executor_python")
+                .count(),
+            2
+        );
+        assert!(registrations.contains("/artifacts/mathkit"));
+        assert!(registrations.contains("/artifacts/textkit"));
+        assert!(registrations.contains("/artifacts/mathkit/.venv/site-packages"));
+        assert!(registrations.contains("/artifacts/textkit/.venv/site-packages"));
+    }
+
+    #[test]
+    fn executor_uses_four_workers_queue_and_cancellation() {
+        let ctx = PythonToolsFixture::context([PythonToolsFixture::tool(
+            "adder",
+            "/artifacts/adder",
+            ResolvedContextToolPythonInterpreter::Embedded,
+        )]);
+        let (_, registrations) = PythonToolsFixture::generated(&ctx);
+
+        assert!(registrations.contains(". workers (4)"));
+        assert!(registrations.contains(". queue_capacity (32)"));
+        assert!(registrations.contains(". cancellation (shutdown . clone ())"));
+        assert!(!registrations.contains("standard_environment"));
+        assert!(!registrations.contains("with_http"));
+        assert!(!registrations.contains("with_fs"));
+    }
+
+    #[test]
+    fn absent_python_tools_generate_no_imports_or_registrations() {
+        let ctx = PythonToolsFixture::context([]);
+        let (imports, registrations) = PythonToolsFixture::generated(&ctx);
+
+        assert!(imports.is_empty());
+        assert!(registrations.is_empty());
+        assert!(
+            ToolsCodeGen::features(&ctx)
+                .to_string()
+                .is_empty()
+        );
     }
 }

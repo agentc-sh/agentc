@@ -132,14 +132,13 @@ pub struct ResolvedContextToolPython {
     pub project_path: String,
 
     /// Absolute path to the `site-packages` directory inside the virtual environment
-    /// created by the transform step. Passed directly to `py_freeze!` in the generated
-    /// code so that all installed dependencies are embedded at compile time.
+    /// created by the transform step. Embedded as a package tree bundle in the generated
+    /// code so that all installed dependencies are compiled into the binary.
     pub site_packages_path: String,
 
     /// The importable Python module name for this tool package, derived from
     /// `[project].name` in `pyproject.toml` with hyphens replaced by underscores.
-    /// Passed to `PythonToolBuilder::module` in the generated code so the runtime
-    /// imports the package before looking up the tool in `__tool_registry__`.
+    /// Used as the executor entry module in the generated code.
     pub module_name: String,
 
     /// Which Python runtime backend to use. Defaults to `embedded` (RustPython).
