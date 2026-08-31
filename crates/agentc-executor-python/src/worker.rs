@@ -147,7 +147,10 @@ impl<B: ExecutorBackend> WorkerHandle<B> {
         let (sender, receiver) = mpsc::channel(queue_capacity);
         let (startup, ready) = oneshot::channel();
         let thread = std::thread::Builder::new()
-            .name(format!("agentc-python-{}-{}", config.executor.value(), worker.index(),))
+            .name(format!("agentc-python-{}-{}", config.executor.value(), worker.index()))
+            // Default stack size in debug builds causes recursion limit issues in RustPython,
+            // so we give it a more generous size no matter the build configuration.
+            .stack_size(16 << 20)
             .spawn(move || Worker::run(config, receiver, startup))
             .map_err(|error| Error::worker_spawn(worker, error))?;
 
