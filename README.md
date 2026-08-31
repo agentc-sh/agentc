@@ -81,7 +81,7 @@ Install the `agentc` CLI and the local toolchains needed to compile agents for y
 - Required:
   - [Rust toolchain](https://rustup.rs) via `rustup`. The `standalone` archetype compiles agents with `cargo`, so Rust must be installed on the build machine.
 - Optional:
-  - `pnpm` and `esbuild` if the agent uses JavaScript or TypeScript tools
+  - `npm`/`pnpm` and `esbuild` if the agent uses JavaScript or TypeScript tools
   - `uv` if the agent uses Python tools
 
 ### Installation

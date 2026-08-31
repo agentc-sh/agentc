@@ -64,7 +64,7 @@ mod tests {
 
     use guestpy::{bundle::Bundle, rustpython::RustPython};
 
-    use crate::{error::Error, execution::Execution, executor::Executor, lease::WorkerLease};
+    use crate::{errors::Error, execution::Execution, executor::Executor, lease::WorkerLease};
 
     const COMPONENT_SOURCE: &str = "\
 count = 0

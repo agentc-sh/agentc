@@ -6,7 +6,7 @@ use std::{future::Future, sync::mpsc::sync_channel};
 
 use tokio::runtime::Handle;
 
-use crate::error::Error;
+use crate::errors::Error;
 
 /// A cloneable capture of the application's Tokio runtime handle.
 #[derive(Clone)]
@@ -55,7 +55,7 @@ impl From<Handle> for HostRuntime {
 mod tests {
     use guestpy::{bundle::Bundle, host::module::ModuleSpec, rustpython::RustPython};
 
-    use crate::{error::Error, executor::Executor, host::HostRuntime};
+    use crate::{errors::Error, executor::Executor, host::HostRuntime};
 
     const HOST_SOURCE: &str = "\
 def read_host_value():

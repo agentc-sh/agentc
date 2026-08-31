@@ -33,9 +33,12 @@ use crate::{
         SupportsA2a, SupportsAgUi,
     },
     graph::{
-        codegen::tools::javascript::{
-            FilesystemTypescriptCargoFragment, HttpTypescriptCargoFragment,
-            JavascriptToolCargoFragment,
+        codegen::tools::{
+            javascript::{
+                FilesystemTypescriptCargoFragment, HttpTypescriptCargoFragment,
+                JavascriptToolCargoFragment,
+            },
+            python::PythonToolCargoFragment,
         },
         react::{
             agent::AgentCodeGen,
@@ -164,6 +167,16 @@ impl AgentGraph for ReActGraph {
                         ))
                         .build(FilesystemTypescriptCargoFragment),
                 );
+        }
+
+        if context.has_python_components() {
+            core_blocks = core_blocks.add(
+                FragmentBlock::builder()
+                    .id("python_tool_cargo")
+                    .contribute(Contribution::<CargoDependencies>::strict("cargo::dependencies"))
+                    .contribute(Contribution::<CargoPatches>::strict("cargo::patches"))
+                    .build(PythonToolCargoFragment),
+            );
         }
 
         let server_integration = GenerationContribution::new()

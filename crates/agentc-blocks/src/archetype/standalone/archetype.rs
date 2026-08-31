@@ -291,16 +291,9 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::{
-        context::{
-            ResolvedContextTool, ResolvedContextToolKind, ResolvedContextToolPython,
-            ResolvedContextToolPythonInterpreter,
-        },
-        contributions::dependency::{
-            CargoDependencies, CargoDependencyContribution, CargoPatchContribution, CargoPatches,
-            ExternalDependencyContribution, RuntimeDependencyContribution,
-        },
-        types::RuntimeValue,
+    use crate::contributions::dependency::{
+        CargoDependencies, CargoDependencyContribution, CargoPatchContribution, CargoPatches,
+        ExternalDependencyContribution, RuntimeDependencyContribution,
     };
     use agentc_compiler::generator::{
         blocks::codegen::CodeGen,
@@ -330,29 +323,6 @@ mod tests {
             "http_server": http_server
         }))
         .unwrap()
-    }
-
-    fn static_python_context() -> ResolvedContext {
-        let mut ctx = context(None);
-
-        ctx.tools.insert(
-            "adder".to_string(),
-            ResolvedContextTool {
-                name: "adder".to_string(),
-                description: None,
-                enabled: RuntimeValue::constant(true),
-                capabilities: vec![],
-                config: HashMap::new(),
-                kind: ResolvedContextToolKind::Python(ResolvedContextToolPython {
-                    project_path: "/artifacts/adder".to_string(),
-                    site_packages_path: "/artifacts/adder/.venv/site-packages".to_string(),
-                    module_name: "adder".to_string(),
-                    interpreter: ResolvedContextToolPythonInterpreter::Static,
-                }),
-            },
-        );
-
-        ctx
     }
 
     #[test]
@@ -540,8 +510,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn generated_cargo_toml_includes_static_python_feature() {
-        let ctx = static_python_context();
+    async fn generated_cargo_toml_renders_the_tools_feature_contribution() {
+        let ctx = context(None);
         let resolved = StandaloneArchetype
             .resolve(ctx.clone(), StandaloneArchetypeConfig::default())
             .unwrap();
@@ -556,7 +526,7 @@ mod tests {
             HashMap::from([(
                 "tools::features".to_string(),
                 vec![ErasedContributionValue::new(
-                    "\"python-static\"".to_string(),
+                    "\"dummy-feature\"".to_string(),
                 )],
             )]),
         )
@@ -573,7 +543,7 @@ mod tests {
             .expect("Cargo.toml is generated");
 
         assert!(content.contains(&format!(
-            "agentc-tools = {{ version = \"{}\", default-features = false, features = [\"python-static\"] }}",
+            "agentc-tools = {{ version = \"{}\", default-features = false, features = [\"dummy-feature\"] }}",
             env!("CARGO_PKG_VERSION"),
         )));
     }

@@ -104,7 +104,7 @@ pub struct ManifestPythonTool {
     /// Which Python runtime backend to use. Defaults to `embedded` (RustPython).
     ///
     /// `embedded` supports pure-Python packages only. `static` (CPython via PyO3)
-    /// supports C-extension packages but is not yet implemented.
+    /// supports C-extension packages and requires a compatible CPython at runtime.
     #[serde(default)]
     pub interpreter: ManifestPythonInterpreter,
 }
@@ -116,8 +116,8 @@ pub enum ManifestPythonInterpreter {
     /// Embed RustPython directly into the binary. Supports pure-Python packages only.
     #[default]
     Embedded,
-    /// Link against a system CPython installation via PyO3. Supports C-extension packages.
-    /// Not yet implemented; accepted in the manifest but generates no code.
+    /// Link against a system CPython installation via PyO3. Supports C-extension packages,
+    /// and requires a compatible CPython in the runtime environment.
     Static,
 }
 

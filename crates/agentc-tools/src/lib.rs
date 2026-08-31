@@ -8,7 +8,7 @@ extern crate self as agentc_tools;
 #[cfg(feature = "javascript")]
 pub mod javascript;
 
-#[cfg(any(feature = "python-embedded", feature = "python-static"))]
+#[cfg(feature = "python")]
 pub mod python;
 
 #[cfg(feature = "bash")]

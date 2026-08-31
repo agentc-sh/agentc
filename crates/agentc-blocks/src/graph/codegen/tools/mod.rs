@@ -17,7 +17,7 @@ use crate::{
     graph::codegen::tools::{
         bash::BashTools,
         javascript::JavascriptTools,
-        python::{EmbeddedPythonTools, StaticPythonTools},
+        python::{CPythonTools, RustPythonTools},
     },
 };
 
@@ -46,8 +46,8 @@ impl ToolsCodeGen {
         [
             Box::new(JavascriptTools(ctx)),
             Box::new(BashTools(ctx)),
-            Box::new(EmbeddedPythonTools(ctx)),
-            Box::new(StaticPythonTools(ctx)),
+            Box::new(RustPythonTools(ctx)),
+            Box::new(CPythonTools(ctx)),
         ]
     }
 

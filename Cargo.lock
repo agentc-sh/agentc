@@ -650,6 +650,7 @@ name = "agentc-tools"
 version = "0.3.1"
 dependencies = [
  "agentc-agent",
+ "agentc-executor-python",
  "agentc-executor-typescript",
  "agentc-fs",
  "agentc-http",
@@ -658,13 +659,7 @@ dependencies = [
  "base64 0.22.1",
  "bashkit",
  "futures",
- "include_dir",
  "json-patch",
- "pyo3",
- "pythonize",
- "rustpython-pylib",
- "rustpython-stdlib",
- "rustpython-vm",
  "sanitizer",
  "schemars",
  "serde",
@@ -2841,8 +2836,8 @@ dependencies = [
 
 [[package]]
 name = "guestpy"
-version = "0.2.0"
-source = "git+https://github.com/wizrds/guestpy.git?rev=0.2.0#497c9187b9217457c44739f1502ac29f38f01bcf"
+version = "0.2.1"
+source = "git+https://github.com/wizrds/guestpy.git?rev=0.2.1#04e89d0f029ab29703148d87a96c2eac746c51b7"
 dependencies = [
  "guestpy-core",
  "guestpy-macros",
@@ -2852,8 +2847,8 @@ dependencies = [
 
 [[package]]
 name = "guestpy-core"
-version = "0.2.0"
-source = "git+https://github.com/wizrds/guestpy.git?rev=0.2.0#497c9187b9217457c44739f1502ac29f38f01bcf"
+version = "0.2.1"
+source = "git+https://github.com/wizrds/guestpy.git?rev=0.2.1#04e89d0f029ab29703148d87a96c2eac746c51b7"
 dependencies = [
  "bytes",
  "futures",
@@ -2866,8 +2861,8 @@ dependencies = [
 
 [[package]]
 name = "guestpy-macros"
-version = "0.2.0"
-source = "git+https://github.com/wizrds/guestpy.git?rev=0.2.0#497c9187b9217457c44739f1502ac29f38f01bcf"
+version = "0.2.1"
+source = "git+https://github.com/wizrds/guestpy.git?rev=0.2.1#04e89d0f029ab29703148d87a96c2eac746c51b7"
 dependencies = [
  "darling 0.24.1",
  "heck 0.5.0",
@@ -2879,8 +2874,8 @@ dependencies = [
 
 [[package]]
 name = "guestpy-pyo3"
-version = "0.2.0"
-source = "git+https://github.com/wizrds/guestpy.git?rev=0.2.0#497c9187b9217457c44739f1502ac29f38f01bcf"
+version = "0.2.1"
+source = "git+https://github.com/wizrds/guestpy.git?rev=0.2.1#04e89d0f029ab29703148d87a96c2eac746c51b7"
 dependencies = [
  "guestpy-core",
  "pyo3",
@@ -2890,8 +2885,8 @@ dependencies = [
 
 [[package]]
 name = "guestpy-rustpython"
-version = "0.2.0"
-source = "git+https://github.com/wizrds/guestpy.git?rev=0.2.0#497c9187b9217457c44739f1502ac29f38f01bcf"
+version = "0.2.1"
+source = "git+https://github.com/wizrds/guestpy.git?rev=0.2.1#04e89d0f029ab29703148d87a96c2eac746c51b7"
 dependencies = [
  "guestpy-core",
  "rustpython-pylib",
@@ -6454,15 +6449,12 @@ version = "0.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cd274650b21d4bfc26a0a47587962c1edb425f69287324355cd040c3ea66071c"
 dependencies = [
- "chrono",
  "libc",
  "once_cell",
  "portable-atomic",
  "pyo3-build-config",
  "pyo3-ffi",
  "pyo3-macros",
- "serde",
- "uuid",
 ]
 
 [[package]]
@@ -6506,16 +6498,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.118",
-]
-
-[[package]]
-name = "pythonize"
-version = "0.29.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6ec376e1216e0c929a74964ce2020012a1a39f32d80e78aa688721219ea7fb89"
-dependencies = [
- "pyo3",
- "serde",
 ]
 
 [[package]]
@@ -7744,7 +7726,6 @@ dependencies = [
  "rustpython-sre_engine",
  "rustpython-unicode",
  "scopeguard",
- "serde_core",
  "static_assertions",
  "strum 0.28.0",
  "strum_macros 0.28.0",
