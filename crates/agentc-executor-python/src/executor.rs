@@ -370,7 +370,12 @@ mod tests {
         time::Duration,
     };
 
-    use guestpy::{bundle::Bundle, handle::Coroutine, pyo3::CPython, rustpython::RustPython};
+    use guestpy::{
+        bundle::Bundle,
+        handle::{ObjectProtocol, Coroutine},
+        pyo3::CPython,
+        rustpython::RustPython,
+    };
     use tokio::sync::Barrier;
     use tokio_util::sync::CancellationToken;
 

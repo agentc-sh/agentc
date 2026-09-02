@@ -16,7 +16,12 @@ use agentc_agent::{
         tools::ToolDefinition,
     },
 };
-use agentc_executor_python::{backend::ExecutorBackend, errors::Error, executor::Executor};
+use agentc_executor_python::{
+    backend::ExecutorBackend,
+    errors::Error,
+    executor::Executor,
+    guestpy::handle::ObjectProtocol,
+};
 use async_trait::async_trait;
 
 use crate::python::types::{PythonToolDefinition, PythonToolInput, PythonToolResult};
@@ -194,7 +199,9 @@ mod tests {
         },
     };
     use agentc_executor_python::{
-        backend::ExecutorBackend, executor::Executor, guestpy::bundle::Bundle,
+        backend::ExecutorBackend,
+        executor::Executor,
+        guestpy::{bundle::Bundle, handle::ObjectProtocol},
     };
     use serde::{Deserialize, Serialize};
     use serde_json::{Value, json};
