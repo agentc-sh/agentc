@@ -1179,7 +1179,7 @@ mod tests {
     use agentc_executor_typescript::{
         executor::Executor,
         guestjs::{
-            handle::Promise,
+            handle::{Promise, CallableProtocol},
             marshal::{FromGuest, ToGuestArgs},
         },
         host::HostRuntime,

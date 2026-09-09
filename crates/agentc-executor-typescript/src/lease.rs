@@ -53,7 +53,7 @@ impl WorkerLease {
 mod tests {
     use std::time::Duration;
 
-    use crate::{execution::Execution, executor::Executor, lease::WorkerLease};
+    use crate::{execution::Execution, executor::Executor, lease::WorkerLease, guestjs::handle::CallableProtocol};
 
     const COUNTER_SOURCE: &str = r#"
 let count = 0;

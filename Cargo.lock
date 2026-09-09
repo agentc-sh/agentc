@@ -2779,8 +2779,8 @@ dependencies = [
 
 [[package]]
 name = "guestjs"
-version = "0.4.0"
-source = "git+https://github.com/wizrds/guestjs.git?rev=0.4.0#847c5094f46a40c207722158c801066a9a826fdd"
+version = "0.5.0"
+source = "git+https://github.com/wizrds/guestjs.git?rev=0.5.0#848ba652cd9846de745b4d435d0dbaed9807b7cf"
 dependencies = [
  "async-trait",
  "guestjs-core",
@@ -2793,8 +2793,8 @@ dependencies = [
 
 [[package]]
 name = "guestjs-core"
-version = "0.4.0"
-source = "git+https://github.com/wizrds/guestjs.git?rev=0.4.0#847c5094f46a40c207722158c801066a9a826fdd"
+version = "0.5.0"
+source = "git+https://github.com/wizrds/guestjs.git?rev=0.5.0#848ba652cd9846de745b4d435d0dbaed9807b7cf"
 dependencies = [
  "async-trait",
  "bytes",
@@ -2810,8 +2810,8 @@ dependencies = [
 
 [[package]]
 name = "guestjs-llrt"
-version = "0.4.0"
-source = "git+https://github.com/wizrds/guestjs.git?rev=0.4.0#847c5094f46a40c207722158c801066a9a826fdd"
+version = "0.5.0"
+source = "git+https://github.com/wizrds/guestjs.git?rev=0.5.0#848ba652cd9846de745b4d435d0dbaed9807b7cf"
 dependencies = [
  "bytes",
  "futures",
@@ -2823,8 +2823,8 @@ dependencies = [
 
 [[package]]
 name = "guestjs-macros"
-version = "0.4.0"
-source = "git+https://github.com/wizrds/guestjs.git?rev=0.4.0#847c5094f46a40c207722158c801066a9a826fdd"
+version = "0.5.0"
+source = "git+https://github.com/wizrds/guestjs.git?rev=0.5.0#848ba652cd9846de745b4d435d0dbaed9807b7cf"
 dependencies = [
  "darling 0.23.0",
  "heck 0.5.0",

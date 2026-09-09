@@ -55,6 +55,7 @@ mod tests {
         guestjs::{
             errors::Error as GuestError,
             host::{Exports, HostModule},
+            handle::CallableProtocol,
         },
         host::HostRuntime,
     };

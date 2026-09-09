@@ -19,7 +19,7 @@ use agentc_agent::{
 use agentc_executor_typescript::{
     error::Error,
     executor::Executor,
-    guestjs::handle::{Awaitable, Function},
+    guestjs::handle::{Awaitable, Function, ObjectProtocol, CallableProtocol},
 };
 use async_trait::async_trait;
 

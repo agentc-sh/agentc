@@ -4,7 +4,7 @@
 
 use agentc_executor_typescript::guestjs::{
     errors::Error,
-    handle::{BoundObject, Object, Value},
+    handle::{BoundObject, Object, Value, BoundObjectProtocol},
     host::Args,
     marshal::ToGuest,
     runtime::Scope,

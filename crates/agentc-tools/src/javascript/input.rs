@@ -55,7 +55,7 @@ impl JavascriptToolInput {
 #[cfg(test)]
 mod tests {
     use agentc_agent::tools::activity::{ActivityDelta, ActivityEmitter};
-    use agentc_executor_typescript::executor::Executor;
+    use agentc_executor_typescript::{executor::Executor, guestjs::handle::CallableProtocol};
     use serde_json::json;
     use tokio::sync::mpsc;
 

@@ -24,7 +24,7 @@ impl ExecutorBuilderHttpExt for ExecutorBuilder {
 mod tests {
     use std::net::SocketAddr;
 
-    use agentc_executor_typescript::{executor::Executor, guestjs::handle::Promise};
+    use agentc_executor_typescript::{executor::Executor, guestjs::handle::{Promise, CallableProtocol}};
     use axum::{Router, routing::get};
     use tokio::net::TcpListener;
 
