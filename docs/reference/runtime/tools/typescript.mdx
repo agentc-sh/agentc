@@ -1,0 +1,124 @@
+---
+title: TypeScript
+description: Every export of agentc:tools for TypeScript tools.
+---
+
+```ts
+import { Schema, Tool, type ToolInput, type ToolOutput } from "agentc:tools";
+```
+
+`agentc:tools` provides the classes and types used to define and invoke a tool. See
+[tools](/reference/runtime/tools) for the lifecycle shared by every tool.
+
+## Overview
+
+<LibSymbols>
+  <LibSymbolRow name="Schema">Validate a tool's parameter schema.</LibSymbolRow>
+  <LibSymbolRow name="Tool">The abstract base class for a tool.</LibSymbolRow>
+  <LibSymbolRow name="ToolInput">The arguments, state, and optional activity emitter for an invocation.</LibSymbolRow>
+  <LibSymbolRow name="ToolOutput">The result and optional state update from an invocation.</LibSymbolRow>
+  <LibSymbolRow name="ActivityDelta">An activity update sent while a tool runs.</LibSymbolRow>
+</LibSymbols>
+
+## Classes
+
+### Schema
+
+<LibSignature>
+```ts
+new Schema(schema: Record<string, unknown>)
+```
+</LibSignature>
+
+Validates a JSON Schema draft 2020-12 document for a tool's parameters.
+
+<LibProperties>
+  <LibProperty name="value" type="Record<string, unknown>" readonly>
+    The schema document.
+  </LibProperty>
+</LibProperties>
+
+<LibThrows>
+  <LibThrow when="the schema is not a valid JSON Schema draft 2020-12 document" />
+</LibThrows>
+
+### Tool
+
+<LibSignature>
+```ts
+abstract class Tool<Args, Result, State = unknown> {
+  static readonly description: string
+  static readonly parameters: Schema
+
+  abstract execute(input: ToolInput<Args, State>): Promise<ToolOutput<Result>>
+}
+```
+</LibSignature>
+
+The abstract base class for every tool. Export a subclass and select it with the manifest's `export`
+field. Its static `description` tells the model what the tool does, and static `parameters` supplies
+the model-facing input schema.
+
+A subclass that does not implement `execute` rejects with `a Tool subclass must implement execute`.
+`execute` must return a promise.
+
+### ToolInput
+
+<LibTags>
+  <LibTag name="not constructible" />
+</LibTags>
+
+<LibSignature>
+```ts
+class ToolInput<Args, State = unknown> {
+  readonly args: Args
+  readonly state: State
+  readonly emit?: (delta: ActivityDelta) => void
+}
+```
+</LibSignature>
+
+The runtime creates one input for each invocation. Tool code cannot construct it.
+
+<LibProperties>
+  <LibProperty name="args" type="Args" readonly>
+    The tool arguments.
+  </LibProperty>
+  <LibProperty name="state" type="State" readonly>
+    The current graph state.
+  </LibProperty>
+  <LibProperty name="emit" type="(delta: ActivityDelta) => void" optional readonly>
+    Sends a stateless activity update while the tool runs.
+  </LibProperty>
+</LibProperties>
+
+## Types
+
+### ToolOutput
+
+<LibSignature>
+```ts
+type ToolOutput<Result> = {
+  output: Result
+  state_update?: PatchDocument
+}
+```
+</LibSignature>
+
+The value returned by `execute`. `output` is required. `state_update` is optional and contains
+[RFC 6902 JSON Patch](https://datatracker.ietf.org/doc/html/rfc6902) operations. For ReAct state
+updates, see [state](/reference/graph/react/state).
+
+### ActivityDelta
+
+<LibSignature>
+```ts
+type ActivityDelta = {
+  activity_type: string
+  patch: PatchDocument
+}
+```
+</LibSignature>
+
+The value passed to `input.emit?.(...)`. Its `patch` contains
+[RFC 6902 JSON Patch](https://datatracker.ietf.org/doc/html/rfc6902) operations.

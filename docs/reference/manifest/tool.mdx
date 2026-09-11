@@ -32,7 +32,9 @@ These fields apply to all tool kinds.
 A JavaScript tool is a TypeScript or JavaScript package bundled by `esbuild` at compile time and
 executed in the runtime's embedded engine. See [runtime libraries](/reference/runtime) for the
 environment that engine provides. The bundle is embedded in the binary; no Node.js installation is
-required at runtime.
+required at runtime. The selected export must be a class extending `Tool` from `agentc:tools`.
+Its static `description` and `parameters` supply the tool definition, and `parameters` must be a
+`Schema` instance.
 
 ```hcl
 tool "adder" {
@@ -50,7 +52,7 @@ tool "adder" {
 | Field | Type | Required | runtime() | Description |
 |-------|------|----------|-----------|-------------|
 | `source` | string | yes | no | Path to the tool's package directory, relative to the manifest. Must contain a `package.json`. |
-| `export` | string | no | no | Name of the JS export object for this tool. Defaults to the tool block name. |
+| `export` | string | no | no | Name of the exported `Tool` subclass. Defaults to the tool block name, and becomes the registered tool name. |
 
 See [Write a tool](/guides/write-a-tool) for how to write the tool source.
 
