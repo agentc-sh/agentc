@@ -24,7 +24,7 @@ serde_json = { workspace = true }
 
 [dependencies.guestpy]
 git = "https://github.com/wizrds/guestpy.git"
-rev = "0.3.0"
+rev = "0.3.1"
 features = [
     "tokio",
     "embedded",

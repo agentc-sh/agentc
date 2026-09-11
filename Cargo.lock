@@ -2897,8 +2897,8 @@ dependencies = [
 
 [[package]]
 name = "guestpy"
-version = "0.3.0"
-source = "git+https://github.com/wizrds/guestpy.git?rev=0.3.0#6d869fbb0d6cd0ff23458bbaa89a80d3daa9982b"
+version = "0.3.1"
+source = "git+https://github.com/wizrds/guestpy.git?rev=0.3.1#9312f41f877c22b5e079df6c53c244424ec1fdee"
 dependencies = [
  "guestpy-core",
  "guestpy-macros",
@@ -2908,8 +2908,8 @@ dependencies = [
 
 [[package]]
 name = "guestpy-core"
-version = "0.3.0"
-source = "git+https://github.com/wizrds/guestpy.git?rev=0.3.0#6d869fbb0d6cd0ff23458bbaa89a80d3daa9982b"
+version = "0.3.1"
+source = "git+https://github.com/wizrds/guestpy.git?rev=0.3.1#9312f41f877c22b5e079df6c53c244424ec1fdee"
 dependencies = [
  "bytes",
  "futures",
@@ -2922,8 +2922,8 @@ dependencies = [
 
 [[package]]
 name = "guestpy-macros"
-version = "0.3.0"
-source = "git+https://github.com/wizrds/guestpy.git?rev=0.3.0#6d869fbb0d6cd0ff23458bbaa89a80d3daa9982b"
+version = "0.3.1"
+source = "git+https://github.com/wizrds/guestpy.git?rev=0.3.1#9312f41f877c22b5e079df6c53c244424ec1fdee"
 dependencies = [
  "darling 0.24.1",
  "heck 0.5.0",
@@ -2935,8 +2935,8 @@ dependencies = [
 
 [[package]]
 name = "guestpy-pyo3"
-version = "0.3.0"
-source = "git+https://github.com/wizrds/guestpy.git?rev=0.3.0#6d869fbb0d6cd0ff23458bbaa89a80d3daa9982b"
+version = "0.3.1"
+source = "git+https://github.com/wizrds/guestpy.git?rev=0.3.1#9312f41f877c22b5e079df6c53c244424ec1fdee"
 dependencies = [
  "guestpy-core",
  "pyo3",
@@ -2946,8 +2946,8 @@ dependencies = [
 
 [[package]]
 name = "guestpy-rustpython"
-version = "0.3.0"
-source = "git+https://github.com/wizrds/guestpy.git?rev=0.3.0#6d869fbb0d6cd0ff23458bbaa89a80d3daa9982b"
+version = "0.3.1"
+source = "git+https://github.com/wizrds/guestpy.git?rev=0.3.1#9312f41f877c22b5e079df6c53c244424ec1fdee"
 dependencies = [
  "guestpy-core",
  "rustpython-pylib",
