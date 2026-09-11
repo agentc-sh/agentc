@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use agentc_agent::{
     graph::state::GraphState,
@@ -17,15 +17,20 @@ use agentc_agent::{
     },
 };
 use agentc_executor_python::{
-    backend::ExecutorBackend, errors::Error, executor::Executor, guestpy::handle::ObjectProtocol,
+    backend::ExecutorBackend,
+    errors::Error,
+    executor::Executor,
+    guestpy::handle::{Class, Instance, ObjectProtocol},
+    json::Json,
 };
 use async_trait::async_trait;
+use serde_json::Value;
 
-use crate::python::types::{PythonToolDefinition, PythonToolInput, PythonToolResult};
+use crate::python::bindings::{GuestTool, GuestToolClass, Schema, ToolInput as GuestToolInput};
 
 pub struct PythonTool<B: ExecutorBackend> {
     executor: Executor<B>,
-    tool_name: String,
+    export_name: String,
     definition: ToolDefinition,
     capabilities: CapabilitySet,
     timeout: Duration,
@@ -59,42 +64,65 @@ where
         &self,
         input: ToolInput<Self::State>,
     ) -> Result<ToolOutput<Self::StateUpdate>, ToolError> {
-        let tool_name = self.tool_name.clone();
-        let result = tokio::time::timeout(
-            self.timeout,
-            self.executor.execute(move |context| {
-                Box::pin(async move {
-                    let (positional, keyword, _emitter) =
-                        PythonToolInput::new(&tool_name, input.args, input.state, input.emitter)
-                            .into_parts();
+        let export_name = self.export_name.clone();
 
-                    context
-                        .guest()
-                        .import("agentc_tdk")?
-                        .function("invoke_tool")?
-                        .call_with::<_, _, PythonToolResult>(positional, keyword)
+        let Value::Object(args) = input.args else {
+            return Err(ToolError::invalid_args("python tool arguments must be a JSON object"));
+        };
+
+        tokio::time::timeout(
+            self.timeout,
+            self.executor.execute(move |context| Box::pin(async move {
+                let tool = context
+                    .module()
+                    .get::<Class<B, GuestTool<B>>>(&export_name)?
+                    .construct(())?;
+
+                let (guest_input, _guard) = GuestToolInput::new(
+                    tool.args(args)?,
+                    input.state.unwrap_or(Value::Null),
+                    input.emitter.map(Arc::new),
+                );
+
+                let (result, state_update) = tool
+                    .execute(guest_input)?
+                    .await?
+                    .borrow_with(|output| {
+                        (
+                            output.result().clone(),
+                            output.state_update().cloned(),
+                        )
+                    })?;
+
+                let dataclasses = context.guest().import("dataclasses")?;
+
+                Ok(ToolOutput {
+                    output: if dataclasses
+                        .function("is_dataclass")?
+                        .call::<_, bool>((result.clone(),))?
+                    {
+                        dataclasses
+                            .function("asdict")?
+                            .call::<_, Json>((result,))?
+                            .into_inner()
+                    } else {
+                        result.cast::<Json>()?.into_inner()
+                    },
+                    state_update,
                 })
-            }),
+            })),
         )
         .await
         .map_err(|_| ToolError::execution_error("python", "tool execution timed out"))?
         .map_err(|error| {
             ToolError::sourced_execution_error("python", error.to_string(), Some(error))
-        })?;
-
-        let mut output = ToolOutput::ok(result.output);
-
-        if let Some(state_update) = result.state_update {
-            output = output.with_state(state_update);
-        }
-
-        Ok(output)
+        })
     }
 }
 
 pub struct PythonToolBuilder<B: ExecutorBackend> {
     executor: Option<Executor<B>>,
-    tool_name: Option<String>,
+    export_name: Option<String>,
     capabilities: CapabilitySet,
     timeout: Duration,
 }
@@ -103,7 +131,7 @@ impl<B: ExecutorBackend> PythonToolBuilder<B> {
     pub fn new() -> Self {
         Self {
             executor: None,
-            tool_name: None,
+            export_name: None,
             capabilities: CapabilitySet::default(),
             timeout: Duration::from_secs(30),
         }
@@ -114,8 +142,8 @@ impl<B: ExecutorBackend> PythonToolBuilder<B> {
         self
     }
 
-    pub fn tool_name(mut self, name: impl Into<String>) -> Self {
-        self.tool_name = Some(name.into());
+    pub fn export_name(mut self, name: impl Into<String>) -> Self {
+        self.export_name = Some(name.into());
         self
     }
 
@@ -143,32 +171,35 @@ impl<B: ExecutorBackend> PythonToolBuilder<B> {
         let executor = self
             .executor
             .expect("executor must be provided to build a PythonTool");
-        let tool_name = self
-            .tool_name
-            .expect("tool_name must be provided to build a PythonTool");
+        let export_name = self
+            .export_name
+            .expect("export_name must be provided to build a PythonTool");
         let definition = tokio::time::timeout(
             self.timeout,
             executor.execute({
-                let tool_name = tool_name.clone();
+                let export_name = export_name.clone();
 
                 move |context| {
                     Box::pin(async move {
-                        context
-                            .guest()
-                            .import("agentc_tdk")?
-                            .function("get_tool_definition")?
-                            .call::<_, PythonToolDefinition>((tool_name,))
+                        let exported = context.module().get::<GuestToolClass>(&export_name)?;
+
+                        Ok(ToolDefinition {
+                            name: export_name,
+                            description: exported.get::<String>("description")?,
+                            parameters: exported
+                                .get::<Instance<_, Schema>>("parameters")?
+                                .borrow_with(|schema| schema.document().clone())?,
+                        })
                     })
                 }
             }),
         )
         .await
-        .map_err(|_| Error::unexpected("tool definition discovery timed out", None))??
-        .into_definition(&tool_name);
+        .map_err(|_| Error::unexpected("tool definition discovery timed out", None))??;
 
         Ok(PythonTool {
             executor,
-            tool_name,
+            export_name,
             definition,
             capabilities: self.capabilities,
             timeout: self.timeout,
@@ -204,152 +235,140 @@ mod tests {
     use serde_json::{Value, json};
     use tokio::sync::mpsc;
 
-    use crate::python::tool::PythonTool;
-
-    const AGENTC_TDK_STUB: &str = r#"
-from dataclasses import asdict, dataclass
-from typing import Any, ClassVar, Optional
-
-__tool_registry__ = {}
-
-@dataclass
-class Args: ...
-
-@dataclass
-class ToolInput:
-    args: Any
-    state: Any = None
-    emit: Any = None
-
-@dataclass
-class ToolOutput:
-    output: Any
-    state_update: Any = None
-
-    def to_dict(self):
-        return asdict(self)
-
-class Tool:
-    args: type
-    state: type | None = None
-    name: ClassVar[str]
-    description: ClassVar[str]
-    schema: ClassVar[dict]
-
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
-        if hasattr(cls, "name"):
-            __tool_registry__[cls.name] = cls
-
-    def invoke(self, args, state=None, emit=None):
-        typed_state = None
-        if state is not None and self.state is not None and isinstance(state, dict):
-            typed_state = self.state(**state)
-        elif state is not None and self.state is None:
-            typed_state = state
-        return self.execute(ToolInput(self.args(**args), state=typed_state, emit=emit)).to_dict()
-
-    def execute(self, input):
-        raise NotImplementedError()
-
-def get_tool_definition(name):
-    cls = __tool_registry__[name]
-    return {"name": cls.name, "description": cls.description, "schema": cls.schema}
-
-def invoke_tool(name, args, state=None, emit=None):
-    return __tool_registry__[name]().invoke(args, state=state, emit=emit)
-"#;
+    use crate::python::{ExecutorBuilderToolsExt, tool::PythonTool};
 
     const TOOL_SOURCE: &str = r#"
-from agentc_tdk import Tool, Args, ToolOutput
+import asyncio
 from dataclasses import dataclass
-import time
+
+from agentc_tools import Schema, Tool, ToolInput, ToolOutput
 
 
 @dataclass
-class EmptyArgs(Args): ...
+class EmptyArgs:
+    pass
 
 
 @dataclass
-class ValueArgs(Args):
+class ValueArgs:
     value: int
 
 
 @dataclass
-class DelayArgs(Args):
+class DelayArgs:
     delay: float
     value: str
 
 
-class DirectTool(Tool):
+@dataclass
+class ReportArgs:
+    city: str
+    units: str = "celsius"
+
+
+@dataclass
+class Report:
+    city: str
+    units: str
+
+
+class Direct(Tool[ValueArgs, int]):
     args = ValueArgs
-    name = "direct"
     description = "returns a direct result"
-    schema = {}
+    parameters = Schema({"type": "object"})
 
-    def execute(self, input):
-        return ToolOutput(output=input.args.value)
+    async def execute(self, input: ToolInput[ValueArgs]) -> ToolOutput[int]:
+        return ToolOutput(input.args.value)
 
 
-class DoubleTool(Tool):
+class Double(Tool[ValueArgs, int]):
     args = ValueArgs
-    name = "double"
     description = "doubles the value"
-    schema = {}
+    parameters = Schema({"type": "object"})
 
-    def execute(self, input):
-        return ToolOutput(output=input.args.value * 2)
+    async def execute(self, input: ToolInput[ValueArgs]) -> ToolOutput[int]:
+        return ToolOutput(input.args.value * 2)
 
 
-class StateTool(Tool):
+class Stateful(Tool[EmptyArgs, str]):
     args = EmptyArgs
-    name = "state"
     description = "reads and updates state"
-    schema = {}
+    parameters = Schema({"type": "object"})
 
-    def execute(self, input):
+    async def execute(self, input: ToolInput[EmptyArgs]) -> ToolOutput[str]:
         return ToolOutput(
-            output=input.state["status"],
+            input.state["status"],
             state_update=[{"op": "add", "path": "/count", "value": 2}],
         )
 
 
-class EmitterTool(Tool):
+class Emitter(Tool[EmptyArgs, str]):
     args = EmptyArgs
-    name = "emitter"
     description = "emits activity"
-    schema = {}
+    parameters = Schema({"type": "object"})
 
-    def execute(self, input):
+    async def execute(self, input: ToolInput[EmptyArgs]) -> ToolOutput[str]:
         if input.emit is None:
-            return ToolOutput(output="absent")
+            return ToolOutput("absent")
 
         global retained_emit
         retained_emit = input.emit
         input.emit("first", [])
         input.emit("second", [])
-        return ToolOutput(output="present")
+
+        return ToolOutput("present")
 
 
-class FailureTool(Tool):
+class Failure(Tool[EmptyArgs, None]):
     args = EmptyArgs
-    name = "failure"
     description = "raises an exception"
-    schema = {}
+    parameters = Schema({"type": "object"})
 
-    def execute(self, input):
+    async def execute(self, input: ToolInput[EmptyArgs]) -> ToolOutput[None]:
         raise RuntimeError("tool failed")
 
 
-class DelayedTool(Tool):
+class Delayed(Tool[DelayArgs, str]):
     args = DelayArgs
-    name = "delayed"
     description = "returns after a delay"
-    schema = {}
+    parameters = Schema({"type": "object"})
 
-    def execute(self, input):
-        time.sleep(input.args.delay)
-        return ToolOutput(output=input.args.value)
+    async def execute(self, input: ToolInput[DelayArgs]) -> ToolOutput[str]:
+        await asyncio.sleep(input.args.delay)
+
+        return ToolOutput(input.args.value)
+
+
+class Reporter(Tool[ReportArgs, Report]):
+    args = ReportArgs
+    description = "returns a dataclass"
+    parameters = Schema({"type": "object"})
+
+    async def execute(self, input: ToolInput[ReportArgs]) -> ToolOutput[Report]:
+        return ToolOutput(Report(city=input.args.city, units=input.args.units))
+
+
+class Synchronous(Tool[EmptyArgs, str]):
+    args = EmptyArgs
+    description = "is not async"
+    parameters = Schema({"type": "object"})
+
+    def execute(self, input: ToolInput[EmptyArgs]) -> ToolOutput[str]:
+        return ToolOutput("sync")
+
+
+class Untyped(Tool[EmptyArgs, None]):
+    args = EmptyArgs
+    description = "has a plain dict for parameters"
+    parameters = {"type": "object"}
+
+    async def execute(self, input: ToolInput[EmptyArgs]) -> ToolOutput[None]:
+        return ToolOutput(None)
+
+
+class Unrelated:
+    async def execute(self, input):
+        return ToolOutput(None)
 
 
 def call_retained():
@@ -393,8 +412,8 @@ def call_retained():
     impl TestHarness {
         async fn executor<B: ExecutorBackend>(workers: usize) -> Executor<B> {
             Executor::<B>::builder("test_tools")
-                .bundle(Bundle::single("agentc_tdk", AGENTC_TDK_STUB).unwrap())
                 .bundle(Bundle::single("test_tools", TOOL_SOURCE).unwrap())
+                .with_tools()
                 .workers(workers)
                 .build()
                 .await
@@ -403,11 +422,11 @@ def call_retained():
 
         async fn tool<B: ExecutorBackend>(
             executor: &Executor<B>,
-            tool_name: &str,
+            export_name: &str,
         ) -> PythonTool<B> {
             PythonTool::builder()
                 .executor(executor.clone())
-                .tool_name(tool_name)
+                .export_name(export_name)
                 .build()
                 .await
                 .unwrap()
@@ -460,10 +479,10 @@ def call_retained():
         };
     }
 
-    async fn shared_executor_dispatches_registered_tools<B: ExecutorBackend + Send + Sync>() {
+    async fn shared_executor_dispatches_exported_tools<B: ExecutorBackend + Send + Sync>() {
         let executor = TestHarness::executor::<B>(1).await;
-        let direct = TestHarness::tool(&executor, "direct").await;
-        let double = TestHarness::tool(&executor, "double").await;
+        let direct = TestHarness::tool(&executor, "Direct").await;
+        let double = TestHarness::tool(&executor, "Double").await;
 
         assert_eq!(
             TestHarness::execute(&direct, TestHarness::input(json!({"value": 4})))
@@ -483,25 +502,25 @@ def call_retained():
         executor.shutdown().await.unwrap();
     }
 
-    async fn definition_reports_registered_metadata<B: ExecutorBackend + Send + Sync>() {
+    async fn definition_reports_the_exported_class<B: ExecutorBackend + Send + Sync>() {
         let executor = TestHarness::executor::<B>(1).await;
-        let tool = TestHarness::tool(&executor, "direct").await;
+        let tool = TestHarness::tool(&executor, "Direct").await;
         let definition = Tool::<TestState>::definition(&tool);
 
-        assert_eq!(definition.name, "direct");
+        assert_eq!(definition.name, "Direct");
         assert_eq!(definition.description, "returns a direct result");
-        assert_eq!(definition.parameters, json!({}));
+        assert_eq!(definition.parameters, json!({"type": "object"}));
 
         executor.shutdown().await.unwrap();
     }
 
-    async fn builder_rejects_unregistered_tool_name<B: ExecutorBackend + Send + Sync>() {
+    async fn builder_rejects_unknown_export<B: ExecutorBackend + Send + Sync>() {
         let executor = TestHarness::executor::<B>(1).await;
 
         assert!(
             PythonTool::<B>::builder()
                 .executor(executor.clone())
-                .tool_name("unknown")
+                .export_name("Unknown")
                 .build()
                 .await
                 .is_err()
@@ -510,9 +529,72 @@ def call_retained():
         executor.shutdown().await.unwrap();
     }
 
+    async fn build_rejects_non_tool_export<B: ExecutorBackend + Send + Sync>() {
+        let executor = TestHarness::executor::<B>(1).await;
+
+        for export in ["Unrelated", "Tool"] {
+            let result = PythonTool::<B>::builder()
+                .executor(executor.clone())
+                .export_name(export)
+                .build()
+                .await;
+            let error = match result {
+                Ok(_) => panic!("a non-tool export is rejected at build"),
+                Err(error) => error,
+            };
+
+            assert!(
+                error.to_string().contains("is not a Tool subclass"),
+                "the message must name the failure; got: {error}",
+            );
+            assert!(
+                error.to_string().contains(export),
+                "the message must name the export; got: {error}",
+            );
+        }
+
+        executor.shutdown().await.unwrap();
+    }
+
+    async fn build_rejects_parameters_that_are_not_a_schema<B>()
+    where
+        B: ExecutorBackend + Send + Sync,
+    {
+        let executor = TestHarness::executor::<B>(1).await;
+
+        assert!(
+            PythonTool::<B>::builder()
+                .executor(executor.clone())
+                .export_name("Untyped")
+                .build()
+                .await
+                .is_err()
+        );
+
+        executor.shutdown().await.unwrap();
+    }
+
+    async fn non_object_arguments_are_rejected_before_dispatch<B>()
+    where
+        B: ExecutorBackend + Send + Sync,
+    {
+        let executor = TestHarness::executor::<B>(1).await;
+        let tool = TestHarness::tool(&executor, "Direct").await;
+
+        for args in [json!([]), json!("Paris"), Value::Null] {
+            assert!(matches!(
+                TestHarness::execute(&tool, TestHarness::input(args)).await,
+                Err(ToolError::InvalidArguments(message))
+                    if message == "python tool arguments must be a JSON object"
+            ));
+        }
+
+        executor.shutdown().await.unwrap();
+    }
+
     async fn transfers_arguments_and_state_update<B: ExecutorBackend + Send + Sync>() {
         let executor = TestHarness::executor::<B>(1).await;
-        let tool = TestHarness::tool(&executor, "state").await;
+        let tool = TestHarness::tool(&executor, "Stateful").await;
         let result = TestHarness::execute(
             &tool,
             TestHarness::input(json!({})).with_state(json!({"status": "ready"})),
@@ -529,12 +611,25 @@ def call_retained():
         executor.shutdown().await.unwrap();
     }
 
+    async fn a_dataclass_result_becomes_a_json_object<B: ExecutorBackend + Send + Sync>() {
+        let executor = TestHarness::executor::<B>(1).await;
+        let tool = TestHarness::tool(&executor, "Reporter").await;
+        let result = TestHarness::execute(&tool, TestHarness::input(json!({"city": "Paris"})))
+            .await
+            .unwrap();
+
+        assert_eq!(result.output, json!({"city": "Paris", "units": "celsius"}));
+        assert!(result.state_update.is_none());
+
+        executor.shutdown().await.unwrap();
+    }
+
     async fn activity_emitter_is_optional_and_preserves_order<B>()
     where
         B: ExecutorBackend + Send + Sync,
     {
         let executor = TestHarness::executor::<B>(1).await;
-        let tool = TestHarness::tool(&executor, "emitter").await;
+        let tool = TestHarness::tool(&executor, "Emitter").await;
 
         assert_eq!(
             TestHarness::execute(&tool, TestHarness::input(json!({})))
@@ -581,7 +676,7 @@ def call_retained():
         B: ExecutorBackend + Send + Sync,
     {
         let executor = TestHarness::executor::<B>(1).await;
-        let tool = TestHarness::tool(&executor, "emitter").await;
+        let tool = TestHarness::tool(&executor, "Emitter").await;
         let (sender, mut receiver) = mpsc::channel::<ActivityDelta>(2);
 
         TestHarness::execute(
@@ -595,15 +690,13 @@ def call_retained():
         receiver.recv().await.unwrap();
 
         executor
-            .execute(|context| {
-                Box::pin(async move {
-                    context
-                        .guest()
-                        .import("test_tools")?
-                        .function("call_retained")?
-                        .call::<_, ()>(())
-                })
-            })
+            .execute(|context| Box::pin(async move {
+                context
+                    .guest()
+                    .import("test_tools")?
+                    .function("call_retained")?
+                    .call::<_, ()>(())
+            }))
             .await
             .unwrap();
 
@@ -614,7 +707,7 @@ def call_retained():
 
     async fn guest_exception_preserves_execution_source<B: ExecutorBackend + Send + Sync>() {
         let executor = TestHarness::executor::<B>(1).await;
-        let tool = TestHarness::tool(&executor, "failure").await;
+        let tool = TestHarness::tool(&executor, "Failure").await;
 
         assert!(matches!(
             TestHarness::execute(&tool, TestHarness::input(json!({}))).await,
@@ -624,11 +717,28 @@ def call_retained():
         executor.shutdown().await.unwrap();
     }
 
+    async fn a_synchronous_execute_is_rejected<B: ExecutorBackend + Send + Sync>() {
+        let executor = TestHarness::executor::<B>(1).await;
+        let tool = TestHarness::tool(&executor, "Synchronous").await;
+        let result = TestHarness::execute(&tool, TestHarness::input(json!({}))).await;
+        let error = match result {
+            Ok(_) => panic!("a non-awaitable return is rejected"),
+            Err(error) => error,
+        };
+
+        assert!(
+            error.to_string().contains("value is not awaitable"),
+            "`Coroutine<B, ToolOutput<B>>` is what makes async mandatory; got: {error}",
+        );
+
+        executor.shutdown().await.unwrap();
+    }
+
     async fn invocation_timeout_is_tool_specific<B: ExecutorBackend + Send + Sync>() {
         let executor = TestHarness::executor::<B>(1).await;
         let tool = PythonTool::<B>::builder()
             .executor(executor.clone())
-            .tool_name("delayed")
+            .export_name("Delayed")
             .timeout(Duration::from_millis(100))
             .build()
             .await
@@ -650,13 +760,12 @@ def call_retained():
             }) if message == "tool execution timed out"
         ));
 
-        tokio::time::sleep(Duration::from_millis(250)).await;
         executor.shutdown().await.unwrap();
     }
 
     async fn concurrent_calls_share_the_package_executor<B: ExecutorBackend + Send + Sync>() {
         let executor = TestHarness::executor::<B>(2).await;
-        let tool = TestHarness::tool(&executor, "delayed").await;
+        let tool = TestHarness::tool(&executor, "Delayed").await;
         let (first, second) = tokio::join!(
             TestHarness::execute(
                 &tool,
@@ -681,13 +790,18 @@ def call_retained():
     }
 
     parameterized!(
-        shared_executor_dispatches_registered_tools,
-        definition_reports_registered_metadata,
-        builder_rejects_unregistered_tool_name,
+        shared_executor_dispatches_exported_tools,
+        definition_reports_the_exported_class,
+        builder_rejects_unknown_export,
+        build_rejects_non_tool_export,
+        build_rejects_parameters_that_are_not_a_schema,
+        non_object_arguments_are_rejected_before_dispatch,
         transfers_arguments_and_state_update,
+        a_dataclass_result_becomes_a_json_object,
         activity_emitter_is_optional_and_preserves_order,
         retained_emit_callable_does_not_retain_the_channel,
         guest_exception_preserves_execution_source,
+        a_synchronous_execute_is_rejected,
         invocation_timeout_is_tool_specific,
         concurrent_calls_share_the_package_executor,
     );
