@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use agentc_agent::{
     graph::state::GraphState,
@@ -19,13 +19,19 @@ use agentc_agent::{
 use agentc_executor_typescript::{
     error::Error,
     executor::Executor,
-    guestjs::handle::{Awaitable, Function, ObjectProtocol, CallableProtocol},
+    guestjs::{
+        errors::Error as GuestError,
+        handle::{BoundClass, BoundConstructorProtocol, BoundObjectProtocol},
+        marshal::{FromGuestBound, ToGuestBound},
+    },
 };
 use async_trait::async_trait;
 
-use crate::javascript::{
-    input::JavascriptToolInput,
-    types::{JavascriptToolDefinition, JavascriptToolResult},
+use crate::javascript::bindings::{
+    GuestTool,
+    Schema,
+    Tool as GuestToolBase,
+    ToolInput as GuestToolInput,
 };
 
 /// A JavaScript tool executed by a shared TypeScript package executor.
@@ -68,23 +74,29 @@ where
         let export_name = self.export_name.clone();
         let result = tokio::time::timeout(
             self.timeout,
-            self.executor.execute(move |context| {
-                Box::pin(async move {
-                    let (input, _emitter) =
-                        JavascriptToolInput::new(input.args, input.state, input.emitter)
-                            .into_parts();
+            self.executor.execute(move |context| Box::pin(async move {
+                let (guest_input, _guard) = GuestToolInput::new(
+                    input.args,
+                    input.state.unwrap_or(serde_json::Value::Null),
+                    input.emitter.map(Arc::new),
+                );
 
-                    context
-                        .module()
-                        .object(&export_name)
-                        .await?
-                        .get::<Function>("execute")
-                        .await?
-                        .call::<_, Awaitable<JavascriptToolResult>>((input,))
-                        .await?
-                        .await
-                })
-            }),
+                context
+                    .guest()
+                    .scope(async move |scope| {
+                        context
+                            .module()
+                            .bind(&scope)?
+                            .class_as::<GuestTool>(&export_name)?
+                            .construct(())?
+                            .execute(GuestToolInput::from_guest_bound(
+                                &scope,
+                                guest_input.to_guest_bound(&scope)?,
+                            )?)?
+                            .await
+                    })
+                    .await
+            })),
         )
         .await
         .map_err(|_| ToolError::execution_error("javascript", "tool execution timed out"))?
@@ -171,23 +183,39 @@ impl JavascriptToolBuilder {
                 move |context| {
                     Box::pin(async move {
                         context
-                            .module()
-                            .get::<Option<JavascriptToolDefinition>>(&export_name)
+                            .guest()
+                            .scope(async move |scope| {
+                                let exported = context
+                                    .module()
+                                    .bind(&scope)?
+                                    .class(&export_name)
+                                    .map_err(|_| GuestError::unexpected(format!(
+                                        "export '{export_name}' does not exist or is not a class",
+                                    )))?;
+
+                                if !exported
+                                    .is_subclass_of(&BoundClass::of::<GuestToolBase>(&scope)?)?
+                                {
+                                    return Err(GuestError::unexpected(format!(
+                                        "export '{export_name}' is not a Tool subclass",
+                                    )));
+                                }
+
+                                Ok(ToolDefinition {
+                                    name: export_name.clone(),
+                                    description: exported.get::<String>("description")?,
+                                    parameters: exported
+                                        .get::<Schema>("parameters")?
+                                        .borrow()?
+                                        .document()
+                                        .clone(),
+                                })
+                            })
                             .await
                     })
                 }
             })
-            .await?
-            .ok_or_else(|| {
-                Error::unexpected(
-                    format!(
-                        "export '{}' does not exist or is not a valid tool definition",
-                        export_name
-                    ),
-                    None,
-                )
-            })?
-            .into();
+            .await?;
 
         Ok(JavascriptTool {
             executor,
@@ -220,91 +248,102 @@ mod tests {
     };
     use agentc_executor_typescript::executor::Executor;
     use serde::{Deserialize, Serialize};
-    use serde_json::{Value, json};
     use tokio::sync::mpsc;
 
+    use crate::javascript::bindings::ExecutorBuilderToolsExt;
     use crate::javascript::tool::JavascriptTool;
 
     const TOOL_SOURCE: &str = r#"
-export const direct = {
-    name: "direct",
-    description: "returns a direct result",
-    parameters: {},
-    execute(input) {
-        return {
-            output: input.args.value,
-            state_update: null,
-        };
-    },
-};
+import { Schema, Tool } from "agentc:tools";
 
-export const promised = {
-    name: "promised",
-    description: "returns a promised result",
-    parameters: {},
+export class Direct extends Tool {
+    static readonly description = "returns a direct result";
+    static readonly parameters = new Schema({ type: "object" });
+
     async execute(input) {
-        return {
-            output: input.args.value * 2,
-            state_update: null,
-        };
-    },
-};
+        return { output: input.args.value };
+    }
+}
 
-export const state = {
-    name: "state",
-    description: "reads and updates state",
-    parameters: {},
-    execute(input) {
+export class Stateful extends Tool {
+    static readonly description = "reads and updates state";
+    static readonly parameters = new Schema({ type: "object" });
+
+    async execute(input) {
         return {
             output: input.state.status,
             state_update: [{ op: "add", path: "/count", value: 2 }],
         };
-    },
-};
+    }
+}
 
-export const emitter = {
-    name: "emitter",
-    description: "emits activity",
-    parameters: {},
-    execute(input) {
+export class Emitter extends Tool {
+    static readonly description = "emits activity";
+    static readonly parameters = new Schema({ type: "object" });
+
+    async execute(input) {
         if (!input.emit) {
-            return {
-                output: "absent",
-                state_update: null,
-            };
+            return { output: "absent" };
         }
 
         globalThis.retainedEmit = input.emit;
         input.emit({ activity_type: "first", patch: [] });
         input.emit({ activity_type: "second", patch: [] });
 
-        return {
-            output: "present",
-            state_update: null,
-        };
-    },
-};
+        return { output: "present" };
+    }
+}
 
-export const failure = {
-    name: "failure",
-    description: "throws an exception",
-    parameters: {},
-    execute() {
+export class Failure extends Tool {
+    static readonly description = "throws an exception";
+    static readonly parameters = new Schema({ type: "object" });
+
+    async execute() {
         throw new Error("tool failed");
-    },
-};
+    }
+}
 
-export const delayed = {
-    name: "delayed",
-    description: "returns after a delay",
-    parameters: {},
+export class Delayed extends Tool {
+    static readonly description = "returns after a delay";
+    static readonly parameters = new Schema({ type: "object" });
+
     async execute(input) {
         await new Promise((resolve) => setTimeout(resolve, input.args.delay));
 
-        return {
-            output: input.args.value,
-            state_update: null,
-        };
+        return { output: input.args.value };
+    }
+}
+
+export class Synchronous extends Tool {
+    static readonly description = "is not async";
+    static readonly parameters = new Schema({ type: "object" });
+
+    execute() {
+        return { output: "sync" };
+    }
+}
+
+export class Untyped extends Tool {
+    static readonly description = "has a plain object for parameters";
+    static readonly parameters = { type: "object" };
+
+    async execute() {
+        return { output: null };
+    }
+}
+
+export class Unrelated {
+    async execute() {
+        return { output: null };
+    }
+}
+
+export const plain = {
+    name: "plain",
+    description: "the old object contract",
+    parameters: {},
+    execute() {
+        return { output: null };
     },
 };
 "#;
@@ -348,6 +387,7 @@ export const delayed = {
             Executor::builder("tools.ts", TOOL_SOURCE)
                 .workers(workers)
                 .standard_environment()
+                .with_tools()
                 .build()
                 .await
                 .unwrap()
@@ -362,7 +402,7 @@ export const delayed = {
                 .unwrap()
         }
 
-        fn input(args: Value) -> ToolInput<Value> {
+        fn input(args: serde_json::Value) -> ToolInput<serde_json::Value> {
             ToolInput::new(
                 args,
                 ToolExecutionContext {
@@ -375,32 +415,27 @@ export const delayed = {
 
         async fn execute(
             tool: &JavascriptTool,
-            input: ToolInput<Value>,
+            input: ToolInput<serde_json::Value>,
         ) -> Result<ToolOutput<json_patch::Patch>, ToolError> {
             Tool::<TestState>::execute(tool, input).await
         }
     }
 
     #[tokio::test]
-    async fn shared_executor_supports_direct_and_promised_exports() {
+    async fn shared_executor_invokes_a_class_tool() {
         let executor = TestHarness::executor(1).await;
-        let direct = TestHarness::tool(&executor, "direct").await;
-        let promised = TestHarness::tool(&executor, "promised").await;
+        let direct = TestHarness::tool(&executor, "Direct").await;
+        let definition = Tool::<TestState>::definition(&direct);
 
-        assert_eq!(Tool::<TestState>::definition(&direct).name, "direct",);
+        assert_eq!(definition.name, "Direct", "the tool's name is its export name");
+        assert_eq!(definition.description, "returns a direct result");
+        assert_eq!(definition.parameters, serde_json::json!({ "type": "object" }));
         assert_eq!(
-            TestHarness::execute(&direct, TestHarness::input(json!({"value": 4})),)
+            TestHarness::execute(&direct, TestHarness::input(serde_json::json!({"value": 4})))
                 .await
                 .unwrap()
                 .output,
-            json!(4),
-        );
-        assert_eq!(
-            TestHarness::execute(&promised, TestHarness::input(json!({"value": 4})),)
-                .await
-                .unwrap()
-                .output,
-            json!(8),
+            serde_json::json!(4),
         );
 
         executor.shutdown().await.unwrap();
@@ -423,20 +458,84 @@ export const delayed = {
     }
 
     #[tokio::test]
+    async fn build_rejects_non_tool_export() {
+        let executor = TestHarness::executor(1).await;
+
+        for (export, message) in [
+            ("Unrelated", "is not a Tool subclass"),
+            ("plain", "is not a class"),
+        ] {
+            let error = match JavascriptTool::builder()
+                .executor(executor.clone())
+                .export_name(export)
+                .build()
+                .await
+            {
+                Ok(_) => panic!("a non-tool export builds"),
+                Err(error) => error,
+            };
+
+            assert!(
+                error.to_string().contains(message),
+                "the message must name the failure and the export; got: {error}",
+            );
+            assert!(
+                error.to_string().contains(export),
+                "the message must name the export; got: {error}",
+            );
+        }
+
+        executor.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn build_rejects_parameters_that_are_not_a_schema() {
+        let executor = TestHarness::executor(1).await;
+
+        assert!(
+            JavascriptTool::builder()
+                .executor(executor.clone())
+                .export_name("Untyped")
+                .build()
+                .await
+                .is_err()
+        );
+
+        executor.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn a_synchronous_execute_is_rejected() {
+        let executor = TestHarness::executor(1).await;
+        let tool = TestHarness::tool(&executor, "Synchronous").await;
+        let error = match TestHarness::execute(&tool, TestHarness::input(serde_json::json!({}))).await {
+            Ok(_) => panic!("a non-promise return succeeds"),
+            Err(error) => error,
+        };
+
+        assert!(
+            error.to_string().contains("expected a promise"),
+            "`Promise<ToolOutput>` is what makes async mandatory; got: {error}",
+        );
+
+        executor.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
     async fn transfers_arguments_and_state_update() {
         let executor = TestHarness::executor(1).await;
-        let tool = TestHarness::tool(&executor, "state").await;
+        let tool = TestHarness::tool(&executor, "Stateful").await;
         let result = TestHarness::execute(
             &tool,
-            TestHarness::input(json!({"unused": true})).with_state(json!({"status": "ready"})),
+            TestHarness::input(serde_json::json!({"unused": true})).with_state(serde_json::json!({"status": "ready"})),
         )
         .await
         .unwrap();
 
-        assert_eq!(result.output, json!("ready"));
+        assert_eq!(result.output, serde_json::json!("ready"));
         assert_eq!(
             serde_json::to_value(result.state_update.unwrap()).unwrap(),
-            json!([{"op": "add", "path": "/count", "value": 2}]),
+            serde_json::json!([{"op": "add", "path": "/count", "value": 2}]),
         );
 
         executor.shutdown().await.unwrap();
@@ -445,14 +544,14 @@ export const delayed = {
     #[tokio::test]
     async fn activity_emitter_is_optional_and_preserves_order() {
         let executor = TestHarness::executor(1).await;
-        let tool = TestHarness::tool(&executor, "emitter").await;
+        let tool = TestHarness::tool(&executor, "Emitter").await;
 
         assert_eq!(
-            TestHarness::execute(&tool, TestHarness::input(json!({})),)
+            TestHarness::execute(&tool, TestHarness::input(serde_json::json!({})),)
                 .await
                 .unwrap()
                 .output,
-            json!("absent"),
+            serde_json::json!("absent"),
         );
 
         let (sender, mut receiver) = mpsc::channel::<ActivityDelta>(2);
@@ -460,12 +559,12 @@ export const delayed = {
         assert_eq!(
             TestHarness::execute(
                 &tool,
-                TestHarness::input(json!({})).with_activity_emitter(ActivityEmitter::new(sender)),
+                TestHarness::input(serde_json::json!({})).with_activity_emitter(ActivityEmitter::new(sender)),
             )
             .await
             .unwrap()
             .output,
-            json!("present"),
+            serde_json::json!("present"),
         );
         assert_eq!(
             receiver
@@ -491,10 +590,10 @@ export const delayed = {
     #[tokio::test]
     async fn guest_exception_preserves_execution_source() {
         let executor = TestHarness::executor(1).await;
-        let tool = TestHarness::tool(&executor, "failure").await;
+        let tool = TestHarness::tool(&executor, "Failure").await;
 
         assert!(matches!(
-            TestHarness::execute(&tool, TestHarness::input(json!({})),).await,
+            TestHarness::execute(&tool, TestHarness::input(serde_json::json!({})),).await,
             Err(ToolError::ExecutionError { source: Some(_), .. })
         ));
 
@@ -506,7 +605,7 @@ export const delayed = {
         let executor = TestHarness::executor(1).await;
         let tool = JavascriptTool::builder()
             .executor(executor.clone())
-            .export_name("delayed")
+            .export_name("Delayed")
             .timeout(Duration::from_millis(1))
             .build()
             .await
@@ -515,7 +614,7 @@ export const delayed = {
         assert!(matches!(
             TestHarness::execute(
                 &tool,
-                TestHarness::input(json!({
+                TestHarness::input(serde_json::json!({
                     "delay": 20,
                     "value": "late",
                 })),
@@ -535,25 +634,25 @@ export const delayed = {
     #[tokio::test]
     async fn concurrent_calls_share_the_package_executor() {
         let executor = TestHarness::executor(2).await;
-        let tool = TestHarness::tool(&executor, "delayed").await;
+        let tool = TestHarness::tool(&executor, "Delayed").await;
         let first = TestHarness::execute(
             &tool,
-            TestHarness::input(json!({
+            TestHarness::input(serde_json::json!({
                 "delay": 1,
                 "value": "first",
             })),
         );
         let second = TestHarness::execute(
             &tool,
-            TestHarness::input(json!({
+            TestHarness::input(serde_json::json!({
                 "delay": 1,
                 "value": "second",
             })),
         );
         let (first, second) = tokio::join!(first, second);
 
-        assert_eq!(first.unwrap().output, json!("first"));
-        assert_eq!(second.unwrap().output, json!("second"));
+        assert_eq!(first.unwrap().output, serde_json::json!("first"));
+        assert_eq!(second.unwrap().output, serde_json::json!("second"));
 
         executor.shutdown().await.unwrap();
     }
