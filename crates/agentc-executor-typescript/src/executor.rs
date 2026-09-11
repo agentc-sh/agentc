@@ -360,7 +360,12 @@ mod tests {
     use tokio::sync::{Barrier, Notify};
     use tokio_util::sync::CancellationToken;
 
-    use crate::{error::Error, execution::Execution, executor::Executor};
+    use crate::{
+        error::Error,
+        execution::Execution,
+        executor::Executor,
+        guestjs::handle::{BoundCallableProtocol, CallableProtocol, ObjectProtocol},
+    };
 
     const COUNTER_SOURCE: &str = r#"
 let count = 0;

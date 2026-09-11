@@ -2,9 +2,10 @@
 //
 // SPDX-License-Identifier: MIT
 
-mod input;
-mod types;
-
+pub mod bindings;
 pub mod tool;
 
-pub use tool::JavascriptTool;
+pub use crate::javascript::{
+    bindings::{ExecutorBuilderToolsExt, ToolsLibrary, ToolsModule},
+    tool::JavascriptTool,
+};

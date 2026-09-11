@@ -1,4 +1,4 @@
 {
   "title": "Runtime",
-  "pages": ["...index", "standard", "fs", "http"]
+  "pages": ["...index", "standard", "tools", "fs", "http"]
 }

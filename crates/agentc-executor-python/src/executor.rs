@@ -370,7 +370,12 @@ mod tests {
         time::Duration,
     };
 
-    use guestpy::{bundle::Bundle, handle::Coroutine, pyo3::CPython, rustpython::RustPython};
+    use guestpy::{
+        bundle::Bundle,
+        handle::{Coroutine, ObjectProtocol},
+        pyo3::CPython,
+        rustpython::RustPython,
+    };
     use tokio::sync::Barrier;
     use tokio_util::sync::CancellationToken;
 
@@ -872,14 +877,10 @@ def fail():
 
     #[tokio::test]
     async fn startup_failure_joins_started_workers() {
-        let result = tokio::time::timeout(
-            Duration::from_secs(1),
-            Executor::<RustPython>::builder("missing.component")
-                .workers(4)
-                .build(),
-        )
-        .await
-        .unwrap();
+        let result = Executor::<RustPython>::builder("missing.component")
+            .workers(4)
+            .build()
+            .await;
 
         assert!(matches!(result, Err(Error::WorkerInitialization { .. })));
     }

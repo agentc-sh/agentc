@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 use agentc_executor_typescript::guestjs::{
     FromGuest,
     errors::Error,
-    handle::{BoundObject, Object},
+    handle::{BoundObject, BoundObjectProtocol, Object},
     host::Args,
     runtime::Scope,
 };

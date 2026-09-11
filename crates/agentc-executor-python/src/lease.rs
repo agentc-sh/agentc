@@ -62,7 +62,7 @@ impl<B: ExecutorBackend> WorkerLease<B> {
 mod tests {
     use std::time::Duration;
 
-    use guestpy::{bundle::Bundle, rustpython::RustPython};
+    use guestpy::{bundle::Bundle, handle::ObjectProtocol, rustpython::RustPython};
 
     use crate::{errors::Error, execution::Execution, executor::Executor, lease::WorkerLease};
 

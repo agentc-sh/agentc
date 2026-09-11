@@ -43,6 +43,7 @@ impl ToolCodeGen for JavascriptTools<'_> {
                 use agentc_executor_typescript::executor::Executor;
                 use agentc_fs::typescript::executor::ExecutorBuilderFsExt;
                 use agentc_http::client::typescript::ExecutorBuilderHttpExt;
+                use agentc_tools::javascript::ExecutorBuilderToolsExt;
                 use agentc_tools::javascript::JavascriptTool;
             }
         })
@@ -79,6 +80,7 @@ impl ToolCodeGen for JavascriptTools<'_> {
                     .workers(4)
                     .queue_capacity(32)
                     .standard_environment()
+                    .with_tools()
                     .with_http(config.network.builder()?)
                     .with_fs(fs.root())?
                     .cancellation(shutdown.clone())
@@ -367,6 +369,7 @@ mod tests {
         assert!(registrations.contains(". workers (4)"));
         assert!(registrations.contains(". queue_capacity (32)"));
         assert!(registrations.contains(". standard_environment ()"));
+        assert!(registrations.contains(". with_tools ()"));
         assert!(registrations.contains(". with_http (config . network . builder () ?)"));
         assert!(registrations.contains(". with_fs (fs . root ())"));
         assert!(registrations.contains(". cancellation (shutdown . clone ())"));

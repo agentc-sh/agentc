@@ -11,8 +11,9 @@ readme.workspace = true
 default = ["bash", "python-rustpython"]
 javascript = [
     "dep:agentc-executor-typescript",
+    "dep:jsonschema",
 ]
-python = ["dep:agentc-executor-python"]
+python = ["dep:agentc-executor-python", "dep:jsonschema"]
 python-rustpython = ["python", "agentc-executor-python/rustpython"]
 python-cpython = ["python", "agentc-executor-python/pyo3"]
 bash = [
@@ -48,5 +49,6 @@ sanitizer = { workspace = true }
 json-patch = { workspace = true }
 
 schemars = { workspace = true }
+jsonschema = { workspace = true, optional = true }
 
 bashkit = { version = "0.17.1", default-features = false, features = ["tzdata"], optional = true }

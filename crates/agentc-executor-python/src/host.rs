@@ -53,7 +53,9 @@ impl From<Handle> for HostRuntime {
 
 #[cfg(test)]
 mod tests {
-    use guestpy::{bundle::Bundle, host::module::ModuleSpec, rustpython::RustPython};
+    use guestpy::{
+        bundle::Bundle, handle::ObjectProtocol, host::module::ModuleSpec, rustpython::RustPython,
+    };
 
     use crate::{errors::Error, executor::Executor, host::HostRuntime};
 
