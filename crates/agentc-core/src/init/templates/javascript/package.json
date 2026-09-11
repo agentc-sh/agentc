@@ -11,7 +11,6 @@
     "esbuild": "^0.28.0"
   },
   "dependencies": {
-    "@agentc-sh/tdk": "github:agentc-sh/typescript-tdk#0.1.0",
     "@agentc-sh/runtime": "github:agentc-sh/agentc#{{ agentc_version }}&path:/packages/typescript/runtime"
   }
 }
