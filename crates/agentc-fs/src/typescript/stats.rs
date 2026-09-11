@@ -6,8 +6,8 @@ use std::time::SystemTime;
 
 use agentc_executor_typescript::guestjs::{
     errors::Error,
-    handle::{Class, Object, Value},
-    host::{ClassSpec, HostClass, Deferred},
+    handle::{BoundConstructorProtocol, BoundObjectProtocol, Class, Object, Value},
+    host::{ClassSpec, Deferred, HostClass},
     marshal::{FromGuest, FromGuestBound, ToGuestBound},
     runtime::Scope,
 };

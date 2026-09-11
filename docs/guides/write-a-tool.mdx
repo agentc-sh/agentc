@@ -9,8 +9,8 @@ no runtime installation. For the full field reference, see the [tool reference](
 
 TypeScript tools run in an embedded JavaScript runtime. Python tools use RustPython by default,
 which supports pure-Python packages and needs no Python installation at runtime. Select the
-`static` interpreter to use CPython 3.14 for packages with C extensions. Both use the agentc tool
-development kit (TDK), which gives you typed tool definitions.
+`static` interpreter to use CPython 3.14 for packages with C extensions. TypeScript tools use
+`agentc:tools`, while Python tools use the agentc tool development kit (`agentc_tdk`).
 
 ## Scaffold the package
 
@@ -48,8 +48,8 @@ system already configured.
 
 ## Write the tool
 
-A tool has a name, a description, a JSON Schema for its inputs, and an `execute` function. The name and
-descriptions are what the model reads to decide when and how to call it, so write them carefully.
+Each tool supplies a name, description, JSON Schema for its inputs, and an `execute` method. The name
+and descriptions are what the model reads to decide when and how to call it, so write them carefully.
 
 <Tabs defaultValue="typescript">
   <TabsList>
@@ -57,32 +57,40 @@ descriptions are what the model reads to decide when and how to call it, so writ
     <TabsTrigger value="python">Python</TabsTrigger>
   </TabsList>
   <TabsContent value="typescript">
-Export a tool object from the package entry point. Import the `Tool` type from the TDK for full type
-coverage.
+Export a class extending `Tool` from the package entry point. Its generic parameters are the argument
+type, result type, and state type. Omit the state type when its `unknown` default is sufficient.
 
 ```typescript title="math/src/index.ts"
-import type { Tool, ToolInput, ToolOutput } from "@agentc-sh/tdk";
+import { Schema, Tool, type ToolInput, type ToolOutput } from "agentc:tools";
 
 type AddArgs = { a: number; b: number };
 
-export const adder: Tool<AddArgs, number> = {
-  name: "adder",
-  description: "Adds two numbers together.",
-  parameters: {
+export class Adder extends Tool<AddArgs, number> {
+  static readonly description = "Adds two numbers together.";
+
+  static readonly parameters = new Schema({
     type: "object",
     properties: {
       a: { type: "number", description: "The first number." },
       b: { type: "number", description: "The second number." }
     },
     required: ["a", "b"]
-  },
+  });
+
   async execute(input: ToolInput<AddArgs>): Promise<ToolOutput<number>> {
     return { output: input.args.a + input.args.b };
   }
-};
+}
 ```
 
-A single package can export as many tools as you need.
+`description` tells the model what the tool does. `parameters` is the JSON Schema it uses to call the
+tool, wrapped in `Schema`. `Schema` validates the document as JSON Schema draft 2020-12 when the
+module loads, so an invalid schema prevents the tool from loading. `ToolInput` supplies read-only
+`args`, `state`, and optional `emit`; `ToolOutput` contains required `output` and optional
+`state_update`. `execute` must be asynchronous.
+
+A single package can export as many tool classes as you need. The selected export name is the tool
+name.
   </TabsContent>
   <TabsContent value="python">
 Subclass `Tool` and implement `execute`. The generic parameters are the argument type, the result
@@ -138,15 +146,11 @@ import { fetch } from "agentc:http";
 const response = await fetch("https://example.com");
 ```
 
-`agentc:http` also installs `fetch`, `Headers`, and `Response` as globals, as the same values it
-exports, so the import is optional for those three.
-
-```typescript title="math/src/index.ts"
-const response = await fetch("https://example.com");
-```
-
 The runtime libraries are catalogued at [runtime libraries](/reference/runtime), and the JavaScript
 surface the host binds is enumerated at [standard](/reference/runtime/standard).
+
+`agentc:tools` provides the classes and types used to author a tool. See
+[tools](/reference/runtime/tools/typescript) for its TypeScript surface.
 
 The shapes of all of it come from `@agentc-sh/runtime`, which the scaffold installs and references for
 you, so your editor reports what the host actually provides rather than guessing. The package is
@@ -173,10 +177,11 @@ the package directory.
 tool "adder" {
   kind   = "javascript"
   source = "./math"
+  export = "Adder"
 }
 ```
 
-The block name matches the export name by default. If they differ, set `export` to the export name.
+The block name matches the export name by default. `export` selects the tool class when they differ.
   </TabsContent>
   <TabsContent value="python">
 ```hcl title="agent.acl"
@@ -206,13 +211,15 @@ client as state delta events, which is how a tool passes data to a frontend.
   </TabsList>
   <TabsContent value="typescript">
 ```typescript
-async execute(input: ToolInput<AddArgs>): Promise<ToolOutput<number>> {
-  return {
-    output: input.args.a + input.args.b,
-    state_update: [
-      { op: "add", path: "/context/last_sum", value: input.args.a + input.args.b }
-    ]
-  };
+export class Adder extends Tool<AddArgs, number> {
+  async execute(input: ToolInput<AddArgs>): Promise<ToolOutput<number>> {
+    return {
+      output: input.args.a + input.args.b,
+      state_update: [
+        { op: "add", path: "/context/last_sum", value: input.args.a + input.args.b }
+      ]
+    };
+  }
 }
 ```
   </TabsContent>
@@ -224,6 +231,37 @@ def execute(self, input: ToolInput[GetWeatherParams, None]) -> ToolOutput[GetWea
         state_update=[
             {"op": "add", "path": "/context/last_location", "value": input.args.location}
         ],
+    )
+```
+  </TabsContent>
+</Tabs>
+
+## Send activity updates
+
+Tools can emit stateless activity updates while they run. `emit` is optional, so call it with
+optional invocation.
+
+<Tabs defaultValue="typescript">
+  <TabsList>
+    <TabsTrigger value="typescript">TypeScript</TabsTrigger>
+    <TabsTrigger value="python">Python</TabsTrigger>
+  </TabsList>
+  <TabsContent value="typescript">
+```typescript
+input.emit?.({
+  activity_type: "progress",
+  patch: [
+    { op: "add", path: "/message", value: "Working" }
+  ]
+});
+```
+  </TabsContent>
+  <TabsContent value="python">
+```python
+if input.emit is not None:
+    input.emit(
+        activity_type="progress",
+        patch=[{"op": "add", "path": "/message", "value": "Working"}],
     )
 ```
   </TabsContent>

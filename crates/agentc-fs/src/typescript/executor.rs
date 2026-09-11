@@ -30,7 +30,10 @@ impl ExecutorBuilderFsExt for ExecutorBuilder {
 
 #[cfg(test)]
 mod tests {
-    use agentc_executor_typescript::{executor::Executor, guestjs::handle::Promise};
+    use agentc_executor_typescript::{
+        executor::Executor,
+        guestjs::handle::{CallableProtocol, Promise},
+    };
 
     use super::ExecutorBuilderFsExt;
     use crate::fs::Fs;

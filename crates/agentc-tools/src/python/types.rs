@@ -119,7 +119,7 @@ mod tests {
     use agentc_agent::tools::activity::{ActivityDelta, ActivityEmitter};
     use agentc_executor_python::{
         executor::Executor,
-        guestpy::{bundle::Bundle, rustpython::RustPython},
+        guestpy::{bundle::Bundle, handle::ObjectProtocol, rustpython::RustPython},
     };
     use serde_json::json;
     use tokio::sync::mpsc;

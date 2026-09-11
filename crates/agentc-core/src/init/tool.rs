@@ -140,14 +140,21 @@ mod tests {
     }
 
     #[test]
-    fn javascript_index_ts_contains_snake_export() {
+    fn javascript_index_ts_exports_a_tool_class() {
         let vfs = InitTool::scaffold(InitToolParams {
             name: "my-tool".into(),
             language: ToolLanguage::Javascript,
         })
         .unwrap();
         let content = vfs.get("src/index.ts").unwrap();
-        assert!(content.contains("export const my_tool"), "index.ts missing export: {content}");
+        assert!(
+            content.contains("export class MyTool extends Tool<"),
+            "index.ts missing tool class: {content}"
+        );
+        assert!(
+            content.contains("from 'agentc:tools'"),
+            "index.ts does not import the host module: {content}"
+        );
     }
 
     #[test]
@@ -176,6 +183,10 @@ mod tests {
             !content.contains("@types/node"),
             "package.json still depends on @types/node: {content}"
         );
+        assert!(
+            !content.contains("@agentc-sh/tdk"),
+            "package.json still depends on the tdk: {content}"
+        );
     }
 
     #[test]
@@ -201,6 +212,9 @@ mod tests {
         .unwrap();
         let content = vfs.get("pnpm-workspace.yaml").unwrap();
         assert!(content.contains("esbuild"), "pnpm-workspace.yaml missing esbuild: {content}");
-        assert!(content.contains("@agentc-sh/tdk"), "pnpm-workspace.yaml missing tdk: {content}");
+        assert!(
+            !content.contains("@agentc-sh/tdk"),
+            "pnpm-workspace.yaml still allowlists the tdk: {content}"
+        );
     }
 }

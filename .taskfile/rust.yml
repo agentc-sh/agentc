@@ -73,12 +73,12 @@ tasks:
 
   test:
     cmds:
-      - cargo test --all-features --release {{.CLI_ARGS}}
+      - cargo test --all-features {{.CLI_ARGS}}
 
   test:compiler:
     cmds:
       - |
-        cargo test --all-features --release \
+        cargo test --all-features \
           -p agentc \
           -p agentc-blocks \
           -p agentc-compiler \
@@ -88,7 +88,7 @@ tasks:
   test:runtime:
     cmds:
       - |
-        cargo test --all-features --release \
+        cargo test --all-features \
           -p agentc-agent \
           -p agentc-agent-macros \
           -p agentc-agent-react \
