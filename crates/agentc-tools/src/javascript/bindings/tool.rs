@@ -4,7 +4,7 @@
 
 use std::future::Future;
 
-use agentc_executor_typescript::guestjs::{host_class, errors::Error};
+use agentc_executor_typescript::guestjs::{errors::Error, host_class};
 
 use crate::javascript::bindings::output::ToolOutput;
 
@@ -18,9 +18,7 @@ impl Tool {
     }
 
     #[guestjs(async_method)]
-    fn execute(
-        &self,
-    ) -> Result<impl Future<Output = Result<ToolOutput, Error>> + 'static, Error> {
+    fn execute(&self) -> Result<impl Future<Output = Result<ToolOutput, Error>> + 'static, Error> {
         Ok(async { Err(Error::unexpected("a Tool subclass must implement execute")) })
     }
 }
@@ -29,8 +27,8 @@ impl Tool {
 mod tests {
     use agentc_executor_typescript::{
         executor::Executor,
-        json::Json,
         guestjs::handle::{BoundClass, BoundConstructorProtocol, BoundObjectProtocol, Promise},
+        json::Json,
     };
 
     use super::*;
@@ -74,51 +72,58 @@ export { Tool };
         let executor = executor().await;
 
         executor
-            .execute(|context| Box::pin(async move {
-                context
-                    .guest()
-                    .scope(async move |scope| {
-                        let base = BoundClass::of::<Tool>(&scope)?;
-                        let module = context.module().bind(&scope)?;
+            .execute(|context| {
+                Box::pin(async move {
+                    context
+                        .guest()
+                        .scope(async move |scope| {
+                            let base = BoundClass::of::<Tool>(&scope)?;
+                            let module = context.module().bind(&scope)?;
 
-                        assert!(
-                            module
-                                .class_as::<Tool>("Weather")?
-                                .is_subclass_of(&base)?,
-                            "a generic `extends Tool<A, B>` transpiles to a plain \
+                            assert!(
+                                module
+                                    .class_as::<Tool>("Weather")?
+                                    .is_subclass_of(&base)?,
+                                "a generic `extends Tool<A, B>` transpiles to a plain \
                              `extends Tool`, and `BoundClass::of` resolves the same \
                              constructor `agentc:tools` exports",
-                        );
+                            );
 
-                        assert_eq!(
-                            module
-                                .class_as::<Tool>("Weather")?
-                                .get::<String>("description")?,
-                            "Reports the weather.",
-                            "`static readonly` survives the oxc transform",
-                        );
+                            assert_eq!(
+                                module
+                                    .class_as::<Tool>("Weather")?
+                                    .get::<String>("description")?,
+                                "Reports the weather.",
+                                "`static readonly` survives the oxc transform",
+                            );
 
-                        assert!(
-                            !module
-                                .class_as::<Tool>("NotATool")?
-                                .is_subclass_of(&base)?,
-                            "an unrelated class is not a subclass",
-                        );
+                            assert!(
+                                !module
+                                    .class_as::<Tool>("NotATool")?
+                                    .is_subclass_of(&base)?,
+                                "an unrelated class is not a subclass",
+                            );
 
-                        assert!(
-                            !module.class_as::<Tool>("Tool")?.is_subclass_of(&base)?,
-                            "`is_subclass_of` is strict, so the host class is not a \
+                            assert!(
+                                !module
+                                    .class_as::<Tool>("Tool")?
+                                    .is_subclass_of(&base)?,
+                                "`is_subclass_of` is strict, so the host class is not a \
                              subclass of itself and cannot be exported as a tool",
-                        );
+                            );
 
-                        Ok(())
-                    })
-                    .await
-            }))
+                            Ok(())
+                        })
+                        .await
+                })
+            })
             .await
             .expect("guest call succeeds");
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 
     #[tokio::test]
@@ -126,23 +131,22 @@ export { Tool };
         let executor = executor().await;
 
         let error = match executor
-            .execute(|context| Box::pin(async move {
-                context
-                    .guest()
-                    .scope(async move |scope| {
-                        context
-                            .module()
-                            .bind(&scope)?
-                            .class_as::<Tool>("Silent")?
-                            .construct(())?
-                            .call_method::<_, Promise<Json>>(
-                                "execute",
-                                (),
-                            )?
-                            .await
-                    })
-                    .await
-            }))
+            .execute(|context| {
+                Box::pin(async move {
+                    context
+                        .guest()
+                        .scope(async move |scope| {
+                            context
+                                .module()
+                                .bind(&scope)?
+                                .class_as::<Tool>("Silent")?
+                                .construct(())?
+                                .call_method::<_, Promise<Json>>("execute", ())?
+                                .await
+                        })
+                        .await
+                })
+            })
             .await
         {
             Ok(_) => panic!("the base implementation resolves"),
@@ -157,6 +161,9 @@ export { Tool };
              got: {error}",
         );
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 }

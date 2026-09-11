@@ -54,8 +54,8 @@ mod tests {
         executor::Executor,
         guestjs::{
             errors::Error as GuestError,
-            host::{Exports, HostModule},
             handle::CallableProtocol,
+            host::{Exports, HostModule},
         },
         host::HostRuntime,
     };

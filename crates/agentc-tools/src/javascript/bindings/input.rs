@@ -6,13 +6,7 @@ use std::sync::{Arc, Weak};
 
 use agentc_agent::tools::activity::{ActivityDelta, ActivityEmitter};
 use agentc_executor_typescript::{
-    guestjs::{
-        errors::Error,
-        host::HostFn,
-        host_class,
-        marshal::Nullish,
-        FromGuest,
-    },
+    guestjs::{FromGuest, errors::Error, host::HostFn, host_class, marshal::Nullish},
     json::Json,
 };
 use serde_json::Value;
@@ -67,17 +61,19 @@ impl ToolInput {
             return Ok(Nullish::Undefined);
         };
 
-        Ok(
-            Nullish::Some(HostFn::new(move |scope, args| {
-                if let Some(sender) = emitter.upgrade().and_then(|emitter| emitter.sender()) {
-                    let _ = sender.try_send(
-                        args.get_owned::<GuestActivityDelta>(scope, 0)?.into(),
-                    );
-                }
+        Ok(Nullish::Some(HostFn::new(move |scope, args| {
+            if let Some(sender) = emitter
+                .upgrade()
+                .and_then(|emitter| emitter.sender())
+            {
+                let _ = sender.try_send(
+                    args.get_owned::<GuestActivityDelta>(scope, 0)?
+                        .into(),
+                );
+            }
 
-                Ok(())
-            }))
-        )
+            Ok(())
+        })))
     }
 }
 
@@ -94,9 +90,7 @@ mod tests {
 
     use super::*;
     use crate::javascript::bindings::{
-        executor::ExecutorBuilderToolsExt,
-        guest::GuestTool,
-        output::ToolOutput,
+        executor::ExecutorBuilderToolsExt, guest::GuestTool, output::ToolOutput,
     };
 
     const TOOL_SOURCE: &str = r#"
@@ -140,28 +134,33 @@ export class Forger extends Tool {
             .expect("executor builds");
 
         let output = executor
-            .execute(move |context| Box::pin(async move {
-                let (guest_input, _guard) = ToolInput::new(args, state, emitter.map(Arc::new));
+            .execute(move |context| {
+                Box::pin(async move {
+                    let (guest_input, _guard) = ToolInput::new(args, state, emitter.map(Arc::new));
 
-                context
-                    .guest()
-                    .scope(async move |scope| {
-                        context
-                            .module()
-                            .bind(&scope)?
-                            .class_as::<GuestTool>("Echo")?
-                            .construct(())?
-                            .execute(ToolInput::from_guest_bound(
-                                &scope,
-                                guest_input.to_guest_bound(&scope)?,
-                            )?)?
-                            .await
-                    })
-                    .await
-            }))
+                    context
+                        .guest()
+                        .scope(async move |scope| {
+                            context
+                                .module()
+                                .bind(&scope)?
+                                .class_as::<GuestTool>("Echo")?
+                                .construct(())?
+                                .execute(ToolInput::from_guest_bound(
+                                    &scope,
+                                    guest_input.to_guest_bound(&scope)?,
+                                )?)?
+                                .await
+                        })
+                        .await
+                })
+            })
             .await;
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
 
         output
     }
@@ -187,11 +186,19 @@ export class Forger extends Tool {
         );
 
         assert_eq!(
-            receiver.recv().await.expect("first delta").activity_type,
+            receiver
+                .recv()
+                .await
+                .expect("first delta")
+                .activity_type,
             "first",
         );
         assert_eq!(
-            receiver.recv().await.expect("second delta").activity_type,
+            receiver
+                .recv()
+                .await
+                .expect("second delta")
+                .activity_type,
             "second",
         );
         assert!(
@@ -222,25 +229,27 @@ export class Forger extends Tool {
             .expect("executor builds");
 
         let error = match executor
-            .execute(|context| Box::pin(async move {
-                let (guest_input, _guard) = ToolInput::new(Value::Null, Value::Null, None);
+            .execute(|context| {
+                Box::pin(async move {
+                    let (guest_input, _guard) = ToolInput::new(Value::Null, Value::Null, None);
 
-                context
-                    .guest()
-                    .scope(async move |scope| {
-                        context
-                            .module()
-                            .bind(&scope)?
-                            .class_as::<GuestTool>("Forger")?
-                            .construct(())?
-                            .execute(ToolInput::from_guest_bound(
-                                &scope,
-                                guest_input.to_guest_bound(&scope)?,
-                            )?)?
-                            .await
-                    })
-                    .await
-            }))
+                    context
+                        .guest()
+                        .scope(async move |scope| {
+                            context
+                                .module()
+                                .bind(&scope)?
+                                .class_as::<GuestTool>("Forger")?
+                                .construct(())?
+                                .execute(ToolInput::from_guest_bound(
+                                    &scope,
+                                    guest_input.to_guest_bound(&scope)?,
+                                )?)?
+                                .await
+                        })
+                        .await
+                })
+            })
             .await
         {
             Ok(_) => panic!("a host class with no declared constructor accepts construction"),
@@ -249,6 +258,9 @@ export class Forger extends Tool {
 
         drop(error);
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 }

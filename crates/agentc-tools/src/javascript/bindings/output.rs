@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 use agentc_executor_typescript::guestjs::{FromGuest, ToGuest};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 #[derive(Debug, Serialize, Deserialize, FromGuest, ToGuest)]

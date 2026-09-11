@@ -17,10 +17,7 @@ use agentc_agent::{
     },
 };
 use agentc_executor_python::{
-    backend::ExecutorBackend,
-    errors::Error,
-    executor::Executor,
-    guestpy::handle::ObjectProtocol,
+    backend::ExecutorBackend, errors::Error, executor::Executor, guestpy::handle::ObjectProtocol,
 };
 use async_trait::async_trait;
 

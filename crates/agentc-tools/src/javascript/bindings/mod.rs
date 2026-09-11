@@ -13,14 +13,7 @@ mod tool;
 pub mod executor;
 
 pub use crate::javascript::bindings::{
-    executor::ExecutorBuilderToolsExt,
-    library::ToolsLibrary,
-    module::ToolsModule,
-    schema::Schema,
+    executor::ExecutorBuilderToolsExt, library::ToolsLibrary, module::ToolsModule, schema::Schema,
 };
 
-pub(crate) use crate::javascript::bindings::{
-    guest::GuestTool,
-    input::ToolInput,
-    tool::Tool,
-};
+pub(crate) use crate::javascript::bindings::{guest::GuestTool, input::ToolInput, tool::Tool};

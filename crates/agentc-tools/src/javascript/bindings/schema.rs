@@ -36,9 +36,7 @@ impl Schema {
 #[cfg(test)]
 mod tests {
     use agentc_executor_typescript::{
-        executor::Executor,
-        guestjs::handle::BoundObjectProtocol,
-        json::Json,
+        executor::Executor, guestjs::handle::BoundObjectProtocol, json::Json,
     };
 
     use crate::javascript::bindings::executor::ExecutorBuilderToolsExt;
@@ -102,7 +100,10 @@ export const parameters = new Schema({
             }),
         );
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 
     #[tokio::test]
@@ -119,7 +120,9 @@ export const parameters = new Schema({
         };
 
         assert!(
-            error.to_string().contains("invalid tool schema"),
+            error
+                .to_string()
+                .contains("invalid tool schema"),
             "a malformed schema must fail at module evaluation; got: {error}",
         );
     }

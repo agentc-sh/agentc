@@ -28,10 +28,7 @@ use agentc_executor_typescript::{
 use async_trait::async_trait;
 
 use crate::javascript::bindings::{
-    GuestTool,
-    Schema,
-    Tool as GuestToolBase,
-    ToolInput as GuestToolInput,
+    GuestTool, Schema, Tool as GuestToolBase, ToolInput as GuestToolInput,
 };
 
 /// A JavaScript tool executed by a shared TypeScript package executor.
@@ -74,29 +71,33 @@ where
         let export_name = self.export_name.clone();
         let result = tokio::time::timeout(
             self.timeout,
-            self.executor.execute(move |context| Box::pin(async move {
-                let (guest_input, _guard) = GuestToolInput::new(
-                    input.args,
-                    input.state.unwrap_or(serde_json::Value::Null),
-                    input.emitter.map(Arc::new),
-                );
+            self.executor.execute(move |context| {
+                Box::pin(async move {
+                    let (guest_input, _guard) = GuestToolInput::new(
+                        input.args,
+                        input
+                            .state
+                            .unwrap_or(serde_json::Value::Null),
+                        input.emitter.map(Arc::new),
+                    );
 
-                context
-                    .guest()
-                    .scope(async move |scope| {
-                        context
-                            .module()
-                            .bind(&scope)?
-                            .class_as::<GuestTool>(&export_name)?
-                            .construct(())?
-                            .execute(GuestToolInput::from_guest_bound(
-                                &scope,
-                                guest_input.to_guest_bound(&scope)?,
-                            )?)?
-                            .await
-                    })
-                    .await
-            })),
+                    context
+                        .guest()
+                        .scope(async move |scope| {
+                            context
+                                .module()
+                                .bind(&scope)?
+                                .class_as::<GuestTool>(&export_name)?
+                                .construct(())?
+                                .execute(GuestToolInput::from_guest_bound(
+                                    &scope,
+                                    guest_input.to_guest_bound(&scope)?,
+                                )?)?
+                                .await
+                        })
+                        .await
+                })
+            }),
         )
         .await
         .map_err(|_| ToolError::execution_error("javascript", "tool execution timed out"))?
@@ -508,13 +509,16 @@ export const plain = {
     async fn a_synchronous_execute_is_rejected() {
         let executor = TestHarness::executor(1).await;
         let tool = TestHarness::tool(&executor, "Synchronous").await;
-        let error = match TestHarness::execute(&tool, TestHarness::input(serde_json::json!({}))).await {
-            Ok(_) => panic!("a non-promise return succeeds"),
-            Err(error) => error,
-        };
+        let error =
+            match TestHarness::execute(&tool, TestHarness::input(serde_json::json!({}))).await {
+                Ok(_) => panic!("a non-promise return succeeds"),
+                Err(error) => error,
+            };
 
         assert!(
-            error.to_string().contains("expected a promise"),
+            error
+                .to_string()
+                .contains("expected a promise"),
             "`Promise<ToolOutput>` is what makes async mandatory; got: {error}",
         );
 
@@ -527,7 +531,8 @@ export const plain = {
         let tool = TestHarness::tool(&executor, "Stateful").await;
         let result = TestHarness::execute(
             &tool,
-            TestHarness::input(serde_json::json!({"unused": true})).with_state(serde_json::json!({"status": "ready"})),
+            TestHarness::input(serde_json::json!({"unused": true}))
+                .with_state(serde_json::json!({"status": "ready"})),
         )
         .await
         .unwrap();
@@ -559,7 +564,8 @@ export const plain = {
         assert_eq!(
             TestHarness::execute(
                 &tool,
-                TestHarness::input(serde_json::json!({})).with_activity_emitter(ActivityEmitter::new(sender)),
+                TestHarness::input(serde_json::json!({}))
+                    .with_activity_emitter(ActivityEmitter::new(sender)),
             )
             .await
             .unwrap()

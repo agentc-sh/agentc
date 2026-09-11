@@ -156,7 +156,10 @@ enum ClientSource {
 mod tests {
     use std::net::SocketAddr;
 
-    use agentc_executor_typescript::{executor::Executor, guestjs::handle::{Promise, CallableProtocol}};
+    use agentc_executor_typescript::{
+        executor::Executor,
+        guestjs::handle::{CallableProtocol, Promise},
+    };
     use axum::{Router, routing::get};
     use tokio::net::TcpListener;
 

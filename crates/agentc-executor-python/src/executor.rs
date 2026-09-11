@@ -372,7 +372,7 @@ mod tests {
 
     use guestpy::{
         bundle::Bundle,
-        handle::{ObjectProtocol, Coroutine},
+        handle::{Coroutine, ObjectProtocol},
         pyo3::CPython,
         rustpython::RustPython,
     };

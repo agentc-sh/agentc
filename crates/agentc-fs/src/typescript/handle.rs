@@ -4,8 +4,8 @@
 
 use agentc_executor_typescript::guestjs::{
     errors::Error,
-    handle::{BoundObject, Object, Value, BoundObjectProtocol},
-    host::{Args, ClassSpec, HostClass, HostObject, Deferred},
+    handle::{BoundObject, BoundObjectProtocol, Object, Value},
+    host::{Args, ClassSpec, Deferred, HostClass, HostObject},
     marshal::{FromGuest, FromGuestBound, ToGuest, ToGuestBound},
     runtime::Scope,
 };
