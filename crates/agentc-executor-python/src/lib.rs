@@ -21,6 +21,7 @@ pub mod errors;
 pub mod execution;
 pub mod executor;
 pub mod host;
+pub mod json;
 pub mod lease;
 
 mod job;
