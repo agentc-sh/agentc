@@ -10,7 +10,7 @@ no runtime installation. For the full field reference, see the [tool reference](
 TypeScript tools run in an embedded JavaScript runtime. Python tools use RustPython by default,
 which supports pure-Python packages and needs no Python installation at runtime. Select the
 `static` interpreter to use CPython 3.14 for packages with C extensions. TypeScript tools use
-`agentc:tools`, while Python tools use the agentc tool development kit (`agentc_tdk`).
+`agentc:tools`, while Python tools use `agentc_tools`.
 
 ## Scaffold the package
 
@@ -41,8 +41,8 @@ cd weather
 uv sync
 ```
 
-This creates a `pyproject.toml` and a typed package directory, with the TDK dependency and build
-system already configured.
+This creates a `pyproject.toml` and a typed package directory whose module exports a `Tool`
+subclass from `agentc_tools`.
   </TabsContent>
 </Tabs>
 
@@ -93,44 +93,59 @@ A single package can export as many tool classes as you need. The selected expor
 name.
   </TabsContent>
   <TabsContent value="python">
-Subclass `Tool` and implement `execute`. The generic parameters are the argument type, the result
-type, and the state type.
+Export a class subclassing `Tool` from the package's module. Its type arguments are the argument
+type, the result type and, optionally, the state type.
 
 ```python title="weather/weather/__init__.py"
 from dataclasses import dataclass
-from agentc_tdk import Tool, ToolInput, ToolOutput
+
+from agentc_tools import Schema, Tool, ToolInput, ToolOutput
 
 
 @dataclass
-class GetWeatherParams:
+class WeatherArgs:
     location: str
 
+
 @dataclass
-class GetWeatherResult:
+class WeatherResult:
     temperature: float
     description: str
 
 
-class GetWeatherTool(Tool[GetWeatherParams, GetWeatherResult, None]):
-    args = GetWeatherParams
-
-    name = "get_weather"
-    description = "Get the current weather for a given location."
-    schema = {
+class Weather(Tool[WeatherArgs, WeatherResult]):
+    description = "Gets the current weather for a location."
+    parameters = Schema({
         "type": "object",
         "properties": {
-            "location": {"type": "string", "description": "The location to get the weather for."},
+            "location": {
+                "type": "string",
+                "description": "The location to get the weather for.",
+            },
         },
         "required": ["location"],
-    }
+    })
 
-    def execute(self, input: ToolInput[GetWeatherParams, None]) -> ToolOutput[GetWeatherResult]:
+    async def execute(
+        self,
+        input: ToolInput[WeatherArgs],
+    ) -> ToolOutput[WeatherResult]:
         return ToolOutput(
-            output=GetWeatherResult(temperature=72.0, description=f"Sunny in {input.args.location}")
+            WeatherResult(
+                temperature=72.0,
+                description=f"Sunny in {input.args.location}",
+            ),
         )
 ```
 
-A single package can define as many tool classes as you need.
+The runtime builds each invocation's arguments as a `WeatherArgs`, because it is the first type
+argument, and converts the `WeatherResult` back to JSON. `description` tells the model what the tool
+does, and `parameters` is the JSON Schema it uses to call the tool, wrapped in `Schema`. An invalid
+schema prevents the module from importing. `execute` must be `async`. See
+[tools](/reference/runtime/tools/python) for the full surface.
+
+A single package can export as many tool classes as you need. The selected export name is the tool
+name.
   </TabsContent>
 </Tabs>
 
@@ -185,16 +200,17 @@ The block name matches the export name by default. `export` selects the tool cla
   </TabsContent>
   <TabsContent value="python">
 ```hcl title="agent.acl"
-tool "get_weather" {
+tool "weather" {
   kind        = "python"
   source      = "./weather"
+  export      = "Weather"
   interpreter = "embedded"
 }
 ```
 
-Declare one `tool` block per tool class, all pointing at the same `source` directory. Change
-`interpreter` to `"static"` when the package requires CPython or a C extension. The runtime host
-must provide a compatible shared CPython 3.14 installation.
+The block name matches the export name by default. `export` selects the tool class when they differ.
+Change `interpreter` to `"static"` when the package requires CPython or a C extension. The runtime
+host must provide a compatible shared CPython 3.14 installation.
   </TabsContent>
 </Tabs>
 
@@ -225,11 +241,14 @@ export class Adder extends Tool<AddArgs, number> {
   </TabsContent>
   <TabsContent value="python">
 ```python
-def execute(self, input: ToolInput[GetWeatherParams, None]) -> ToolOutput[GetWeatherResult]:
+async def execute(
+    self,
+    input: ToolInput[WeatherArgs],
+) -> ToolOutput[WeatherResult]:
     return ToolOutput(
-        output=GetWeatherResult(temperature=72.0, description="Sunny"),
+        WeatherResult(temperature=72.0, description="Sunny"),
         state_update=[
-            {"op": "add", "path": "/context/last_location", "value": input.args.location}
+            {"op": "add", "path": "/context/last_location", "value": input.args.location},
         ],
     )
 ```

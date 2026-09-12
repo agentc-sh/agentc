@@ -10,15 +10,16 @@ describing what it does and a page per language describing its surface.
 
 | Library | Purpose | Languages |
 | ------- | ------- | --------- |
-| [tools](/reference/runtime/tools) | Host classes and types used to define and invoke tools. | TypeScript |
+| [tools](/reference/runtime/tools) | Host classes and types used to define and invoke tools. | TypeScript, Python |
 | [fs](/reference/runtime/fs) | A POSIX-style virtual filesystem assembled by the runtime. | TypeScript |
 | [http](/reference/runtime/http) | An HTTP client whose outbound requests pass the runtime's egress policy. | TypeScript |
 
 ## How the libraries are bound
 
 Any compiled output containing a TypeScript component contains the filesystem and HTTP libraries.
-Every JavaScript tool also receives `agentc:tools`. The manifest controls the filesystem's contents
-and the network's policy, not whether those libraries are present.
+Every JavaScript tool also receives `agentc:tools`, and every Python tool receives `agentc_tools`.
+The manifest controls the filesystem's contents and the network's policy, not whether those
+libraries are present.
 
 ## The language's own surface
 

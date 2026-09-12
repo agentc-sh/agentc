@@ -1,0 +1,115 @@
+---
+title: Python
+description: Every export of agentc_tools for Python tools.
+---
+
+```python
+from agentc_tools import Schema, Tool, ToolInput, ToolOutput
+```
+
+`agentc_tools` provides the classes used to define and invoke a tool. See
+[tools](/reference/runtime/tools) for the lifecycle shared by every tool.
+
+## Overview
+
+<LibSymbols>
+  <LibSymbolRow name="Schema">Validate a tool's parameter schema.</LibSymbolRow>
+  <LibSymbolRow name="Tool">The base class for a tool.</LibSymbolRow>
+  <LibSymbolRow name="ToolInput">The arguments, state, and optional activity emitter for an invocation.</LibSymbolRow>
+  <LibSymbolRow name="ToolOutput">The result and optional state update from an invocation.</LibSymbolRow>
+</LibSymbols>
+
+## Classes
+
+### Schema
+
+<LibSignature>
+```python
+Schema(schema: dict | bool)
+```
+</LibSignature>
+
+Validates a JSON Schema draft 2020-12 document for a tool's parameters. Construct it in the class
+body, so an invalid schema fails the module import.
+
+<LibProperties>
+  <LibProperty name="value" type="dict | bool" readonly>
+    A copy of the schema document.
+  </LibProperty>
+</LibProperties>
+
+<LibThrows>
+  <LibThrow when="the schema is not a valid JSON Schema draft 2020-12 document" />
+</LibThrows>
+
+### Tool
+
+<LibSignature>
+```python
+class Tool(Generic[Args, Result, State]):
+    description: str
+    parameters: Schema
+
+    async def execute(self, input: ToolInput[Args, State]) -> ToolOutput[Result]
+```
+</LibSignature>
+
+The base class for every tool. Export a subclass and select it with the manifest's `export` field.
+The type arguments declare the argument type, the result type and, optionally, the state type, read
+from the subclass's own `Tool[...]` base. `description` tells the model what the tool does, and
+`parameters` supplies the model-facing input schema. Both are required.
+
+A subclass that does not implement `execute` raises `NotImplementedError: a Tool subclass must
+implement execute`. `execute` must be `async`. A subclass that defines `__init__` must call
+`super().__init__()`.
+
+### ToolInput
+
+<LibTags>
+  <LibTag name="not constructible" />
+</LibTags>
+
+<LibSignature>
+```python
+class ToolInput(Generic[Args, State]):
+    args: Args
+    state: State
+    emit: Callable[[str, list[dict]], None] | None
+```
+</LibSignature>
+
+The runtime creates one input for each invocation. Tool code cannot construct it.
+
+<LibProperties>
+  <LibProperty name="args" type="Args" readonly>
+    An instance of `Args` when it is a dataclass, built from the invocation's arguments with fields
+    the dataclass does not declare dropped. Otherwise the JSON value, as a `dict`. Only the top level
+    is converted, so a nested object arrives as a `dict`.
+  </LibProperty>
+  <LibProperty name="state" type="State" readonly>
+    A copy of the current graph state, converted like `args` when `State` is declared. `None` when
+    the invocation has no state.
+  </LibProperty>
+  <LibProperty name="emit" type="Callable[[str, list[dict]], None] | None" readonly>
+    Sends a stateless activity update while the tool runs. Takes `activity_type` and `patch`, a list
+    of [RFC 6902 JSON Patch](https://datatracker.ietf.org/doc/html/rfc6902) operations. `None` when
+    the invocation has no emitter. Updates sent after the invocation ends are dropped.
+  </LibProperty>
+</LibProperties>
+
+### ToolOutput
+
+<LibSignature>
+```python
+ToolOutput(result: Result, *, state_update: list[dict] | None = None)
+```
+</LibSignature>
+
+The value returned by `execute`. A dataclass `result` is converted with `dataclasses.asdict`, and
+any other `result` must already be JSON data. `state_update` contains
+[RFC 6902 JSON Patch](https://datatracker.ietf.org/doc/html/rfc6902) operations. For ReAct state
+updates, see [state](/reference/graph/react/state).
+
+<LibThrows>
+  <LibThrow when="state_update is not a valid JSON Patch" />
+</LibThrows>
