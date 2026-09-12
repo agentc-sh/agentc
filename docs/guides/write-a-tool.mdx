@@ -42,7 +42,11 @@ uv sync
 ```
 
 This creates a `pyproject.toml` and a typed package directory whose module exports a `Tool`
-subclass from `agentc_tools`.
+subclass from `agentc_tools`. The `dev` dependency group already depends on `agentc-runtime`, the
+type stubs that tell an editor the shape of `agentc_tools` and other runtime libraries.
+
+The compiler installs dependencies with `uv sync --no-dev`, so the stubs are never part of the
+compiled tool.
   </TabsContent>
 </Tabs>
 
