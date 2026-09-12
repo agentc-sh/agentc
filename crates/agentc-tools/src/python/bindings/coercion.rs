@@ -63,18 +63,16 @@ impl<B: ExecutorBackend> Coercer<B> for DataclassCoercer<B> {
             .map(|field| field.get::<String>("name"))
             .collect::<Result<HashSet<_>, _>>()?;
 
-        Ok(
-            Decoded::Object(
-                target.call_with::<_, _, Object<B>>(
-                    (),
-                    fields
-                        .into_iter()
-                        .filter(|(name, _)| names.contains(name))
-                        .map(|(name, value)| (name, Json(value)))
-                        .collect::<Vec<_>>(),
-                )?
-            )
-        )
+        Ok(Decoded::Object(
+            target.call_with::<_, _, Object<B>>(
+                (),
+                fields
+                    .into_iter()
+                    .filter(|(name, _)| names.contains(name))
+                    .map(|(name, value)| (name, Json(value)))
+                    .collect::<Vec<_>>(),
+            )?,
+        ))
     }
 
     fn encodes(&self, value: &Object<B>) -> Result<bool, Error> {
@@ -84,12 +82,11 @@ impl<B: ExecutorBackend> Coercer<B> for DataclassCoercer<B> {
     }
 
     fn encode(&self, value: Object<B>) -> Result<Value, Error> {
-        Ok(
-            self.dataclasses
-                .function("asdict")?
-                .call::<_, Json>((value,))?
-                .into_inner()
-        )
+        Ok(self
+            .dataclasses
+            .function("asdict")?
+            .call::<_, Json>((value,))?
+            .into_inner())
     }
 }
 

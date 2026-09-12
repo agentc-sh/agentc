@@ -439,7 +439,11 @@ mod tests {
     fn absent_javascript_tools_generate_no_imports_or_registrations() {
         let ctx = JavascriptToolsFixture::context([]);
 
-        assert!(JavascriptTools(&ctx).imports().is_empty());
+        assert!(
+            JavascriptTools(&ctx)
+                .imports()
+                .is_empty()
+        );
         assert!(
             JavascriptTools(&ctx)
                 .feature()

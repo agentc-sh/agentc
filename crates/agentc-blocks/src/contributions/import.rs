@@ -24,10 +24,7 @@ impl ImportLeaf {
     fn render(&self) -> String {
         match self {
             Self::Item { name, alias: None } => name.to_string(),
-            Self::Item {
-                name,
-                alias: Some(alias),
-            } => format!("{name} as {alias}"),
+            Self::Item { name, alias: Some(alias) } => format!("{name} as {alias}"),
             Self::Glob => "*".to_string(),
         }
     }
@@ -41,10 +38,7 @@ pub struct ImportContribution {
 
 impl ImportContribution {
     pub fn path(path: &'static [&'static str]) -> Self {
-        Self {
-            path,
-            leaves: BTreeSet::new(),
-        }
+        Self { path, leaves: BTreeSet::new() }
     }
 
     fn render(&self) -> String {
@@ -73,15 +67,14 @@ impl ImportContribution {
     }
 
     pub fn item(mut self, name: &'static str) -> Self {
-        self.leaves.insert(ImportLeaf::Item { name, alias: None });
+        self.leaves
+            .insert(ImportLeaf::Item { name, alias: None });
         self
     }
 
     pub fn item_as(mut self, name: &'static str, alias: &'static str) -> Self {
-        self.leaves.insert(ImportLeaf::Item {
-            name,
-            alias: Some(alias),
-        });
+        self.leaves
+            .insert(ImportLeaf::Item { name, alias: Some(alias) });
         self
     }
 
@@ -126,15 +119,13 @@ impl ExtensionPoint for ImportsExtensionPoint {
     }
 
     fn reduce(&self, contributions: Vec<Self::Contribution>) -> Result<String, GeneratorError> {
-        Ok(
-            Imports::merge_all(contributions)
-                .map_err(|error| GeneratorError::unexpected(error.to_string()))?
-                .into_values()
-                .filter(|import| !import.leaves.is_empty())
-                .map(|import| import.render())
-                .collect::<Vec<_>>()
-                .join("\n"),
-        )
+        Ok(Imports::merge_all(contributions)
+            .map_err(|error| GeneratorError::unexpected(error.to_string()))?
+            .into_values()
+            .filter(|import| !import.leaves.is_empty())
+            .map(|import| import.render())
+            .collect::<Vec<_>>()
+            .join("\n"))
     }
 }
 
@@ -150,9 +141,7 @@ mod tests {
                 &ImportsExtensionPoint::new("agent::use"),
                 contributions
                     .into_iter()
-                    .map(|entries| {
-                        Imports::from_entries(entries).expect("entries should merge")
-                    })
+                    .map(|entries| Imports::from_entries(entries).expect("entries should merge"))
                     .collect(),
             )
             .expect("imports should render")
@@ -255,10 +244,7 @@ mod tests {
 
     #[test]
     fn a_contribution_without_leaves_renders_nothing() {
-        assert_eq!(
-            ImportsFixture::render([vec![ImportContribution::path(&["a"])]]),
-            "",
-        );
+        assert_eq!(ImportsFixture::render([vec![ImportContribution::path(&["a"])]]), "",);
     }
 
     #[test]

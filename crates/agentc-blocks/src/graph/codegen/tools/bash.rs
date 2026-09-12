@@ -108,8 +108,8 @@ mod tests {
 
     use crate::{
         config::fields::FieldsSpec,
-        contributions::import::ImportContribution,
         context::{ResolvedContext, ResolvedContextToolKind},
+        contributions::import::ImportContribution,
         graph::codegen::tools::{ToolCodeGen, bash::BashTools},
     };
 

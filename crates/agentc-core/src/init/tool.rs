@@ -134,10 +134,7 @@ mod tests {
             content.contains("from agentc_tools import"),
             "__init__.py does not import the host module: {content}"
         );
-        assert!(
-            !content.contains("agentc_tdk"),
-            "__init__.py still imports the tdk: {content}"
-        );
+        assert!(!content.contains("agentc_tdk"), "__init__.py still imports the tdk: {content}");
     }
 
     #[test]

@@ -33,14 +33,12 @@ impl Fragment<ResolvedContext> for McpAgentFragment {
         match point {
             "agent::use" => Ok(ErasedContributionValue::new(
                 Imports::from_entries([
-                    ImportContribution::path(&["agentc_mcp", "builder"])
-                        .item("AgentBuilderMcpExt"),
+                    ImportContribution::path(&["agentc_mcp", "builder"]).item("AgentBuilderMcpExt"),
                     ImportContribution::path(&["agentc_mcp", "config"])
                         .item("McpServerConfig")
                         .item("McpTransport"),
                     ImportContribution::path(&["agentc_mcp", "registry"]).item("McpRegistry"),
-                    ImportContribution::path(&["crate", "config"])
-                        .item("ConfigMcpTransport"),
+                    ImportContribution::path(&["crate", "config"]).item("ConfigMcpTransport"),
                 ])
                 .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
             )),

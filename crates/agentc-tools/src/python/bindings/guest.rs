@@ -46,10 +46,7 @@ pub(crate) struct GuestToolClass;
 impl<B: ExecutorBackend> FromGuest<B> for GuestToolClass {
     type Owned = ToolClass<B>;
 
-    fn from_guest<'py>(
-        enter: &Enter<'py, B>,
-        value: B::Value<'py>,
-    ) -> Result<Self::Owned, Error> {
+    fn from_guest<'py>(enter: &Enter<'py, B>, value: B::Value<'py>) -> Result<Self::Owned, Error> {
         let class = Class::from_guest(enter, value)?;
         let base = Class::of::<Tool>(enter)?;
 

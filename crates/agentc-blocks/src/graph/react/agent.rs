@@ -335,8 +335,8 @@ mod tests {
             ResolvedContextTool, ResolvedContextToolBash, ResolvedContextToolBashEnv,
             ResolvedContextToolBashLimits, ResolvedContextToolKind,
         },
-        graph::{ReActGraphModelConfig, ReActGraphModelRetryConfig},
         contributions::import::{ImportContribution, Imports},
+        graph::{ReActGraphModelConfig, ReActGraphModelRetryConfig},
     };
 
     struct AgentCodeGenFixture;

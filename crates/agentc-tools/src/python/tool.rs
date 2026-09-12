@@ -76,37 +76,38 @@ where
 
         tokio::time::timeout(
             self.timeout,
-            self.executor.execute(move |context| Box::pin(async move {
-                let exported = context.module().get::<GuestToolClass>(&export_name)?;
-                let coercion = Coercion::new(context.guest())?;
+            self.executor.execute(move |context| {
+                Box::pin(async move {
+                    let exported = context
+                        .module()
+                        .get::<GuestToolClass>(&export_name)?;
+                    let coercion = Coercion::new(context.guest())?;
 
-                let (guest_input, _guard) = GuestToolInput::new(
-                    coercion.decode(exported.args(), Value::Object(args))?,
-                    input
-                        .state
-                        .map(|state| coercion.decode(exported.state(), state))
-                        .transpose()?
-                        .unwrap_or(Decoded::Json(Value::Null)),
-                    input.emitter.map(Arc::new),
-                );
+                    let (guest_input, _guard) = GuestToolInput::new(
+                        coercion.decode(exported.args(), Value::Object(args))?,
+                        input
+                            .state
+                            .map(|state| coercion.decode(exported.state(), state))
+                            .transpose()?
+                            .unwrap_or(Decoded::Json(Value::Null)),
+                        input.emitter.map(Arc::new),
+                    );
 
-                let (result, state_update) = exported
-                    .class()
-                    .construct(())?
-                    .execute(guest_input)?
-                    .await?
-                    .borrow_with(|output| {
-                        (
-                            output.result().clone(),
-                            output.state_update().cloned(),
-                        )
-                    })?;
+                    let (result, state_update) = exported
+                        .class()
+                        .construct(())?
+                        .execute(guest_input)?
+                        .await?
+                        .borrow_with(|output| {
+                            (output.result().clone(), output.state_update().cloned())
+                        })?;
 
-                Ok(ToolOutput {
-                    output: coercion.encode(result)?,
-                    state_update,
+                    Ok(ToolOutput {
+                        output: coercion.encode(result)?,
+                        state_update,
+                    })
                 })
-            })),
+            }),
         )
         .await
         .map_err(|_| ToolError::execution_error("python", "tool execution timed out"))?
@@ -177,11 +178,15 @@ impl<B: ExecutorBackend> PythonToolBuilder<B> {
 
                 move |context| {
                     Box::pin(async move {
-                        let exported = context.module().get::<GuestToolClass>(&export_name)?;
+                        let exported = context
+                            .module()
+                            .get::<GuestToolClass>(&export_name)?;
 
                         Ok(ToolDefinition {
                             name: export_name,
-                            description: exported.class().get::<String>("description")?,
+                            description: exported
+                                .class()
+                                .get::<String>("description")?,
                             parameters: exported
                                 .class()
                                 .get::<Instance<_, Schema>>("parameters")?
@@ -569,7 +574,9 @@ def call_retained():
             };
 
             assert!(
-                error.to_string().contains("is not a Tool subclass"),
+                error
+                    .to_string()
+                    .contains("is not a Tool subclass"),
                 "the message must name the failure; got: {error}",
             );
             assert!(
@@ -654,13 +661,10 @@ def call_retained():
         let tool = TestHarness::tool(&executor, "Double").await;
 
         assert_eq!(
-            TestHarness::execute(
-                &tool,
-                TestHarness::input(json!({"value": 2, "extra": 1})),
-            )
-            .await
-            .unwrap()
-            .output,
+            TestHarness::execute(&tool, TestHarness::input(json!({"value": 2, "extra": 1})),)
+                .await
+                .unwrap()
+                .output,
             json!(4),
         );
 
@@ -674,8 +678,7 @@ def call_retained():
         assert_eq!(
             TestHarness::execute(
                 &tool,
-                TestHarness::input(json!({}))
-                    .with_state(json!({"status": "ready", "count": 1})),
+                TestHarness::input(json!({})).with_state(json!({"status": "ready", "count": 1})),
             )
             .await
             .unwrap()
@@ -797,13 +800,15 @@ def call_retained():
         receiver.recv().await.unwrap();
 
         executor
-            .execute(|context| Box::pin(async move {
-                context
-                    .guest()
-                    .import("test_tools")?
-                    .function("call_retained")?
-                    .call::<_, ()>(())
-            }))
+            .execute(|context| {
+                Box::pin(async move {
+                    context
+                        .guest()
+                        .import("test_tools")?
+                        .function("call_retained")?
+                        .call::<_, ()>(())
+                })
+            })
             .await
             .unwrap();
 
@@ -834,7 +839,9 @@ def call_retained():
         };
 
         assert!(
-            error.to_string().contains("value is not awaitable"),
+            error
+                .to_string()
+                .contains("value is not awaitable"),
             "`Coroutine<B, ToolOutput<B>>` is what makes async mandatory; got: {error}",
         );
 

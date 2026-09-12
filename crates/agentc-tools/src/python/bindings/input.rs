@@ -5,14 +5,12 @@
 use std::sync::{Arc, Weak};
 
 use agentc_agent::tools::activity::{ActivityDelta, ActivityEmitter};
-use agentc_executor_python::{
-    guestpy::{
-        FromGuest,
-        backend::{Backend, BackendCallables, BackendValues},
-        errors::Error,
-        host::function::HostFn,
-        host_class,
-    },
+use agentc_executor_python::guestpy::{
+    FromGuest,
+    backend::{Backend, BackendCallables, BackendValues},
+    errors::Error,
+    host::function::HostFn,
+    host_class,
 };
 use json_patch::PatchOperation;
 use serde::Deserialize;
@@ -66,23 +64,24 @@ impl<B: Backend + BackendValues + BackendCallables> ToolInput<B> {
             return Ok(None);
         };
 
-        Ok(
-            Some(HostFn::new(move |enter, args| {
-                let delta = ActivityDelta {
-                    activity_type: args.required::<String>(enter, 0, "activity_type")?,
-                    patch: args
-                        .required::<GuestActivityPatch>(enter, 1, "patch")?
-                        .0,
-                };
+        Ok(Some(HostFn::new(move |enter, args| {
+            let delta = ActivityDelta {
+                activity_type: args.required::<String>(enter, 0, "activity_type")?,
+                patch: args
+                    .required::<GuestActivityPatch>(enter, 1, "patch")?
+                    .0,
+            };
 
-                args.finish()?;
+            args.finish()?;
 
-                if let Some(sender) = emitter.upgrade().and_then(|emitter| emitter.sender()) {
-                    let _ = sender.try_send(delta);
-                }
+            if let Some(sender) = emitter
+                .upgrade()
+                .and_then(|emitter| emitter.sender())
+            {
+                let _ = sender.try_send(delta);
+            }
 
-                Ok(())
-            }))
-        )
+            Ok(())
+        })))
     }
 }

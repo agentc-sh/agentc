@@ -39,8 +39,7 @@ impl Fragment<ResolvedContext> for A2aAgentFragment {
                     ImportContribution::path(&["agentc_protocol_a2a", "tools"])
                         .item("A2aTenantPolicy")
                         .item("A2aToolTarget"),
-                    ImportContribution::path(&["crate", "config"])
-                        .item("ConfigA2aAgentTenant"),
+                    ImportContribution::path(&["crate", "config"]).item("ConfigA2aAgentTenant"),
                 ])
                 .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
             )),

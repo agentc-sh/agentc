@@ -22,9 +22,7 @@ impl ToolsModule {
     const DEFAULT_NAME: &'static str = "agentc_tools";
 
     pub fn new() -> Self {
-        Self {
-            name: Cow::Borrowed(Self::DEFAULT_NAME),
-        }
+        Self { name: Cow::Borrowed(Self::DEFAULT_NAME) }
     }
 
     pub fn with_name(mut self, name: impl Into<Cow<'static, str>>) -> Self {

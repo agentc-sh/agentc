@@ -28,10 +28,8 @@ use agentc_executor_typescript::{
 use async_trait::async_trait;
 
 use crate::javascript::bindings::{
-    guest::GuestTool,
-    schema::Schema,
+    guest::GuestTool, input::ToolInput as GuestToolInput, schema::Schema,
     tool::Tool as GuestToolBase,
-    input::ToolInput as GuestToolInput,
 };
 
 /// A JavaScript tool executed by a shared TypeScript package executor.

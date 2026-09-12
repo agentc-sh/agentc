@@ -33,7 +33,9 @@ impl<B: Backend> ToolOutput<B> {
     ) -> Result<Self, Error> {
         Ok(Self {
             result,
-            state_update: state_update.flatten().map(StateUpdate::into_inner),
+            state_update: state_update
+                .flatten()
+                .map(StateUpdate::into_inner),
         })
     }
 
