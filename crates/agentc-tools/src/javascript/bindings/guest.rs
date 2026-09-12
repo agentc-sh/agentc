@@ -2,11 +2,11 @@
 //
 // SPDX-License-Identifier: MIT
 
-use agentc_executor_typescript::guestjs::handle::Promise;
+use agentc_executor_typescript::guestjs::{guest_class, handle::Promise};
 
 use crate::javascript::bindings::{input::ToolInput, output::ToolOutput, tool::Tool};
 
-agentc_executor_typescript::guestjs::guest_class! {
+guest_class! {
     #[guestjs(crate_path = agentc_executor_typescript::guestjs, identity = Tool)]
     pub class GuestTool {
         fn execute(input: ToolInput) -> Promise<ToolOutput>;
