@@ -1,0 +1,32 @@
+[project]
+name = "agentc-runtime"
+version = "0.3.1"
+description = "Python type stubs for the agentc runtime"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "agentc authors", email = "hello@agentc.sh" }]
+keywords = ["agentc", "runtime", "python", "stubs"]
+requires-python = ">=3.14"
+dependencies = []
+
+[project.urls]
+Repository = "https://github.com/agentc-sh/agentc"
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.400",
+    "ruff>=0.12.0",
+]
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+only-include = ["src"]
+sources = ["src"]
+
+[tool.pyright]
+include = ["src"]
+typeCheckingMode = "strict"
