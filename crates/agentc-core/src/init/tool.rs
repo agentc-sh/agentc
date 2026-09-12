@@ -119,6 +119,28 @@ mod tests {
     }
 
     #[test]
+    fn python_pyproject_depends_on_the_runtime_stubs() {
+        let vfs = InitTool::scaffold(InitToolParams {
+            name: "my_tool".into(),
+            language: ToolLanguage::Python,
+        })
+        .unwrap();
+        let content = vfs.get("pyproject.toml").unwrap();
+        assert!(
+            content.contains("agentc-runtime @ git+https://github.com/agentc-sh/agentc@"),
+            "pyproject.toml missing runtime stubs: {content}"
+        );
+        assert!(
+            content.contains("#subdirectory=packages/python/runtime"),
+            "pyproject.toml runtime stubs not pointed at the package: {content}"
+        );
+        assert!(
+            content.contains("reportMissingModuleSource = false"),
+            "pyproject.toml does not silence the missing module source warning: {content}"
+        );
+    }
+
+    #[test]
     fn python_init_py_exports_a_tool_class() {
         let vfs = InitTool::scaffold(InitToolParams {
             name: "my_tool".into(),
