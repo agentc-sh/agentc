@@ -93,17 +93,17 @@ where
                         input.emitter.map(Arc::new),
                     );
 
-                    let (result, state_update) = exported
+                    let (output, state_update) = exported
                         .class()
                         .construct(())?
                         .execute(guest_input)?
                         .await?
-                        .borrow_with(|output| {
-                            (output.result().clone(), output.state_update().cloned())
+                        .borrow_with(|returned| {
+                            (returned.output().clone(), returned.state_update().cloned())
                         })?;
 
                     Ok(ToolOutput {
-                        output: coercion.encode(result)?,
+                        output: coercion.encode(output)?,
                         state_update,
                     })
                 })

@@ -16,7 +16,7 @@ from agentc_tools import Schema, Tool, ToolInput, ToolOutput
   <LibSymbolRow name="Schema">Validate a tool's parameter schema.</LibSymbolRow>
   <LibSymbolRow name="Tool">The base class for a tool.</LibSymbolRow>
   <LibSymbolRow name="ToolInput">The arguments, state, and optional activity emitter for an invocation.</LibSymbolRow>
-  <LibSymbolRow name="ToolOutput">The result and optional state update from an invocation.</LibSymbolRow>
+  <LibSymbolRow name="ToolOutput">The output and optional state update from an invocation.</LibSymbolRow>
 </LibSymbols>
 
 ## Classes
@@ -101,12 +101,12 @@ The runtime creates one input for each invocation. Tool code cannot construct it
 
 <LibSignature>
 ```python
-ToolOutput(result: Result, *, state_update: list[dict] | None = None)
+ToolOutput(output: Result, *, state_update: list[dict] | None = None)
 ```
 </LibSignature>
 
-The value returned by `execute`. A dataclass `result` is converted with `dataclasses.asdict`, and
-any other `result` must already be JSON data. `state_update` contains
+The value returned by `execute`. A dataclass `output` is converted with `dataclasses.asdict`, and
+any other `output` must already be JSON data. `state_update` contains
 [RFC 6902 JSON Patch](https://datatracker.ietf.org/doc/html/rfc6902) operations. For ReAct state
 updates, see [state](/reference/graph/react/state).
 

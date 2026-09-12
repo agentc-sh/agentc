@@ -20,7 +20,7 @@ impl StateUpdate {
 }
 
 pub struct ToolOutput<B: Backend> {
-    result: Object<B>,
+    output: Object<B>,
     state_update: Option<Patch>,
 }
 
@@ -28,19 +28,19 @@ pub struct ToolOutput<B: Backend> {
 impl<B: Backend> ToolOutput<B> {
     #[guestpy(constructor)]
     fn new(
-        result: Object<B>,
+        output: Object<B>,
         #[guestpy(kw)] state_update: Option<Option<StateUpdate>>,
     ) -> Result<Self, Error> {
         Ok(Self {
-            result,
+            output,
             state_update: state_update
                 .flatten()
                 .map(StateUpdate::into_inner),
         })
     }
 
-    pub(crate) fn result(&self) -> &Object<B> {
-        &self.result
+    pub(crate) fn output(&self) -> &Object<B> {
+        &self.output
     }
 
     pub(crate) fn state_update(&self) -> Option<&Patch> {
