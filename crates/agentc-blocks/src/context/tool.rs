@@ -141,6 +141,9 @@ pub struct ResolvedContextToolPython {
     /// Used as the executor entry module in the generated code.
     pub module_name: String,
 
+    /// The name of the Python class that implements the tool interface.
+    pub export_name: String,
+
     /// Which Python runtime backend to use. Defaults to `embedded` (RustPython).
     pub interpreter: ResolvedContextToolPythonInterpreter,
 }

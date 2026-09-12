@@ -17,9 +17,12 @@ use agentc_compiler::generator::{
 use crate::{
     config::fields::FieldsSpec,
     context::{ResolvedContext, ResolvedContextToolJavascript, ResolvedContextToolKind},
-    contributions::dependency::{
-        CargoDependencies, CargoDependencyContribution, CargoPatchContribution, CargoPatches,
-        RuntimeDependencyContribution,
+    contributions::{
+        dependency::{
+            CargoDependencies, CargoDependencyContribution, CargoPatchContribution, CargoPatches,
+            RuntimeDependencyContribution,
+        },
+        import::ImportContribution,
     },
     graph::codegen::tools::ToolCodeGen,
 };
@@ -37,16 +40,22 @@ impl JavascriptTools<'_> {
 }
 
 impl ToolCodeGen for JavascriptTools<'_> {
-    fn imports(&self) -> Option<TokenStream> {
-        Self::is_present(self.0).then(|| {
-            quote! {
-                use agentc_executor_typescript::executor::Executor;
-                use agentc_fs::typescript::executor::ExecutorBuilderFsExt;
-                use agentc_http::client::typescript::ExecutorBuilderHttpExt;
-                use agentc_tools::javascript::ExecutorBuilderToolsExt;
-                use agentc_tools::javascript::JavascriptTool;
-            }
-        })
+    fn imports(&self) -> Vec<ImportContribution> {
+        Self::is_present(self.0)
+            .then(|| {
+                vec![
+                    ImportContribution::path(&["agentc_executor_typescript", "executor"])
+                        .item("Executor"),
+                    ImportContribution::path(&["agentc_fs", "typescript", "executor"])
+                        .item("ExecutorBuilderFsExt"),
+                    ImportContribution::path(&["agentc_http", "client", "typescript"])
+                        .item("ExecutorBuilderHttpExt"),
+                    ImportContribution::path(&["agentc_tools", "javascript"])
+                        .item("ExecutorBuilderToolsExt")
+                        .item("JavascriptTool"),
+                ]
+            })
+            .unwrap_or_default()
     }
 
     fn feature(&self) -> Option<&'static str> {
@@ -410,15 +419,20 @@ mod tests {
             "search",
             [],
         )]);
-        let imports = JavascriptTools(&ctx)
-            .imports()
-            .expect("javascript imports are present")
-            .to_string();
-
-        assert!(imports.contains("agentc_executor_typescript :: executor :: Executor"));
-        assert!(imports.contains("ExecutorBuilderFsExt"));
-        assert!(imports.contains("ExecutorBuilderHttpExt"));
-        assert!(imports.contains("JavascriptTool"));
+        assert_eq!(
+            JavascriptTools(&ctx).imports(),
+            vec![
+                ImportContribution::path(&["agentc_executor_typescript", "executor"])
+                    .item("Executor"),
+                ImportContribution::path(&["agentc_fs", "typescript", "executor"])
+                    .item("ExecutorBuilderFsExt"),
+                ImportContribution::path(&["agentc_http", "client", "typescript"])
+                    .item("ExecutorBuilderHttpExt"),
+                ImportContribution::path(&["agentc_tools", "javascript"])
+                    .item("ExecutorBuilderToolsExt")
+                    .item("JavascriptTool"),
+            ],
+        );
     }
 
     #[test]
@@ -428,7 +442,7 @@ mod tests {
         assert!(
             JavascriptTools(&ctx)
                 .imports()
-                .is_none()
+                .is_empty()
         );
         assert!(
             JavascriptTools(&ctx)

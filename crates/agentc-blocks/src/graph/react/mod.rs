@@ -26,7 +26,10 @@ use crate::{
         },
     },
     context::ResolvedContext,
-    contributions::dependency::{CargoDependencies, CargoPatches},
+    contributions::{
+        dependency::{CargoDependencies, CargoPatches},
+        import::{Imports, ImportsExtensionPoint},
+    },
     errors::BlocksError,
     feature::{
         GenerationFeatureSet, GraphReAct, HttpServer, ProtocolA2a, ProtocolAgUi, Streaming,
@@ -96,8 +99,9 @@ impl AgentGraph for ReActGraph {
             .add(
                 CodeGenBlock::builder()
                     .id("agent_rs")
-                    .token_stream_extension_point("agent::use", reducers::concat)
+                    .typed_extension_point(ImportsExtensionPoint::new("agent::use"))
                     .token_stream_extension_point("agent::tools", reducers::concat)
+                    .contribute(Contribution::<Imports>::strict("agent::use"))
                     .contribute(Contribution::<RenderedTokenStream>::lenient("config::fields"))
                     .contribute(Contribution::<RenderedTokenStream>::lenient("config::impls"))
                     .contribute(Contribution::<RenderedTokenStream>::lenient("config::loader"))

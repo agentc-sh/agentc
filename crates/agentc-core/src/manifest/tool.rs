@@ -101,6 +101,11 @@ pub struct ManifestPythonTool {
     #[sanitizer(trim)]
     pub source: String,
 
+    /// The name of the Python class that implements the tool interface. Defaults to the manifest tool block name.
+    #[serde(default)]
+    #[sanitizer(trim)]
+    pub export: Option<String>,
+
     /// Which Python runtime backend to use. Defaults to `embedded` (RustPython).
     ///
     /// `embedded` supports pure-Python packages only. `static` (CPython via PyO3)

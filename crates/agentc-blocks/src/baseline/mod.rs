@@ -16,7 +16,10 @@ use crate::{
     config::sections::{
         a2a::A2aSection, filesystem::FilesystemSection, mcp::McpSection, network::NetworkSection,
     },
-    contributions::dependency::{CargoDependencies, CargoPatches},
+    contributions::{
+        dependency::{CargoDependencies, CargoPatches},
+        import::Imports,
+    },
     errors::BlocksError,
 };
 
@@ -40,7 +43,7 @@ impl Baseline {
                     .add(
                         FragmentBlock::builder()
                             .id("baseline_mcp_agent")
-                            .contribute(Contribution::<RenderedTokenStream>::strict("agent::use"))
+                            .contribute(Contribution::<Imports>::strict("agent::use"))
                             .contribute(Contribution::<RenderedTokenStream>::strict("agent::tools"))
                             .contribute(Contribution::<CargoDependencies>::strict(
                                 "cargo::dependencies",
@@ -51,7 +54,7 @@ impl Baseline {
                     .add(
                         FragmentBlock::builder()
                             .id("baseline_a2a_agent")
-                            .contribute(Contribution::<RenderedTokenStream>::strict("agent::use"))
+                            .contribute(Contribution::<Imports>::strict("agent::use"))
                             .contribute(Contribution::<RenderedTokenStream>::strict("agent::tools"))
                             .contribute(Contribution::<CargoDependencies>::strict(
                                 "cargo::dependencies",

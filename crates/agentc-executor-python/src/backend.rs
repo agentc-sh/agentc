@@ -3,18 +3,20 @@
 // SPDX-License-Identifier: MIT
 
 use guestpy::backend::{
-    Backend, BackendCallables, BackendCoroutines, BackendExceptions, BackendInterrupt,
-    BackendModules, BackendValues,
+    Backend, BackendCallables, BackendClasses, BackendCoroutines, BackendExceptions,
+    BackendInterrupt, BackendLibrary, BackendModules, BackendValues,
 };
 
 pub trait ExecutorBackend:
     Backend
     + BackendValues
     + BackendCallables
+    + BackendClasses
     + BackendModules
     + BackendCoroutines
     + BackendExceptions
     + BackendInterrupt
+    + BackendLibrary
 {
 }
 
@@ -22,10 +24,12 @@ impl<B> ExecutorBackend for B where
     B: Backend
         + BackendValues
         + BackendCallables
+        + BackendClasses
         + BackendModules
         + BackendCoroutines
         + BackendExceptions
         + BackendInterrupt
+        + BackendLibrary
 {
 }
 
@@ -35,15 +39,11 @@ mod tests {
 
     use crate::backend::ExecutorBackend;
 
-    struct BackendContract;
-
-    impl BackendContract {
-        fn assert_backend<B: ExecutorBackend>() {}
-    }
+    fn assert_backend<B: ExecutorBackend>() {}
 
     #[test]
     fn supported_backends_satisfy_executor_contract() {
-        BackendContract::assert_backend::<RustPython>();
-        BackendContract::assert_backend::<CPython>();
+        assert_backend::<RustPython>();
+        assert_backend::<CPython>();
     }
 }
