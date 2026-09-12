@@ -11,7 +11,7 @@ use utoipa_axum::{router::OpenApiRouter, routes};
 use uuid::Uuid;
 use validator::Validate;
 
-use agentc_http::{
+use agentc_http::server::{
     dto::{errors::ErrorResponseDTO, page::PaginatedResponseDTO},
     errors::ApiError,
     extractors::{Json, Path, Query, TenantIdHeader},

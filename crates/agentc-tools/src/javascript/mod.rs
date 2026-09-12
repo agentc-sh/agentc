@@ -2,9 +2,10 @@
 //
 // SPDX-License-Identifier: MIT
 
-pub mod runtime;
+pub mod bindings;
 pub mod tool;
 
-pub use tool::JavascriptTool;
-
-pub use runtime::quickjs::QuickJsRuntime;
+pub use crate::javascript::{
+    bindings::{ExecutorBuilderToolsExt, ToolsLibrary, ToolsModule},
+    tool::JavascriptTool,
+};

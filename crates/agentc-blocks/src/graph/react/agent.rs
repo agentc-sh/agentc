@@ -7,17 +7,19 @@ use quote::quote;
 use std::path::PathBuf;
 
 use agentc_compiler::generator::{
-    blocks::codegen::CodeGen, context::GenerationContext, errors::GeneratorError,
-    extension::ExtensionRegistry,
+    blocks::codegen::CodeGen,
+    context::GenerationContext,
+    errors::GeneratorError,
+    extension::{ErasedContributionValue, ExtensionRegistry, RenderedTokenStream},
 };
 
 use crate::{
+    config::fields::FieldsSpec,
     context::ResolvedContext,
-    fields::FieldsSpec,
     graph::{
         codegen::{
-            a2a::A2aCodeGen, identity::IdentityCodeGen, mcp::McpCodeGen,
-            models::ModelRegistryCodeGen, skills::SkillsCodeGen, tools::ToolsCodeGen,
+            identity::IdentityCodeGen, models::ModelRegistryCodeGen, prompt::PromptSourceCodeGen,
+            skills::SkillsCodeGen, tools::ToolsCodeGen,
         },
         react::ReActGraphConfig,
     },
@@ -170,9 +172,10 @@ impl CodeGen<ResolvedContext> for AgentCodeGen {
 
         let (model_imports, model_registrations) =
             ModelRegistryCodeGen::generate(ctx, &self.fields)?;
-        let (tool_imports, tool_registrations) = ToolsCodeGen::generate(ctx, &self.fields)?;
+        let tool_registrations = ToolsCodeGen::registrations(ctx, &self.fields)?;
         let (skill_imports, skill_registrations) = SkillsCodeGen::generate(ctx)?;
         let agent_identity = IdentityCodeGen::generate(ctx, &self.fields)?;
+        let (prompt_imports, prompt_source) = PromptSourceCodeGen::generate(ctx, &self.fields)?;
 
         let source = quote! {
             use std::sync::Arc;
@@ -180,10 +183,11 @@ impl CodeGen<ResolvedContext> for AgentCodeGen {
             use tokio_util::sync::CancellationToken;
 
             use agentc_database::Database;
+            use agentc_fs::Fs;
+            use agentc_http::client::HttpClient;
             use agentc_prompt::{
                 compaction::TailWindow,
                 counter::TiktokenCounter,
-                template::{PromptTemplate, Role},
             };
             use agentc_model::registry::ModelRegistry;
             use agentc_agent::{
@@ -193,15 +197,6 @@ impl CodeGen<ResolvedContext> for AgentCodeGen {
                     identity::AgentIdentity,
                     capability::{CapabilitySet, CapabilityPolicy},
                 },
-            };
-            use agentc_mcp::{
-                builder::AgentBuilderMcpExt,
-                config::{McpServerConfig, McpTransport},
-                registry::McpRegistry,
-            };
-            use agentc_protocol_a2a::{
-                client::{A2aClient, A2aClientConfig},
-                tools::{A2aTenantPolicy, A2aToolTarget},
             };
             use agentc_agent_react::{
                 cancel::SqlReActCanceller,
@@ -214,16 +209,18 @@ impl CodeGen<ResolvedContext> for AgentCodeGen {
                 },
             };
 
-            use crate::config::{A2aTenantConfig, Config, McpTransportConfig};
+            use crate::config::Config;
 
+            #prompt_imports
             #(#model_imports)*
-            #(#tool_imports)*
             #(#skill_imports)*
 
             #extra_use
 
             pub async fn build_agent(
                 db: Arc<Database>,
+                fs: Fs,
+                http: HttpClient,
                 config: &Config,
                 shutdown: CancellationToken,
             ) -> Result<Agent<ReActNode, Event, Message>> {
@@ -259,74 +256,13 @@ impl CodeGen<ResolvedContext> for AgentCodeGen {
                     )
                     .with_model_registry(model_registry)
                     .with_token_counter(TiktokenCounter::o200k_base())
-                    .with_compaction_strategy(TailWindow);
+                    .with_compaction_strategy(TailWindow)
+                    .with_prompt_source(#prompt_source);
 
                 #(#tool_registrations)*
                 #(#skill_registrations)*
 
                 #extra_tools
-
-                if !config.mcp.servers.is_empty() {
-                    let mut mcp_builder = McpRegistry::builder();
-
-                    for (name, transport) in &config.mcp.servers {
-                        mcp_builder = mcp_builder.with_server(
-                            McpServerConfig::new(name.clone(), match transport {
-                                McpTransportConfig::Stdio { command, args, env } => McpTransport::Stdio {
-                                    command: command.clone(),
-                                    args: args.clone(),
-                                    env: env.clone(),
-                                },
-                                McpTransportConfig::Http { url, auth_token, headers } => McpTransport::StreamableHttp {
-                                    url: url.clone(),
-                                    auth_token: auth_token.clone(),
-                                    headers: headers.clone(),
-                                },
-                            })
-                        );
-                    }
-
-                    builder = builder.with_mcp_registry(&mcp_builder.build().await?).await;
-                }
-
-                for (name, agent) in &config.a2a.agents {
-                    if !agent.enabled {
-                        continue;
-                    }
-
-                    let mut client_config = A2aClientConfig::new(agent.url.clone())
-                        .timeout(std::time::Duration::from_secs(agent.timeout_secs));
-
-                    if let Some(token) = &agent.auth_token {
-                        client_config = client_config.try_header(
-                            "Authorization",
-                            format!("Bearer {token}"),
-                        )?;
-                    }
-
-                    for (key, value) in &agent.headers {
-                        client_config = client_config.try_header(key, value)?;
-                    }
-
-                    let target = A2aToolTarget::builder()
-                        .id(name)
-                        .name(agent.description.as_deref().unwrap_or(name))
-                        .client(A2aClient::new(client_config)?)
-                        .tenant_policy(match &agent.tenant {
-                            A2aTenantConfig::Inherit => A2aTenantPolicy::Inherit,
-                            A2aTenantConfig::None => A2aTenantPolicy::None,
-                            A2aTenantConfig::Fixed { id } => A2aTenantPolicy::Fixed(id.clone()),
-                        })
-                        .capabilities(agent.capabilities.clone())
-                        .default_accepted_output_modes(agent.default_accepted_output_modes.clone())
-                        .build()?;
-
-                    builder = builder
-                        .with_typed_tool(target.send_task_tool())
-                        .with_typed_tool(target.stream_task_tool())
-                        .with_typed_tool(target.get_task_tool())
-                        .with_typed_tool(target.cancel_task_tool());
-                }
 
                 Ok(
                     builder
@@ -343,55 +279,46 @@ impl CodeGen<ResolvedContext> for AgentCodeGen {
         &self,
         ctx: &GenerationContext<ResolvedContext>,
         point: &str,
-    ) -> Result<TokenStream, GeneratorError> {
+    ) -> Result<ErasedContributionValue, GeneratorError> {
         match point {
-            "config::fields" => Ok(quote! {
-                pub react: ReActConfig,
-            }),
-            "config::impls" => Ok(quote! {
-                #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default)]
-                #[serde(default)]
-                pub struct ReActConfig {
-                    pub model: ReActModelConfig,
-                }
-
-                #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default)]
-                #[serde(default)]
-                pub struct ReActModelConfig {
-                    pub timeout: Option<u64>,
-                    pub retry: Option<ReActModelRetryConfig>,
-                }
-
-                #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-                pub struct ReActModelRetryConfig {
-                    pub max_attempts: u32,
-                    pub initial_backoff: u64,
-                    pub max_backoff: u64,
-                }
-            }),
-            "config::loader" => {
-                let mcp = McpCodeGen::loader_calls(ctx);
-                let a2a = A2aCodeGen::loader_calls(ctx);
-                let react = self.config_loader_calls();
-
-                Ok(quote! {
-                    #mcp
-                    #a2a
-                    #react
-                })
+            "agent::use" => Ok(ErasedContributionValue::new(ToolsCodeGen::imports(ctx)?)),
+            "config::fields" => {
+                Ok(ErasedContributionValue::new(RenderedTokenStream::from(quote! {
+                    pub react: ConfigReAct,
+                })))
             }
-            "config::mapper" => {
-                let mcp = McpCodeGen::mapper_fields(ctx);
-                let a2a = A2aCodeGen::mapper_fields(ctx);
-                let react = self.config_mapper_fields();
+            "config::impls" => {
+                Ok(ErasedContributionValue::new(RenderedTokenStream::from(quote! {
+                    #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default)]
+                    #[serde(default)]
+                    pub struct ConfigReAct {
+                        pub model: ConfigReActModel,
+                    }
 
-                Ok(quote! {
-                    #mcp
-                    #a2a
-                    #react
-                })
+                    #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default)]
+                    #[serde(default)]
+                    pub struct ConfigReActModel {
+                        pub timeout: Option<u64>,
+                        pub retry: Option<ConfigReActModelRetry>,
+                    }
+
+                    #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+                    pub struct ConfigReActModelRetry {
+                        pub max_attempts: u32,
+                        pub initial_backoff: u64,
+                        pub max_backoff: u64,
+                    }
+                })))
             }
-            "tools::features" => Ok(ToolsCodeGen::features(ctx)),
+            "config::loader" => Ok(ErasedContributionValue::new(RenderedTokenStream::from(
+                self.config_loader_calls(),
+            ))),
+            "config::mapper" => Ok(ErasedContributionValue::new(RenderedTokenStream::from(
+                self.config_mapper_fields(),
+            ))),
+            "tools::features" => {
+                Ok(ErasedContributionValue::new(ToolsCodeGen::features(ctx).to_string()))
+            }
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
     }
@@ -402,7 +329,15 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::graph::{ReActGraphModelConfig, ReActGraphModelRetryConfig};
+    use crate::{
+        context::{
+            ResolvedContextAgentPromptSource, ResolvedContextAgentPromptSourceLangfuse,
+            ResolvedContextTool, ResolvedContextToolBash, ResolvedContextToolBashEnv,
+            ResolvedContextToolBashLimits, ResolvedContextToolKind,
+        },
+        contributions::import::{ImportContribution, Imports},
+        graph::{ReActGraphModelConfig, ReActGraphModelRetryConfig},
+    };
 
     struct AgentCodeGenFixture;
 
@@ -429,18 +364,73 @@ mod tests {
             .unwrap()
         }
 
+        fn bash_context() -> ResolvedContext {
+            let mut context = Self::context();
+
+            context.tools.insert(
+                String::from("shell"),
+                ResolvedContextTool {
+                    name: String::from("shell"),
+                    description: None,
+                    enabled: RuntimeValue::constant(true),
+                    capabilities: Vec::new(),
+                    config: Default::default(),
+                    kind: ResolvedContextToolKind::Bash(ResolvedContextToolBash {
+                        commands: vec![String::from("git")],
+                        cwd: String::from("/workspace"),
+                        env: ResolvedContextToolBashEnv::Empty,
+                        limits: ResolvedContextToolBashLimits {
+                            max_execution_time_secs: 7,
+                            max_output_size: 512,
+                            max_command_count: 23,
+                            max_loop_iterations: 29,
+                        },
+                        shared: true,
+                    }),
+                },
+            );
+
+            context
+        }
+
         fn generated_agent() -> String {
+            Self::generated_agent_for(Self::context())
+        }
+
+        fn generated_agent_for(context: ResolvedContext) -> String {
             AgentCodeGen {
-                fields: FieldsSpec::collect_from(&Self::context()),
+                fields: FieldsSpec::collect_from(&context),
                 config: ReActGraphConfig::default(),
             }
-            .generate_files(&GenerationContext::new(Self::context()), &ExtensionRegistry::empty())
+            .generate_files(&GenerationContext::new(context), &ExtensionRegistry::empty())
             .unwrap()
             .into_iter()
             .find(|(path, _)| path == &PathBuf::from("src/agent.rs"))
             .expect("agent file should be generated")
             .1
             .to_string()
+        }
+
+        fn langfuse_context() -> ResolvedContext {
+            let mut context = Self::context();
+
+            context.agent.prompt = Some(ResolvedContextAgentPromptSource::Langfuse(
+                ResolvedContextAgentPromptSourceLangfuse {
+                    prompt_name: RuntimeValue::constant("support/assistant".to_string()),
+                    public_key: RuntimeValue::required_runtime("LANGFUSE_PUBLIC_KEY"),
+                    secret_key: RuntimeValue::secret_runtime("LANGFUSE_SECRET_KEY"),
+                    base_url: Some(RuntimeValue::constant(
+                        "https://cloud.langfuse.com".to_string(),
+                    )),
+                    label: Some(RuntimeValue::constant("staging".to_string())),
+                    version: None,
+                    cache_ttl_seconds: Some(RuntimeValue::constant(30)),
+                    fetch_timeout_seconds: Some(RuntimeValue::constant(5)),
+                    max_retries: Some(RuntimeValue::constant(2)),
+                },
+            ));
+
+            context
         }
 
         fn configured_codegen() -> AgentCodeGen {
@@ -464,18 +454,61 @@ mod tests {
     }
 
     #[test]
-    fn generated_agent_registers_startup_configured_a2a_agents() {
+    fn generated_agent_names_no_mcp_or_a2a_wiring() {
         let rendered = AgentCodeGenFixture::generated_agent();
 
-        assert!(rendered.contains("config . a2a . agents"));
-        assert!(rendered.contains("A2aClientConfig :: new"));
-        assert!(rendered.contains("client_config . try_header"));
-        assert!(rendered.contains("target . send_task_tool"));
-        assert!(rendered.contains("target . stream_task_tool"));
-        assert!(rendered.contains("target . get_task_tool"));
-        assert!(rendered.contains("target . cancel_task_tool"));
-        assert!(!rendered.contains("build_a2a_headers"));
-        assert!(!rendered.contains("reqwest :: header"));
+        assert!(!rendered.contains("config . a2a . agents"));
+        assert!(!rendered.contains("config . mcp . servers"));
+        assert!(!rendered.contains("agentc_protocol_a2a"));
+        assert!(!rendered.contains("agentc_mcp"));
+    }
+
+    #[test]
+    fn generated_agent_threads_process_resources() {
+        let rendered = AgentCodeGenFixture::generated_agent();
+
+        assert!(rendered.contains("use agentc_fs :: Fs"));
+        assert!(rendered.contains("use agentc_http :: client :: HttpClient"));
+        assert!(rendered.contains("db : Arc < Database >"));
+        assert!(rendered.contains("fs : Fs"));
+        assert!(rendered.contains("http : HttpClient"));
+    }
+
+    #[test]
+    fn generated_agent_registers_bash_with_process_resources() {
+        let rendered =
+            AgentCodeGenFixture::generated_agent_for(AgentCodeGenFixture::bash_context());
+
+        assert!(rendered.contains("BashTool :: builder (fs . clone () , http . clone ())"));
+        assert!(rendered.contains("shared ()"));
+        assert!(!rendered.contains("FsPolicy"));
+        assert!(!rendered.contains("NetworkPolicy"));
+        assert!(!rendered.contains("fs_policy"));
+    }
+
+    #[test]
+    fn tools_contribute_their_imports_to_agent_use() {
+        let context = AgentCodeGenFixture::bash_context();
+
+        assert_eq!(
+            AgentCodeGen {
+                fields: FieldsSpec::collect_from(&context),
+                config: ReActGraphConfig::default(),
+            }
+            .generate_contribution(&GenerationContext::new(context), "agent::use")
+            .unwrap()
+            .downcast::<Imports>()
+            .unwrap()
+            .into_values()
+            .collect::<Vec<_>>(),
+            vec![
+                ImportContribution::path(&["agentc_tools", "bash"]).item("BashTool"),
+                ImportContribution::path(&["agentc_tools", "bash", "config"])
+                    .item("CommandPolicy")
+                    .item("EnvPolicy")
+                    .item("ExecLimits"),
+            ],
+        );
     }
 
     #[test]
@@ -489,6 +522,34 @@ mod tests {
     }
 
     #[test]
+    fn generated_agent_wires_constant_prompt_source() {
+        let rendered = AgentCodeGenFixture::generated_agent();
+
+        assert!(rendered.contains("with_prompt_source (ConstantPromptSource :: new"));
+        assert!(rendered.contains("PromptTemplate :: default"));
+    }
+
+    #[test]
+    fn generated_agent_wires_langfuse_prompt_source() {
+        let rendered =
+            AgentCodeGenFixture::generated_agent_for(AgentCodeGenFixture::langfuse_context());
+
+        assert!(rendered.contains("use std :: time :: Duration"));
+        assert!(rendered.contains("LangfusePromptSource"));
+        assert!(rendered.contains("LangfuseClient"));
+        assert!(rendered.contains("LangfusePromptSource :: builder"));
+        assert!(rendered.contains("LangfuseClient :: builder"));
+        assert!(rendered.contains("config . agent . prompt . langfuse . prompt_name"));
+        assert!(rendered.contains("config . agent . prompt . langfuse . public_key"));
+        assert!(rendered.contains("config . agent . prompt . langfuse . secret_key"));
+        assert!(rendered.contains("base_url"));
+        assert!(rendered.contains("fetch_timeout"));
+        assert!(rendered.contains("max_retries"));
+        assert!(rendered.contains("label"));
+        assert!(rendered.contains("cache_ttl"));
+    }
+
+    #[test]
     fn react_model_defaults_contribute_generated_config() {
         let codegen = AgentCodeGenFixture::configured_codegen();
         let context = GenerationContext::new(AgentCodeGenFixture::context());
@@ -496,25 +557,36 @@ mod tests {
         let impls = codegen
             .generate_contribution(&context, "config::impls")
             .unwrap()
+            .downcast::<RenderedTokenStream>()
+            .unwrap()
+            .as_str()
             .to_string();
         let loader = codegen
             .generate_contribution(&context, "config::loader")
             .unwrap()
+            .downcast::<RenderedTokenStream>()
+            .unwrap()
+            .as_str()
             .to_string();
         let mapper = codegen
             .generate_contribution(&context, "config::mapper")
             .unwrap()
+            .downcast::<RenderedTokenStream>()
+            .unwrap()
+            .as_str()
             .to_string();
 
         assert!(
             codegen
                 .generate_contribution(&context, "config::fields")
                 .unwrap()
-                .to_string()
-                .contains("react : ReActConfig")
+                .downcast::<RenderedTokenStream>()
+                .unwrap()
+                .as_str()
+                .contains("react : ConfigReAct")
         );
-        assert!(impls.contains("struct ReActModelConfig"));
-        assert!(impls.contains("struct ReActModelRetryConfig"));
+        assert!(impls.contains("struct ConfigReActModel"));
+        assert!(impls.contains("struct ConfigReActModelRetry"));
         assert!(loader.contains("\"react\" , \"model\" , \"timeout\""));
         assert!(loader.contains("\"max_attempts\""));
         assert!(loader.contains("\"initial_backoff\""));

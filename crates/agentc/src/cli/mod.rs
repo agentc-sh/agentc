@@ -9,6 +9,7 @@ pub mod context;
 pub mod errors;
 pub mod io;
 pub mod traits;
+pub mod types;
 pub mod ui;
 
 pub use crate::cli::args::CliArgs;

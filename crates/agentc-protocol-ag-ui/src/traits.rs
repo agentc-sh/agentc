@@ -10,7 +10,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use agentc_http::errors::ApiError;
+use agentc_http::server::errors::ApiError;
 
 use crate::protocol::{event::Event, input::RunAgentInput};
 
@@ -86,7 +86,7 @@ mod tests {
         atomic::{AtomicBool, Ordering},
     };
 
-    use agentc_http::errors::ApiError;
+    use agentc_http::server::errors::ApiError;
 
     use crate::protocol::event::Event;
 

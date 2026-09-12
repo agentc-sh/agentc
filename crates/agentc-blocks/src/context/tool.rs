@@ -81,37 +81,20 @@ pub struct ResolvedContextToolMcp {
 /// Resolved configuration for a bash sandbox tool.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResolvedContextToolBash {
-    /// Host program names registered as passthrough commands. Empty means no
-    /// additional programs beyond the interpreter's built-in set.
+    /// Host program names registered as passthrough commands.
     pub commands: Vec<String>,
-    /// Filesystem backend policy.
-    pub fs: ResolvedContextToolBashFs,
+
+    /// The initial working directory inside the process filesystem.
+    pub cwd: String,
+
     /// Environment variable forwarding policy.
     pub env: ResolvedContextToolBashEnv,
+
     /// Resource bounds applied to each execution.
     pub limits: ResolvedContextToolBashLimits,
-    /// Network access policy for sandboxed `curl` invocations.
-    pub network: ResolvedContextToolBashNetwork,
-}
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ResolvedContextToolBashFs {
-    /// The kind of filesystem backend to use.
-    pub kind: ResolvedContextToolBashFsKind,
-    /// The CWD inside the sandbox for each command execution.
-    pub cwd: String,
-}
-
-/// Filesystem backend policy for a bash sandbox tool.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum ResolvedContextToolBashFsKind {
-    /// All file operations are fully in-memory.
-    InMemory,
-    /// Copy-on-write overlay over the given host path.
-    Overlay(String),
-    /// Direct passthrough to the host filesystem at the given path.
-    ReadWrite(String),
+    /// Whether shell state is shared across invocations.
+    pub shared: bool,
 }
 
 /// Environment variable forwarding policy for a bash sandbox tool.
@@ -141,23 +124,6 @@ pub struct ResolvedContextToolBashLimits {
     pub max_loop_iterations: usize,
 }
 
-/// Network access policy for sandboxed `curl` in a bash sandbox tool.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ResolvedContextToolBashNetwork {
-    /// Whether sandboxed `curl` network access is permitted.
-    pub enabled: bool,
-    /// URL prefixes `curl` is allowed to contact.
-    pub allowed_url_prefixes: Vec<String>,
-    /// HTTP methods `curl` is allowed to use.
-    pub allowed_methods: Vec<String>,
-    /// Maximum redirects `curl` may follow.
-    pub max_redirects: usize,
-    /// Maximum response body size in bytes that `curl` may receive.
-    pub max_response_size: usize,
-    /// Maximum duration of a `curl` request in seconds.
-    pub network_timeout_secs: u64,
-}
-
 /// Resolved configuration for a Python tool.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResolvedContextToolPython {
@@ -166,15 +132,17 @@ pub struct ResolvedContextToolPython {
     pub project_path: String,
 
     /// Absolute path to the `site-packages` directory inside the virtual environment
-    /// created by the transform step. Passed directly to `py_freeze!` in the generated
-    /// code so that all installed dependencies are embedded at compile time.
+    /// created by the transform step. Embedded as a package tree bundle in the generated
+    /// code so that all installed dependencies are compiled into the binary.
     pub site_packages_path: String,
 
     /// The importable Python module name for this tool package, derived from
     /// `[project].name` in `pyproject.toml` with hyphens replaced by underscores.
-    /// Passed to `PythonToolBuilder::module` in the generated code so the runtime
-    /// imports the package before looking up the tool in `__tool_registry__`.
+    /// Used as the executor entry module in the generated code.
     pub module_name: String,
+
+    /// The name of the Python class that implements the tool interface.
+    pub export_name: String,
 
     /// Which Python runtime backend to use. Defaults to `embedded` (RustPython).
     pub interpreter: ResolvedContextToolPythonInterpreter,

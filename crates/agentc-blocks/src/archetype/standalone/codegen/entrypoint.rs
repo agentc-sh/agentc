@@ -30,7 +30,6 @@ impl CodeGen<ResolvedContext> for EntrypointCodeGen {
             mod agent;
             mod cli;
             mod config;
-            mod migrator;
 
             #extra_modules
 

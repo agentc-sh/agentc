@@ -15,7 +15,8 @@ use agentc_blocks::{
     runtime::EmbeddedAsset,
 };
 use agentc_compiler::{
-    compiler::Compiler, generator::blocks::Block, transformer::types::TransformedAsset,
+    generator::blocks::Block, toolchain::traits::ErasedToolchain,
+    transformer::types::TransformedAsset,
 };
 
 use crate::pipeline::{sender::Tx, steps::resolve::ResolveStepOutput, traits::Step};
@@ -71,8 +72,7 @@ pub struct ComposeStepOutput {
     pub graph_name: String,
     pub protocol_names: Vec<String>,
     pub context: ResolvedContext,
-    pub compiler: Box<dyn Compiler>,
-    pub target: Option<String>,
+    pub toolchain: Box<dyn ErasedToolchain>,
     pub blocks: Vec<Box<dyn Block<ResolvedContext>>>,
     pub embedded_assets: Vec<&'static EmbeddedAsset>,
     pub assets: Vec<TransformedAsset>,
@@ -131,8 +131,7 @@ impl Step for ComposeStep {
             archetype_name,
             graph_name,
             protocol_names,
-            compiler,
-            target,
+            toolchain,
             blocks,
             embedded_assets,
         } = Composer::new().compose(CompositionInput {
@@ -157,8 +156,7 @@ impl Step for ComposeStep {
             graph_name,
             protocol_names,
             context: input.context,
-            compiler,
-            target,
+            toolchain,
             blocks,
             embedded_assets,
             assets: input.assets,

@@ -34,7 +34,7 @@ agent "my_agent" {
 | `graph` | block | yes | | Graph selection. See below. |
 | `version` | string | no | no | Semver version string embedded in the binary. Defaults to `"0.1.0"`. |
 | `description` | string | no | no | Human-readable description of the agent. |
-| `prompt` | string or list | no | no | System prompt. Supports Jinja2 templates. |
+| `prompt` | string, list, or source object | no | no | System prompt. Supports Jinja2 templates. |
 | `capabilities` | list of strings | no | yes | Capability tags the agent is allowed to use. |
 | `capability_policy` | string | no | yes | How capabilities are enforced. See below. |
 | `model` | block | yes | | Model configuration. |
@@ -59,8 +59,8 @@ for the shipped graph's behavior.
 
 ## prompt
 
-The `prompt` field sets the agent's system prompt. It accepts either a plain string or a list of
-role/content objects for multi-turn system prompts.
+The `prompt` field sets the agent's prompt. It accepts a plain string, a list of role/content
+objects for multi-turn prompts, or a configured prompt source.
 
 ```hcl
 # Plain string
@@ -75,7 +75,45 @@ prompt = [
 
 The prompt supports Jinja2 template syntax. Variables are injected at runtime before each run. The
 set of available variables is graph-dependent; see [ReAct prompt templates](/reference/graph/react/prompt-templates)
-for the list the ReAct graph provides, and [Write dynamic prompts](/guides/write-dynamic-prompts) for how to use them.
+for the list the ReAct graph provides, and [Write templated prompts](/guides/write-templated-prompts) for how to use them.
+
+### Langfuse prompt source
+
+Use a Langfuse source object to retrieve the prompt from Langfuse Prompt Management at runtime:
+
+```hcl
+prompt = {
+  source = "langfuse"
+
+  prompt_name = "support/assistant"
+  public_key  = runtime("LANGFUSE_PUBLIC_KEY")
+  secret_key  = secret(runtime("LANGFUSE_SECRET_KEY"))
+
+  label                 = runtime("LANGFUSE_PROMPT_LABEL", "staging")
+  cache_ttl_seconds     = runtime("LANGFUSE_CACHE_TTL_SECONDS", 60)
+  fetch_timeout_seconds = runtime("LANGFUSE_FETCH_TIMEOUT_SECONDS", 5)
+  max_retries           = runtime("LANGFUSE_MAX_RETRIES", 2)
+}
+```
+
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `source` | string | yes | no | | Must be `langfuse`. |
+| `prompt_name` | string | yes | yes | | Langfuse prompt name, including any folder path. |
+| `public_key` | string | yes | yes | | Langfuse project public key. |
+| `secret_key` | string | yes | yes | | Langfuse project secret key. Normally wrapped in `secret(runtime(...))`. |
+| `base_url` | string | no | yes | `https://cloud.langfuse.com` | Langfuse Cloud or self-hosted base URL. |
+| `label` | string | no | yes | | Movable label used to select a prompt version. |
+| `version` | number | no | yes | | Immutable numeric prompt version. |
+| `cache_ttl_seconds` | number | no | yes | `60` | Local cache lifetime. Set to `0` to disable caching. |
+| `fetch_timeout_seconds` | number | no | yes | `5` | Fetch timeout for each request attempt. |
+| `max_retries` | number | no | yes | `2` | Additional attempts for transient fetch failures. |
+
+`label` and `version` are mutually exclusive. When both are omitted, Langfuse applies its default
+production selection.
+
+See [Manage prompts with Langfuse](/guides/manage-prompts-with-langfuse) for credential setup,
+selection strategies, caching behavior, and prompt conversion.
 
 ## capabilities and capability_policy
 

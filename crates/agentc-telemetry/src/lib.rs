@@ -13,19 +13,7 @@ pub mod metrics {
     };
 }
 
-/// Semantic-convention attribute keys and metric names.
-pub mod semconv {
-    pub use opentelemetry_semantic_conventions::*;
-
-    /// `gen_ai.execute_tool` operation duration metric name.
-    pub const GEN_AI_EXECUTE_TOOL_DURATION: &str = "gen_ai.execute_tool.duration";
-
-    /// `gen_ai.invoke_agent` operation duration metric name.
-    pub const GEN_AI_INVOKE_AGENT_DURATION: &str = "gen_ai.invoke_agent.duration";
-
-    /// `gen_ai.invoke_workflow` operation duration metric name.
-    pub const GEN_AI_WORKFLOW_DURATION: &str = "gen_ai.workflow.duration";
-}
+pub mod semconv;
 
 use anyhow::Result;
 use opentelemetry::{KeyValue, global, trace::TracerProvider};

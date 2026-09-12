@@ -5,12 +5,11 @@ description = ""
 readme = "README.md"
 authors = []
 requires-python = ">=3.14"
-dependencies = [
-    "agentc-tdk @ git+https://github.com/agentc-sh/python-tdk.git@0.1.0"
-]
+dependencies = []
 
 [dependency-groups]
 dev = [
+    "agentc-runtime @ git+https://github.com/agentc-sh/agentc@{{ agentc_version }}#subdirectory=packages/python/runtime",
     "pytest>=9.0.3",
 ]
 
@@ -18,6 +17,5 @@ dev = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-[tool.hatch.metadata]
-# Hatch requires explicitly allowing direct references to git repositories.
-allow-direct-references = true
+[tool.pyright]
+reportMissingModuleSource = "none"

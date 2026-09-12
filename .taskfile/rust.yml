@@ -33,7 +33,10 @@ tasks:
           -p agentc-database \
           -p agentc-domain \
           -p agentc-domain-sql \
+          -p agentc-executor-python \
+          -p agentc-executor-typescript \
           -p agentc-http \
+          -p agentc-fs \
           -p agentc-mcp \
           -p agentc-model \
           -p agentc-prompt \
@@ -93,6 +96,8 @@ tasks:
           -p agentc-database \
           -p agentc-domain \
           -p agentc-domain-sql \
+          -p agentc-executor-python \
+          -p agentc-executor-typescript \
           -p agentc-http \
           -p agentc-mcp \
           -p agentc-model \

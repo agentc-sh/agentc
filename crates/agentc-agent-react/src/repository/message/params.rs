@@ -15,6 +15,7 @@ pub struct FindMessageParams {
     pub ids: Option<Vec<Uuid>>,
     pub session_ids: Option<Vec<Uuid>>,
     pub run_ids: Option<Vec<Uuid>>,
+    pub checkpoint_ids: Option<Vec<Uuid>>,
     pub roles: Option<Vec<MessageRole>>,
     pub created_before: Option<DateTime<Utc>>,
     pub created_after: Option<DateTime<Utc>>,
@@ -74,6 +75,15 @@ impl FindMessageParams {
 
     pub fn run_ids(mut self, ids: impl IntoIterator<Item = impl Into<Uuid>>) -> Self {
         self.run_ids = Some(
+            ids.into_iter()
+                .map(Into::into)
+                .collect(),
+        );
+        self
+    }
+
+    pub fn checkpoint_ids(mut self, ids: impl IntoIterator<Item = impl Into<Uuid>>) -> Self {
+        self.checkpoint_ids = Some(
             ids.into_iter()
                 .map(Into::into)
                 .collect(),

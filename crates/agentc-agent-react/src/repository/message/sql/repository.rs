@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use agentc_database::{
     connection::ConnectionContext,
-    orm::{ColumnTrait, EntityTrait, Iden, QueryFilter, QueryTrait},
+    orm::{ColumnTrait, Condition, EntityTrait, Iden, QueryFilter, QueryTrait},
     paginate::CursorPaginatorExt,
     query::OnConflict,
 };
@@ -95,6 +95,13 @@ impl<'a> MessageRepository for SqlMessageRepository<'a> {
             })
             .apply_if(params.run_ids, |query, value| {
                 query.filter(models::message::Column::RunId.is_in(value))
+            })
+            .apply_if(params.checkpoint_ids, |query, value| {
+                query.filter(
+                    Condition::any()
+                        .add(models::message::Column::CheckpointId.is_in(value))
+                        .add(models::message::Column::CheckpointId.is_null()),
+                )
             })
             .apply_if(params.roles, |query, value| {
                 query.filter(

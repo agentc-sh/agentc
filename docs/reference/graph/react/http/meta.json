@@ -5,6 +5,7 @@
     "sessions",
     "messages",
     "runs",
+    "checkpoints",
     "types"
   ]
 }

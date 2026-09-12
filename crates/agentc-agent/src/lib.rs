@@ -9,6 +9,7 @@ pub mod agent;
 pub mod context;
 pub mod errors;
 pub mod graph;
+pub mod instrument;
 pub mod stream;
 pub mod tools;
 pub mod types;

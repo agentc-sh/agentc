@@ -1,0 +1,33 @@
+[package]
+name = "agentc-executor-python"
+version.workspace = true
+edition.workspace = true
+description.workspace = true
+repository.workspace = true
+license.workspace = true
+readme.workspace = true
+
+[features]
+default = ["rustpython"]
+rustpython = ["guestpy/rustpython"]
+pyo3 = ["guestpy/pyo3"]
+
+[dependencies]
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+futures = { workspace = true }
+
+thiserror = { workspace = true }
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dependencies.guestpy]
+git = "https://github.com/wizrds/guestpy.git"
+rev = "0.3.1"
+features = [
+    "tokio",
+    "embedded",
+    "serde",
+    "bytes",
+]

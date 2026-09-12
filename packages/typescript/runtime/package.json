@@ -1,0 +1,25 @@
+{
+  "name": "@agentc-sh/runtime",
+  "version": "0.3.1",
+  "description": "Typescript declarations for the agentc runtime",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/agentc-sh/agentc.git",
+    "directory": "packages/typescript/runtime"
+  },
+  "author": "agentc authors <hello@agentc.sh>",
+  "packageManager": "pnpm@11.1.2",
+  "keywords": [
+    "agentc",
+    "runtime",
+    "typescript",
+    "stubs"
+  ],
+  "types": "src/index.d.ts",
+  "files": ["src"],
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.13",
+    "typescript": "^7.0.2"
+  }
+}

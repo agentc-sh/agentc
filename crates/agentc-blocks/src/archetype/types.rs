@@ -2,13 +2,12 @@
 //
 // SPDX-License-Identifier: MIT
 
-use agentc_compiler::compiler::traits::Compiler;
+use agentc_compiler::toolchain::traits::ErasedToolchain;
 
 use crate::composition::GenerationContribution;
 
 pub struct ResolvedArchetype {
     pub name: String,
-    pub compiler: Box<dyn Compiler>,
-    pub target: Option<String>,
+    pub toolchain: Box<dyn ErasedToolchain>,
     pub contribution: GenerationContribution,
 }

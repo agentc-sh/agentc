@@ -6,10 +6,11 @@ pub mod agent;
 pub mod block;
 pub mod build;
 pub mod errors;
+pub mod filesystem;
 pub mod graph;
 pub mod http_server;
 pub mod interpolate;
-pub mod observability;
+pub mod network;
 pub mod provider;
 pub mod runtime;
 pub mod skill;
@@ -18,8 +19,10 @@ pub mod tool;
 pub use agent::*;
 pub use block::*;
 pub use build::*;
+pub use filesystem::*;
 pub use graph::*;
 pub use http_server::*;
+pub use network::*;
 pub use provider::*;
 pub use runtime::*;
 pub use skill::*;
@@ -76,6 +79,14 @@ pub struct Manifest {
     #[serde(default)]
     #[validate(nested)]
     pub http_server: Option<ManifestHttpServer>,
+    /// Outbound network configuration.
+    #[serde(default)]
+    #[validate(nested)]
+    pub network: ManifestNetwork,
+    /// Virtual filesystem topology.
+    #[serde(default)]
+    #[validate(nested)]
+    pub filesystem: ManifestFilesystem,
 }
 
 impl Manifest {
@@ -412,33 +423,63 @@ impl Manifest {
             description: agent_block
                 .description
                 .map(|d| d.interpolate(&locals)),
-            prompt: agent_block
-                .prompt
-                .map(|prompt| match prompt {
-                    ManifestAgentPrompt::Prompt(content) => {
-                        vec![ResolvedContextAgentPromptMessage {
+            prompt: match agent_block.prompt {
+                None => None,
+                Some(ManifestAgentPrompt::Prompt(content)) => {
+                    Some(ResolvedContextAgentPromptSource::Constant {
+                        messages: vec![ResolvedContextAgentPromptMessage {
                             role: ResolvedContextAgentPromptMessageRole::System,
                             content: content.interpolate(&locals),
-                        }]
+                        }],
+                    })
+                }
+                Some(ManifestAgentPrompt::Messages(messages)) => {
+                    Some(ResolvedContextAgentPromptSource::Constant {
+                        messages: messages
+                            .into_iter()
+                            .map(|message| ResolvedContextAgentPromptMessage {
+                                role: match message.role {
+                                    ManifestAgentPromptMessageRole::System => {
+                                        ResolvedContextAgentPromptMessageRole::System
+                                    }
+                                    ManifestAgentPromptMessageRole::User => {
+                                        ResolvedContextAgentPromptMessageRole::User
+                                    }
+                                    ManifestAgentPromptMessageRole::Assistant => {
+                                        ResolvedContextAgentPromptMessageRole::Assistant
+                                    }
+                                },
+                                content: message.content.interpolate(&locals),
+                            })
+                            .collect(),
+                    })
+                }
+                Some(ManifestAgentPrompt::Source(ManifestAgentPromptSource::Langfuse(prompt))) => {
+                    if prompt.label.is_some() && prompt.version.is_some() {
+                        return Err(ManifestError::resolution(
+                            "Langfuse prompt cannot set both `label` and `version`",
+                        ));
                     }
-                    ManifestAgentPrompt::Messages(messages) => messages
-                        .into_iter()
-                        .map(|message| ResolvedContextAgentPromptMessage {
-                            role: match message.role {
-                                ManifestAgentPromptMessageRole::System => {
-                                    ResolvedContextAgentPromptMessageRole::System
-                                }
-                                ManifestAgentPromptMessageRole::User => {
-                                    ResolvedContextAgentPromptMessageRole::User
-                                }
-                                ManifestAgentPromptMessageRole::Assistant => {
-                                    ResolvedContextAgentPromptMessageRole::Assistant
-                                }
-                            },
-                            content: message.content.interpolate(&locals),
-                        })
-                        .collect(),
-                }),
+
+                    Some(ResolvedContextAgentPromptSource::Langfuse(
+                        ResolvedContextAgentPromptSourceLangfuse {
+                            prompt_name: prompt.prompt_name.interpolate(&locals),
+                            public_key: prompt.public_key.interpolate(&locals),
+                            secret_key: prompt.secret_key.interpolate(&locals),
+                            base_url: prompt
+                                .base_url
+                                .map(|value| value.interpolate(&locals)),
+                            label: prompt
+                                .label
+                                .map(|value| value.interpolate(&locals)),
+                            version: prompt.version,
+                            cache_ttl_seconds: prompt.cache_ttl_seconds,
+                            fetch_timeout_seconds: prompt.fetch_timeout_seconds,
+                            max_retries: prompt.max_retries,
+                        },
+                    ))
+                }
+            },
             capabilities: agent_block
                 .capabilities
                 .clone()
@@ -548,8 +589,8 @@ impl Manifest {
                     })
                 }
 
-                ManifestToolKind::Mcp(mcp) => ResolvedContextToolKind::Mcp(
-                    ResolvedContextToolMcp {
+                ManifestToolKind::Mcp(mcp) => {
+                    ResolvedContextToolKind::Mcp(ResolvedContextToolMcp {
                         transport: match mcp {
                             ManifestMcpTool::Stdio { command, args, config } => {
                                 ResolvedContextToolMcpTransport::Stdio {
@@ -566,11 +607,11 @@ impl Manifest {
                                 }
                             }
                         },
-                    }
-                ),
+                    })
+                }
 
-                ManifestToolKind::A2a(a2a) => ResolvedContextToolKind::A2a(
-                    ResolvedContextToolA2a {
+                ManifestToolKind::A2a(a2a) => {
+                    ResolvedContextToolKind::A2a(ResolvedContextToolA2a {
                         url: a2a.url.clone(),
                         auth_token: a2a.auth_token.clone(),
                         headers: a2a.headers.clone(),
@@ -585,8 +626,8 @@ impl Manifest {
                         default_accepted_output_modes: a2a
                             .default_accepted_output_modes
                             .clone(),
-                    }
-                ),
+                    })
+                }
 
                 ManifestToolKind::Python(py) => {
                     let transformed = assets
@@ -635,54 +676,56 @@ impl Manifest {
                         project_path,
                         site_packages_path,
                         module_name,
+                        export_name: py
+                            .export
+                            .clone()
+                            .unwrap_or_else(|| name.clone()),
                         interpreter: match py.interpreter {
-                            ManifestPythonInterpreter::Embedded => ResolvedContextToolPythonInterpreter::Embedded,
-                            ManifestPythonInterpreter::Static   => ResolvedContextToolPythonInterpreter::Static,
+                            ManifestPythonInterpreter::Embedded => {
+                                ResolvedContextToolPythonInterpreter::Embedded
+                            }
+                            ManifestPythonInterpreter::Static => {
+                                ResolvedContextToolPythonInterpreter::Static
+                            }
                         },
                     })
                 }
 
-                ManifestToolKind::Bash(bash) => ResolvedContextToolKind::Bash(
-                    ResolvedContextToolBash {
+                ManifestToolKind::Bash(bash) => {
+                    ResolvedContextToolKind::Bash(ResolvedContextToolBash {
                         commands: bash.commands.clone(),
-                        fs: ResolvedContextToolBashFs {
-                            kind: match &bash.fs.kind {
-                                ManifestBashFsKind::InMemory  => ResolvedContextToolBashFsKind::InMemory,
-                                ManifestBashFsKind::Overlay   => ResolvedContextToolBashFsKind::Overlay(
-                                    bash.fs.path.clone().ok_or_else(|| ManifestError::resolution(
-                                        format!("tool `{name}`: fs kind `overlay` requires a `path`")
-                                    ))?
-                                ),
-                                ManifestBashFsKind::ReadWrite => ResolvedContextToolBashFsKind::ReadWrite(
-                                    bash.fs.path.clone().ok_or_else(|| ManifestError::resolution(
-                                        format!("tool `{name}`: fs kind `read_write` requires a `path`")
-                                    ))?
-                                ),
-                            },
-                            cwd: bash.fs.cwd.clone(),
-                        },
+                        cwd: bash.cwd.clone(),
                         env: match &bash.env.kind {
-                            ManifestBashEnvKind::Empty   => ResolvedContextToolBashEnv::Empty,
+                            ManifestBashEnvKind::Empty => ResolvedContextToolBashEnv::Empty,
                             ManifestBashEnvKind::Inherit => ResolvedContextToolBashEnv::Inherit,
-                            ManifestBashEnvKind::Allow   => ResolvedContextToolBashEnv::Allow(bash.env.vars.clone()),
-                            ManifestBashEnvKind::Deny    => ResolvedContextToolBashEnv::Deny(bash.env.vars.clone()),
+                            ManifestBashEnvKind::Allow => {
+                                ResolvedContextToolBashEnv::Allow(bash.env.vars.clone())
+                            }
+                            ManifestBashEnvKind::Deny => {
+                                ResolvedContextToolBashEnv::Deny(bash.env.vars.clone())
+                            }
                         },
                         limits: ResolvedContextToolBashLimits {
-                            max_execution_time_secs: bash.limits.max_execution_time_secs.unwrap_or(30),
-                            max_output_size:         bash.limits.max_output_size.unwrap_or(10 * 1024 * 1024),
-                            max_command_count:       bash.limits.max_command_count.unwrap_or(10_000),
-                            max_loop_iterations:     bash.limits.max_loop_iterations.unwrap_or(10_000),
+                            max_execution_time_secs: bash
+                                .limits
+                                .max_execution_time_secs
+                                .unwrap_or(30),
+                            max_output_size: bash
+                                .limits
+                                .max_output_size
+                                .unwrap_or(10 * 1024 * 1024),
+                            max_command_count: bash
+                                .limits
+                                .max_command_count
+                                .unwrap_or(10_000),
+                            max_loop_iterations: bash
+                                .limits
+                                .max_loop_iterations
+                                .unwrap_or(10_000),
                         },
-                        network: ResolvedContextToolBashNetwork {
-                            enabled:              bash.network.enabled.unwrap_or(false),
-                            allowed_url_prefixes: bash.network.allowed_url_prefixes.clone(),
-                            allowed_methods:      bash.network.allowed_methods.iter().cloned().collect(),
-                            max_redirects:        bash.network.max_redirects.unwrap_or(0),
-                            max_response_size:    bash.network.max_response_size.unwrap_or(10 * 1024 * 1024),
-                            network_timeout_secs: bash.network.network_timeout_secs.unwrap_or(30),
-                        },
-                    }
-                ),
+                        shared: bash.shared,
+                    })
+                }
             };
 
             resolved.insert(
@@ -732,37 +775,16 @@ impl Manifest {
                         ))?
                         .clone();
 
-                    let skill_md_path = skill_md_artifact
-                        .to_string_lossy()
-                        .to_string();
-
-                    // The skill directory is the parent of the SKILL.md artifact.
-                    let skill_dir = skill_md_artifact
-                        .parent()
-                        .ok_or_else(|| {
-                            ManifestError::resolution(format!(
-                                "could not determine skill directory for `{name}`."
-                            ))
-                        })?
-                        .to_path_buf();
-
-                    let resources = transformed
-                        .artifacts_of("resource")
-                        .into_iter()
-                        .filter_map(|a| {
-                            let path = a.as_path()?;
-                            let rel = path
-                                .strip_prefix(&skill_dir)
-                                .ok()?
-                                .to_string_lossy()
-                                .to_string();
-                            Some((rel, path.to_string_lossy().to_string()))
-                        })
-                        .collect();
-
                     ResolvedContextSkillKind::Source(ResolvedContextSkillSource {
-                        skill_md_path,
-                        resources,
+                        dir: skill_md_artifact
+                            .parent()
+                            .ok_or_else(|| {
+                                ManifestError::resolution(format!(
+                                    "could not determine skill directory for `{name}`."
+                                ))
+                            })?
+                            .to_string_lossy()
+                            .to_string(),
                     })
                 }
 
@@ -813,6 +835,110 @@ impl Manifest {
             })
     }
 
+    fn resolve_network(&self) -> ResolvedContextNetwork {
+        ResolvedContextNetwork {
+            user_agent: self.network.user_agent.clone(),
+            headers: self.network.headers.clone(),
+            limits: ResolvedContextNetworkLimits {
+                connect_timeout_ms: self
+                    .network
+                    .limits
+                    .connect_timeout_ms
+                    .clone(),
+                read_timeout_ms: self
+                    .network
+                    .limits
+                    .read_timeout_ms
+                    .clone(),
+                request_timeout_ms: self
+                    .network
+                    .limits
+                    .request_timeout_ms
+                    .clone(),
+                max_redirects: self
+                    .network
+                    .limits
+                    .max_redirects
+                    .clone(),
+                max_response_bytes: self
+                    .network
+                    .limits
+                    .max_response_bytes
+                    .clone(),
+                concurrency_limit: self
+                    .network
+                    .limits
+                    .concurrency_limit
+                    .clone(),
+            },
+            policy: ResolvedContextNetworkPolicy {
+                addresses: ResolvedContextNetworkPolicyAddresses {
+                    allow_loopback: self
+                        .network
+                        .policy
+                        .addresses
+                        .allow_loopback
+                        .clone(),
+                    allow_private: self
+                        .network
+                        .policy
+                        .addresses
+                        .allow_private
+                        .clone(),
+                    allow_link_local: self
+                        .network
+                        .policy
+                        .addresses
+                        .allow_link_local
+                        .clone(),
+                },
+                methods: self.network.policy.methods.clone(),
+                allow: match &self.network.policy.allow {
+                    RuntimeValue::Constant(patterns) => RuntimeValue::Constant(
+                        patterns
+                            .iter()
+                            .map(|pattern| ResolvedContextNetworkUrlPattern {
+                                protocol: pattern.protocol.clone(),
+                                hostname: pattern.hostname.clone(),
+                                port: pattern.port.clone(),
+                                pathname: pattern.pathname.clone(),
+                            })
+                            .collect(),
+                    ),
+                    RuntimeValue::Runtime { env, default, secret } => RuntimeValue::Runtime {
+                        env: env.clone(),
+                        default: default.as_ref().map(|patterns| {
+                            patterns
+                                .iter()
+                                .map(|pattern| ResolvedContextNetworkUrlPattern {
+                                    protocol: pattern.protocol.clone(),
+                                    hostname: pattern.hostname.clone(),
+                                    port: pattern.port.clone(),
+                                    pathname: pattern.pathname.clone(),
+                                })
+                                .collect()
+                        }),
+                        secret: *secret,
+                    },
+                },
+            },
+        }
+    }
+
+    fn resolve_filesystem(&self) -> ResolvedContextFilesystem {
+        ResolvedContextFilesystem {
+            mounts: self
+                .filesystem
+                .mounts
+                .iter()
+                .map(|mount| ResolvedContextFilesystemMount {
+                    path: mount.path.clone(),
+                    backend: mount.backend.resolve(),
+                })
+                .collect(),
+        }
+    }
+
     pub async fn resolve(
         self,
         loader: &dyn ResourceLoader,
@@ -833,6 +959,8 @@ impl Manifest {
                 tools: self.resolve_tools(assets)?,
                 skills: self.resolve_skills(assets)?,
                 http_server: self.resolve_http_server(),
+                network: self.resolve_network(),
+                filesystem: self.resolve_filesystem(),
             },
             self.build.config(),
         ))
@@ -862,7 +990,7 @@ mod tests {
     use async_trait::async_trait;
 
     use super::*;
-    use crate::parser::SpecFormat;
+    use crate::parser::{SpecFormat, middleware::hcl::RuntimeFunctionDeserialize};
     use agentc_compiler::generator::errors::GeneratorError;
 
     struct EmptyLoader;
@@ -871,6 +999,71 @@ mod tests {
     impl ResourceLoader for EmptyLoader {
         async fn load(&self, path: &str) -> Result<String, GeneratorError> {
             Err(GeneratorError::resource_not_found(path))
+        }
+    }
+
+    struct LangfuseManifestFixture;
+
+    impl LangfuseManifestFixture {
+        fn manifest(selector: &str) -> Manifest {
+            SpecFormat::hcl()
+                .with_hcl_deserialize_middleware(RuntimeFunctionDeserialize)
+                .deserialize_string::<Manifest>(&format!(
+                    r#"
+build {{
+  archetype = "standalone"
+}}
+
+providers {{}}
+
+locals {{
+  prompt_folder = "support"
+  public_key    = "public"
+  secret_key    = "secret"
+  base_url      = "https://langfuse.example.com"
+  label         = "staging"
+}}
+
+agent "assistant" {{
+  graph {{
+    type = "react"
+  }}
+
+  prompt = {{
+    source = "langfuse"
+
+    prompt_name           = "${{locals.prompt_folder}}/assistant"
+    public_key            = runtime("LANGFUSE_PUBLIC_KEY", "${{locals.public_key}}")
+    secret_key            = secret(runtime("LANGFUSE_SECRET_KEY", "${{locals.secret_key}}"))
+    base_url              = "${{locals.base_url}}"
+    cache_ttl_seconds     = runtime("LANGFUSE_CACHE_TTL", 30)
+    fetch_timeout_seconds = runtime("LANGFUSE_FETCH_TIMEOUT", 5)
+    max_retries           = runtime("LANGFUSE_MAX_RETRIES", 2)
+    {selector}
+  }}
+
+  model {{
+    provider = "anthropic"
+    name     = "claude-haiku-4-5"
+  }}
+}}
+"#
+                ))
+                .expect("manifest should deserialize")
+        }
+
+        async fn resolve(
+            selector: &str,
+        ) -> Result<ResolvedContextAgentPromptSourceLangfuse, ManifestError> {
+            let (resolved, _) = Self::manifest(selector)
+                .resolve(&EmptyLoader, &[])
+                .await?;
+            let Some(ResolvedContextAgentPromptSource::Langfuse(prompt)) = resolved.agent.prompt
+            else {
+                panic!("prompt should resolve as Langfuse");
+            };
+
+            Ok(prompt)
         }
     }
 
@@ -939,6 +1132,144 @@ mod tests {
                 .deserialize_string::<Manifest>(Self::json())
                 .expect("manifest should deserialize")
         }
+    }
+
+    struct BashManifestFixture;
+
+    impl BashManifestFixture {
+        fn manifest(body: &str) -> Manifest {
+            SpecFormat::hcl()
+                .with_hcl_deserialize_middleware(RuntimeFunctionDeserialize)
+                .deserialize_string::<Manifest>(&format!(
+                    r#"
+build {{
+  archetype = "standalone"
+}}
+
+providers {{}}
+
+agent "assistant" {{
+  graph {{
+    type = "react"
+  }}
+
+  model {{
+    provider = "anthropic"
+    name     = "claude-haiku-4-5"
+  }}
+}}
+
+tool "shell" {{
+  kind = "bash"
+  {body}
+}}
+"#
+                ))
+                .expect("manifest should deserialize")
+        }
+
+        async fn resolve(body: &str) -> ResolvedContextToolBash {
+            let (context, _) = Self::manifest(body)
+                .resolve(&EmptyLoader, &[])
+                .await
+                .expect("manifest should resolve");
+            let ResolvedContextToolKind::Bash(bash) = &context
+                .tools
+                .get("shell")
+                .expect("shell tool should exist")
+                .kind
+            else {
+                panic!("shell tool should resolve as Bash");
+            };
+
+            bash.clone()
+        }
+    }
+
+    #[tokio::test]
+    async fn resolves_langfuse_prompt_runtime_configuration() {
+        let prompt = LangfuseManifestFixture::resolve("")
+            .await
+            .expect("Langfuse prompt should resolve");
+
+        assert!(matches!(
+            prompt.prompt_name,
+            RuntimeValue::Constant(value) if value == "support/assistant"
+        ));
+        assert!(matches!(
+            prompt.public_key,
+            RuntimeValue::Runtime {
+                env,
+                default: Some(default),
+                secret: false,
+            } if env == "LANGFUSE_PUBLIC_KEY" && default == "public"
+        ));
+        assert!(matches!(
+            prompt.secret_key,
+            RuntimeValue::Runtime {
+                env,
+                default: Some(default),
+                secret: true,
+            } if env == "LANGFUSE_SECRET_KEY" && default == "secret"
+        ));
+        assert!(matches!(
+            prompt.base_url,
+            Some(RuntimeValue::Constant(value))
+                if value == "https://langfuse.example.com"
+        ));
+        assert!(prompt.label.is_none());
+        assert!(prompt.version.is_none());
+        assert!(matches!(
+            prompt.cache_ttl_seconds,
+            Some(RuntimeValue::Runtime { env, default: Some(30), .. })
+                if env == "LANGFUSE_CACHE_TTL"
+        ));
+        assert!(matches!(
+            prompt.fetch_timeout_seconds,
+            Some(RuntimeValue::Runtime { env, default: Some(5), .. })
+                if env == "LANGFUSE_FETCH_TIMEOUT"
+        ));
+        assert!(matches!(
+            prompt.max_retries,
+            Some(RuntimeValue::Runtime { env, default: Some(2), .. })
+                if env == "LANGFUSE_MAX_RETRIES"
+        ));
+    }
+
+    #[tokio::test]
+    async fn resolves_langfuse_label_selector() {
+        let prompt = LangfuseManifestFixture::resolve(
+            r#"label = runtime("LANGFUSE_LABEL", "${locals.label}")"#,
+        )
+        .await
+        .expect("Langfuse prompt should resolve");
+
+        assert!(matches!(
+            prompt.label,
+            Some(RuntimeValue::Runtime {
+                env,
+                default: Some(default),
+                secret: false,
+            }) if env == "LANGFUSE_LABEL" && default == "staging"
+        ));
+        assert!(prompt.version.is_none());
+    }
+
+    #[tokio::test]
+    async fn rejects_conflicting_langfuse_selectors() {
+        let error = LangfuseManifestFixture::resolve(
+            r#"
+label   = "production"
+version = 7
+"#,
+        )
+        .await
+        .expect_err("conflicting selectors should fail");
+
+        assert_eq!(
+            error.to_string(),
+            "manifest resolution failed: Langfuse prompt cannot set both `label` and `version`",
+        );
     }
 
     #[test]
@@ -1016,5 +1347,211 @@ mod tests {
                 .collect_assets()
                 .is_empty()
         );
+    }
+
+    #[tokio::test]
+    async fn network_manifest_block_resolves_constants_and_runtime_leaves() {
+        let manifest = SpecFormat::hcl()
+            .with_hcl_deserialize_middleware(RuntimeFunctionDeserialize)
+            .deserialize_string::<Manifest>(
+                r#"
+build {
+  archetype = "standalone"
+}
+
+providers {}
+
+agent "assistant" {
+  graph {
+    type = "react"
+  }
+
+  model {
+    provider = "anthropic"
+    name     = "claude-haiku-4-5"
+  }
+}
+
+network {
+  limits {
+    max_redirects = 3
+  }
+
+  policy {
+    addresses {
+      allow_private = runtime("NETWORK_ALLOW_PRIVATE", false)
+    }
+
+    allow = [{ hostname = "api.internal.example.com" }]
+  }
+}
+"#,
+            )
+            .expect("manifest should deserialize");
+
+        let (resolved, _) = manifest
+            .resolve(&EmptyLoader, &[])
+            .await
+            .expect("manifest should resolve");
+
+        assert_eq!(resolved.network.limits.max_redirects, RuntimeValue::Constant(3));
+        assert!(matches!(
+            &resolved.network.policy.addresses.allow_private,
+            RuntimeValue::Runtime { env, default, .. }
+                if env == "NETWORK_ALLOW_PRIVATE" && default == &Some(false)
+        ));
+        assert!(matches!(
+            &resolved.network.policy.allow,
+            RuntimeValue::Constant(patterns)
+                if patterns.len() == 1
+                    && patterns[0].hostname.as_deref() == Some("api.internal.example.com")
+        ));
+        assert!(matches!(
+            &resolved.network.user_agent,
+            RuntimeValue::Runtime { env, default: Some(None), .. } if env == "NETWORK_USER_AGENT"
+        ));
+    }
+
+    #[tokio::test]
+    async fn filesystem_manifest_block_resolves_nested_backends_and_defaults_to_memory() {
+        let default_manifest = SpecFormat::hcl()
+            .with_hcl_deserialize_middleware(RuntimeFunctionDeserialize)
+            .deserialize_string::<Manifest>(
+                r#"
+build {
+  archetype = "standalone"
+}
+
+providers {}
+
+agent "assistant" {
+  graph {
+    type = "react"
+  }
+
+  model {
+    provider = "anthropic"
+    name     = "claude-haiku-4-5"
+  }
+}
+"#,
+            )
+            .expect("manifest should deserialize");
+
+        let (resolved, _) = default_manifest
+            .resolve(&EmptyLoader, &[])
+            .await
+            .expect("manifest should resolve");
+
+        assert_eq!(resolved.filesystem.mounts.len(), 1);
+        assert_eq!(resolved.filesystem.mounts[0].path, "/");
+        assert!(matches!(
+            resolved.filesystem.mounts[0].backend,
+            ResolvedContextFilesystemBackend::Memory
+        ));
+
+        let overlay_manifest = SpecFormat::hcl()
+            .with_hcl_deserialize_middleware(RuntimeFunctionDeserialize)
+            .deserialize_string::<Manifest>(
+                r#"
+build {
+  archetype = "standalone"
+}
+
+providers {}
+
+agent "assistant" {
+  graph {
+    type = "react"
+  }
+
+  model {
+    provider = "anthropic"
+    name     = "claude-haiku-4-5"
+  }
+}
+
+filesystem {
+  mounts = [{
+    path = "/workspace"
+    backend = {
+      kind = "overlay"
+      upper = { kind = "memory" }
+      lower = { kind = "host", root = "/var/lib/agent/base" }
+    }
+  }]
+}
+"#,
+            )
+            .expect("manifest should deserialize");
+
+        let (resolved, _) = overlay_manifest
+            .resolve(&EmptyLoader, &[])
+            .await
+            .expect("manifest should resolve");
+
+        assert_eq!(resolved.filesystem.mounts.len(), 1);
+        assert_eq!(resolved.filesystem.mounts[0].path, "/workspace");
+        assert!(matches!(
+            &resolved.filesystem.mounts[0].backend,
+            ResolvedContextFilesystemBackend::Overlay { upper, lower }
+                if matches!(**upper, ResolvedContextFilesystemBackend::Memory)
+                    && matches!(
+                        **lower,
+                        ResolvedContextFilesystemBackend::Host { ref root, .. }
+                            if root == "/var/lib/agent/base"
+                    )
+        ));
+    }
+
+    #[tokio::test]
+    async fn resolves_bash_tool_configuration() {
+        let bash = BashManifestFixture::resolve(
+            r#"
+commands = ["git", "rg"]
+cwd      = "/workspace"
+shared   = true
+
+env {
+  kind = "allow"
+  vars = ["HOME", "PATH"]
+}
+
+limits {
+  max_execution_time_secs = 7
+  max_output_size          = 512
+  max_command_count        = 23
+  max_loop_iterations      = 29
+}
+"#,
+        )
+        .await;
+
+        assert_eq!(bash.commands, ["git", "rg"]);
+        assert_eq!(bash.cwd, "/workspace");
+        assert!(matches!(
+            bash.env,
+            ResolvedContextToolBashEnv::Allow(vars)
+                if vars == ["HOME", "PATH"]
+        ));
+        assert_eq!(bash.limits.max_execution_time_secs, 7);
+        assert_eq!(bash.limits.max_output_size, 512);
+        assert_eq!(bash.limits.max_command_count, 23);
+        assert_eq!(bash.limits.max_loop_iterations, 29);
+        assert!(bash.shared);
+    }
+
+    #[tokio::test]
+    async fn resolves_bash_tool_defaults() {
+        let bash = BashManifestFixture::resolve("").await;
+
+        assert!(bash.commands.is_empty());
+        assert_eq!(bash.cwd, "/home/agent");
+        assert!(matches!(bash.env, ResolvedContextToolBashEnv::Empty));
+        assert_eq!(bash.limits.max_execution_time_secs, 30);
+        assert_eq!(bash.limits.max_output_size, 10 * 1024 * 1024);
+        assert_eq!(bash.limits.max_command_count, 10_000);
+        assert_eq!(bash.limits.max_loop_iterations, 10_000);
+        assert!(!bash.shared);
     }
 }

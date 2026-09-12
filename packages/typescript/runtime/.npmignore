@@ -1,0 +1,11 @@
+README.md
+.github/
+.devcontainer/
+.taskfile/
+.editorconfig
+.gitignore
+.vscode/
+.gitlint
+.pre-commit-config.yaml
+cliff.toml
+Taskfile.yml

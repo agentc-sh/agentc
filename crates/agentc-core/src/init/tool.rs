@@ -17,6 +17,8 @@ const JS_PACKAGE: &str = include_str!("templates/javascript/package.json");
 const JS_TSCONFIG: &str = include_str!("templates/javascript/tsconfig.json");
 const JS_README: &str = include_str!("templates/javascript/README.md");
 const JS_INDEX: &str = include_str!("templates/javascript/src/index.ts");
+const JS_AGENTC_DTS: &str = include_str!("templates/javascript/agentc.d.ts");
+const JS_PNPM_WORKSPACE: &str = include_str!("templates/javascript/pnpm-workspace.yaml");
 
 pub enum ToolLanguage {
     Python,
@@ -43,6 +45,7 @@ impl InitTool {
             name_kebab => params.name.to_case(Case::Kebab),
             name_snake => params.name.to_case(Case::Snake),
             name_pascal => params.name.to_case(Case::Pascal),
+            agentc_version => env!("CARGO_PKG_VERSION"),
         };
 
         let mut vfs = VirtualFileSystem::new();
@@ -71,6 +74,14 @@ impl InitTool {
                 );
                 vfs.insert("README.md", Self::render_template(JS_README, &ctx, "README.md")?);
                 vfs.insert("src/index.ts", Self::render_template(JS_INDEX, &ctx, "src/index.ts")?);
+                vfs.insert(
+                    "agentc.d.ts",
+                    Self::render_template(JS_AGENTC_DTS, &ctx, "agentc.d.ts")?,
+                );
+                vfs.insert(
+                    "pnpm-workspace.yaml",
+                    Self::render_template(JS_PNPM_WORKSPACE, &ctx, "pnpm-workspace.yaml")?,
+                );
             }
         }
 
@@ -94,14 +105,58 @@ mod tests {
     }
 
     #[test]
-    fn python_init_py_contains_pascal_class() {
+    fn python_pyproject_does_not_depend_on_the_tdk() {
+        let vfs = InitTool::scaffold(InitToolParams {
+            name: "my_tool".into(),
+            language: ToolLanguage::Python,
+        })
+        .unwrap();
+        let content = vfs.get("pyproject.toml").unwrap();
+        assert!(
+            !content.contains("agentc-tdk"),
+            "pyproject.toml still depends on the tdk: {content}"
+        );
+    }
+
+    #[test]
+    fn python_pyproject_depends_on_the_runtime_stubs() {
+        let vfs = InitTool::scaffold(InitToolParams {
+            name: "my_tool".into(),
+            language: ToolLanguage::Python,
+        })
+        .unwrap();
+        let content = vfs.get("pyproject.toml").unwrap();
+        assert!(
+            content.contains("agentc-runtime @ git+https://github.com/agentc-sh/agentc@"),
+            "pyproject.toml missing runtime stubs: {content}"
+        );
+        assert!(
+            content.contains("#subdirectory=packages/python/runtime"),
+            "pyproject.toml runtime stubs not pointed at the package: {content}"
+        );
+        assert!(
+            content.contains("reportMissingModuleSource = \"none\""),
+            "pyproject.toml does not silence the missing module source warning: {content}"
+        );
+    }
+
+    #[test]
+    fn python_init_py_exports_a_tool_class() {
         let vfs = InitTool::scaffold(InitToolParams {
             name: "my_tool".into(),
             language: ToolLanguage::Python,
         })
         .unwrap();
         let content = vfs.get("my_tool/__init__.py").unwrap();
-        assert!(content.contains("class MyTool"), "__init__.py missing class MyTool: {content}");
+        assert!(
+            content.contains("class MyTool(Tool["),
+            "__init__.py missing tool class: {content}"
+        );
+        assert!(
+            content.contains("from agentc_tools import"),
+            "__init__.py does not import the host module: {content}"
+        );
+        assert!(!content.contains("agentc_tdk"), "__init__.py still imports the tdk: {content}");
     }
 
     #[test]
@@ -129,14 +184,21 @@ mod tests {
     }
 
     #[test]
-    fn javascript_index_ts_contains_snake_export() {
+    fn javascript_index_ts_exports_a_tool_class() {
         let vfs = InitTool::scaffold(InitToolParams {
             name: "my-tool".into(),
             language: ToolLanguage::Javascript,
         })
         .unwrap();
         let content = vfs.get("src/index.ts").unwrap();
-        assert!(content.contains("export const my_tool"), "index.ts missing export: {content}");
+        assert!(
+            content.contains("export class MyTool extends Tool<"),
+            "index.ts missing tool class: {content}"
+        );
+        assert!(
+            content.contains("from 'agentc:tools'"),
+            "index.ts does not import the host module: {content}"
+        );
     }
 
     #[test]
@@ -147,5 +209,56 @@ mod tests {
         })
         .unwrap();
         assert!(vfs.get("tsconfig.json").is_some());
+    }
+
+    #[test]
+    fn javascript_package_json_depends_on_the_runtime_stubs_instead_of_node_types() {
+        let vfs = InitTool::scaffold(InitToolParams {
+            name: "my-tool".into(),
+            language: ToolLanguage::Javascript,
+        })
+        .unwrap();
+        let content = vfs.get("package.json").unwrap();
+        assert!(
+            content.contains("@agentc-sh/runtime"),
+            "package.json missing runtime stubs: {content}"
+        );
+        assert!(
+            !content.contains("@types/node"),
+            "package.json still depends on @types/node: {content}"
+        );
+        assert!(
+            !content.contains("@agentc-sh/tdk"),
+            "package.json still depends on the tdk: {content}"
+        );
+    }
+
+    #[test]
+    fn javascript_package_json_declares_pnpm() {
+        let vfs = InitTool::scaffold(InitToolParams {
+            name: "my-tool".into(),
+            language: ToolLanguage::Javascript,
+        })
+        .unwrap();
+        let content = vfs.get("package.json").unwrap();
+        assert!(
+            content.contains("\"packageManager\": \"pnpm@"),
+            "package.json missing packageManager: {content}"
+        );
+    }
+
+    #[test]
+    fn javascript_pnpm_workspace_allowlists_build_scripts() {
+        let vfs = InitTool::scaffold(InitToolParams {
+            name: "my-tool".into(),
+            language: ToolLanguage::Javascript,
+        })
+        .unwrap();
+        let content = vfs.get("pnpm-workspace.yaml").unwrap();
+        assert!(content.contains("esbuild"), "pnpm-workspace.yaml missing esbuild: {content}");
+        assert!(
+            !content.contains("@agentc-sh/tdk"),
+            "pnpm-workspace.yaml still allowlists the tdk: {content}"
+        );
     }
 }

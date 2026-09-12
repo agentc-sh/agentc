@@ -9,8 +9,8 @@ no runtime installation. For the full field reference, see the [tool reference](
 
 TypeScript tools run in an embedded JavaScript runtime. Python tools use RustPython by default,
 which supports pure-Python packages and needs no Python installation at runtime. Select the
-`static` interpreter to use CPython 3.14 for packages with C extensions. Both use the agentc tool
-development kit (TDK), which gives you typed tool definitions.
+`static` interpreter to use CPython 3.14 for packages with C extensions. TypeScript tools use
+`agentc:tools`, while Python tools use `agentc_tools`.
 
 ## Scaffold the package
 
@@ -28,8 +28,11 @@ cd math
 pnpm install
 ```
 
-This creates a `package.json`, a `tsconfig.json`, and `src/index.ts`, with the TDK and esbuild already
-configured.
+This creates a ready-to-use package with the entry point, package metadata, and editor type
+support already configured. `agentc.d.ts` is one line, and it is what tells an editor the shape of
+the runtime surface.
+
+The compiler installs dependencies with the package manager configured for the scaffolded package.
   </TabsContent>
   <TabsContent value="python">
 ```bash
@@ -38,15 +41,19 @@ cd weather
 uv sync
 ```
 
-This creates a `pyproject.toml` and a typed package directory, with the TDK dependency and build
-system already configured.
+This creates a `pyproject.toml` and a typed package directory whose module exports a `Tool`
+subclass from `agentc_tools`. The `dev` dependency group already depends on `agentc-runtime`, the
+type stubs that tell an editor the shape of `agentc_tools` and other runtime libraries.
+
+The compiler installs dependencies with `uv sync --no-dev`, so the stubs are never part of the
+compiled tool.
   </TabsContent>
 </Tabs>
 
 ## Write the tool
 
-A tool has a name, a description, a JSON Schema for its inputs, and an `execute` function. The name and
-descriptions are what the model reads to decide when and how to call it, so write them carefully.
+Each tool supplies a name, description, JSON Schema for its inputs, and an `execute` method. The name
+and descriptions are what the model reads to decide when and how to call it, so write them carefully.
 
 <Tabs defaultValue="typescript">
   <TabsList>
@@ -54,74 +61,125 @@ descriptions are what the model reads to decide when and how to call it, so writ
     <TabsTrigger value="python">Python</TabsTrigger>
   </TabsList>
   <TabsContent value="typescript">
-Export a tool object from the package entry point. Import the `Tool` type from the TDK for full type
-coverage.
+Export a class extending `Tool` from the package entry point. Its generic parameters are the argument
+type, result type, and state type. Omit the state type when its `unknown` default is sufficient.
 
 ```typescript title="math/src/index.ts"
-import type { Tool, ToolInput, ToolOutput } from "@agentc-sh/tdk";
+import { Schema, Tool, type ToolInput, type ToolOutput } from "agentc:tools";
 
 type AddArgs = { a: number; b: number };
 
-export const adder: Tool<AddArgs, number> = {
-  name: "adder",
-  description: "Adds two numbers together.",
-  parameters: {
+export class Adder extends Tool<AddArgs, number> {
+  static readonly description = "Adds two numbers together.";
+
+  static readonly parameters = new Schema({
     type: "object",
     properties: {
       a: { type: "number", description: "The first number." },
       b: { type: "number", description: "The second number." }
     },
     required: ["a", "b"]
-  },
+  });
+
   async execute(input: ToolInput<AddArgs>): Promise<ToolOutput<number>> {
     return { output: input.args.a + input.args.b };
   }
-};
+}
 ```
 
-A single package can export as many tools as you need.
+`description` tells the model what the tool does. `parameters` is the JSON Schema it uses to call the
+tool, wrapped in `Schema`. `Schema` validates the document as JSON Schema draft 2020-12 when the
+module loads, so an invalid schema prevents the tool from loading. `ToolInput` supplies read-only
+`args`, `state`, and optional `emit`; `ToolOutput` contains required `output` and optional
+`state_update`. `execute` must be asynchronous.
+
+A single package can export as many tool classes as you need. The selected export name is the tool
+name.
   </TabsContent>
   <TabsContent value="python">
-Subclass `Tool` and implement `execute`. The generic parameters are the argument type, the result
-type, and the state type.
+Export a class subclassing `Tool` from the package's module. Its type arguments are the argument
+type, the result type and, optionally, the state type.
 
 ```python title="weather/weather/__init__.py"
 from dataclasses import dataclass
-from agentc_tdk import Tool, ToolInput, ToolOutput
+
+from agentc_tools import Schema, Tool, ToolInput, ToolOutput
 
 
 @dataclass
-class GetWeatherParams:
+class WeatherArgs:
     location: str
 
+
 @dataclass
-class GetWeatherResult:
+class WeatherResult:
     temperature: float
     description: str
 
 
-class GetWeatherTool(Tool[GetWeatherParams, GetWeatherResult, None]):
-    args = GetWeatherParams
-
-    name = "get_weather"
-    description = "Get the current weather for a given location."
-    schema = {
+class Weather(Tool[WeatherArgs, WeatherResult]):
+    description = "Gets the current weather for a location."
+    parameters = Schema({
         "type": "object",
         "properties": {
-            "location": {"type": "string", "description": "The location to get the weather for."},
+            "location": {
+                "type": "string",
+                "description": "The location to get the weather for.",
+            },
         },
         "required": ["location"],
-    }
+    })
 
-    def execute(self, input: ToolInput[GetWeatherParams, None]) -> ToolOutput[GetWeatherResult]:
+    async def execute(
+        self,
+        input: ToolInput[WeatherArgs],
+    ) -> ToolOutput[WeatherResult]:
         return ToolOutput(
-            output=GetWeatherResult(temperature=72.0, description=f"Sunny in {input.args.location}")
+            WeatherResult(
+                temperature=72.0,
+                description=f"Sunny in {input.args.location}",
+            ),
         )
 ```
 
-A single package can define as many tool classes as you need.
+The runtime builds each invocation's arguments as a `WeatherArgs`, because it is the first type
+argument, and converts the `WeatherResult` back to JSON. `description` tells the model what the tool
+does, and `parameters` is the JSON Schema it uses to call the tool, wrapped in `Schema`. An invalid
+schema prevents the module from importing. `execute` must be `async`. See
+[tools](/reference/runtime/tools/python) for the full surface.
+
+A single package can export as many tool classes as you need. The selected export name is the tool
+name.
   </TabsContent>
 </Tabs>
+
+## What the JavaScript runtime provides
+
+JavaScript tools do not run in Node. They run in an embedded JavaScript engine, and the environment
+they see is assembled by the host, so it is neither Node's nor a browser's. The runtime libraries the
+host does provide live under the `agentc:` prefix and are imported like any other module.
+
+```typescript title="math/src/index.ts"
+import { fetch } from "agentc:http";
+
+const response = await fetch("https://example.com");
+```
+
+The runtime libraries are catalogued at [runtime libraries](/reference/runtime), and the JavaScript
+surface the host binds is enumerated at [standard](/reference/runtime/standard).
+
+`agentc:tools` provides the classes and types used to author a tool. See
+[tools](/reference/runtime/tools/typescript) for its TypeScript surface.
+
+The shapes of all of it come from `@agentc-sh/runtime`, which the scaffold installs and references for
+you, so your editor reports what the host actually provides rather than guessing. The package is
+optional. A component that does not depend on it compiles and runs identically.
+
+<Callout type="note" title="`@types/node` is deliberately absent">
+The scaffold does not depend on `@types/node`, and its `tsconfig.json` sets `types` to an empty array
+so nothing pulls it in. The guest is not a Node process, and `@types/node` describes a great deal that
+the host never binds.
+</Callout>
 
 ## Declare the tool in the manifest
 
@@ -138,23 +196,25 @@ the package directory.
 tool "adder" {
   kind   = "javascript"
   source = "./math"
+  export = "Adder"
 }
 ```
 
-The block name matches the export name by default. If they differ, set `export` to the export name.
+The block name matches the export name by default. `export` selects the tool class when they differ.
   </TabsContent>
   <TabsContent value="python">
 ```hcl title="agent.acl"
-tool "get_weather" {
+tool "weather" {
   kind        = "python"
   source      = "./weather"
+  export      = "Weather"
   interpreter = "embedded"
 }
 ```
 
-Declare one `tool` block per tool class, all pointing at the same `source` directory. Change
-`interpreter` to `"static"` when the package requires CPython or a C extension. The runtime host
-must provide a compatible shared CPython 3.14 installation.
+The block name matches the export name by default. `export` selects the tool class when they differ.
+Change `interpreter` to `"static"` when the package requires CPython or a C extension. The runtime
+host must provide a compatible shared CPython 3.14 installation.
   </TabsContent>
 </Tabs>
 
@@ -171,24 +231,60 @@ client as state delta events, which is how a tool passes data to a frontend.
   </TabsList>
   <TabsContent value="typescript">
 ```typescript
-async execute(input: ToolInput<AddArgs>): Promise<ToolOutput<number>> {
-  return {
-    output: input.args.a + input.args.b,
-    state_update: [
-      { op: "add", path: "/context/last_sum", value: input.args.a + input.args.b }
-    ]
-  };
+export class Adder extends Tool<AddArgs, number> {
+  async execute(input: ToolInput<AddArgs>): Promise<ToolOutput<number>> {
+    return {
+      output: input.args.a + input.args.b,
+      state_update: [
+        { op: "add", path: "/context/last_sum", value: input.args.a + input.args.b }
+      ]
+    };
+  }
 }
 ```
   </TabsContent>
   <TabsContent value="python">
 ```python
-def execute(self, input: ToolInput[GetWeatherParams, None]) -> ToolOutput[GetWeatherResult]:
+async def execute(
+    self,
+    input: ToolInput[WeatherArgs],
+) -> ToolOutput[WeatherResult]:
     return ToolOutput(
-        output=GetWeatherResult(temperature=72.0, description="Sunny"),
+        WeatherResult(temperature=72.0, description="Sunny"),
         state_update=[
-            {"op": "add", "path": "/context/last_location", "value": input.args.location}
+            {"op": "add", "path": "/context/last_location", "value": input.args.location},
         ],
+    )
+```
+  </TabsContent>
+</Tabs>
+
+## Send activity updates
+
+Tools can emit stateless activity updates while they run. `emit` is optional, so call it with
+optional invocation.
+
+<Tabs defaultValue="typescript">
+  <TabsList>
+    <TabsTrigger value="typescript">TypeScript</TabsTrigger>
+    <TabsTrigger value="python">Python</TabsTrigger>
+  </TabsList>
+  <TabsContent value="typescript">
+```typescript
+input.emit?.({
+  activity_type: "progress",
+  patch: [
+    { op: "add", path: "/message", value: "Working" }
+  ]
+});
+```
+  </TabsContent>
+  <TabsContent value="python">
+```python
+if input.emit is not None:
+    input.emit(
+        activity_type="progress",
+        patch=[{"op": "add", "path": "/message", "value": "Working"}],
     )
 ```
   </TabsContent>

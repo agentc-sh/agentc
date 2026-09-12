@@ -8,6 +8,7 @@ use agentc_agent::{
     agent::AgentBuilder,
     context::AgentContext,
     graph::state::{GraphNode, GraphState, StateOf},
+    instrument::InvokeAgentSpans,
     tools::registry::ToolRegistryBuilder,
     types::event::AgentEvent,
 };
@@ -101,7 +102,7 @@ pub trait AgentBuilderSkillsExt: Sized {
 
 impl<N, E, M> AgentBuilderSkillsExt for AgentBuilder<N, E, M>
 where
-    N: GraphNode<Context = AgentContext<E, M>> + 'static,
+    N: GraphNode<Context = AgentContext<E, M>> + InvokeAgentSpans + 'static,
     E: From<AgentEvent<StateOf<N>>> + Send + Clone + 'static,
     M: Send + Clone + 'static,
 {
