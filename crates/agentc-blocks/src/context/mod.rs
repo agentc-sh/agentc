@@ -138,6 +138,7 @@ mod tests {
                         "project_path": "/artifacts/adder",
                         "site_packages_path": "/artifacts/adder/.venv/site-packages",
                         "module_name": "adder",
+                        "export_name": "Adder",
                         "interpreter": "embedded"
                     }
                 }

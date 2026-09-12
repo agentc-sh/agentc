@@ -105,14 +105,36 @@ mod tests {
     }
 
     #[test]
-    fn python_init_py_contains_pascal_class() {
+    fn python_pyproject_does_not_depend_on_the_tdk() {
+        let vfs = InitTool::scaffold(InitToolParams {
+            name: "my_tool".into(),
+            language: ToolLanguage::Python,
+        })
+        .unwrap();
+        let content = vfs.get("pyproject.toml").unwrap();
+        assert!(
+            !content.contains("agentc-tdk"),
+            "pyproject.toml still depends on the tdk: {content}"
+        );
+    }
+
+    #[test]
+    fn python_init_py_exports_a_tool_class() {
         let vfs = InitTool::scaffold(InitToolParams {
             name: "my_tool".into(),
             language: ToolLanguage::Python,
         })
         .unwrap();
         let content = vfs.get("my_tool/__init__.py").unwrap();
-        assert!(content.contains("class MyTool"), "__init__.py missing class MyTool: {content}");
+        assert!(
+            content.contains("class MyTool(Tool["),
+            "__init__.py missing tool class: {content}"
+        );
+        assert!(
+            content.contains("from agentc_tools import"),
+            "__init__.py does not import the host module: {content}"
+        );
+        assert!(!content.contains("agentc_tdk"), "__init__.py still imports the tdk: {content}");
     }
 
     #[test]

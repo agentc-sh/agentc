@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
+pub(crate) mod coercion;
 pub(crate) mod guest;
 pub(crate) mod input;
 pub(crate) mod library;
@@ -12,6 +13,6 @@ pub(crate) mod tool;
 
 pub mod executor;
 
-pub use crate::javascript::bindings::{
+pub use crate::python::bindings::{
     executor::ExecutorBuilderToolsExt, library::ToolsLibrary, module::ToolsModule,
 };

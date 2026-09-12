@@ -2,8 +2,10 @@
 //
 // SPDX-License-Identifier: MIT
 
-mod types;
-
+pub mod bindings;
 pub mod tool;
 
-pub use tool::PythonTool;
+pub use crate::python::{
+    bindings::{ExecutorBuilderToolsExt, ToolsLibrary, ToolsModule},
+    tool::PythonTool,
+};

@@ -3,4 +3,5 @@
 // SPDX-License-Identifier: MIT
 
 pub mod dependency;
+pub mod import;
 pub mod set;

@@ -676,6 +676,10 @@ impl Manifest {
                         project_path,
                         site_packages_path,
                         module_name,
+                        export_name: py
+                            .export
+                            .clone()
+                            .unwrap_or_else(|| name.clone()),
                         interpreter: match py.interpreter {
                             ManifestPythonInterpreter::Embedded => {
                                 ResolvedContextToolPythonInterpreter::Embedded

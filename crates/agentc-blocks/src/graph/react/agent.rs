@@ -172,7 +172,7 @@ impl CodeGen<ResolvedContext> for AgentCodeGen {
 
         let (model_imports, model_registrations) =
             ModelRegistryCodeGen::generate(ctx, &self.fields)?;
-        let (tool_imports, tool_registrations) = ToolsCodeGen::generate(ctx, &self.fields)?;
+        let tool_registrations = ToolsCodeGen::registrations(ctx, &self.fields)?;
         let (skill_imports, skill_registrations) = SkillsCodeGen::generate(ctx)?;
         let agent_identity = IdentityCodeGen::generate(ctx, &self.fields)?;
         let (prompt_imports, prompt_source) = PromptSourceCodeGen::generate(ctx, &self.fields)?;
@@ -213,7 +213,6 @@ impl CodeGen<ResolvedContext> for AgentCodeGen {
 
             #prompt_imports
             #(#model_imports)*
-            #(#tool_imports)*
             #(#skill_imports)*
 
             #extra_use
@@ -282,6 +281,7 @@ impl CodeGen<ResolvedContext> for AgentCodeGen {
         point: &str,
     ) -> Result<ErasedContributionValue, GeneratorError> {
         match point {
+            "agent::use" => Ok(ErasedContributionValue::new(ToolsCodeGen::imports(ctx)?)),
             "config::fields" => {
                 Ok(ErasedContributionValue::new(RenderedTokenStream::from(quote! {
                     pub react: ConfigReAct,
@@ -335,6 +335,7 @@ mod tests {
             ResolvedContextTool, ResolvedContextToolBash, ResolvedContextToolBashEnv,
             ResolvedContextToolBashLimits, ResolvedContextToolKind,
         },
+        contributions::import::{ImportContribution, Imports},
         graph::{ReActGraphModelConfig, ReActGraphModelRetryConfig},
     };
 
@@ -483,6 +484,31 @@ mod tests {
         assert!(!rendered.contains("FsPolicy"));
         assert!(!rendered.contains("NetworkPolicy"));
         assert!(!rendered.contains("fs_policy"));
+    }
+
+    #[test]
+    fn tools_contribute_their_imports_to_agent_use() {
+        let context = AgentCodeGenFixture::bash_context();
+
+        assert_eq!(
+            AgentCodeGen {
+                fields: FieldsSpec::collect_from(&context),
+                config: ReActGraphConfig::default(),
+            }
+            .generate_contribution(&GenerationContext::new(context), "agent::use")
+            .unwrap()
+            .downcast::<Imports>()
+            .unwrap()
+            .into_values()
+            .collect::<Vec<_>>(),
+            vec![
+                ImportContribution::path(&["agentc_tools", "bash"]).item("BashTool"),
+                ImportContribution::path(&["agentc_tools", "bash", "config"])
+                    .item("CommandPolicy")
+                    .item("EnvPolicy")
+                    .item("ExecLimits"),
+            ],
+        );
     }
 
     #[test]

@@ -13,9 +13,12 @@ use agentc_compiler::generator::{
 
 use crate::{
     context::ResolvedContext,
-    contributions::dependency::{
-        CargoDependencies, CargoDependencyContribution, CargoPatchContribution, CargoPatches,
-        RuntimeDependencyContribution,
+    contributions::{
+        dependency::{
+            CargoDependencies, CargoDependencyContribution, CargoPatchContribution, CargoPatches,
+            RuntimeDependencyContribution,
+        },
+        import::{ImportContribution, Imports},
     },
 };
 
@@ -28,15 +31,17 @@ impl Fragment<ResolvedContext> for McpAgentFragment {
         point: &str,
     ) -> Result<ErasedContributionValue, GeneratorError> {
         match point {
-            "agent::use" => Ok(ErasedContributionValue::new(RenderedTokenStream::from(quote! {
-                use agentc_mcp::{
-                    builder::AgentBuilderMcpExt,
-                    config::{McpServerConfig, McpTransport},
-                    registry::McpRegistry,
-                };
-
-                use crate::config::ConfigMcpTransport;
-            }))),
+            "agent::use" => Ok(ErasedContributionValue::new(
+                Imports::from_entries([
+                    ImportContribution::path(&["agentc_mcp", "builder"]).item("AgentBuilderMcpExt"),
+                    ImportContribution::path(&["agentc_mcp", "config"])
+                        .item("McpServerConfig")
+                        .item("McpTransport"),
+                    ImportContribution::path(&["agentc_mcp", "registry"]).item("McpRegistry"),
+                    ImportContribution::path(&["crate", "config"]).item("ConfigMcpTransport"),
+                ])
+                .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
+            )),
             "agent::tools" => Ok(ErasedContributionValue::new(RenderedTokenStream::from(quote! {
                 if !config.mcp.servers.is_empty() {
                     let mut mcp_builder = McpRegistry::builder();

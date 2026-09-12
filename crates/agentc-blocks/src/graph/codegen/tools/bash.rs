@@ -10,6 +10,7 @@ use agentc_compiler::generator::errors::GeneratorError;
 use crate::{
     config::fields::FieldsSpec,
     context::{ResolvedContext, ResolvedContextToolBashEnv, ResolvedContextToolKind},
+    contributions::import::ImportContribution,
     graph::codegen::tools::ToolCodeGen,
 };
 
@@ -17,19 +18,21 @@ use crate::{
 pub struct BashTools<'a>(pub &'a ResolvedContext);
 
 impl ToolCodeGen for BashTools<'_> {
-    fn imports(&self) -> Option<TokenStream> {
+    fn imports(&self) -> Vec<ImportContribution> {
         self.0
             .tools
             .values()
             .any(|tool| tool.kind.is_bash())
             .then(|| {
-                quote! {
-                    use agentc_tools::bash::{
-                        BashTool,
-                        config::{CommandPolicy, EnvPolicy, ExecLimits},
-                    };
-                }
+                vec![
+                    ImportContribution::path(&["agentc_tools", "bash"]).item("BashTool"),
+                    ImportContribution::path(&["agentc_tools", "bash", "config"])
+                        .item("CommandPolicy")
+                        .item("EnvPolicy")
+                        .item("ExecLimits"),
+                ]
             })
+            .unwrap_or_default()
     }
 
     fn feature(&self) -> Option<&'static str> {
@@ -106,6 +109,7 @@ mod tests {
     use crate::{
         config::fields::FieldsSpec,
         context::{ResolvedContext, ResolvedContextToolKind},
+        contributions::import::ImportContribution,
         graph::codegen::tools::{ToolCodeGen, bash::BashTools},
     };
 
@@ -155,13 +159,6 @@ mod tests {
             .unwrap()
         }
 
-        fn imports(context: &ResolvedContext) -> String {
-            BashTools(context)
-                .imports()
-                .expect("Bash imports should be generated")
-                .to_string()
-        }
-
         fn registrations(context: &ResolvedContext) -> String {
             BashTools(context)
                 .registrations(&FieldsSpec::collect_from(context))
@@ -175,16 +172,16 @@ mod tests {
 
     #[test]
     fn imports_bashkit_tool_contract() {
-        let imports = BashToolsFixture::imports(&BashToolsFixture::context());
-
-        assert!(imports.contains("agentc_tools :: bash"));
-        assert!(imports.contains("BashTool"));
-        assert!(imports.contains("CommandPolicy"));
-        assert!(imports.contains("EnvPolicy"));
-        assert!(imports.contains("ExecLimits"));
-        assert!(!imports.contains("FsPolicy"));
-        assert!(!imports.contains("NetworkPolicy"));
-        assert!(!imports.contains("std :: time :: Duration"));
+        assert_eq!(
+            BashTools(&BashToolsFixture::context()).imports(),
+            vec![
+                ImportContribution::path(&["agentc_tools", "bash"]).item("BashTool"),
+                ImportContribution::path(&["agentc_tools", "bash", "config"])
+                    .item("CommandPolicy")
+                    .item("EnvPolicy")
+                    .item("ExecLimits"),
+            ],
+        );
     }
 
     #[test]
@@ -256,7 +253,7 @@ mod tests {
 
         context.tools.clear();
 
-        assert!(BashTools(&context).imports().is_none());
+        assert!(BashTools(&context).imports().is_empty());
         assert!(BashTools(&context).feature().is_none());
         assert!(
             BashTools(&context)
