@@ -11,9 +11,7 @@ use agentc_executor_python::{
         marshal::FromGuest,
         scope::Enter,
     },
-    json::Json,
 };
-use serde_json::{Map, Value};
 
 use crate::python::bindings::{input::ToolInput, output::ToolOutput, tool::Tool};
 
@@ -24,23 +22,29 @@ guest_class! {
     }
 }
 
-impl<B: ExecutorBackend> GuestTool<B> {
-    pub(crate) fn args(&self, args: Map<String, Value>) -> Result<Object<B>, Error> {
-        self.instance()
-            .class("args")?
-            .call_with::<_, _, Object<B>>(
-                (),
-                args.into_iter()
-                    .map(|(name, value)| (name, Json(value)))
-                    .collect::<Vec<_>>(),
-            )
+pub(crate) struct ToolClass<B: ExecutorBackend> {
+    class: Class<B, GuestTool<B>>,
+    arguments: Vec<Object<B>>,
+}
+
+impl<B: ExecutorBackend> ToolClass<B> {
+    pub(crate) fn class(&self) -> &Class<B, GuestTool<B>> {
+        &self.class
+    }
+
+    pub(crate) fn args(&self) -> Option<&Object<B>> {
+        self.arguments.first()
+    }
+
+    pub(crate) fn state(&self) -> Option<&Object<B>> {
+        self.arguments.get(2)
     }
 }
 
-pub struct GuestToolClass;
+pub(crate) struct GuestToolClass;
 
 impl<B: ExecutorBackend> FromGuest<B> for GuestToolClass {
-    type Owned = Class<B, GuestTool<B>>;
+    type Owned = ToolClass<B>;
 
     fn from_guest<'py>(
         enter: &Enter<'py, B>,
@@ -56,6 +60,13 @@ impl<B: ExecutorBackend> FromGuest<B> for GuestToolClass {
             )));
         }
 
-        Ok(class)
+        Ok(ToolClass {
+            arguments: class
+                .generic_base_of(&base)?
+                .map(|alias| alias.arguments())
+                .transpose()?
+                .unwrap_or_default(),
+            class,
+        })
     }
 }

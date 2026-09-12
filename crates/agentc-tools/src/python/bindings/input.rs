@@ -10,15 +10,14 @@ use agentc_executor_python::{
         FromGuest,
         backend::{Backend, BackendCallables, BackendValues},
         errors::Error,
-        handle::Object,
         host::function::HostFn,
         host_class,
     },
-    json::Json,
 };
 use json_patch::PatchOperation;
 use serde::Deserialize;
-use serde_json::Value;
+
+use crate::python::bindings::coercion::Decoded;
 
 #[derive(Deserialize, FromGuest)]
 #[guestpy(crate_path = agentc_executor_python::guestpy)]
@@ -28,17 +27,17 @@ pub(crate) type ActivityGuard = Arc<ActivityEmitter>;
 
 pub(crate) type WeakActivityGuard = Weak<ActivityEmitter>;
 
-pub struct ToolInput<B: Backend> {
-    args: Object<B>,
-    state: Value,
+pub struct ToolInput<B: Backend + BackendValues> {
+    args: Decoded<B>,
+    state: Decoded<B>,
     emitter: Option<WeakActivityGuard>,
 }
 
 #[host_class(backend = B, generic, crate_path = agentc_executor_python::guestpy)]
 impl<B: Backend + BackendValues + BackendCallables> ToolInput<B> {
     pub(crate) fn new(
-        args: Object<B>,
-        state: Value,
+        args: Decoded<B>,
+        state: Decoded<B>,
         emitter: Option<ActivityGuard>,
     ) -> (Self, Option<ActivityGuard>) {
         (
@@ -52,13 +51,13 @@ impl<B: Backend + BackendValues + BackendCallables> ToolInput<B> {
     }
 
     #[guestpy(get)]
-    fn args(&self) -> Result<Object<B>, Error> {
+    fn args(&self) -> Result<Decoded<B>, Error> {
         Ok(self.args.clone())
     }
 
     #[guestpy(get)]
-    fn state(&self) -> Result<Json, Error> {
-        Ok(Json(self.state.clone()))
+    fn state(&self) -> Result<Decoded<B>, Error> {
+        Ok(self.state.clone())
     }
 
     #[guestpy(get)]

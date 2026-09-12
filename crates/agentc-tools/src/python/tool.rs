@@ -20,13 +20,17 @@ use agentc_executor_python::{
     backend::ExecutorBackend,
     errors::Error,
     executor::Executor,
-    guestpy::handle::{Class, Instance, ObjectProtocol},
-    json::Json,
+    guestpy::handle::{Instance, ObjectProtocol},
 };
 use async_trait::async_trait;
 use serde_json::Value;
 
-use crate::python::bindings::{GuestTool, GuestToolClass, Schema, ToolInput as GuestToolInput};
+use crate::python::bindings::{
+    coercion::{Coercion, Decoded},
+    guest::GuestToolClass,
+    input::ToolInput as GuestToolInput,
+    schema::Schema,
+};
 
 pub struct PythonTool<B: ExecutorBackend> {
     executor: Executor<B>,
@@ -73,18 +77,22 @@ where
         tokio::time::timeout(
             self.timeout,
             self.executor.execute(move |context| Box::pin(async move {
-                let tool = context
-                    .module()
-                    .get::<Class<B, GuestTool<B>>>(&export_name)?
-                    .construct(())?;
+                let exported = context.module().get::<GuestToolClass>(&export_name)?;
+                let coercion = Coercion::new(context.guest())?;
 
                 let (guest_input, _guard) = GuestToolInput::new(
-                    tool.args(args)?,
-                    input.state.unwrap_or(Value::Null),
+                    coercion.decode(exported.args(), Value::Object(args))?,
+                    input
+                        .state
+                        .map(|state| coercion.decode(exported.state(), state))
+                        .transpose()?
+                        .unwrap_or(Decoded::Json(Value::Null)),
                     input.emitter.map(Arc::new),
                 );
 
-                let (result, state_update) = tool
+                let (result, state_update) = exported
+                    .class()
+                    .construct(())?
                     .execute(guest_input)?
                     .await?
                     .borrow_with(|output| {
@@ -94,20 +102,8 @@ where
                         )
                     })?;
 
-                let dataclasses = context.guest().import("dataclasses")?;
-
                 Ok(ToolOutput {
-                    output: if dataclasses
-                        .function("is_dataclass")?
-                        .call::<_, bool>((result.clone(),))?
-                    {
-                        dataclasses
-                            .function("asdict")?
-                            .call::<_, Json>((result,))?
-                            .into_inner()
-                    } else {
-                        result.cast::<Json>()?.into_inner()
-                    },
+                    output: coercion.encode(result)?,
                     state_update,
                 })
             })),
@@ -185,8 +181,9 @@ impl<B: ExecutorBackend> PythonToolBuilder<B> {
 
                         Ok(ToolDefinition {
                             name: export_name,
-                            description: exported.get::<String>("description")?,
+                            description: exported.class().get::<String>("description")?,
                             parameters: exported
+                                .class()
                                 .get::<Instance<_, Schema>>("parameters")?
                                 .borrow_with(|schema| schema.document().clone())?,
                         })
@@ -272,8 +269,12 @@ class Report:
     units: str
 
 
+@dataclass
+class Status:
+    status: str
+
+
 class Direct(Tool[ValueArgs, int]):
-    args = ValueArgs
     description = "returns a direct result"
     parameters = Schema({"type": "object"})
 
@@ -282,7 +283,6 @@ class Direct(Tool[ValueArgs, int]):
 
 
 class Double(Tool[ValueArgs, int]):
-    args = ValueArgs
     description = "doubles the value"
     parameters = Schema({"type": "object"})
 
@@ -291,7 +291,6 @@ class Double(Tool[ValueArgs, int]):
 
 
 class Stateful(Tool[EmptyArgs, str]):
-    args = EmptyArgs
     description = "reads and updates state"
     parameters = Schema({"type": "object"})
 
@@ -303,7 +302,6 @@ class Stateful(Tool[EmptyArgs, str]):
 
 
 class Emitter(Tool[EmptyArgs, str]):
-    args = EmptyArgs
     description = "emits activity"
     parameters = Schema({"type": "object"})
 
@@ -320,7 +318,6 @@ class Emitter(Tool[EmptyArgs, str]):
 
 
 class Failure(Tool[EmptyArgs, None]):
-    args = EmptyArgs
     description = "raises an exception"
     parameters = Schema({"type": "object"})
 
@@ -329,7 +326,6 @@ class Failure(Tool[EmptyArgs, None]):
 
 
 class Delayed(Tool[DelayArgs, str]):
-    args = DelayArgs
     description = "returns after a delay"
     parameters = Schema({"type": "object"})
 
@@ -340,7 +336,6 @@ class Delayed(Tool[DelayArgs, str]):
 
 
 class Reporter(Tool[ReportArgs, Report]):
-    args = ReportArgs
     description = "returns a dataclass"
     parameters = Schema({"type": "object"})
 
@@ -348,8 +343,39 @@ class Reporter(Tool[ReportArgs, Report]):
         return ToolOutput(Report(city=input.args.city, units=input.args.units))
 
 
+class StatusReader(Tool[EmptyArgs, str, Status]):
+    description = "reads a dataclass state"
+    parameters = Schema({"type": "object"})
+
+    async def execute(self, input: ToolInput[EmptyArgs, Status]) -> ToolOutput[str]:
+        return ToolOutput(input.state.status)
+
+
+class StateProbe(Tool[EmptyArgs, bool, Status]):
+    description = "reports whether the state is absent"
+    parameters = Schema({"type": "object"})
+
+    async def execute(self, input: ToolInput[EmptyArgs, Status]) -> ToolOutput[bool]:
+        return ToolOutput(input.state is None)
+
+
+class CityReader(Tool[dict, str]):
+    description = "reads dict arguments"
+    parameters = Schema({"type": "object"})
+
+    async def execute(self, input: ToolInput[dict]) -> ToolOutput[str]:
+        return ToolOutput(input.args["city"])
+
+
+class Bare(Tool):
+    description = "has no type arguments"
+    parameters = Schema({"type": "object"})
+
+    async def execute(self, input: ToolInput) -> ToolOutput:
+        return ToolOutput(input.args)
+
+
 class Synchronous(Tool[EmptyArgs, str]):
-    args = EmptyArgs
     description = "is not async"
     parameters = Schema({"type": "object"})
 
@@ -358,7 +384,6 @@ class Synchronous(Tool[EmptyArgs, str]):
 
 
 class Untyped(Tool[EmptyArgs, None]):
-    args = EmptyArgs
     description = "has a plain dict for parameters"
     parameters = {"type": "object"}
 
@@ -624,6 +649,88 @@ def call_retained():
         executor.shutdown().await.unwrap();
     }
 
+    async fn unknown_argument_fields_are_dropped<B: ExecutorBackend + Send + Sync>() {
+        let executor = TestHarness::executor::<B>(1).await;
+        let tool = TestHarness::tool(&executor, "Double").await;
+
+        assert_eq!(
+            TestHarness::execute(
+                &tool,
+                TestHarness::input(json!({"value": 2, "extra": 1})),
+            )
+            .await
+            .unwrap()
+            .output,
+            json!(4),
+        );
+
+        executor.shutdown().await.unwrap();
+    }
+
+    async fn a_dataclass_state_is_built_from_the_state<B: ExecutorBackend + Send + Sync>() {
+        let executor = TestHarness::executor::<B>(1).await;
+        let tool = TestHarness::tool(&executor, "StatusReader").await;
+
+        assert_eq!(
+            TestHarness::execute(
+                &tool,
+                TestHarness::input(json!({}))
+                    .with_state(json!({"status": "ready", "count": 1})),
+            )
+            .await
+            .unwrap()
+            .output,
+            json!("ready"),
+        );
+
+        executor.shutdown().await.unwrap();
+    }
+
+    async fn absent_state_is_none<B: ExecutorBackend + Send + Sync>() {
+        let executor = TestHarness::executor::<B>(1).await;
+        let tool = TestHarness::tool(&executor, "StateProbe").await;
+
+        assert_eq!(
+            TestHarness::execute(&tool, TestHarness::input(json!({})))
+                .await
+                .unwrap()
+                .output,
+            json!(true),
+        );
+
+        executor.shutdown().await.unwrap();
+    }
+
+    async fn dict_arguments_pass_through<B: ExecutorBackend + Send + Sync>() {
+        let executor = TestHarness::executor::<B>(1).await;
+        let tool = TestHarness::tool(&executor, "CityReader").await;
+
+        assert_eq!(
+            TestHarness::execute(&tool, TestHarness::input(json!({"city": "Paris"})))
+                .await
+                .unwrap()
+                .output,
+            json!("Paris"),
+        );
+
+        executor.shutdown().await.unwrap();
+    }
+
+    async fn a_bare_tool_receives_json<B: ExecutorBackend + Send + Sync>() {
+        let executor = TestHarness::executor::<B>(1).await;
+        let tool = TestHarness::tool(&executor, "Bare").await;
+
+        assert_eq!(
+            TestHarness::execute(&tool, TestHarness::input(json!({"city": "Paris"})))
+                .await
+                .unwrap()
+                .output,
+            json!({"city": "Paris"}),
+        );
+
+        executor.shutdown().await.unwrap();
+    }
+
     async fn activity_emitter_is_optional_and_preserves_order<B>()
     where
         B: ExecutorBackend + Send + Sync,
@@ -798,6 +905,11 @@ def call_retained():
         non_object_arguments_are_rejected_before_dispatch,
         transfers_arguments_and_state_update,
         a_dataclass_result_becomes_a_json_object,
+        unknown_argument_fields_are_dropped,
+        a_dataclass_state_is_built_from_the_state,
+        absent_state_is_none,
+        dict_arguments_pass_through,
+        a_bare_tool_receives_json,
         activity_emitter_is_optional_and_preserves_order,
         retained_emit_callable_does_not_retain_the_channel,
         guest_exception_preserves_execution_source,

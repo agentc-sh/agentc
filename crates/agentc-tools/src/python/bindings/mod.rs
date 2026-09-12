@@ -2,23 +2,18 @@
 //
 // SPDX-License-Identifier: MIT
 
-mod guest;
-mod input;
-mod library;
-mod module;
-mod output;
-mod schema;
-mod tool;
+pub(crate) mod coercion;
+pub(crate) mod guest;
+pub(crate) mod input;
+pub(crate) mod library;
+pub(crate) mod module;
+pub(crate) mod output;
+pub(crate) mod schema;
+pub(crate) mod tool;
 
 pub mod executor;
 
 pub use crate::python::bindings::{
-    executor::ExecutorBuilderToolsExt, library::ToolsLibrary, module::ToolsModule, schema::Schema,
+    executor::ExecutorBuilderToolsExt, library::ToolsLibrary, module::ToolsModule,
 };
 
-pub(crate) use crate::python::bindings::{
-    guest::{GuestTool, GuestToolClass},
-    input::{ActivityGuard, ToolInput},
-    output::ToolOutput,
-    tool::Tool,
-};
