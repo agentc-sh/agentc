@@ -135,7 +135,7 @@ mod tests {
             "pyproject.toml runtime stubs not pointed at the package: {content}"
         );
         assert!(
-            content.contains("reportMissingModuleSource = false"),
+            content.contains("reportMissingModuleSource = \"none\""),
             "pyproject.toml does not silence the missing module source warning: {content}"
         );
     }
