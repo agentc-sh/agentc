@@ -74,6 +74,7 @@ impl PythonTools {
                 agentc_executor_python::executor::Executor::<#backend>::builder(#module_name)
                     .bundle(agentc_executor_python::bundle!(#project_path)?)
                     .bundle(agentc_executor_python::bundle!(#site_packages_path)?)
+                    .with_tools()
                     .workers(4)
                     .queue_capacity(32)
                     .cancellation(shutdown.clone())
@@ -90,7 +91,8 @@ impl PythonTools {
     ) -> Vec<TokenStream> {
         let mut registrations = Vec::new();
 
-        for (tool_name, _) in tools {
+        for (tool_name, py) in tools {
+            let export_name = &py.export_name;
             let tool_caps = ctx
                 .tools
                 .get(*tool_name)
@@ -111,7 +113,7 @@ impl PythonTools {
             let build_tool = quote! {
                 agentc_tools::python::PythonTool::builder()
                     .executor(#executor_ident.clone())
-                    .tool_name(#tool_name)
+                    .export_name(#export_name)
                     #caps_call
                     .build()
                     .await?
@@ -307,6 +309,7 @@ mod tests {
         fn tool(
             name: &str,
             project_path: &str,
+            export_name: &str,
             interpreter: ResolvedContextToolPythonInterpreter,
         ) -> (String, ResolvedContextTool) {
             (
@@ -325,6 +328,7 @@ mod tests {
                             .next()
                             .expect("project path has a final segment")
                             .to_string(),
+                        export_name: export_name.to_string(),
                         interpreter,
                     }),
                 },
@@ -386,6 +390,7 @@ mod tests {
         let ctx = PythonToolsFixture::context([PythonToolsFixture::tool(
             "adder",
             "/artifacts/adder",
+            "Adder",
             ResolvedContextToolPythonInterpreter::Embedded,
         )]);
         let (_, registrations) = PythonToolsFixture::generated(&ctx);
@@ -412,6 +417,7 @@ mod tests {
         let ctx = PythonToolsFixture::context([PythonToolsFixture::tool(
             "adder",
             "/artifacts/adder",
+            "Adder",
             ResolvedContextToolPythonInterpreter::Static,
         )]);
         let (_, registrations) = PythonToolsFixture::generated(&ctx);
@@ -439,11 +445,13 @@ mod tests {
             PythonToolsFixture::tool(
                 "embedded_adder",
                 "/artifacts/embedded_adder",
+                "EmbeddedAdder",
                 ResolvedContextToolPythonInterpreter::Embedded,
             ),
             PythonToolsFixture::tool(
                 "static_adder",
                 "/artifacts/static_adder",
+                "StaticAdder",
                 ResolvedContextToolPythonInterpreter::Static,
             ),
         ]);
@@ -471,11 +479,13 @@ mod tests {
             PythonToolsFixture::tool(
                 "adder",
                 "/artifacts/mathkit",
+                "Adder",
                 ResolvedContextToolPythonInterpreter::Embedded,
             ),
             PythonToolsFixture::tool(
                 "subtractor",
                 "/artifacts/mathkit",
+                "Subtractor",
                 ResolvedContextToolPythonInterpreter::Embedded,
             ),
         ]);
@@ -501,11 +511,13 @@ mod tests {
             PythonToolsFixture::tool(
                 "adder",
                 "/artifacts/mathkit",
+                "Adder",
                 ResolvedContextToolPythonInterpreter::Embedded,
             ),
             PythonToolsFixture::tool(
                 "subtractor",
                 "/artifacts/mathkit",
+                "Subtractor",
                 ResolvedContextToolPythonInterpreter::Embedded,
             ),
         ]);
@@ -525,11 +537,13 @@ mod tests {
             PythonToolsFixture::tool(
                 "adder",
                 "/artifacts/mathkit",
+                "Adder",
                 ResolvedContextToolPythonInterpreter::Embedded,
             ),
             PythonToolsFixture::tool(
                 "greeter",
                 "/artifacts/textkit",
+                "Greeter",
                 ResolvedContextToolPythonInterpreter::Embedded,
             ),
         ]);
@@ -552,16 +566,32 @@ mod tests {
         let ctx = PythonToolsFixture::context([PythonToolsFixture::tool(
             "adder",
             "/artifacts/adder",
+            "Adder",
             ResolvedContextToolPythonInterpreter::Embedded,
         )]);
         let (_, registrations) = PythonToolsFixture::generated(&ctx);
 
         assert!(registrations.contains(". workers (4)"));
+        assert!(registrations.contains(". with_tools ()"));
         assert!(registrations.contains(". queue_capacity (32)"));
         assert!(registrations.contains(". cancellation (shutdown . clone ())"));
         assert!(!registrations.contains("standard_environment"));
         assert!(!registrations.contains("with_http"));
         assert!(!registrations.contains("with_fs"));
+    }
+
+    #[test]
+    fn registration_passes_the_export_name() {
+        let ctx = PythonToolsFixture::context([PythonToolsFixture::tool(
+            "weather",
+            "/artifacts/weather",
+            "Weather",
+            ResolvedContextToolPythonInterpreter::Embedded,
+        )]);
+        let (_, registrations) = PythonToolsFixture::generated(&ctx);
+
+        assert!(registrations.contains(". export_name (\"Weather\")"));
+        assert!(!registrations.contains("tool_name"));
     }
 
     #[test]
