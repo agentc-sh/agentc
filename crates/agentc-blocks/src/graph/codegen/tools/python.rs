@@ -20,9 +20,12 @@ use crate::{
         ResolvedContext, ResolvedContextToolKind, ResolvedContextToolPython,
         ResolvedContextToolPythonInterpreter,
     },
-    contributions::dependency::{
-        CargoDependencies, CargoDependencyContribution, CargoPatchContribution, CargoPatches,
-        RuntimeDependencyContribution,
+    contributions::{
+        dependency::{
+            CargoDependencies, CargoDependencyContribution, CargoPatchContribution, CargoPatches,
+            RuntimeDependencyContribution,
+        },
+        import::ImportContribution,
     },
     graph::codegen::tools::ToolCodeGen,
 };
@@ -154,6 +157,17 @@ impl PythonTools {
         })
     }
 
+    fn imports<B: PythonBackend>(ctx: &ResolvedContext) -> Vec<ImportContribution> {
+        Self::is_present::<B>(ctx)
+            .then(|| {
+                vec![
+                    ImportContribution::path(&["agentc_tools", "python"])
+                        .item_as("ExecutorBuilderToolsExt", "_"),
+                ]
+            })
+            .unwrap_or_default()
+    }
+
     fn registrations<B: PythonBackend>(
         ctx: &ResolvedContext,
         fields: &FieldsSpec,
@@ -197,8 +211,8 @@ impl RustPythonTools<'_> {
 }
 
 impl ToolCodeGen for RustPythonTools<'_> {
-    fn imports(&self) -> Option<TokenStream> {
-        None
+    fn imports(&self) -> Vec<ImportContribution> {
+        PythonTools::imports::<Self>(self.0)
     }
 
     fn feature(&self) -> Option<&'static str> {
@@ -233,8 +247,8 @@ impl CPythonTools<'_> {
 }
 
 impl ToolCodeGen for CPythonTools<'_> {
-    fn imports(&self) -> Option<TokenStream> {
-        None
+    fn imports(&self) -> Vec<ImportContribution> {
+        PythonTools::imports::<Self>(self.0)
     }
 
     fn feature(&self) -> Option<&'static str> {
@@ -293,12 +307,15 @@ impl Fragment<ResolvedContext> for PythonToolCargoFragment {
 mod tests {
     use std::collections::HashMap;
 
+    use agentc_compiler::generator::extension::ExtensionPoint;
+
     use super::*;
     use crate::{
         context::{
             ResolvedContextAgent, ResolvedContextAgentModel, ResolvedContextFilesystem,
             ResolvedContextNetwork, ResolvedContextRuntime, ResolvedContextTool,
         },
+        contributions::import::ImportsExtensionPoint,
         graph::codegen::tools::ToolsCodeGen,
         types::RuntimeValue,
     };
@@ -366,17 +383,14 @@ mod tests {
         }
 
         fn generated(ctx: &ResolvedContext) -> (String, String) {
-            let (imports, registrations) =
-                ToolsCodeGen::generate(ctx, &FieldsSpec::collect_from(ctx))
-                    .expect("tool code generation should succeed");
-
             (
-                imports
-                    .into_iter()
-                    .map(|tokens| tokens.to_string())
-                    .collect::<Vec<_>>()
-                    .join("\n"),
-                registrations
+                ExtensionPoint::reduce(
+                    &ImportsExtensionPoint::new("agent::use"),
+                    vec![ToolsCodeGen::imports(ctx).expect("tool imports should merge")],
+                )
+                .expect("tool imports should render"),
+                ToolsCodeGen::registrations(ctx, &FieldsSpec::collect_from(ctx))
+                    .expect("tool code generation should succeed")
                     .into_iter()
                     .map(|tokens| tokens.to_string())
                     .collect::<Vec<_>>()
@@ -458,7 +472,7 @@ mod tests {
         let (imports, registrations) = PythonToolsFixture::generated(&ctx);
         let features = ToolsCodeGen::features(&ctx).to_string();
 
-        assert!(imports.is_empty());
+        assert_eq!(imports, "use agentc_tools::python::ExecutorBuilderToolsExt as _;");
         assert!(registrations.contains("guestpy :: rustpython :: RustPython"));
         assert!(registrations.contains("guestpy :: pyo3 :: CPython"));
         assert_eq!(

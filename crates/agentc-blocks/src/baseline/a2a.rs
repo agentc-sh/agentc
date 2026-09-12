@@ -13,9 +13,12 @@ use agentc_compiler::generator::{
 
 use crate::{
     context::ResolvedContext,
-    contributions::dependency::{
-        CargoDependencies, CargoDependencyContribution, CargoPatchContribution, CargoPatches,
-        RuntimeDependencyContribution,
+    contributions::{
+        dependency::{
+            CargoDependencies, CargoDependencyContribution, CargoPatchContribution, CargoPatches,
+            RuntimeDependencyContribution,
+        },
+        import::{ImportContribution, Imports},
     },
 };
 
@@ -28,14 +31,19 @@ impl Fragment<ResolvedContext> for A2aAgentFragment {
         point: &str,
     ) -> Result<ErasedContributionValue, GeneratorError> {
         match point {
-            "agent::use" => Ok(ErasedContributionValue::new(RenderedTokenStream::from(quote! {
-                use agentc_protocol_a2a::{
-                    client::{A2aClient, A2aClientConfig},
-                    tools::{A2aTenantPolicy, A2aToolTarget},
-                };
-
-                use crate::config::ConfigA2aAgentTenant;
-            }))),
+            "agent::use" => Ok(ErasedContributionValue::new(
+                Imports::from_entries([
+                    ImportContribution::path(&["agentc_protocol_a2a", "client"])
+                        .item("A2aClient")
+                        .item("A2aClientConfig"),
+                    ImportContribution::path(&["agentc_protocol_a2a", "tools"])
+                        .item("A2aTenantPolicy")
+                        .item("A2aToolTarget"),
+                    ImportContribution::path(&["crate", "config"])
+                        .item("ConfigA2aAgentTenant"),
+                ])
+                .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
+            )),
             "agent::tools" => Ok(ErasedContributionValue::new(RenderedTokenStream::from(quote! {
                 for (name, agent) in &config.a2a.agents {
                     if !agent.enabled {
