@@ -25,7 +25,7 @@ from agentc_tools import Schema, Tool, ToolInput, ToolOutput
 
 <LibSignature>
 ```python
-Schema(schema: dict | bool)
+Schema(schema: dict[str, object] | bool)
 ```
 </LibSignature>
 
@@ -33,7 +33,7 @@ Validates a JSON Schema draft 2020-12 document for a tool's parameters. Construc
 body, so an invalid schema fails the module import.
 
 <LibProperties>
-  <LibProperty name="value" type="dict | bool" readonly>
+  <LibProperty name="value" type="dict[str, object] | bool" readonly>
     A copy of the schema document.
   </LibProperty>
 </LibProperties>
@@ -46,18 +46,19 @@ body, so an invalid schema fails the module import.
 
 <LibSignature>
 ```python
-class Tool(Generic[Args, Result, State]):
-    description: str
-    parameters: Schema
+class Tool[Args, Result, State = Any]:
+    description: ClassVar[str]
+    parameters: ClassVar[Schema]
 
-    async def execute(self, input: ToolInput[Args, State]) -> ToolOutput[Result]
+    async def execute(self, input: ToolInput[Args, State], /) -> ToolOutput[Result]
 ```
 </LibSignature>
 
 The base class for every tool. Export a subclass and select it with the manifest's `export` field.
-The type arguments declare the argument type, the result type and, optionally, the state type, read
-from the subclass's own `Tool[...]` base. `description` tells the model what the tool does, and
-`parameters` supplies the model-facing input schema. Both are required.
+The type arguments declare the argument type, the result type and the state type, read from the
+subclass's own `Tool[...]` base. Omit the state type when its `Any` default is sufficient.
+`description` tells the model what the tool does, and `parameters` supplies the model-facing input
+schema. Both are required.
 
 A subclass that does not implement `execute` raises `NotImplementedError: a Tool subclass must
 implement execute`. `execute` must be `async`. A subclass that defines `__init__` must call
@@ -71,7 +72,7 @@ implement execute`. `execute` must be `async`. A subclass that defines `__init__
 
 <LibSignature>
 ```python
-class ToolInput(Generic[Args, State]):
+class ToolInput[Args, State = Any]:
     args: Args
     state: State
     emit: Callable[[str, list[dict]], None] | None

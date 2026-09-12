@@ -39,3 +39,11 @@ For TypeScript, the type stub package is `@agentc-sh/runtime`. It includes decla
 Installing it requires a version of `11.10.0` or later for npm and `9.0.0` for pnpm. This is because it resolves as a git subdirectory dependency, and older package manager versions do not honor the subdirectory fragment.
 
 For more information on how to install it, see the [README](https://github.com/agentc-sh/agentc/tree/dev/packages/typescript/runtime).
+
+### Python
+
+For Python, the type stub package is `agentc-runtime`. It includes one stub package for each runtime module.
+
+It is a development dependency, so the compiler never bundles it into a component. It resolves as a git subdirectory dependency, pinned to a release tag.
+
+For more information on how to install it, see the [README](https://github.com/agentc-sh/agentc/tree/dev/packages/python/runtime).

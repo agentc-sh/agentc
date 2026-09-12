@@ -9,9 +9,13 @@ dependencies = []
 
 [dependency-groups]
 dev = [
+    "agentc-runtime @ git+https://github.com/agentc-sh/agentc@{{ agentc_version }}#subdirectory=packages/python/runtime",
     "pytest>=9.0.3",
 ]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.pyright]
+reportMissingModuleSource = "none"
