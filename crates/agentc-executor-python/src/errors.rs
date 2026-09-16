@@ -21,6 +21,16 @@ pub enum GuestError {
         traceback: Option<String>,
     },
 
+    #[error(
+        "raised {class}{}",
+        if .text.is_empty() {
+            String::new()
+        } else {
+            format!(": {}", .text)
+        }
+    )]
+    Raise { class: String, text: String },
+
     /// A failure originating in the Python engine itself.
     #[error("engine error: {message}")]
     Engine {
@@ -119,6 +129,10 @@ impl From<GuestPyError> for GuestError {
                 name: exception.name().map(str::to_owned),
                 traceback: exception.traceback().map(str::to_owned),
             },
+            GuestPyError::Raise(raise) => Self::Raise {
+                class: raise.class().to_owned(),
+                text: raise.text().to_owned(),
+            },
             GuestPyError::Engine { message, source } => Self::Engine { message, source },
             GuestPyError::Conversion { message, source } => Self::Conversion { message, source },
             GuestPyError::Import { name, message } => Self::Import { name, message },
@@ -176,12 +190,15 @@ pub enum Error {
         source: io::Error,
     },
 
+    #[error("runtime configuration failed: {0}")]
+    Configuration(#[source] Box<dyn StdError + Send + Sync>),
+
     /// A worker failed to build its GuestPy environment or import the entry module.
     #[error("failed to initialize worker {worker}: {source}")]
     WorkerInitialization {
         worker: usize,
         #[source]
-        source: GuestError,
+        source: Box<Error>,
     },
 
     /// A worker's job queue is no longer accepting work.
@@ -266,11 +283,15 @@ impl Error {
         }
     }
 
+    pub fn configuration(source: impl Into<Box<dyn StdError + Send + Sync>>) -> Self {
+        Self::Configuration(source.into())
+    }
+
     /// Creates an [`Error::WorkerInitialization`] error.
-    pub fn worker_initialization(worker: impl Into<usize>, source: impl Into<GuestError>) -> Self {
+    pub fn worker_initialization(worker: impl Into<usize>, source: impl Into<Error>) -> Self {
         Self::WorkerInitialization {
             worker: worker.into(),
-            source: source.into(),
+            source: Box::new(source.into()),
         }
     }
 

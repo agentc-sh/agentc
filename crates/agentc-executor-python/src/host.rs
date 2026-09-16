@@ -105,17 +105,23 @@ def read_host_value():
             .configure(move |builder| {
                 let runtime = runtime.clone();
 
-                builder.bind(ModuleSpec::<RustPython>::new("test_host").function(
-                    "value",
-                    move |_enter, _args| {
-                        runtime
-                            .block_on(async {
-                                tokio::task::yield_now().await;
-                                42_i64
-                            })
-                            .map_err(|error| guestpy::errors::Error::unexpected(error.to_string()))
-                    },
-                ))
+                Ok(
+                    builder.bind(
+                        ModuleSpec::<RustPython>::new("test_host").function(
+                            "value",
+                            move |_enter, _args| {
+                                runtime
+                                    .block_on(async {
+                                        tokio::task::yield_now().await;
+                                        42_i64
+                                    })
+                                    .map_err(|error| {
+                                        guestpy::errors::Error::unexpected(error.to_string())
+                                    })
+                            },
+                        ),
+                    ),
+                )
             })
             .build()
             .await
