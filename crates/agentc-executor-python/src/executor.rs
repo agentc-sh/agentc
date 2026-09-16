@@ -592,11 +592,7 @@ def fail():
             .bundle(Bundle::single("test_component", COMPONENT_SOURCE).unwrap())
             .workers(1)
             .configure(|_builder| {
-                Err(
-                    Error::configuration(
-                        std::io::Error::other("client configuration is invalid"),
-                    ),
-                )
+                Err(Error::configuration(std::io::Error::other("client configuration is invalid")))
             })
             .build()
             .await
@@ -604,16 +600,11 @@ def fail():
             panic!("a failing configuration should fail initialization");
         };
 
-        let Error::WorkerInitialization {
-            source, ..
-        } = error
-        else {
+        let Error::WorkerInitialization { source, .. } = error else {
             panic!("a failing configuration should fail as worker initialization");
         };
 
-        assert!(
-            matches!(*source, Error::Configuration(_))
-        );
+        assert!(matches!(*source, Error::Configuration(_)));
         assert_eq!(
             source.to_string(),
             "runtime configuration failed: client configuration is invalid",

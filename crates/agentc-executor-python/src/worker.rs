@@ -293,10 +293,7 @@ impl Worker {
         let runtime = config
             .configurations
             .iter()
-            .try_fold(
-                Runtime::<B>::builder(),
-                |builder, configure| configure(builder),
-            )?;
+            .try_fold(Runtime::<B>::builder(), |builder, configure| configure(builder))?;
         let runtime = config
             .bundles
             .iter()

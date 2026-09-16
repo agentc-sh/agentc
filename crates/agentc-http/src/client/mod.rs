@@ -22,6 +22,6 @@ pub use crate::client::{
     client::HttpClient,
     errors::HttpClientError,
     policy::{Denied, Policy, RedirectContext, RequestContext, ResponseContext},
-    request::{HttpRequest, HttpRequestBuilder},
+    request::{HttpRequest, HttpRequestBody, HttpRequestBuilder},
     response::{HttpBodyStream, HttpResponse},
 };

@@ -13,7 +13,7 @@ use crate::client::{
     builder::HttpClientBuilder,
     errors::HttpClientError,
     limits::Limits,
-    request::{HttpRequest, HttpRequestBuilder},
+    request::{HttpRequest, HttpRequestBody, HttpRequestBuilder},
     response::HttpResponse,
 };
 
@@ -110,9 +110,12 @@ impl HttpClientInner {
             .request(parts.method, parts.url)
             .headers(parts.headers);
 
-        if let Some(body) = parts.body {
-            builder = builder.body(Body::from(body));
-        }
+        builder = match parts.body {
+            Some(HttpRequestBody::Bytes(bytes)) => builder.body(Body::from(bytes)),
+            Some(HttpRequestBody::Stream(stream)) =>
+                builder.body(Body::wrap_stream(stream)),
+            None => builder,
+        };
 
         if let Some(timeout) = parts
             .timeout
@@ -133,7 +136,13 @@ impl HttpClientInner {
 mod tests {
     use std::net::SocketAddr;
 
-    use axum::{Router, response::Redirect, routing::get};
+    use axum::{
+        Router,
+        response::Redirect,
+        routing::{get, post},
+    };
+    use bytes::Bytes;
+    use http::StatusCode;
     use tokio::net::TcpListener;
     use url::Url;
 
@@ -169,7 +178,9 @@ mod tests {
                 Router::new()
                     .route("/ok", get(|| async { "hello" }))
                     .route("/big", get(|| async { "x".repeat(64) }))
-                    .route("/away", get(|| async { Redirect::to("https://denied.test/") })),
+                    .route("/away", get(|| async { Redirect::to("https://denied.test/") }))
+                    .route("/echo", post(|body: String| async move { body }))
+                    .route("/moved", post(|| async { Redirect::temporary("/echo") })),
             )
             .await
         }));
@@ -229,6 +240,49 @@ mod tests {
                 .await,
             Err(HttpClientError::BodyTooLarge { limit: 8 }),
         ));
+    }
+
+    #[tokio::test]
+    async fn a_streamed_body_is_sent_in_order() {
+        let address = server().await;
+
+        assert_eq!(
+            HttpClient::builder()
+                .build()
+                .expect("client builds")
+                .post(format!("http://{address}/echo"))
+                .stream(futures::stream::iter([
+                    Ok::<_, std::io::Error>(Bytes::from_static(b"first "),),
+                    Ok(Bytes::from_static(b"second"),),
+                ]),)
+                .send()
+                .await
+                .expect("request succeeds")
+                .text()
+                .await
+                .expect("body reads"),
+            "first second",
+        );
+    }
+
+    #[tokio::test]
+    async fn a_streamed_body_is_not_replayed_across_a_redirect() {
+        let address = server().await;
+
+        assert_eq!(
+            HttpClient::builder()
+                .build()
+                .expect("client builds")
+                .post(format!("http://{address}/moved"))
+                .stream(futures::stream::iter([Ok::<_, std::io::Error>(Bytes::from_static(
+                    b"payload"
+                ),),]),)
+                .send()
+                .await
+                .expect("the redirect response is returned")
+                .status(),
+            StatusCode::TEMPORARY_REDIRECT,
+        );
     }
 
     #[tokio::test]
