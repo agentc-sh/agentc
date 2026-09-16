@@ -4,10 +4,10 @@
 
 use agentc_executor_python::guestpy::{
     FromGuest,
-    host_class,
     backend::{Backend, BackendValues},
     errors::Error,
     handle::Object,
+    host_class,
 };
 use json_patch::Patch;
 use serde::Deserialize;

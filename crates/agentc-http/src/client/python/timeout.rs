@@ -19,11 +19,9 @@ pub(crate) trait FromSeconds: Sized {
 impl FromSeconds for Duration {
     fn from_seconds<B: ExecutorBackend>(seconds: f64) -> Result<Self, Error> {
         if !seconds.is_finite() || seconds < 0.0 {
-            return Err(
-                Raise::<B>::new(ExceptionClass::builtin("ValueError"))
-                    .arg(format!("invalid timeout: {seconds}"))
-                    .into(),
-            );
+            return Err(Raise::<B>::new(ExceptionClass::builtin("ValueError"))
+                .arg(format!("invalid timeout: {seconds}"))
+                .into());
         }
 
         Ok(Self::from_secs_f64(seconds))

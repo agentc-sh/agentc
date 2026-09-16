@@ -183,114 +183,84 @@ def closed_is_runtime_error():
         )
         .try_into()?;
 
-        Ok(
-            module.function("fail", |enter, args| {
-                let kind = args.required::<String>(enter, 0, "kind")?;
-                let request = args.optional::<Instance<RustPython, Request<RustPython>>>(
-                    enter,
-                    1,
-                    "request",
-                )?;
+        Ok(module.function("fail", |enter, args| {
+            let kind = args.required::<String>(enter, 0, "kind")?;
+            let request =
+                args.optional::<Instance<RustPython, Request<RustPython>>>(enter, 1, "request")?;
 
-                args.finish()?;
+            args.finish()?;
 
-                if kind == "closed" {
-                    return Err(
-                        Raise::<RustPython>::host(
-                            BodyClosed {
-                                message: String::from("body closed before consuming"),
-                            },
-                        )
-                        .into(),
-                    );
-                }
+            if kind == "closed" {
+                return Err(Raise::<RustPython>::host(BodyClosed {
+                    message: String::from("body closed before consuming"),
+                })
+                .into());
+            }
 
-                let request = match request {
-                    Some(request) => request,
-                    None => Class::of::<Request<RustPython>>(enter)?.construct((
-                        String::from("GET"),
-                        String::from("https://example.test/"),
-                    ))?,
-                };
+            let request = match request {
+                Some(request) => request,
+                None => Class::of::<Request<RustPython>>(enter)?
+                    .construct((String::from("GET"), String::from("https://example.test/")))?,
+            };
 
-                let response = Class::of::<Response<RustPython>>(enter)?.instantiate(
-                    Response::from_response(
-                        HttpResponse::new(
-                            reqwest::Response::from(
-                                http::Response::builder()
-                                    .status(200)
-                                    .body(reqwest::Body::from("payload"))
-                                    .expect("test response builds"),
-                            ),
-                            None,
-                            None,
+            let response =
+                Class::of::<Response<RustPython>>(enter)?.instantiate(Response::from_response(
+                    HttpResponse::new(
+                        reqwest::Response::from(
+                            http::Response::builder()
+                                .status(200)
+                                .body(reqwest::Body::from("payload"))
+                                .expect("test response builds"),
                         ),
-                        request.clone(),
-                    )
-                )?;
+                        None,
+                        None,
+                    ),
+                    request.clone(),
+                ))?;
 
-                let (exchange, error) = match kind.as_str() {
-                    "denied" => (
-                        Exchange::Sending { request },
-                        HttpClientError::Denied {
-                            policy: "url-pattern",
-                            reason: String::from("nothing is permitted"),
-                        },
-                    ),
-                    "timeout" => (
-                        Exchange::Sending { request },
-                        HttpClientError::Timeout,
-                    ),
-                    "too_large" => (
-                        Exchange::Streaming {
-                            request,
-                            response: response.clone(),
-                        },
-                        HttpClientError::BodyTooLarge { limit: 8 },
-                    ),
-                    "redirects" => (
-                        Exchange::Sending { request },
-                        HttpClientError::TooManyRedirects,
-                    ),
-                    "invalid" => (
-                        Exchange::Sending { request },
-                        HttpClientError::invalid_request("bad URL"),
-                    ),
-                    "configuration" => (
-                        Exchange::Sending { request },
-                        HttpClientError::configuration("bad configuration"),
-                    ),
-                    "transport" => (
-                        Exchange::Sending { request },
-                        HttpClientError::Transport {
-                            source: reqwest_middleware::Error::Middleware(
-                                anyhow::anyhow!("offline"),
-                            ),
-                        },
-                    ),
-                    "decode" => (
-                        Exchange::Streaming { request, response },
-                        HttpClientError::decode("invalid JSON"),
-                    ),
-                    _ => panic!("unknown test case: {kind}"),
-                };
+            let (exchange, error) = match kind.as_str() {
+                "denied" => (
+                    Exchange::Sending { request },
+                    HttpClientError::Denied {
+                        policy: "url-pattern",
+                        reason: String::from("nothing is permitted"),
+                    },
+                ),
+                "timeout" => (Exchange::Sending { request }, HttpClientError::Timeout),
+                "too_large" => (
+                    Exchange::Streaming { request, response: response.clone() },
+                    HttpClientError::BodyTooLarge { limit: 8 },
+                ),
+                "redirects" => (Exchange::Sending { request }, HttpClientError::TooManyRedirects),
+                "invalid" => {
+                    (Exchange::Sending { request }, HttpClientError::invalid_request("bad URL"))
+                }
+                "configuration" => (
+                    Exchange::Sending { request },
+                    HttpClientError::configuration("bad configuration"),
+                ),
+                "transport" => (
+                    Exchange::Sending { request },
+                    HttpClientError::Transport {
+                        source: reqwest_middleware::Error::Middleware(anyhow::anyhow!("offline")),
+                    },
+                ),
+                "decode" => (
+                    Exchange::Streaming { request, response },
+                    HttpClientError::decode("invalid JSON"),
+                ),
+                _ => panic!("unknown test case: {kind}"),
+            };
 
-                Err::<(), Error>(
-                    exchange.raise(error).into(),
-                )
-            }),
-        )
+            Err::<(), Error>(exchange.raise(error).into())
+        }))
     }
 
     async fn executor() -> Executor<RustPython> {
         Executor::<RustPython>::builder("agentc_http_exchange_test")
-            .bundle(
-                Bundle::single("agentc_http_exchange_test", SOURCE).expect("bundle builds"),
-            )
+            .bundle(Bundle::single("agentc_http_exchange_test", SOURCE).expect("bundle builds"))
             .workers(1)
-            .configure(
-                |runtime| Ok(runtime.bind(HostLibrary::new().with(module()?))),
-            )
+            .configure(|runtime| Ok(runtime.bind(HostLibrary::new().with(module()?))))
             .build()
             .await
             .expect("executor builds")
@@ -306,16 +276,14 @@ def closed_is_runtime_error():
         T::Owned: Send + 'static,
     {
         executor
-            .execute(
-                move |context| Box::pin(
-                    async move {
-                        context
-                            .module()
-                            .function(export)?
-                            .call::<_, T>((kind,))
-                    },
-                ),
-            )
+            .execute(move |context| {
+                Box::pin(async move {
+                    context
+                        .module()
+                        .function(export)?
+                        .call::<_, T>((kind,))
+                })
+            })
             .await
             .expect("guest call succeeds")
     }
@@ -334,31 +302,17 @@ def closed_is_runtime_error():
             ("transport", "TransportError"),
             ("decode", "DecodingError"),
         ] {
-            assert_eq!(
-                call::<String>(&executor, "classify", kind).await,
-                class,
-            );
-            assert!(
-                call::<bool>(&executor, "identity", kind).await,
-            );
+            assert_eq!(call::<String>(&executor, "classify", kind).await, class,);
+            assert!(call::<bool>(&executor, "identity", kind).await,);
         }
 
-        assert_eq!(
-            call::<String>(&executor, "bases", "timeout").await,
-            "HTTPError",
-        );
-        assert_eq!(
-            call::<String>(&executor, "bases", "closed").await,
-            "RuntimeError",
-        );
+        assert_eq!(call::<String>(&executor, "bases", "timeout").await, "HTTPError",);
+        assert_eq!(call::<String>(&executor, "bases", "closed").await, "RuntimeError",);
         assert_eq!(
             call::<String>(&executor, "carried", "denied").await,
             "url-pattern:nothing is permitted",
         );
-        assert_eq!(
-            call::<String>(&executor, "carried", "too_large").await,
-            "8",
-        );
+        assert_eq!(call::<String>(&executor, "carried", "too_large").await, "8",);
         assert_eq!(
             call::<String>(&executor, "message", "denied").await,
             "denied by policy 'url-pattern': nothing is permitted",
@@ -376,28 +330,24 @@ def closed_is_runtime_error():
             ("transport", "transport error: offline"),
             ("decode", "failed to decode the response: invalid JSON"),
         ] {
-            assert_eq!(
-                call::<String>(&executor, "message", kind).await,
-                message,
-            );
+            assert_eq!(call::<String>(&executor, "message", kind).await, message,);
         }
 
         assert!(
             executor
-                .execute(
-                    |context| Box::pin(
-                        async move {
-                            context
-                                .module()
-                                .function("closed_is_runtime_error")?
-                                .call::<_, bool>(())
-                        },
-                    ),
-                )
+                .execute(|context| Box::pin(async move {
+                    context
+                        .module()
+                        .function("closed_is_runtime_error")?
+                        .call::<_, bool>(())
+                },),)
                 .await
                 .expect("guest call succeeds"),
         );
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 }

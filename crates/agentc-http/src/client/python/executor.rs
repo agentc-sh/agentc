@@ -2,11 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-use agentc_executor_python::{
-    backend::ExecutorBackend,
-    errors::Error,
-    executor::ExecutorBuilder,
-};
+use agentc_executor_python::{backend::ExecutorBackend, errors::Error, executor::ExecutorBuilder};
 
 use crate::client::{builder::HttpClientBuilder, python::library::HttpLibrary};
 
@@ -18,20 +14,14 @@ impl<B: ExecutorBackend> ExecutorBuilderHttpExt for ExecutorBuilder<B> {
     fn with_http(self, builder: impl Into<HttpClientBuilder>) -> Self {
         let builder = builder.into();
 
-        self.configure(
-            move |runtime| {
-                Ok(
-                    runtime.bind(
-                        HttpLibrary::bind::<B>(
-                            builder
-                                .clone()
-                                .build()
-                                .map_err(Error::configuration)?,
-                        )?,
-                    ),
-                )
-            },
-        )
+        self.configure(move |runtime| {
+            Ok(runtime.bind(HttpLibrary::bind::<B>(
+                builder
+                    .clone()
+                    .build()
+                    .map_err(Error::configuration)?,
+            )?))
+        })
     }
 }
 
@@ -60,9 +50,7 @@ def names():
     #[tokio::test]
     async fn the_extension_trait_binds_the_module_on_every_worker() {
         let executor = Executor::<RustPython>::builder("agentc_http_test")
-            .bundle(
-                Bundle::single("agentc_http_test", IMPORT_SOURCE).unwrap(),
-            )
+            .bundle(Bundle::single("agentc_http_test", IMPORT_SOURCE).unwrap())
             .workers(2)
             .with_http(HttpClient::builder())
             .build()
@@ -72,16 +60,12 @@ def names():
         for _ in 0..4 {
             assert_eq!(
                 executor
-                    .execute(
-                        |context| Box::pin(
-                            async move {
-                                context
-                                    .module()
-                                    .function("names")?
-                                    .call::<_, String>(())
-                            },
-                        ),
-                    )
+                    .execute(|context| Box::pin(async move {
+                        context
+                            .module()
+                            .function("names")?
+                            .call::<_, String>(())
+                    },),)
                     .await
                     .expect("guest call succeeds"),
                 "HTTPError,RequestError,BodyError",
@@ -97,9 +81,7 @@ def names():
     #[tokio::test]
     async fn an_invalid_client_configuration_fails_the_build() {
         let Err(error) = Executor::<RustPython>::builder("agentc_http_test")
-            .bundle(
-                Bundle::single("agentc_http_test", IMPORT_SOURCE).unwrap(),
-            )
+            .bundle(Bundle::single("agentc_http_test", IMPORT_SOURCE).unwrap())
             .workers(1)
             .with_http(HttpClient::builder().header("in valid", "x"))
             .build()
@@ -112,8 +94,6 @@ def names():
             panic!("invalid HTTP configuration should fail worker initialization");
         };
 
-        assert!(
-            matches!(*source, Error::Configuration(_)),
-        );
+        assert!(matches!(*source, Error::Configuration(_)),);
     }
 }

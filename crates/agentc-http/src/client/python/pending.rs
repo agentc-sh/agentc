@@ -53,15 +53,7 @@ impl<B: ExecutorBackend> PendingResponse<B> {
         upload: Option<Upload<B>>,
     ) -> Self {
         Self {
-            state: Rc::new(
-                RefCell::new(
-                    Pending::Ready {
-                        request,
-                        origin,
-                        upload,
-                    },
-                ),
-            ),
+            state: Rc::new(RefCell::new(Pending::Ready { request, origin, upload })),
         }
     }
 
@@ -71,19 +63,13 @@ impl<B: ExecutorBackend> PendingResponse<B> {
         let mut state = self.state.borrow_mut();
 
         match std::mem::replace(&mut *state, Pending::Sending) {
-            Pending::Ready {
-                request,
-                origin,
-                upload,
-            } => Ok((request, origin, upload)),
+            Pending::Ready { request, origin, upload } => Ok((request, origin, upload)),
             previous => {
                 *state = previous;
 
-                Err(
-                    Raise::<B>::new(ExceptionClass::builtin("RuntimeError"))
-                        .arg("PendingResponse can only be awaited once")
-                        .into()
-                )
+                Err(Raise::<B>::new(ExceptionClass::builtin("RuntimeError"))
+                    .arg("PendingResponse can only be awaited once")
+                    .into())
             }
         }
     }
@@ -107,17 +93,16 @@ impl<B: ExecutorBackend> PendingResponse<B> {
     ) -> Result<HttpResponse, SendError> {
         match upload {
             Some(upload) => {
-                let (response, pumped) = futures::future::join(
-                    request.send(),
-                    upload.pump(),
-                )
-                .await;
+                let (response, pumped) = futures::future::join(request.send(), upload.pump()).await;
 
                 pumped.map_err(SendError::Guest)?;
 
                 response.map_err(SendError::Host)
             }
-            None => request.send().await.map_err(SendError::Host),
+            None => request
+                .send()
+                .await
+                .map_err(SendError::Host),
         }
     }
 }
@@ -125,77 +110,59 @@ impl<B: ExecutorBackend> PendingResponse<B> {
 #[host_class(backend = B, crate_path = agentc_executor_python::guestpy)]
 impl<B: ExecutorBackend> PendingResponse<B> {
     #[guestpy(async_method, dunder = "__await__")]
-    fn wait(
-        &self,
-    ) -> Result<impl Future<Output = Result<Response<B>, Error>> + use<B>, Error> {
+    fn wait(&self) -> Result<impl Future<Output = Result<Response<B>, Error>> + use<B>, Error> {
         let (request, origin, upload) = self.begin()?;
         let state = self.state.clone();
-        let exchange = Exchange::Sending {
-            request: origin.clone(),
-        };
+        let exchange = Exchange::Sending { request: origin.clone() };
 
-        Ok(
-            async move {
-                match Self::send(request, upload).await {
-                    Ok(response) => {
-                        *state.borrow_mut() = Pending::Done;
+        Ok(async move {
+            match Self::send(request, upload).await {
+                Ok(response) => {
+                    *state.borrow_mut() = Pending::Done;
 
-                        Ok(
-                            Response::from_response(response, origin),
-                        )
-                    }
-                    Err(SendError::Guest(error)) => {
-                        *state.borrow_mut() = Pending::Done;
-
-                        Err(error)
-                    }
-                    Err(SendError::Host(error)) => {
-                        *state.borrow_mut() = Pending::Done;
-
-                        Err(
-                            exchange.raise(error).into(),
-                        )
-                    }
+                    Ok(Response::from_response(response, origin))
                 }
-            },
-        )
+                Err(SendError::Guest(error)) => {
+                    *state.borrow_mut() = Pending::Done;
+
+                    Err(error)
+                }
+                Err(SendError::Host(error)) => {
+                    *state.borrow_mut() = Pending::Done;
+
+                    Err(exchange.raise(error).into())
+                }
+            }
+        })
     }
 
     #[guestpy(async_method, dunder = "__aenter__")]
-    fn enter(
-        &self,
-    ) -> Result<impl Future<Output = Result<Response<B>, Error>> + use<B>, Error> {
+    fn enter(&self) -> Result<impl Future<Output = Result<Response<B>, Error>> + use<B>, Error> {
         let (request, origin, upload) = self.begin()?;
         let state = self.state.clone();
-        let exchange = Exchange::Sending {
-            request: origin.clone(),
-        };
+        let exchange = Exchange::Sending { request: origin.clone() };
 
-        Ok(
-            async move {
-                match Self::send(request, upload).await {
-                    Ok(response) => {
-                        let response = Response::from_response(response, origin);
+        Ok(async move {
+            match Self::send(request, upload).await {
+                Ok(response) => {
+                    let response = Response::from_response(response, origin);
 
-                        *state.borrow_mut() = Pending::Entered(response.body_handle());
+                    *state.borrow_mut() = Pending::Entered(response.body_handle());
 
-                        Ok(response)
-                    }
-                    Err(SendError::Guest(error)) => {
-                        *state.borrow_mut() = Pending::Done;
-
-                        Err(error)
-                    }
-                    Err(SendError::Host(error)) => {
-                        *state.borrow_mut() = Pending::Done;
-
-                        Err(
-                            exchange.raise(error).into(),
-                        )
-                    }
+                    Ok(response)
                 }
-            },
-        )
+                Err(SendError::Guest(error)) => {
+                    *state.borrow_mut() = Pending::Done;
+
+                    Err(error)
+                }
+                Err(SendError::Host(error)) => {
+                    *state.borrow_mut() = Pending::Done;
+
+                    Err(exchange.raise(error).into())
+                }
+            }
+        })
     }
 
     #[guestpy(async_method, dunder = "__aexit__")]
@@ -207,15 +174,13 @@ impl<B: ExecutorBackend> PendingResponse<B> {
     ) -> Result<impl Future<Output = Result<(), Error>> + use<B>, Error> {
         let body = self.finish();
 
-        Ok(
-            async move {
-                if let Some(body) = body {
-                    body.release();
-                }
+        Ok(async move {
+            if let Some(body) = body {
+                body.release();
+            }
 
-                Ok(())
-            },
-        )
+            Ok(())
+        })
     }
 }
 
@@ -244,9 +209,7 @@ def make_request():
     #[tokio::test]
     async fn a_pending_response_can_begin_once() {
         let executor = Executor::<RustPython>::builder("agentc_http_pending_test")
-            .bundle(
-                Bundle::single("agentc_http_pending_test", SOURCE).expect("bundle builds"),
-            )
+            .bundle(Bundle::single("agentc_http_pending_test", SOURCE).expect("bundle builds"))
             .workers(1)
             .with_http(HttpClient::builder())
             .build()
@@ -254,34 +217,35 @@ def make_request():
             .expect("executor builds");
 
         executor
-            .execute(
-                |context| Box::pin(
-                    async move {
-                        let origin = context
-                            .module()
-                            .function("make_request")?
-                            .call::<_, Instance<RustPython, Request<RustPython>>>(())?;
-                        let pending = PendingResponse::new(
-                            HttpClient::builder()
-                                .build()
-                                .expect("client builds")
-                                .get("https://example.test/"),
-                            origin,
-                            None,
-                        );
+            .execute(|context| {
+                Box::pin(async move {
+                    let origin = context
+                        .module()
+                        .function("make_request")?
+                        .call::<_, Instance<RustPython, Request<RustPython>>>(())?;
+                    let pending = PendingResponse::new(
+                        HttpClient::builder()
+                            .build()
+                            .expect("client builds")
+                            .get("https://example.test/"),
+                        origin,
+                        None,
+                    );
 
-                        assert!(pending.begin().is_ok());
-                        assert!(pending.begin().is_err());
-                        assert!(pending.finish().is_none());
-                        assert!(pending.begin().is_err());
+                    assert!(pending.begin().is_ok());
+                    assert!(pending.begin().is_err());
+                    assert!(pending.finish().is_none());
+                    assert!(pending.begin().is_err());
 
-                        Ok(())
-                    },
-                ),
-            )
+                    Ok(())
+                })
+            })
             .await
             .expect("guest operation succeeds");
 
-        executor.shutdown().await.expect("executor shuts down");
+        executor
+            .shutdown()
+            .await
+            .expect("executor shuts down");
     }
 }

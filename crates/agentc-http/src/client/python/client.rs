@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::{collections::HashSet, time::Duration, marker::PhantomData};
+use std::{collections::HashSet, marker::PhantomData, time::Duration};
 
 use agentc_executor_python::{
     backend::ExecutorBackend,
@@ -18,7 +18,7 @@ use agentc_executor_python::{
     },
 };
 use bytes::Bytes;
-use http::{header::CONTENT_TYPE, HeaderMap, Method};
+use http::{HeaderMap, Method, header::CONTENT_TYPE};
 use url::{ParseError, Url};
 
 use crate::client::{
@@ -69,11 +69,9 @@ impl<B: ExecutorBackend> Client<B> {
             || parsed.query().is_some()
             || parsed.fragment().is_some()
         {
-            return Err(
-                Raise::<B>::new(ExceptionClass::builtin("ValueError"))
-                    .arg("base_url must be an absolute URL without a query string or fragment")
-                    .into()
-            );
+            return Err(Raise::<B>::new(ExceptionClass::builtin("ValueError"))
+                .arg("base_url must be an absolute URL without a query string or fragment")
+                .into());
         }
 
         if !parsed.path().ends_with('/') {
@@ -133,11 +131,7 @@ impl<B: ExecutorBackend> Client<B> {
         headers
     }
 
-    fn prepare(
-        &self,
-        request: &Request<B>,
-        exchange: &Exchange<B>,
-    ) -> Result<Prepared<B>, Error> {
+    fn prepare(&self, request: &Request<B>, exchange: &Exchange<B>) -> Result<Prepared<B>, Error> {
         let mut url = self
             .url(&request.url)
             .map_err(|error| exchange.raise(error))?;
@@ -273,10 +267,7 @@ impl<B: ExecutorBackend> Client<B> {
     }
 
     #[guestpy(method)]
-    fn send(
-        &self,
-        request: Instance<B, Request<B>>,
-    ) -> Result<PendingResponse<B>, Error> {
+    fn send(&self, request: Instance<B, Request<B>>) -> Result<PendingResponse<B>, Error> {
         let exchange = Exchange::Sending { request: request.clone() };
         let prepared = request.borrow_with(|value| self.prepare(value, &exchange))??;
 
@@ -375,7 +366,7 @@ impl<B: ExecutorBackend> Client<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     use agentc_executor_python::guestpy::rustpython::RustPython;
 
     fn client<B: ExecutorBackend>(base_url: Option<&str>) -> Client<B> {
@@ -407,10 +398,16 @@ mod tests {
                 .as_str(),
             "https://api.example.com/v1/users",
         );
-        assert!(client::<RustPython>(None).url("/users").is_err(),);
-        assert!(client::<RustPython>(Some("https://api.example.com/v1/"),)
-            .url("https://other.example/x")
-            .is_err(),);
+        assert!(
+            client::<RustPython>(None)
+                .url("/users")
+                .is_err(),
+        );
+        assert!(
+            client::<RustPython>(Some("https://api.example.com/v1/"),)
+                .url("https://other.example/x")
+                .is_err(),
+        );
     }
 
     #[test]

@@ -57,7 +57,9 @@ impl<B: ExecutorBackend> Request<B> {
             body: body
                 .map(RequestBody::from_body)
                 .transpose()?,
-            timeout: timeout.map(Duration::from_seconds::<B>).transpose()?,
+            timeout: timeout
+                .map(Duration::from_seconds::<B>)
+                .transpose()?,
         })
     }
 
