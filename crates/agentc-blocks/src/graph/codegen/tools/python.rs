@@ -78,6 +78,7 @@ impl PythonTools {
                     .bundle(agentc_executor_python::bundle!(#project_path)?)
                     .bundle(agentc_executor_python::bundle!(#site_packages_path)?)
                     .with_tools()
+                    .with_http(config.network.builder()?)
                     .workers(4)
                     .queue_capacity(32)
                     .cancellation(shutdown.clone())
@@ -161,6 +162,8 @@ impl PythonTools {
         Self::is_present::<B>(ctx)
             .then(|| {
                 vec![
+                    ImportContribution::path(&["agentc_http", "client", "python"])
+                        .item_as("ExecutorBuilderHttpExt", "_"),
                     ImportContribution::path(&["agentc_tools", "python"])
                         .item_as("ExecutorBuilderToolsExt", "_"),
                 ]
@@ -303,6 +306,28 @@ impl Fragment<ResolvedContext> for PythonToolCargoFragment {
     }
 }
 
+pub struct HttpPythonCargoFragment;
+
+impl Fragment<ResolvedContext> for HttpPythonCargoFragment {
+    fn generate_contribution(
+        &self,
+        _ctx: &GenerationContext<ResolvedContext>,
+        point: &str,
+    ) -> Result<ErasedContributionValue, GeneratorError> {
+        match point {
+            "cargo::dependencies" => Ok(ErasedContributionValue::new(
+                CargoDependencies::from_entries([CargoDependencyContribution::runtime(
+                    RuntimeDependencyContribution::new("agentc-http")
+                        .default_features(false)
+                        .feature("python"),
+                )])
+                .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
+            )),
+            _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
@@ -314,6 +339,7 @@ mod tests {
         context::{
             ResolvedContextAgent, ResolvedContextAgentModel, ResolvedContextFilesystem,
             ResolvedContextNetwork, ResolvedContextRuntime, ResolvedContextTool,
+            ResolvedContextToolJavascript,
         },
         contributions::import::ImportsExtensionPoint,
         graph::codegen::tools::ToolsCodeGen,
@@ -472,7 +498,8 @@ mod tests {
         let (imports, registrations) = PythonToolsFixture::generated(&ctx);
         let features = ToolsCodeGen::features(&ctx).to_string();
 
-        assert_eq!(imports, "use agentc_tools::python::ExecutorBuilderToolsExt as _;");
+        assert!(imports.contains("python::ExecutorBuilderHttpExt as _"));
+        assert!(imports.contains("python::ExecutorBuilderToolsExt as _"));
         assert!(registrations.contains("guestpy :: rustpython :: RustPython"));
         assert!(registrations.contains("guestpy :: pyo3 :: CPython"));
         assert_eq!(
@@ -590,7 +617,7 @@ mod tests {
         assert!(registrations.contains(". queue_capacity (32)"));
         assert!(registrations.contains(". cancellation (shutdown . clone ())"));
         assert!(!registrations.contains("standard_environment"));
-        assert!(!registrations.contains("with_http"));
+        assert!(registrations.contains(". with_http (config . network . builder () ?)"));
         assert!(!registrations.contains("with_fs"));
     }
 
@@ -606,6 +633,56 @@ mod tests {
 
         assert!(registrations.contains(". export_name (\"Weather\")"));
         assert!(!registrations.contains("tool_name"));
+    }
+
+    #[test]
+    fn imports_reference_the_http_and_tool_surface() {
+        let ctx = PythonToolsFixture::context([PythonToolsFixture::tool(
+            "adder",
+            "/artifacts/adder",
+            "Adder",
+            ResolvedContextToolPythonInterpreter::Embedded,
+        )]);
+
+        assert_eq!(
+            RustPythonTools(&ctx).imports(),
+            vec![
+                ImportContribution::path(&["agentc_http", "client", "python"])
+                    .item_as("ExecutorBuilderHttpExt", "_"),
+                ImportContribution::path(&["agentc_tools", "python"])
+                    .item_as("ExecutorBuilderToolsExt", "_"),
+            ],
+        );
+    }
+
+    #[test]
+    fn javascript_and_python_tools_import_both_http_surfaces() {
+        let ctx = PythonToolsFixture::context([
+            PythonToolsFixture::tool(
+                "adder",
+                "/artifacts/adder",
+                "Adder",
+                ResolvedContextToolPythonInterpreter::Embedded,
+            ),
+            (
+                "search".to_string(),
+                ResolvedContextTool {
+                    name: "search".to_string(),
+                    description: None,
+                    enabled: RuntimeValue::constant(true),
+                    capabilities: vec![],
+                    config: HashMap::new(),
+                    kind: ResolvedContextToolKind::Javascript(ResolvedContextToolJavascript {
+                        bundle_path: "/artifacts/pkg/dist/index.js".to_string(),
+                        export_name: "search".to_string(),
+                    }),
+                },
+            ),
+        ]);
+        let (imports, _) = PythonToolsFixture::generated(&ctx);
+
+        assert!(imports.contains("python::ExecutorBuilderHttpExt as _"));
+        assert!(imports.contains("typescript::ExecutorBuilderHttpExt"));
     }
 
     #[test]

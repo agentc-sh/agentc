@@ -41,7 +41,7 @@ use crate::{
                 FilesystemTypescriptCargoFragment, HttpTypescriptCargoFragment,
                 JavascriptToolCargoFragment,
             },
-            python::PythonToolCargoFragment,
+            python::{HttpPythonCargoFragment, PythonToolCargoFragment},
         },
         react::{
             agent::AgentCodeGen,
@@ -174,13 +174,24 @@ impl AgentGraph for ReActGraph {
         }
 
         if context.has_python_components() {
-            core_blocks = core_blocks.add(
-                FragmentBlock::builder()
-                    .id("python_tool_cargo")
-                    .contribute(Contribution::<CargoDependencies>::strict("cargo::dependencies"))
-                    .contribute(Contribution::<CargoPatches>::strict("cargo::patches"))
-                    .build(PythonToolCargoFragment),
-            );
+            core_blocks = core_blocks
+                .add(
+                    FragmentBlock::builder()
+                        .id("python_tool_cargo")
+                        .contribute(Contribution::<CargoDependencies>::strict(
+                            "cargo::dependencies",
+                        ))
+                        .contribute(Contribution::<CargoPatches>::strict("cargo::patches"))
+                        .build(PythonToolCargoFragment),
+                )
+                .add(
+                    FragmentBlock::builder()
+                        .id("http_python_cargo")
+                        .contribute(Contribution::<CargoDependencies>::strict(
+                            "cargo::dependencies",
+                        ))
+                        .build(HttpPythonCargoFragment),
+                );
         }
 
         let server_integration = GenerationContribution::new()
