@@ -191,7 +191,7 @@ impl HttpRequestBuilder {
         })
     }
 
-    /// Overrides the client's whole-request deadline for this request.
+    /// Sets the whole-request deadline, bounded by the client's configured deadline.
     pub fn timeout(self, timeout: impl Into<Duration>) -> Self {
         self.map(|mut request| {
             request.timeout = Some(timeout.into());

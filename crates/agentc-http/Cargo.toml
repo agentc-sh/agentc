@@ -39,6 +39,7 @@ server = [
     "dep:validator",
 ]
 
+python = ["client", "dep:agentc-executor-python", "dep:encoding_rs"]
 typescript = ["client", "dep:agentc-executor-typescript"]
 
 tls = ["server", "dep:rustls"]
@@ -46,6 +47,7 @@ tls = ["server", "dep:rustls"]
 [dependencies]
 agentc-telemetry = { path = "../agentc-telemetry", version = "0.3.1" }
 agentc-domain = { path = "../agentc-domain", version = "0.3.1", optional = true }
+agentc-executor-python = { path = "../agentc-executor-python", version = "0.3.1", optional = true }
 agentc-executor-typescript = { path = "../agentc-executor-typescript", version = "0.3.1", optional = true }
 
 tokio = { workspace = true }
@@ -66,6 +68,7 @@ json-patch = { workspace = true, optional = true }
 utoipa = { workspace = true, optional = true }
 
 bytes = { workspace = true, optional = true }
+encoding_rs = { version = "0.8", optional = true }
 url = { workspace = true, optional = true }
 regex = { workspace = true, optional = true }
 urlpattern = { version = "0.6", optional = true }
@@ -92,3 +95,4 @@ tower = { workspace = true, features = ["util"] }
 tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }
 axum = { workspace = true }
 axum-server = { workspace = true }
+agentc-executor-python = { path = "../agentc-executor-python", version = "0.3.1", features = ["rustpython"] }

@@ -112,15 +112,16 @@ impl HttpClientInner {
 
         builder = match parts.body {
             Some(HttpRequestBody::Bytes(bytes)) => builder.body(Body::from(bytes)),
-            Some(HttpRequestBody::Stream(stream)) =>
-                builder.body(Body::wrap_stream(stream)),
+            Some(HttpRequestBody::Stream(stream)) => builder.body(Body::wrap_stream(stream)),
             None => builder,
         };
 
-        if let Some(timeout) = parts
-            .timeout
-            .or(self.limits.request_timeout)
-        {
+        let timeout = match (parts.timeout, self.limits.request_timeout) {
+            (Some(request), Some(ceiling)) => Some(request.min(ceiling)),
+            (request, ceiling) => request.or(ceiling),
+        };
+
+        if let Some(timeout) = timeout {
             builder = builder.timeout(timeout);
         }
 

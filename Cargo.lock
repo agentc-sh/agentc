@@ -461,6 +461,7 @@ name = "agentc-http"
 version = "0.3.1"
 dependencies = [
  "agentc-domain",
+ "agentc-executor-python",
  "agentc-executor-typescript",
  "agentc-telemetry",
  "anyhow",
@@ -468,6 +469,7 @@ dependencies = [
  "axum",
  "axum-server",
  "bytes",
+ "encoding_rs",
  "futures",
  "http 1.4.2",
  "json-patch",
@@ -2897,8 +2899,8 @@ dependencies = [
 
 [[package]]
 name = "guestpy"
-version = "0.5.2"
-source = "git+https://github.com/wizrds/guestpy.git?rev=0.5.2#ec27e127c4a53ca663fa6811046521bf891d39e9"
+version = "0.5.3"
+source = "git+https://github.com/wizrds/guestpy.git?rev=0.5.3#d77ea7d85d513c5cfe522140df06594aadca7d45"
 dependencies = [
  "guestpy-core",
  "guestpy-macros",
@@ -2908,8 +2910,8 @@ dependencies = [
 
 [[package]]
 name = "guestpy-core"
-version = "0.5.2"
-source = "git+https://github.com/wizrds/guestpy.git?rev=0.5.2#ec27e127c4a53ca663fa6811046521bf891d39e9"
+version = "0.5.3"
+source = "git+https://github.com/wizrds/guestpy.git?rev=0.5.3#d77ea7d85d513c5cfe522140df06594aadca7d45"
 dependencies = [
  "bytes",
  "futures",
@@ -2922,8 +2924,8 @@ dependencies = [
 
 [[package]]
 name = "guestpy-macros"
-version = "0.5.2"
-source = "git+https://github.com/wizrds/guestpy.git?rev=0.5.2#ec27e127c4a53ca663fa6811046521bf891d39e9"
+version = "0.5.3"
+source = "git+https://github.com/wizrds/guestpy.git?rev=0.5.3#d77ea7d85d513c5cfe522140df06594aadca7d45"
 dependencies = [
  "darling 0.24.1",
  "heck 0.5.0",
@@ -2935,8 +2937,8 @@ dependencies = [
 
 [[package]]
 name = "guestpy-pyo3"
-version = "0.5.2"
-source = "git+https://github.com/wizrds/guestpy.git?rev=0.5.2#ec27e127c4a53ca663fa6811046521bf891d39e9"
+version = "0.5.3"
+source = "git+https://github.com/wizrds/guestpy.git?rev=0.5.3#d77ea7d85d513c5cfe522140df06594aadca7d45"
 dependencies = [
  "guestpy-core",
  "pyo3",
@@ -2946,8 +2948,8 @@ dependencies = [
 
 [[package]]
 name = "guestpy-rustpython"
-version = "0.5.2"
-source = "git+https://github.com/wizrds/guestpy.git?rev=0.5.2#ec27e127c4a53ca663fa6811046521bf891d39e9"
+version = "0.5.3"
+source = "git+https://github.com/wizrds/guestpy.git?rev=0.5.3#d77ea7d85d513c5cfe522140df06594aadca7d45"
 dependencies = [
  "guestpy-core",
  "rustpython-pylib",
