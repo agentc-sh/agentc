@@ -5,7 +5,7 @@
 use async_trait::async_trait;
 use std::{future::Future, pin::Pin};
 
-use crate::cli::{context::Ctx, errors::CliError};
+use crate::cli::{context::Ctx, errors::CliError, types::CmdOutcome};
 
 #[async_trait]
 pub trait Cmd: Send + Sync {
@@ -13,8 +13,8 @@ pub trait Cmd: Send + Sync {
         Ok(())
     }
 
-    async fn run(&self, _ctx: &mut Ctx) -> Result<(), CliError> {
-        Ok(())
+    async fn run(&self, _ctx: &mut Ctx) -> Result<CmdOutcome, CliError> {
+        Ok(CmdOutcome::Success)
     }
 
     fn next_cmd(&self) -> Option<&dyn Cmd> {
@@ -26,16 +26,22 @@ impl<'ctx> dyn Cmd + 'ctx {
     pub fn walk_execute(
         &'ctx self,
         ctx: &'ctx mut Ctx,
-    ) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + 'ctx>> {
+    ) -> Pin<Box<dyn Future<Output = Result<CmdOutcome, CliError>> + Send + 'ctx>> {
         Box::pin(async move {
             self.update_ctx(ctx).await?;
-            self.run(ctx).await?;
 
-            if let Some(next) = self.next_cmd() {
-                next.walk_execute(ctx).await?;
+            let outcome = self.run(ctx).await?;
+
+            // A failing command stops the walk so its subcommand never runs on a
+            // state the parent rejected.
+            if !outcome.is_success() {
+                return Ok(outcome);
             }
 
-            Ok(())
+            match self.next_cmd() {
+                Some(next) => next.walk_execute(ctx).await,
+                None => Ok(outcome),
+            }
         })
     }
 }

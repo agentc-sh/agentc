@@ -10,19 +10,23 @@ use agentc_compiler::generator::{
     blocks::{
         BlockSet,
         codegen::{CodeGen, CodeGenBlock},
-        template::{TemplateFragment, TemplateFragmentBlock},
+        fragment::{Fragment, FragmentBlock},
     },
     context::GenerationContext,
     errors::GeneratorError,
-    extension::{Contribution, ErasedContributionValue, ExtensionRegistry},
+    extension::{Contribution, ErasedContributionValue, ExtensionRegistry, RenderedTokenStream},
 };
 
 use crate::{
-    archetype::standalone::codegen::cargo::{CargoDependencyContribution, CargoPatchContribution},
     composition::GenerationContribution,
+    config::sections::task_queue::TaskQueueSection,
     context::{ResolvedContext, ResolvedContextHttpServerProtocolAgUi},
+    contributions::dependency::{
+        CargoDependencies, CargoDependencyContribution, CargoPatchContribution, CargoPatches,
+        RuntimeDependencyContribution,
+    },
     errors::BlocksError,
-    feature::{GenerationFeatureSet, HttpServer, ProtocolAgUi, Streaming},
+    feature::{GenerationFeatureSet, HttpServer, ProtocolAgUi, Streaming, SupportsAgUi},
     protocol::{traits::Protocol, types::ResolvedProtocol},
 };
 
@@ -37,12 +41,12 @@ impl CodeGen<ResolvedContext> for AgUiCodeGen {
         &self,
         _ctx: &GenerationContext<ResolvedContext>,
         point: &str,
-    ) -> Result<TokenStream, GeneratorError> {
+    ) -> Result<ErasedContributionValue, GeneratorError> {
         match point {
             "server::routers" => {
                 let config_path = &self.config.path;
 
-                Ok(quote! {
+                Ok(ErasedContributionValue::new(RenderedTokenStream::from(quote! {
                     builder = builder.with_router(
                         utoipa_axum::router::OpenApiRouter::new()
                             .nest(
@@ -54,7 +58,7 @@ impl CodeGen<ResolvedContext> for AgUiCodeGen {
                                 ),
                             )
                     );
-                })
+                })))
             }
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
@@ -69,29 +73,32 @@ impl CodeGen<ResolvedContext> for AgUiCodeGen {
     }
 }
 
-impl TemplateFragment<ResolvedContext> for AgUiCargoFragment {
+impl Fragment<ResolvedContext> for AgUiCargoFragment {
     fn generate_contribution(
         &self,
         _ctx: &GenerationContext<ResolvedContext>,
         point: &str,
     ) -> Result<ErasedContributionValue, GeneratorError> {
         match point {
-            "cargo::dependencies" => {
-                Ok(ErasedContributionValue::new(CargoDependencyContribution::raw(format!(
-                    "agentc-protocol-ag-ui = {{ version = \"{}\" }}",
-                    env!("CARGO_PKG_VERSION"),
-                ))))
-            }
-            "cargo::patches" => Ok(ErasedContributionValue::new(CargoPatchContribution::raw(
-                "agentc-protocol-ag-ui = { path = \"../runtime/agentc-protocol-ag-ui\" }",
-            ))),
+            "cargo::dependencies" => Ok(ErasedContributionValue::new(
+                CargoDependencies::from_entries([CargoDependencyContribution::runtime(
+                    RuntimeDependencyContribution::new("agentc-protocol-ag-ui"),
+                )])
+                .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
+            )),
+            "cargo::patches" => Ok(ErasedContributionValue::new(
+                CargoPatches::from_entries([CargoPatchContribution::runtime(
+                    RuntimeDependencyContribution::new("agentc-protocol-ag-ui"),
+                )])
+                .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
+            )),
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
     }
 }
 
-/// The AG-UI protocol contribution. Requires an archetype-provided `HttpServer`
-/// and streaming support.
+/// The AG-UI protocol contribution. Requires an archetype-provided `HttpServer`, streaming
+/// support, and a graph that implements the AG-UI adapter.
 pub struct AgUiProtocol;
 
 impl Protocol for AgUiProtocol {
@@ -114,27 +121,29 @@ impl Protocol for AgUiProtocol {
                         .add(
                             CodeGenBlock::builder()
                                 .id("protocol_ag_ui")
-                                .contribute(Contribution::<String>::strict("server::routers"))
+                                .contribute(Contribution::<RenderedTokenStream>::strict(
+                                    "server::routers",
+                                ))
                                 .build(AgUiCodeGen { config }),
                         )
                         .add(
-                            TemplateFragmentBlock::builder()
+                            FragmentBlock::builder()
                                 .id("protocol_ag_ui_cargo")
-                                .contribute(Contribution::<CargoDependencyContribution>::strict(
+                                .contribute(Contribution::<CargoDependencies>::strict(
                                     "cargo::dependencies",
                                 ))
-                                .contribute(Contribution::<CargoPatchContribution>::strict(
-                                    "cargo::patches",
-                                ))
+                                .contribute(Contribution::<CargoPatches>::strict("cargo::patches"))
                                 .build(AgUiCargoFragment),
                         )
+                        .add(TaskQueueSection::block("protocol_ag_ui_task_queue_section"))
                         .into_inner(),
                 )
                 .with_provides(GenerationFeatureSet::new().with::<ProtocolAgUi>())
                 .with_requires(
                     GenerationFeatureSet::new()
                         .with::<HttpServer>()
-                        .with::<Streaming>(),
+                        .with::<Streaming>()
+                        .with::<SupportsAgUi>(),
                 ),
         })
     }
@@ -196,6 +205,12 @@ mod tests {
                 .requires
                 .contains::<Streaming>()
         );
+        assert!(
+            resolved
+                .contribution
+                .requires
+                .contains::<SupportsAgUi>()
+        );
     }
 
     #[test]
@@ -207,6 +222,9 @@ mod tests {
         let rendered = codegen
             .generate_contribution(&GenerationContext::new(context()), "server::routers")
             .unwrap()
+            .downcast::<RenderedTokenStream>()
+            .unwrap()
+            .as_str()
             .to_string();
 
         assert!(rendered.contains("custom-ag-ui"));

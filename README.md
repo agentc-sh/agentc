@@ -47,9 +47,6 @@
   <ol>
     <li>
       <a href="#about-the-project">About The Project</a>
-      <ul>
-        <li><a href="#built-with">Built With</a></li>
-      </ul>
     </li>
     <li>
       <a href="#getting-started">Getting Started</a>
@@ -59,11 +56,9 @@
       </ul>
     </li>
     <li><a href="#usage">Usage</a></li>
-    <li><a href="#roadmap">Roadmap</a></li>
     <li><a href="#contributing">Contributing</a></li>
     <li><a href="#license">License</a></li>
     <li><a href="#contact">Contact</a></li>
-    <li><a href="#acknowledgments">Acknowledgments</a></li>
   </ol>
 </details>
 
@@ -86,7 +81,7 @@ Install the `agentc` CLI and the local toolchains needed to compile agents for y
 - Required:
   - [Rust toolchain](https://rustup.rs) via `rustup`. The `standalone` archetype compiles agents with `cargo`, so Rust must be installed on the build machine.
 - Optional:
-  - `pnpm` and `esbuild` if the agent uses JavaScript or TypeScript tools
+  - `npm`/`pnpm` and `esbuild` if the agent uses JavaScript or TypeScript tools
   - `uv` if the agent uses Python tools
 
 ### Installation

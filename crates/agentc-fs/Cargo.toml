@@ -1,0 +1,36 @@
+[package]
+name = "agentc-fs"
+version.workspace = true
+edition.workspace = true
+description.workspace = true
+repository.workspace = true
+license.workspace = true
+readme.workspace = true
+
+[features]
+default = ["embedded"]
+embedded = ["dep:include_dir"]
+typescript = ["dep:agentc-executor-typescript", "dep:serde"]
+
+[dependencies]
+async-trait = { workspace = true }
+futures = { workspace = true }
+tokio = { workspace = true }
+
+thiserror = { workspace = true }
+
+bytes = { workspace = true }
+
+getrandom = "0.4"
+arc-swap = "1"
+bstr = "1"
+typed-path = "0.12"
+
+include_dir = { version = "0.7", optional = true }
+
+agentc-executor-typescript = { path = "../agentc-executor-typescript", version = "0.3.1", optional = true }
+
+serde = { workspace = true, optional = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+rustix = { version = "1", features = ["fs"] }

@@ -26,8 +26,9 @@ You should see:
  ✓ Created math
 ```
 
-This creates a `math/` directory with a `package.json`, a `tsconfig.json`, and a `src/index.ts` entry
-point, with the tool development kit already configured. Install its dependencies:
+This creates a ready-to-use `math/` package with its entry point, package configuration, and runtime
+type declarations already configured. `agentc.d.ts` is one line, and it is what tells your editor the
+shape of everything the host provides to tool code. Install the dependencies:
 
 ```bash
 cd math
@@ -35,31 +36,36 @@ pnpm install
 cd ..
 ```
 
+The scaffold uses pnpm by default. See [Write a tool](/guides/write-a-tool) if you would rather use
+npm.
+
 ## Write the tool
 
-A tool is an object with a name, a description, a JSON Schema for its inputs, and an `execute`
-function. Replace the contents of `math/src/index.ts` with a single tool that adds two numbers:
+A tool is an exported class that extends `Tool`. It has static metadata for the model and an
+asynchronous `execute` method. Replace the contents of `math/src/index.ts` with a single tool that
+adds two numbers:
 
 ```typescript title="math/src/index.ts"
-import type { Tool, ToolInput, ToolOutput } from "@agentc-sh/tdk";
+import { Schema, Tool, type ToolInput, type ToolOutput } from "agentc:tools";
 
 type AddArgs = { a: number; b: number };
 
-export const adder: Tool<AddArgs, number> = {
-  name: "adder",
-  description: "Adds two numbers together.",
-  parameters: {
+export class Adder extends Tool<AddArgs, number> {
+  static readonly description = "Adds two numbers together.";
+
+  static readonly parameters = new Schema({
     type: "object",
     properties: {
       a: { type: "number", description: "The first number." },
       b: { type: "number", description: "The second number." }
     },
     required: ["a", "b"]
-  },
+  });
+
   async execute(input: ToolInput<AddArgs>): Promise<ToolOutput<number>> {
     return { output: input.args.a + input.args.b };
   }
-};
+}
 ```
 
 The `description` and the parameter descriptions matter: they are what the model reads to decide when
@@ -74,12 +80,12 @@ to `agent.acl`, pointing `source` at the package directory:
 tool "adder" {
   kind   = "javascript"
   source = "./math"
+  export = "Adder"
 }
 ```
 
-The block name `adder` matches the export name in `src/index.ts`. Because this tool declares no
-capabilities, it is available to the agent without any further configuration. Controlling access with
-capabilities comes later, in
+Because this tool declares no capabilities, it is available to the agent without any further configuration.
+Controlling access with capabilities comes later, in
 [Control tool access with capabilities](/guides/control-tool-access-with-capabilities).
 
 ## Rebuild and run

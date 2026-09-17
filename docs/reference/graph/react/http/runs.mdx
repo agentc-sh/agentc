@@ -148,7 +148,8 @@ Create a new attached run and stream its events back as Server-Sent Events (SSE)
     Optional run ID. If omitted, one is generated automatically.
   </Field>
   <Field name="checkpoint_id" type="string | null">
-    Optional checkpoint to resume from.
+    Optional checkpoint to start the run from. If omitted, the run continues from the session's latest
+    state.
   </Field>
   <Field name="resume_payload" type="object | null">
     Opaque resume data supplied by the graph.
@@ -562,7 +563,8 @@ not cancel the run.
     Optional run ID. If omitted, one is generated automatically.
   </Field>
   <Field name="checkpoint_id" type="string | null">
-    Optional checkpoint to resume from.
+    Optional checkpoint to start the run from. If omitted, the run continues from the session's latest
+    state.
   </Field>
   <Field name="resume_payload" type="object | null">
     Opaque resume data supplied by the graph.

@@ -12,12 +12,13 @@ use quote::quote;
 use agentc_compiler::generator::errors::GeneratorError;
 
 use crate::{
+    config::fields::FieldsSpec,
     context::ResolvedContext,
-    fields::FieldsSpec,
+    contributions::import::{ImportContribution, Imports},
     graph::codegen::tools::{
         bash::BashTools,
         javascript::JavascriptTools,
-        python::{EmbeddedPythonTools, StaticPythonTools},
+        python::{CPythonTools, RustPythonTools},
     },
 };
 
@@ -27,9 +28,9 @@ use crate::{
 /// configured, and registered, independent of the others. A kind that is not present
 /// in the context reports no imports, no feature, and no registrations.
 pub trait ToolCodeGen {
-    /// The `use` statement required by this kind's registrations, or `None` when no
-    /// tools of this kind are present.
-    fn imports(&self) -> Option<TokenStream>;
+    /// The imports required by this kind's registrations, empty when no tools of this kind are
+    /// present.
+    fn imports(&self) -> Vec<ImportContribution>;
 
     /// The cargo feature enabled when tools of this kind are present, if any.
     fn feature(&self) -> Option<&'static str>;
@@ -46,27 +47,31 @@ impl ToolsCodeGen {
         [
             Box::new(JavascriptTools(ctx)),
             Box::new(BashTools(ctx)),
-            Box::new(EmbeddedPythonTools(ctx)),
-            Box::new(StaticPythonTools(ctx)),
+            Box::new(RustPythonTools(ctx)),
+            Box::new(CPythonTools(ctx)),
         ]
     }
 
-    pub fn generate(
+    pub fn imports(ctx: &ResolvedContext) -> Result<Imports, GeneratorError> {
+        Imports::from_entries(
+            Self::generators(ctx)
+                .iter()
+                .flat_map(|generator| generator.imports()),
+        )
+        .map_err(|error| GeneratorError::unexpected(error.to_string()))
+    }
+
+    pub fn registrations(
         ctx: &ResolvedContext,
         fields: &FieldsSpec,
-    ) -> Result<(Vec<TokenStream>, Vec<TokenStream>), GeneratorError> {
-        let mut imports = Vec::new();
+    ) -> Result<Vec<TokenStream>, GeneratorError> {
         let mut registrations = Vec::new();
 
         for generator in Self::generators(ctx) {
-            if let Some(import) = generator.imports() {
-                imports.push(import);
-            }
-
             registrations.extend(generator.registrations(fields)?);
         }
 
-        Ok((imports, registrations))
+        Ok(registrations)
     }
 
     /// The comma-separated cargo feature names for every tool kind present, as

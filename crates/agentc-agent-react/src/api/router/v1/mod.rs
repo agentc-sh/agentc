@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
+pub mod checkpoints;
 pub mod messages;
 pub mod runs;
 pub mod sessions;
@@ -11,7 +12,7 @@ use std::sync::Arc;
 use subway::Bus;
 use utoipa_axum::router::OpenApiRouter;
 
-use agentc_http::state::DefaultTenantId;
+use agentc_http::server::state::DefaultTenantId;
 
 use crate::{api::state::ReActApiState, service::ApplicationService};
 
@@ -26,6 +27,7 @@ pub fn router(
             .merge(sessions::router())
             .merge(messages::router())
             .merge(runs::router())
+            .merge(checkpoints::router())
             .with_state(ReActApiState::new(service, default_tenant_id, task_queue, bus))
     })
 }

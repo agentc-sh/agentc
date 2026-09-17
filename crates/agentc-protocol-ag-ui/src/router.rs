@@ -18,7 +18,7 @@ use std::{convert::Infallible, sync::Arc, time::Duration};
 use tokio_util::sync::CancellationToken;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use agentc_http::{
+use agentc_http::server::{
     dto::errors::ErrorResponseDTO,
     errors::ApiError,
     extractors::{Json, TenantIdHeader},

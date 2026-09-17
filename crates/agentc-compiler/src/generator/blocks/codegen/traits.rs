@@ -8,7 +8,9 @@ use proc_macro2::TokenStream;
 use serde::Serialize;
 
 use crate::generator::{
-    context::GenerationContext, errors::GeneratorError, extension::ExtensionRegistry,
+    context::GenerationContext,
+    errors::GeneratorError,
+    extension::{ErasedContributionValue, ExtensionRegistry, RenderedTokenStream},
 };
 
 /// Implemented by types that produce Rust source code via syn or quote.
@@ -46,13 +48,13 @@ where
         registry: &ExtensionRegistry,
     ) -> Result<Vec<(PathBuf, TokenStream)>, GeneratorError>;
 
-    /// Generate a contribution for a named extension point as a [`TokenStream`](proc_macro2::TokenStream).
+    /// Generate a contribution for a named extension point as an erased value.
     fn generate_contribution(
         &self,
         ctx: &GenerationContext<T>,
         point: &str,
-    ) -> Result<TokenStream, GeneratorError> {
+    ) -> Result<ErasedContributionValue, GeneratorError> {
         let _ = (ctx, point);
-        Ok(TokenStream::new())
+        Ok(ErasedContributionValue::new(RenderedTokenStream::default()))
     }
 }

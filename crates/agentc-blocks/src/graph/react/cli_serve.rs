@@ -7,8 +7,10 @@ use quote::quote;
 use std::path::PathBuf;
 
 use agentc_compiler::generator::{
-    blocks::codegen::CodeGen, context::GenerationContext, errors::GeneratorError,
-    extension::ExtensionRegistry,
+    blocks::codegen::CodeGen,
+    context::GenerationContext,
+    errors::GeneratorError,
+    extension::{ErasedContributionValue, ExtensionRegistry, RenderedTokenStream},
 };
 
 use crate::context::ResolvedContext;
@@ -20,18 +22,24 @@ impl CodeGen<ResolvedContext> for CliServeCodeGen {
         &self,
         _ctx: &GenerationContext<ResolvedContext>,
         point: &str,
-    ) -> Result<TokenStream, GeneratorError> {
+    ) -> Result<ErasedContributionValue, GeneratorError> {
         match point {
-            "cli::mod::use" => Ok(quote! {
-                mod serve;
-            }),
-            "cli::mod::variants" => Ok(quote! {
-                /// Start the HTTP server.
-                Serve(serve::ServeArgs),
-            }),
-            "cli::mod::arms" => Ok(quote! {
-                Command::Serve(args) => serve::run(args).await,
-            }),
+            "cli::mod::use" => {
+                Ok(ErasedContributionValue::new(RenderedTokenStream::from(quote! {
+                    mod serve;
+                })))
+            }
+            "cli::mod::variants" => {
+                Ok(ErasedContributionValue::new(RenderedTokenStream::from(quote! {
+                    /// Start the HTTP server.
+                    Serve(serve::ServeArgs),
+                })))
+            }
+            "cli::mod::arms" => {
+                Ok(ErasedContributionValue::new(RenderedTokenStream::from(quote! {
+                    Command::Serve(args) => serve::run(args).await,
+                })))
+            }
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
     }
@@ -89,6 +97,18 @@ impl CodeGen<ResolvedContext> for CliServeCodeGen {
                     event = "DatabaseInitialized",
                 );
 
+                let fs = config.filesystem.builder()?.build()?;
+
+                info!(
+                    event = "FilesystemInitialized",
+                );
+
+                let http = config.network.builder()?.build()?;
+
+                info!(
+                    event = "HttpClientInitialized",
+                );
+
                 let pubsub = config.pubsub.build().await?;
 
                 info!(
@@ -96,7 +116,14 @@ impl CodeGen<ResolvedContext> for CliServeCodeGen {
                     kind = config.pubsub.kind(),
                 );
 
-                let agent = build_agent(database.clone(), &config, shutdown.clone()).await?;
+                let agent = build_agent(
+                    database.clone(),
+                    fs.clone(),
+                    http.clone(),
+                    &config,
+                    shutdown.clone(),
+                )
+                .await?;
 
                 info!(
                     event = "AgentInitialized",
@@ -214,5 +241,23 @@ mod tests {
         assert!(
             source.contains("build (config . database . auto_migrate && ! args . no_migrations)")
         );
+    }
+
+    #[test]
+    fn serve_constructs_the_process_filesystem_and_http_client() {
+        let source = CliServeCodeGen
+            .generate_files(&context(), &ExtensionRegistry::empty())
+            .unwrap()[0]
+            .1
+            .to_string();
+
+        assert!(source.contains("let fs = config . filesystem . builder () ?"));
+        assert!(source.contains("let http = config . network . builder () ? . build () ?"));
+        assert!(source.contains("event = \"FilesystemInitialized\""));
+        assert!(source.contains("event = \"HttpClientInitialized\""));
+        assert!(
+            source.contains("build_agent (database . clone () , fs . clone () , http . clone ()")
+        );
+        assert!(!source.contains("_http_client"));
     }
 }

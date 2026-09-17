@@ -13,6 +13,7 @@ members = [
     "crates/agentc-domain",
     "crates/agentc-domain-sql",
     "crates/agentc-database",
+    "crates/agentc-fs",
     "crates/agentc-http",
     "crates/agentc-protocol-ag-ui",
     "crates/agentc-protocol-a2a",
@@ -25,6 +26,8 @@ members = [
     "crates/agentc-mcp",
     "crates/agentc-config",
     "crates/agentc-prompt",
+    "crates/agentc-executor-typescript",
+    "crates/agentc-executor-python",
     "crates/agentc-compiler",
     "crates/agentc-blocks",
     "crates/agentc-core",
@@ -44,6 +47,7 @@ pin-project-lite = "0.2"
 async-trait = { version = "0.1" }
 async-stream = { version = "0.3" }
 futures = { version = "0.3" }
+bytes = { version = "1" }
 
 rustls = { version = "0.23", features = ["aws_lc_rs"] }
 
@@ -67,6 +71,7 @@ uuid = { version = "1.23", features = ["v4", "v5", "fast-rng", "zerocopy", "serd
 url = { version = "2", features = ["serde"] }
 json-patch = { version = "4.2", features = ["schemars", "utoipa"] }
 schemars = { version = "1.1", features = ["derive", "chrono04", "url2", "uuid1"] }
+jsonschema = { version = "0.55", default-features = false }
 
 cel = { version = "0.14", features = ["chrono", "regex", "json"] }
 minijinja = { version = "2", features = ["json"] }

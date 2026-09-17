@@ -10,20 +10,23 @@ use agentc_compiler::generator::{
     blocks::{
         BlockSet,
         codegen::{CodeGen, CodeGenBlock},
-        template::{TemplateFragment, TemplateFragmentBlock},
+        fragment::{Fragment, FragmentBlock},
     },
     context::GenerationContext,
     errors::GeneratorError,
-    extension::{Contribution, ErasedContributionValue, ExtensionRegistry},
+    extension::{Contribution, ErasedContributionValue, ExtensionRegistry, RenderedTokenStream},
 };
 
 use crate::{
-    archetype::standalone::codegen::cargo::{CargoDependencyContribution, CargoPatchContribution},
     composition::GenerationContribution,
+    config::sections::{pubsub::PubSubSection, task_queue::TaskQueueSection},
     context::{ResolvedContext, ResolvedContextHttpServerProtocolA2a},
-    contributions::dependency::RuntimeDependencyContribution,
+    contributions::dependency::{
+        CargoDependencies, CargoDependencyContribution, CargoPatchContribution, CargoPatches,
+        RuntimeDependencyContribution,
+    },
     errors::BlocksError,
-    feature::{GenerationFeatureSet, HttpServer, ProtocolA2a, Streaming},
+    feature::{GenerationFeatureSet, HttpServer, ProtocolA2a, Streaming, SupportsA2a},
     protocol::{traits::Protocol, types::ResolvedProtocol},
 };
 
@@ -38,12 +41,12 @@ impl CodeGen<ResolvedContext> for A2aCodeGen {
         &self,
         _ctx: &GenerationContext<ResolvedContext>,
         point: &str,
-    ) -> Result<TokenStream, GeneratorError> {
+    ) -> Result<ErasedContributionValue, GeneratorError> {
         match point {
             "server::routers" => {
                 let config_path = &self.config.path;
 
-                Ok(quote! {
+                Ok(ErasedContributionValue::new(RenderedTokenStream::from(quote! {
                     builder = builder.with_router(
                         utoipa_axum::router::OpenApiRouter::new()
                             .nest(
@@ -59,7 +62,7 @@ impl CodeGen<ResolvedContext> for A2aCodeGen {
                                 ),
                             )
                     );
-                })
+                })))
             }
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
@@ -74,30 +77,34 @@ impl CodeGen<ResolvedContext> for A2aCodeGen {
     }
 }
 
-impl TemplateFragment<ResolvedContext> for A2aCargoFragment {
+impl Fragment<ResolvedContext> for A2aCargoFragment {
     fn generate_contribution(
         &self,
         _ctx: &GenerationContext<ResolvedContext>,
         point: &str,
     ) -> Result<ErasedContributionValue, GeneratorError> {
         match point {
-            "cargo::dependencies" => {
-                Ok(ErasedContributionValue::new(CargoDependencyContribution::runtime(
+            "cargo::dependencies" => Ok(ErasedContributionValue::new(
+                CargoDependencies::from_entries([CargoDependencyContribution::runtime(
                     RuntimeDependencyContribution::new("agentc-protocol-a2a")
                         .default_features(false)
                         .feature("server"),
-                )))
-            }
-            "cargo::patches" => Ok(ErasedContributionValue::new(CargoPatchContribution::runtime(
-                RuntimeDependencyContribution::new("agentc-protocol-a2a"),
-            ))),
+                )])
+                .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
+            )),
+            "cargo::patches" => Ok(ErasedContributionValue::new(
+                CargoPatches::from_entries([CargoPatchContribution::runtime(
+                    RuntimeDependencyContribution::new("agentc-protocol-a2a"),
+                )])
+                .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
+            )),
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
     }
 }
 
-/// The A2A protocol contribution. Requires an archetype-provided `HttpServer`
-/// and streaming support.
+/// The A2A protocol contribution. Requires an archetype-provided `HttpServer`, streaming support,
+/// and a graph that implements the A2A adapter.
 pub struct A2aProtocol;
 
 impl Protocol for A2aProtocol {
@@ -120,27 +127,30 @@ impl Protocol for A2aProtocol {
                         .add(
                             CodeGenBlock::builder()
                                 .id("protocol_a2a")
-                                .contribute(Contribution::<String>::strict("server::routers"))
+                                .contribute(Contribution::<RenderedTokenStream>::strict(
+                                    "server::routers",
+                                ))
                                 .build(A2aCodeGen { config }),
                         )
                         .add(
-                            TemplateFragmentBlock::builder()
+                            FragmentBlock::builder()
                                 .id("protocol_a2a_cargo")
-                                .contribute(Contribution::<CargoDependencyContribution>::strict(
+                                .contribute(Contribution::<CargoDependencies>::strict(
                                     "cargo::dependencies",
                                 ))
-                                .contribute(Contribution::<CargoPatchContribution>::strict(
-                                    "cargo::patches",
-                                ))
+                                .contribute(Contribution::<CargoPatches>::strict("cargo::patches"))
                                 .build(A2aCargoFragment),
                         )
+                        .add(TaskQueueSection::block("protocol_a2a_task_queue_section"))
+                        .add(PubSubSection::block("protocol_a2a_pubsub_section"))
                         .into_inner(),
                 )
                 .with_provides(GenerationFeatureSet::new().with::<ProtocolA2a>())
                 .with_requires(
                     GenerationFeatureSet::new()
                         .with::<HttpServer>()
-                        .with::<Streaming>(),
+                        .with::<Streaming>()
+                        .with::<SupportsA2a>(),
                 ),
         })
     }
@@ -199,6 +209,12 @@ mod tests {
                 .requires
                 .contains::<Streaming>()
         );
+        assert!(
+            resolved
+                .contribution
+                .requires
+                .contains::<SupportsA2a>()
+        );
     }
 
     #[test]
@@ -210,6 +226,9 @@ mod tests {
         let rendered = codegen
             .generate_contribution(&GenerationContext::new(context()), "server::routers")
             .unwrap()
+            .downcast::<RenderedTokenStream>()
+            .unwrap()
+            .as_str()
             .to_string();
 
         assert!(rendered.contains("custom-a2a"));
@@ -222,17 +241,19 @@ mod tests {
 
     #[test]
     fn a2a_cargo_fragment_contributes_server_runtime_dependency() {
-        let dependency = A2aCargoFragment
+        let dependencies = A2aCargoFragment
             .generate_contribution(&GenerationContext::new(context()), "cargo::dependencies")
             .unwrap()
-            .downcast::<CargoDependencyContribution>()
+            .downcast::<CargoDependencies>()
             .unwrap();
 
+        assert_eq!(dependencies.len(), 1);
         assert!(matches!(
-            dependency,
+            dependencies
+                .get(&"agentc-protocol-a2a")
+                .unwrap(),
             CargoDependencyContribution::Runtime(dependency)
-                if dependency.name == "agentc-protocol-a2a"
-                    && dependency.default_features == Some(false)
+                if dependency.default_features == Some(false)
                     && dependency.features.len() == 1
                     && dependency.features.contains("server")
         ));
@@ -240,16 +261,17 @@ mod tests {
 
     #[test]
     fn a2a_cargo_fragment_contributes_runtime_patch() {
-        let patch = A2aCargoFragment
+        let patches = A2aCargoFragment
             .generate_contribution(&GenerationContext::new(context()), "cargo::patches")
             .unwrap()
-            .downcast::<CargoPatchContribution>()
+            .downcast::<CargoPatches>()
             .unwrap();
 
-        assert!(matches!(
-            patch,
-            CargoPatchContribution::Runtime(dependency)
-                if dependency.name == "agentc-protocol-a2a"
-        ));
+        assert_eq!(patches.len(), 1);
+        assert!(
+            patches
+                .get(&"agentc-protocol-a2a")
+                .is_some()
+        );
     }
 }

@@ -369,10 +369,10 @@ agent state is visible to clients via these events.
 CUSTOM  used to deliver real-time updates from tools to the client
 ```
 
-When a tool calls `agentc.emit` (JavaScript) or `input.emit` (Python) during execution, the update
-is delivered to the client as a `CUSTOM` event. Note that AG-UI defines its own `ACTIVITY_DELTA`
-event type; agentc tool emissions are not that. They arrive as `CUSTOM` events because agentc's
-concept of an activity update does not map to AG-UI's `ACTIVITY_DELTA`.
+When a TypeScript tool calls `input.emit?.(...)`, or a Python tool calls `input.emit(...)`, during
+execution, the update is delivered to the client as a `CUSTOM` event. Note that AG-UI defines its
+own `ACTIVITY_DELTA` event type; agentc tool emissions are not that. They arrive as `CUSTOM` events
+because agentc's concept of an activity update does not map to AG-UI's `ACTIVITY_DELTA`.
 
 These updates are stateless and not persisted. They are intended for generative UI, such as
 showing progress or intermediate results while a tool is working.

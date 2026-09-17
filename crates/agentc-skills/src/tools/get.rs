@@ -17,7 +17,7 @@ use agentc_agent::{
     types::capability::CapabilitySet,
 };
 
-use crate::registry::SkillRegistry;
+use crate::registry::{SKILLS_ROOT, SkillRegistry};
 
 /// A tool for loading the full instructions of a skill by name.
 pub struct GetSkillTool {
@@ -43,12 +43,12 @@ impl<S: GraphState + 'static> TypedTool<S> for GetSkillTool {
 
     fn description(&self) -> &str {
         r#"Load the full instructions for a skill by name. Returns the skill body,
-        its directory path (if available), and a listing of any bundled resource
+        its directory path, and a listing of any bundled resource
         files. Use list_skills first to discover available skill names."#
     }
 
     fn capabilities(&self) -> CapabilitySet {
-        CapabilitySet::empty()
+        CapabilitySet::from(["skills::get"])
     }
 
     async fn execute(
@@ -64,9 +64,7 @@ impl<S: GraphState + 'static> TypedTool<S> for GetSkillTool {
 
         let mut parts = vec![skill.body.clone()];
 
-        if let Some(base_dir) = &skill.base_dir {
-            parts.push(format!("\nSkill directory: {}", base_dir.display()));
-        }
+        parts.push(format!("\nSkill directory: {}/{}", SKILLS_ROOT, skill.name));
 
         if !skill.resources.is_empty() {
             parts.push(format!(

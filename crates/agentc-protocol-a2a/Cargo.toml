@@ -29,7 +29,7 @@ client = [
 
 [dependencies]
 agentc-agent = { path = "../agentc-agent", version = "0.3.1", optional = true }
-agentc-http = { path = "../agentc-http", version = "0.3.1", optional = true }
+agentc-http = { path = "../agentc-http", version = "0.3.1", optional = true, features = ["server"] }
 agentc-telemetry = { path = "../agentc-telemetry", version = "0.3.1", optional = true }
 
 thiserror = { workspace = true }

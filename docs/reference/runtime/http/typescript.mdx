@@ -1,0 +1,242 @@
+---
+title: JavaScript
+description: Every export of agentc:http for JavaScript components.
+---
+
+```js
+import { fetch } from "agentc:http"
+```
+
+`fetch`, `Headers`, and `Response` are also installed as globals as the same values this library
+exports, so the import is optional for those three.
+
+## Overview
+
+<LibSymbols>
+  <LibSymbolRow name="fetch">Make an HTTP request.</LibSymbolRow>
+  <LibSymbolRow name="Response">The response returned by `fetch`.</LibSymbolRow>
+  <LibSymbolRow name="Headers">The headers collection returned on a response.</LibSymbolRow>
+  <LibSymbolRow name="FetchInit">The request options object.</LibSymbolRow>
+</LibSymbols>
+
+## Functions
+
+### fetch
+
+<LibTags>
+  <LibTag name="async" />
+</LibTags>
+
+<LibSignature>
+```ts
+fetch(url: string, init?: FetchInit): Promise<Response>
+```
+</LibSignature>
+
+Makes an HTTP request and resolves once the response head has arrived.
+
+<LibParams>
+  <LibParam name="url" type="string" required>
+    The URL to request. It must be a string. A `URL` instance is refused.
+  </LibParam>
+  <LibParam name="init" type={<><Link href="#fetchinit">FetchInit</Link></>}>
+    The method, headers, and body.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="Promise<Response>">
+  The response to the request.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the request is refused by the egress policy" />
+  <LibThrow when="a configured limit is exceeded" />
+  <LibThrow when="the connection fails" />
+</LibThrows>
+
+## Classes
+
+### Response
+
+<LibTags>
+  <LibTag name="not constructible" />
+</LibTags>
+
+The response to a `fetch` call.
+
+<LibProperties>
+  <LibProperty name="status" type="number" readonly />
+  <LibProperty name="ok" type="boolean" readonly />
+  <LibProperty name="url" type="string" readonly />
+  <LibProperty name="statusText" type="string" readonly />
+  <LibProperty name="bodyUsed" type="boolean" readonly />
+  <LibProperty name="headers" type={<><Link href="#headers">Headers</Link></>} readonly />
+  <LibProperty name="body" type="ReadableStream<Uint8Array>" readonly>
+    Reading this property consumes the body. Reading it a second time throws.
+  </LibProperty>
+</LibProperties>
+
+#### text
+
+<LibSignature>
+```ts
+text(): Promise<string>
+```
+</LibSignature>
+
+Reads the response body as text.
+
+<LibReturns type="Promise<string>">
+  The full response body decoded as text.
+</LibReturns>
+
+#### json
+
+<LibSignature>
+```ts
+json(): Promise<unknown>
+```
+</LibSignature>
+
+Reads the response body as JSON.
+
+<LibReturns type="Promise<unknown>">
+  The parsed JSON value.
+</LibReturns>
+
+#### bytes
+
+<LibSignature>
+```ts
+bytes(): Promise<Uint8Array>
+```
+</LibSignature>
+
+Reads the response body as bytes.
+
+<LibReturns type="Promise<Uint8Array>">
+  The full response body as bytes.
+</LibReturns>
+
+#### arrayBuffer
+
+<LibSignature>
+```ts
+arrayBuffer(): Promise<Uint8Array>
+```
+</LibSignature>
+
+Reads the response body as bytes.
+
+<LibReturns type="Promise<Uint8Array>">
+  The full response body as a `Uint8Array`, not an `ArrayBuffer`.
+</LibReturns>
+
+### Headers
+
+<LibTags>
+  <LibTag name="not constructible" />
+</LibTags>
+
+The headers of a response.
+
+#### get
+
+<LibSignature>
+```ts
+get(name: string): string | null
+```
+</LibSignature>
+
+Reads a header value by name.
+
+<LibParams>
+  <LibParam name="name" type="string" required>
+    The header name to read.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="string | null">
+  The header value, or `null` when the header is absent.
+</LibReturns>
+
+#### has
+
+<LibSignature>
+```ts
+has(name: string): boolean
+```
+</LibSignature>
+
+Checks whether a header is present.
+
+<LibParams>
+  <LibParam name="name" type="string" required>
+    The header name to check.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="boolean">
+  `true` when the header is present.
+</LibReturns>
+
+#### keys
+
+<LibSignature>
+```ts
+keys(): string[]
+```
+</LibSignature>
+
+Lists the header names.
+
+<LibReturns type="string[]">
+  The response header names.
+</LibReturns>
+
+#### entries
+
+<LibSignature>
+```ts
+entries(): string[][]
+```
+</LibSignature>
+
+Lists the headers as name and value pairs.
+
+<LibReturns type="string[][]">
+  The response headers as name and value pairs.
+</LibReturns>
+
+#### [Symbol.iterator]
+
+<LibSignature>
+```ts
+[Symbol.iterator](): IterableIterator<string[]>
+```
+</LibSignature>
+
+Iterates over the headers as name and value pairs.
+
+<LibReturns type="IterableIterator<string[]>">
+  An iterator yielding `string[]` pairs.
+</LibReturns>
+
+## Types
+
+### FetchInit
+
+Fields not listed here are ignored.
+
+<LibProperties>
+  <LibProperty name="method" type="string" optional />
+  <LibProperty name="headers" type="Record<string, string>" optional />
+  <LibProperty name="body" type="string | Uint8Array" optional />
+</LibProperties>
+
+## What this client does not have
+
+The fetch surface does not include `Request`, `FormData`, `Blob` request bodies,
+`AbortController`, `AbortSignal`, or the `signal`, `redirect`, `credentials`, `mode`, and `cache`
+fields on the init object. Guest code cannot construct a `Response` or `Headers`. Streaming request
+bodies are not supported. Response bodies do stream.

@@ -6,7 +6,7 @@ use jobq::{AnyExecutable, FifoQueue, JobQueue};
 use std::sync::Arc;
 use subway::Bus;
 
-use agentc_http::state::DefaultTenantId;
+use agentc_http::server::state::DefaultTenantId;
 
 use crate::service::ApplicationService;
 

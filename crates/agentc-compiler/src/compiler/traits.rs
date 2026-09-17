@@ -4,18 +4,18 @@
 
 use async_trait::async_trait;
 
-use crate::compiler::{
-    errors::CompilerError,
-    types::{Artifact, CompileParams},
-};
+use crate::compiler::{errors::CompilerError, types::CompileParams};
 
 #[async_trait]
 pub trait Compiler: Send + Sync {
+    /// The artifact this compiler produces.
+    type Artifact: Send + Sync + 'static;
+
     async fn compile(
         &self,
         params: CompileParams,
         output_sink: &dyn OutputSink,
-    ) -> Result<Artifact, CompilerError>;
+    ) -> Result<Self::Artifact, CompilerError>;
 }
 
 #[async_trait]

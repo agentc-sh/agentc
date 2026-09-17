@@ -12,7 +12,10 @@ use serde_json::json;
 
 use crate::{
     errors::{IntoModelError, ModelError},
-    providers::anthropic::constants::{OTEL_PROVIDER_NAME, PROVIDER},
+    providers::{
+        anthropic::constants::{OTEL_PROVIDER_NAME, PROVIDER},
+        rig::events::CompletionStreamMetadata,
+    },
     stream::ChatCompletionStream,
     traits::CompletionModel,
     types::{
@@ -21,6 +24,8 @@ use crate::{
         request::CompletionRequest,
     },
 };
+
+impl CompletionStreamMetadata for anthropic::streaming::StreamingCompletionResponse {}
 
 /// A specific Anthropic model instance. Obtained from
 /// [`AnthropicClient::model`](crate::providers::anthropic::client::AnthropicClient::model).

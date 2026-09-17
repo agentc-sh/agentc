@@ -1,15 +1,16 @@
 {
   "compilerOptions": {
     "target": "ES2024",
+    "lib": ["ES2024"],
     "module": "esnext",
     "moduleResolution": "bundler",
     "strict": true,
     "outDir": "dist",
     "rootDir": "src",
+    "types": [],
     "paths": {
       "@/*": ["./src/*"]
-    },
-    "types": ["node"]
+    }
   },
-  "include": ["src"]
+  "include": ["src", "agentc.d.ts"],
 }

@@ -1,0 +1,142 @@
+---
+title: Manage prompts with Langfuse
+description: Retrieve, select, cache, and render agent prompts managed in Langfuse.
+---
+
+Use Langfuse Prompt Management when prompts need to be published and selected independently of an
+agent build. The agent retrieves the selected prompt at runtime, converts it into its prompt template,
+and renders that template with the variables supplied by its graph.
+
+## Create the prompt and credentials
+
+Create a text or chat prompt in Langfuse, then copy the project's public and secret keys. Keep the
+secret key outside the manifest and provide both credentials through the runtime environment:
+
+```bash
+export LANGFUSE_PUBLIC_KEY=pk-lf-...
+export LANGFUSE_SECRET_KEY=sk-lf-...
+```
+
+Configure the prompt source with the prompt name shown in Langfuse:
+
+```hcl title="agent.acl"
+agent "assistant" {
+  graph {
+    type = "react"
+  }
+
+  prompt = {
+    source = "langfuse"
+
+    prompt_name = "support/assistant"
+    public_key  = runtime("LANGFUSE_PUBLIC_KEY")
+    secret_key  = secret(runtime("LANGFUSE_SECRET_KEY"))
+  }
+
+  model {
+    provider = "anthropic"
+    name     = "claude-haiku-4-5"
+  }
+}
+```
+
+With no selector, Langfuse returns its default production version. This is the normal configuration
+when publishing a new production version should move the agent forward without rebuilding it.
+
+## Select a prompt version
+
+Use a label for a movable deployment target such as `staging`:
+
+```hcl
+prompt = {
+  source = "langfuse"
+
+  prompt_name = "support/assistant"
+  public_key  = runtime("LANGFUSE_PUBLIC_KEY")
+  secret_key  = secret(runtime("LANGFUSE_SECRET_KEY"))
+  label       = runtime("LANGFUSE_PROMPT_LABEL", "staging")
+}
+```
+
+Changing the label in Langfuse changes which version the agent receives after its cached copy expires.
+This is useful when an environment should follow promotion without changing the manifest.
+
+Use a numeric version when a deployment must remain pinned to immutable prompt content:
+
+```hcl
+prompt = {
+  source = "langfuse"
+
+  prompt_name = "support/assistant"
+  public_key  = runtime("LANGFUSE_PUBLIC_KEY")
+  secret_key  = secret(runtime("LANGFUSE_SECRET_KEY"))
+  version     = runtime("LANGFUSE_PROMPT_VERSION", 7)
+}
+```
+
+`label` and `version` cannot be configured together.
+
+## Use another Langfuse deployment
+
+Set `base_url` when the project uses another Langfuse Cloud region or a self-hosted deployment:
+
+```hcl
+prompt = {
+  source = "langfuse"
+
+  prompt_name = "support/assistant"
+  public_key  = runtime("LANGFUSE_PUBLIC_KEY")
+  secret_key  = secret(runtime("LANGFUSE_SECRET_KEY"))
+  base_url    = runtime("LANGFUSE_BASE_URL", "https://langfuse.example.com")
+}
+```
+
+The default is `https://cloud.langfuse.com`.
+
+## Tune fetch behavior
+
+Prompt retrieval uses a local in-memory cache and retries transient HTTP or transport failures:
+
+```hcl
+prompt = {
+  source = "langfuse"
+
+  prompt_name = "support/assistant"
+  public_key  = runtime("LANGFUSE_PUBLIC_KEY")
+  secret_key  = secret(runtime("LANGFUSE_SECRET_KEY"))
+
+  cache_ttl_seconds     = runtime("LANGFUSE_CACHE_TTL_SECONDS", 60)
+  fetch_timeout_seconds = runtime("LANGFUSE_FETCH_TIMEOUT_SECONDS", 5)
+  max_retries           = runtime("LANGFUSE_MAX_RETRIES", 2)
+}
+```
+
+`cache_ttl_seconds` defaults to `60`. Set it to `0` when every prompt load must fetch from Langfuse.
+Langfuse response cache directives can shorten freshness or prevent storage. Concurrent requests for
+the same uncached prompt share one fetch.
+
+`fetch_timeout_seconds` defaults to `5` for each attempt. `max_retries` defaults to `2` additional
+attempts for transport errors, rate limits, and server errors. When a cached prompt requires a refresh,
+the run waits for that refresh. A failed refresh returns an error instead of serving the stale prompt.
+
+## Write prompt templates
+
+Prompt content retrieved from Langfuse remains a Jinja2 template. Leave expressions such as
+`{{ agent_name }}` and `{{ context_vars }}` in the Langfuse prompt. The graph renders them for each run
+with the same context used by a manifest-defined prompt.
+
+A Langfuse text prompt becomes one system message. A chat prompt preserves the order of its
+`system`, `user`, and `assistant` messages. Message placeholders and unknown roles are rejected because
+they cannot be represented by the agent prompt template. Langfuse prompt `config` metadata is retained
+by the client response but does not override the agent's model configuration.
+
+The variables available to a prompt depend on the selected graph. See
+[Write templated prompts](/guides/write-templated-prompts) for the syntax and
+[ReAct prompt templates](/reference/graph/react/prompt-templates) for the variables supplied by ReAct.
+
+## Where to go next
+
+- [agent reference](/reference/manifest/agent): every Langfuse prompt source field.
+- [Write templated prompts](/guides/write-templated-prompts): use runtime variables in prompt content.
+- [Configure a model provider](/guides/configure-a-model-provider): configure model selection separately
+  from prompt metadata.

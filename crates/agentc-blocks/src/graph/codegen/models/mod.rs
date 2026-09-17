@@ -16,8 +16,8 @@ use proc_macro2::TokenStream;
 use agentc_compiler::generator::errors::GeneratorError;
 
 use crate::{
+    config::fields::FieldsSpec,
     context::{ResolvedContext, ResolvedContextProvider},
-    fields::FieldsSpec,
 };
 
 /// Model-registry code generation for a single provider.

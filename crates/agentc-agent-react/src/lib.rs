@@ -5,6 +5,7 @@
 #[allow(unused_extern_crates)]
 extern crate self as agentc_agent_react;
 
+#[cfg(feature = "api")]
 pub mod api;
 pub mod cancel;
 pub mod checkpoint;

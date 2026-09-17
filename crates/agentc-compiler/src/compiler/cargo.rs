@@ -13,15 +13,18 @@ use tokio::{
 };
 
 use crate::{
+    artifact::ExecutableArtifact,
     compiler::{
         errors::CompilerError,
         traits::{Compiler, OutputSink},
-        types::{Artifact, CompileParams},
+        types::CompileParams,
     },
     utils::command_exists,
 };
 
-pub struct CargoCompiler;
+pub struct CargoCompiler {
+    target: Option<String>,
+}
 
 impl Default for CargoCompiler {
     fn default() -> Self {
@@ -31,7 +34,19 @@ impl Default for CargoCompiler {
 
 impl CargoCompiler {
     pub fn new() -> Self {
-        Self
+        Self { target: None }
+    }
+
+    pub fn with_target(mut self, target: impl Into<String>) -> Self {
+        self.target = Some(target.into());
+        self
+    }
+
+    pub fn maybe_with_target(mut self, target: Option<impl Into<String>>) -> Self {
+        if let Some(target) = target {
+            self.target = Some(target.into());
+        }
+        self
     }
 
     async fn extract_binary_name(project_dir: &Path) -> Result<String, CompilerError> {
@@ -83,18 +98,20 @@ impl CargoCompiler {
 
 #[async_trait]
 impl Compiler for CargoCompiler {
+    type Artifact = ExecutableArtifact;
+
     async fn compile(
         &self,
         params: CompileParams,
         output_sink: &dyn OutputSink,
-    ) -> Result<Artifact, CompilerError> {
+    ) -> Result<Self::Artifact, CompilerError> {
         if !Self::is_installed().await {
             return Err(CompilerError::compilation_failed(
                 "Cargo or rustup is not installed. Please install it from https://www.rust-lang.org/tools/install.",
             ));
         }
 
-        if let Some(target) = &params.target
+        if let Some(target) = &self.target
             && !Self::is_target_available(target).await?
         {
             return Err(CompilerError::compilation_failed(format!(
@@ -121,8 +138,7 @@ impl Compiler for CargoCompiler {
             )
             .args(vec!["--target-dir", &output_dir])
             .args(
-                params
-                    .target
+                self.target
                     .as_ref()
                     .map(|target| vec!["--target", target.as_str()])
                     .unwrap_or_default(),
@@ -171,13 +187,13 @@ impl Compiler for CargoCompiler {
 
         let binary_name = Self::extract_binary_name(&params.project_dir).await?;
         let profile = if params.release { "release" } else { "debug" };
-        let is_windows = params
+        let is_windows = self
             .target
             .as_deref()
             .map_or(cfg!(target_os = "windows"), |t| t.contains("windows"));
 
         let binary_path = PathBuf::from(&output_dir)
-            .join(params.target.as_deref().unwrap_or(""))
+            .join(self.target.as_deref().unwrap_or(""))
             .join(profile)
             .join(&binary_name)
             .with_extension(if is_windows { "exe" } else { "" });
@@ -191,24 +207,23 @@ impl Compiler for CargoCompiler {
                 )
             })?;
 
-        tokio::fs::copy(
-            &binary_path,
-            params
-                .target_dir
-                .join(binary_path.file_name().unwrap()),
-        )
-        .await
-        .map_err(|e| {
-            CompilerError::compilation_failed_sourced(
-                format!(
-                    "Failed to copy binary from {} to {}",
-                    binary_path.display(),
-                    params.target_dir.display()
-                ),
-                Some(e),
-            )
-        })?;
+        let destination = params
+            .target_dir
+            .join(binary_path.file_name().unwrap());
 
-        Ok(Artifact { target_dir: params.target_dir })
+        tokio::fs::copy(&binary_path, &destination)
+            .await
+            .map_err(|e| {
+                CompilerError::compilation_failed_sourced(
+                    format!(
+                        "Failed to copy binary from {} to {}",
+                        binary_path.display(),
+                        destination.display()
+                    ),
+                    Some(e),
+                )
+            })?;
+
+        Ok(ExecutableArtifact::new(destination))
     }
 }

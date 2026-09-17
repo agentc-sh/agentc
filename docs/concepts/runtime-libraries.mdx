@@ -1,0 +1,30 @@
+---
+title: Runtime libraries
+description: The libraries the agentc runtime provides to the code it executes.
+---
+
+A component does not run in Node and does not run in a stock Python interpreter. It runs in an
+environment the runtime assembles, and that environment includes libraries the runtime provides
+prefixed with `agentc`. These libraries are not dependencies of the package. The runtime
+provides them, so nothing installs them and nothing can substitute them.
+
+## What a runtime library is
+
+A runtime library is how component code reaches a capability the runtime has decided it may use. The
+runtime decides what the filesystem contains, where outbound requests may go, and other aspects of the environment.
+The library is how code reaches those decisions rather than a way around them.
+
+## Every component sees the same view
+
+A component built into the runtime and a component supplied as guest code see the same filesystem
+and the same egress rules. The runtime owns that view and presents it consistently everywhere. A
+tool is the only component kind that accepts guest code today, but the environment it sees is still the
+same environment the rest of the runtime works against.
+
+## Where to go next
+
+- [Runtime reference](/reference/runtime)
+- [tools](/reference/runtime/tools)
+- [fs](/reference/runtime/fs)
+- [http](/reference/runtime/http)
+- [Architecture overview](/concepts/architecture-overview)

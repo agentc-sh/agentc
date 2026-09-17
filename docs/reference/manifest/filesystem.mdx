@@ -1,0 +1,164 @@
+---
+title: filesystem
+description: The filesystem block declares the virtual filesystem the agent's components see.
+---
+
+The `filesystem` block declares what the agent's virtual filesystem contains. It is optional. When
+it is omitted, the agent has a single in-memory filesystem mounted at `/`, which is the same as
+writing:
+
+```hcl title="agent.acl"
+filesystem {
+  mounts = [
+    {
+      path = "/"
+      backend = { kind = "memory" }
+    }
+  ]
+}
+```
+
+## Fields
+
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `mounts` | list of mount objects | no | no | A single in-memory mount at `/` | The mounts making up the virtual filesystem. |
+
+## Mounts
+
+Each mount has two fields:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `path` | string | yes | Where the backend is mounted in the virtual filesystem. |
+| `backend` | backend object | yes | What serves that path. |
+
+Later entries win. If two mounts target the same path, the later one replaces the earlier one.
+
+## Backends
+
+Every backend object has a `kind` field written in snake case.
+
+### memory
+
+A `memory` backend starts empty and exists only for the lifetime of the process.
+
+```hcl title="agent.acl"
+filesystem {
+  mounts = [
+    {
+      path = "/"
+      backend = { kind = "memory" }
+    }
+  ]
+}
+```
+
+This backend has no additional fields.
+
+### host
+
+A `host` backend exposes a real host directory inside the virtual filesystem.
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `root` | string | yes | | The host directory this mount exposes. |
+| `follow_symlinks` | boolean | no | `false` | Whether a symbolic link inside the mount may resolve outside its root. |
+
+```hcl title="agent.acl"
+filesystem {
+  mounts = [
+    {
+      path = "/workspace"
+      backend = {
+        kind = "host"
+        root = "./workspace"
+      }
+    }
+  ]
+}
+```
+
+Nothing above `root` is reachable.
+
+### read_only
+
+A `read_only` backend wraps another backend and refuses every write through it.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `inner` | backend object | yes | The backend to expose as read only. |
+
+```hcl title="agent.acl"
+filesystem {
+  mounts = [
+    {
+      path = "/reference"
+      backend = {
+        kind = "read_only"
+        inner = {
+          kind = "host"
+          root = "./reference"
+        }
+      }
+    }
+  ]
+}
+```
+
+### overlay
+
+An `overlay` backend reads from an upper backend first and falls through to a lower backend. Writes
+go to the upper backend.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `upper` | backend object | yes | The writable layer checked first. |
+| `lower` | backend object | yes | The fallback layer checked second. |
+
+```hcl title="agent.acl"
+filesystem {
+  mounts = [
+    {
+      path = "/workspace"
+      backend = {
+        kind = "overlay"
+        upper = { kind = "memory" }
+        lower = {
+          kind = "read_only"
+          inner = {
+            kind = "host"
+            root = "./workspace"
+          }
+        }
+      }
+    }
+  ]
+}
+```
+
+`read_only` and `overlay` both nest backends rather than paths, so any composition is expressible.
+
+## Precedence
+
+Three sources compose into the final filesystem view, and a later registration at the same path
+wins:
+
+1. Mounts contributed at compile time.
+2. The manifest's `mounts`.
+3. The operator's binds.
+
+## Operator binds
+
+The topology is otherwise fixed when the agent is compiled. Operator binds are the runtime-adjustable
+part.
+
+| Variable | Meaning |
+|----------|---------|
+| `AGENT__FILESYSTEM__BINDS__<n>__PATH` | Where the bind appears in the virtual filesystem. |
+| `AGENT__FILESYSTEM__BINDS__<n>__ROOT` | The host directory it exposes. |
+| `AGENT__FILESYSTEM__BINDS__<n>__READONLY` | Whether writes through it are refused. |
+| `AGENT__FILESYSTEM__BINDS__<n>__FOLLOW_SYMLINKS` | Whether a symbolic link may resolve outside the root. |
+
+See [agentc:fs](/reference/runtime/fs) for what component code sees and
+[Give your agent a filesystem](/guides/give-your-agent-a-filesystem) for the step-by-step recipe.
