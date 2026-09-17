@@ -12,6 +12,6 @@ pub trait ExecutorBuilderToolsExt {
 
 impl<B: ExecutorBackend> ExecutorBuilderToolsExt for ExecutorBuilder<B> {
     fn with_tools(self) -> Self {
-        self.configure(|runtime| runtime.bind(ToolsLibrary::bind::<B>()))
+        self.configure(|runtime| Ok(runtime.bind(ToolsLibrary::bind::<B>()?)))
     }
 }

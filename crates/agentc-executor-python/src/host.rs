@@ -105,7 +105,7 @@ def read_host_value():
             .configure(move |builder| {
                 let runtime = runtime.clone();
 
-                builder.bind(ModuleSpec::<RustPython>::new("test_host").function(
+                Ok(builder.bind(ModuleSpec::<RustPython>::new("test_host").function(
                     "value",
                     move |_enter, _args| {
                         runtime
@@ -115,7 +115,7 @@ def read_host_value():
                             })
                             .map_err(|error| guestpy::errors::Error::unexpected(error.to_string()))
                     },
-                ))
+                )))
             })
             .build()
             .await

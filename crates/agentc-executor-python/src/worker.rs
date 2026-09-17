@@ -31,7 +31,7 @@ thread_local! {
 }
 
 pub(crate) type RuntimeConfiguration<B> =
-    Arc<dyn Fn(RuntimeBuilder<B>) -> RuntimeBuilder<B> + Send + Sync>;
+    Arc<dyn Fn(RuntimeBuilder<B>) -> Result<RuntimeBuilder<B>, Error> + Send + Sync>;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct ExecutorId(u64);
@@ -289,11 +289,11 @@ impl Worker {
 
     async fn initialize<B: ExecutorBackend>(
         config: &WorkerConfig<B>,
-    ) -> Result<Rc<Context<B>>, guestpy::errors::Error> {
+    ) -> Result<Rc<Context<B>>, Error> {
         let runtime = config
             .configurations
             .iter()
-            .fold(Runtime::<B>::builder(), |builder, configure| configure(builder));
+            .try_fold(Runtime::<B>::builder(), |builder, configure| configure(builder))?;
         let runtime = config
             .bundles
             .iter()
@@ -305,14 +305,14 @@ impl Worker {
             Ok(guest) => guest,
             Err(error) => {
                 let _ = runtime.shutdown();
-                return Err(error);
+                return Err(error.into());
             }
         };
         let module = match guest.import(config.entry.as_ref()) {
             Ok(module) => module,
             Err(error) => {
                 let _ = Context::close_initialization(runtime, guest).await;
-                return Err(error);
+                return Err(error.into());
             }
         };
 

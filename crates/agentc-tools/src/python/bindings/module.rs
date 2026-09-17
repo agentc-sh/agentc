@@ -9,6 +9,7 @@ use agentc_executor_python::guestpy::{
         Backend, BackendCallables, BackendClasses, BackendCoroutines, BackendExceptions,
         BackendModules, BackendValues,
     },
+    errors::Error,
     host::module::ModuleSpec,
 };
 
@@ -41,7 +42,7 @@ impl Default for ToolsModule {
     }
 }
 
-impl<B> From<ToolsModule> for ModuleSpec<B>
+impl<B> TryFrom<ToolsModule> for ModuleSpec<B>
 where
     B: Backend
         + BackendValues
@@ -51,11 +52,13 @@ where
         + BackendCoroutines
         + BackendExceptions,
 {
-    fn from(module: ToolsModule) -> Self {
-        ModuleSpec::new(module.name)
-            .class::<Tool>()
-            .class::<ToolInput<B>>()
-            .class::<ToolOutput<B>>()
-            .class::<Schema>()
+    type Error = Error;
+
+    fn try_from(module: ToolsModule) -> Result<Self, Self::Error> {
+        Ok(ModuleSpec::new(module.name)
+            .class::<Tool>()?
+            .class::<ToolInput<B>>()?
+            .class::<ToolOutput<B>>()?
+            .class::<Schema>()?)
     }
 }

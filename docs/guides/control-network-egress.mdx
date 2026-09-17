@@ -111,6 +111,7 @@ Send a request from a component using the corresponding runtime library.
 <Tabs defaultValue="typescript">
   <TabsList>
     <TabsTrigger value="typescript">TypeScript</TabsTrigger>
+    <TabsTrigger value="python">Python</TabsTrigger>
   </TabsList>
   <TabsContent value="typescript">
 ```typescript
@@ -130,12 +131,26 @@ try {
 }
 ```
   </TabsContent>
+  <TabsContent value="python">
+```python
+from agentc_http import Client
+
+try:
+    async with Client().get("https://api.example.com/status") as response:
+        response.raise_for_status()
+        body = await response.body.text()
+        print(body)
+except Exception as error:
+    print(str(error))
+```
+  </TabsContent>
 </Tabs>
 
-If the request violates the egress policy, `fetch` rejects and the error message explains the
+If the request violates the egress policy, the request raises an error whose message explains the
 refusal.
 
 ## Where to go next
 
 - [network reference](/reference/manifest/network)
 - [agentc:http](/reference/runtime/http)
+- [agentc_http](/reference/runtime/http/python)

@@ -276,7 +276,7 @@ impl<B: ExecutorBackend> ExecutorBuilder<B> {
     /// Adds a GuestPy runtime configuration applied locally to every worker.
     pub fn configure<F>(mut self, configure: F) -> Self
     where
-        F: Fn(RuntimeBuilder<B>) -> RuntimeBuilder<B> + Send + Sync + 'static,
+        F: Fn(RuntimeBuilder<B>) -> Result<RuntimeBuilder<B>, Error> + Send + Sync + 'static,
     {
         self.configurations
             .push(Arc::new(configure));
@@ -574,7 +574,7 @@ def fail():
 
                 move |builder| {
                     configurations.fetch_add(1, Ordering::SeqCst);
-                    builder
+                    Ok(builder)
                 }
             })
             .build()
@@ -584,6 +584,31 @@ def fail():
         assert_eq!(configurations.load(Ordering::SeqCst), 3);
 
         executor.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn a_failing_configuration_fails_initialization() {
+        let Err(error) = Executor::<RustPython>::builder("test_component")
+            .bundle(Bundle::single("test_component", COMPONENT_SOURCE).unwrap())
+            .workers(1)
+            .configure(|_builder| {
+                Err(Error::configuration(std::io::Error::other("client configuration is invalid")))
+            })
+            .build()
+            .await
+        else {
+            panic!("a failing configuration should fail initialization");
+        };
+
+        let Error::WorkerInitialization { source, .. } = error else {
+            panic!("a failing configuration should fail as worker initialization");
+        };
+
+        assert!(matches!(*source, Error::Configuration(_)));
+        assert_eq!(
+            source.to_string(),
+            "runtime configuration failed: client configuration is invalid",
+        );
     }
 
     #[tokio::test]

@@ -41,11 +41,13 @@ Everything lives under `src/`, one directory per host module, named after the mo
 reference for what each library exposes:
 
 - `agentc_tools-stubs/` declares `agentc_tools`, the tool contract.
+- `agentc_http-stubs/` declares `agentc_http`, the asynchronous HTTP client.
 
 ## Outside the host
 
-The package holds declarations only. In a normal Python interpreter, `import agentc_tools` still
-raises `ModuleNotFoundError`, because the modules exist only inside the agentc runtime.
+The package holds declarations only. In a normal Python interpreter, `import agentc_tools`,
+`import agentc_http` and other agentc host modules still raise `ModuleNotFoundError`, because those modules
+exist only inside the agentc runtime.
 
 ## Maintenance
 
