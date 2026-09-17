@@ -5,19 +5,24 @@
 use std::{borrow::Cow, sync::Arc, time::Duration};
 
 use bytes::Bytes;
+use futures::stream::{BoxStream, Stream, StreamExt, TryStreamExt};
 use http::{HeaderMap, HeaderName, HeaderValue, Method, header::CONTENT_TYPE};
 use serde::Serialize;
 use url::Url;
 
 use crate::client::{client::HttpClientInner, errors::HttpClientError, response::HttpResponse};
 
+pub enum HttpRequestBody {
+    Bytes(Bytes),
+    Stream(BoxStream<'static, Result<Bytes, Box<dyn std::error::Error + Send + Sync>>>),
+}
+
 /// A prepared request.
-#[derive(Clone)]
 pub struct HttpRequest {
     method: Method,
     url: Url,
     headers: HeaderMap,
-    body: Option<Bytes>,
+    body: Option<HttpRequestBody>,
     timeout: Option<Duration>,
     label: Option<Cow<'static, str>>,
 }
@@ -56,7 +61,7 @@ impl HttpRequest {
     }
 
     /// The request body.
-    pub fn body(&self) -> Option<&Bytes> {
+    pub fn body(&self) -> Option<&HttpRequestBody> {
         self.body.as_ref()
     }
 
@@ -76,7 +81,7 @@ pub(crate) struct HttpRequestParts {
     pub(crate) method: Method,
     pub(crate) url: Url,
     pub(crate) headers: HeaderMap,
-    pub(crate) body: Option<Bytes>,
+    pub(crate) body: Option<HttpRequestBody>,
     pub(crate) timeout: Option<Duration>,
     pub(crate) label: Option<Cow<'static, str>>,
 }
@@ -91,14 +96,6 @@ pub struct HttpRequestBuilder {
 }
 
 impl HttpRequestBuilder {
-    fn map<F>(mut self, f: F) -> Self
-    where
-        F: FnOnce(HttpRequest) -> Result<HttpRequest, HttpClientError>,
-    {
-        self.request = self.request.and_then(f);
-        self
-    }
-
     pub(crate) fn new(client: Arc<HttpClientInner>, method: Method, url: &str) -> Self {
         Self {
             client,
@@ -106,6 +103,14 @@ impl HttpRequestBuilder {
                 .map(|url| HttpRequest::new(method, url))
                 .map_err(|error| HttpClientError::invalid_request(error.to_string())),
         }
+    }
+
+    fn map<F>(mut self, f: F) -> Self
+    where
+        F: FnOnce(HttpRequest) -> Result<HttpRequest, HttpClientError>,
+    {
+        self.request = self.request.and_then(f);
+        self
     }
 
     /// Adds a header.
@@ -150,7 +155,19 @@ impl HttpRequestBuilder {
     /// Sets the request body.
     pub fn body(self, body: impl Into<Bytes>) -> Self {
         self.map(|mut request| {
-            request.body = Some(body.into());
+            request.body = Some(HttpRequestBody::Bytes(body.into()));
+
+            Ok(request)
+        })
+    }
+
+    pub fn stream<S, E>(self, stream: S) -> Self
+    where
+        S: Stream<Item = Result<Bytes, E>> + Send + 'static,
+        E: Into<Box<dyn std::error::Error + Send + Sync>> + 'static,
+    {
+        self.map(|mut request| {
+            request.body = Some(HttpRequestBody::Stream(stream.map_err(Into::into).boxed()));
 
             Ok(request)
         })
@@ -165,16 +182,16 @@ impl HttpRequestBuilder {
             request
                 .headers
                 .insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-            request.body = Some(Bytes::from(
+            request.body = Some(HttpRequestBody::Bytes(Bytes::from(
                 serde_json::to_vec(body)
                     .map_err(|error| HttpClientError::invalid_request(error.to_string()))?,
-            ));
+            )));
 
             Ok(request)
         })
     }
 
-    /// Overrides the client's whole-request deadline for this request.
+    /// Sets the whole-request deadline, bounded by the client's configured deadline.
     pub fn timeout(self, timeout: impl Into<Duration>) -> Self {
         self.map(|mut request| {
             request.timeout = Some(timeout.into());

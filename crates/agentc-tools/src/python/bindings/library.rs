@@ -2,12 +2,9 @@
 //
 // SPDX-License-Identifier: MIT
 
-use agentc_executor_python::guestpy::{
-    backend::{
-        Backend, BackendCallables, BackendClasses, BackendCoroutines, BackendExceptions,
-        BackendModules, BackendValues,
-    },
-    host::library::HostLibrary,
+use agentc_executor_python::{
+    backend::ExecutorBackend,
+    guestpy::{errors::Error, host::library::HostLibrary},
 };
 
 use crate::python::bindings::module::ToolsModule;
@@ -15,16 +12,10 @@ use crate::python::bindings::module::ToolsModule;
 pub struct ToolsLibrary;
 
 impl ToolsLibrary {
-    pub fn bind<B>() -> HostLibrary<B>
+    pub fn bind<B>() -> Result<HostLibrary<B>, Error>
     where
-        B: Backend
-            + BackendValues
-            + BackendCallables
-            + BackendClasses
-            + BackendModules
-            + BackendCoroutines
-            + BackendExceptions,
+        B: ExecutorBackend,
     {
-        HostLibrary::new().with(ToolsModule::new().into())
+        Ok(HostLibrary::new().with(ToolsModule::new().try_into()?))
     }
 }

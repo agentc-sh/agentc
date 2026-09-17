@@ -16,7 +16,7 @@ Repository = "https://github.com/agentc-sh/agentc"
 [dependency-groups]
 dev = [
     "pyright>=1.1.400",
-    "ruff>=0.12.0",
+    "ruff>=0.16.8",
 ]
 
 [build-system]

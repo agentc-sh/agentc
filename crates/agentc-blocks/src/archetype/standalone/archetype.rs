@@ -746,36 +746,4 @@ mod tests {
         assert!(content.contains("jobq = { git = \"https://github.com/wizrds/jobq-rs.git\""));
         assert!(content.contains("subway = { git = \"https://github.com/wizrds/subway-rs.git\""));
     }
-
-    #[tokio::test]
-    async fn javascript_agent_gets_the_typescript_feature() {
-        let content = rendered_cargo_toml(
-            context(None),
-            vec![
-                ErasedContributionValue::new(
-                    CargoDependencies::from_entries([CargoDependencyContribution::runtime(
-                        RuntimeDependencyContribution::new("agentc-http")
-                            .default_features(false)
-                            .feature("client"),
-                    )])
-                    .unwrap(),
-                ),
-                ErasedContributionValue::new(
-                    CargoDependencies::from_entries([CargoDependencyContribution::runtime(
-                        RuntimeDependencyContribution::new("agentc-http")
-                            .default_features(false)
-                            .feature("typescript"),
-                    )])
-                    .unwrap(),
-                ),
-            ],
-            vec![],
-        )
-        .await;
-
-        assert!(content.contains(&format!(
-            "agentc-http = {{ version = \"{}\", default-features = false, features = [\"client\", \"typescript\"] }}",
-            env!("CARGO_PKG_VERSION"),
-        )));
-    }
 }

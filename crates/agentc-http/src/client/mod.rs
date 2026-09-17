@@ -10,6 +10,9 @@ pub mod policy;
 pub mod request;
 pub mod response;
 
+#[cfg(feature = "python")]
+pub mod python;
+
 #[cfg(feature = "typescript")]
 pub mod typescript;
 
@@ -22,6 +25,6 @@ pub use crate::client::{
     client::HttpClient,
     errors::HttpClientError,
     policy::{Denied, Policy, RedirectContext, RequestContext, ResponseContext},
-    request::{HttpRequest, HttpRequestBuilder},
+    request::{HttpRequest, HttpRequestBody, HttpRequestBuilder},
     response::{HttpBodyStream, HttpResponse},
 };

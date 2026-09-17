@@ -3,7 +3,11 @@
 // SPDX-License-Identifier: MIT
 
 use agentc_executor_python::guestpy::{
-    FromGuest, backend::Backend, errors::Error, handle::Object, host_class,
+    FromGuest,
+    backend::{Backend, BackendValues},
+    errors::Error,
+    handle::Object,
+    host_class,
 };
 use json_patch::Patch;
 use serde::Deserialize;
@@ -19,13 +23,13 @@ impl StateUpdate {
     }
 }
 
-pub struct ToolOutput<B: Backend> {
+pub struct ToolOutput<B: Backend + BackendValues> {
     output: Object<B>,
     state_update: Option<Patch>,
 }
 
 #[host_class(backend = B, generic, crate_path = agentc_executor_python::guestpy)]
-impl<B: Backend> ToolOutput<B> {
+impl<B: Backend + BackendValues> ToolOutput<B> {
     #[guestpy(constructor)]
     fn new(
         output: Object<B>,
