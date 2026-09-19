@@ -96,6 +96,42 @@ impl Error {
             source: Some(source.into()),
         }
     }
+
+    pub fn is_not_found(&self) -> bool {
+        matches!(self, Error::NotFound(_))
+    }
+
+    pub fn is_already_exists(&self) -> bool {
+        matches!(self, Error::AlreadyExists(_))
+    }
+
+    pub fn is_not_directory(&self) -> bool {
+        matches!(self, Error::NotDirectory(_))
+    }
+
+    pub fn is_a_directory(&self) -> bool {
+        matches!(self, Error::IsDirectory(_))
+    }
+
+    pub fn is_permission_denied(&self) -> bool {
+        matches!(self, Error::PermissionDenied(_))
+    }
+
+    pub fn is_unsupported(&self) -> bool {
+        matches!(self, Error::Unsupported { .. })
+    }
+
+    pub fn is_invalid_path(&self) -> bool {
+        matches!(self, Error::InvalidPath { .. })
+    }
+
+    pub fn is_path_escapes_authority(&self) -> bool {
+        matches!(self, Error::PathEscapesAuthority(_))
+    }
+
+    pub fn is_cross_backend_rename(&self) -> bool {
+        matches!(self, Error::CrossBackendRename { .. })
+    }
 }
 
 pub(crate) trait IntoFsError {

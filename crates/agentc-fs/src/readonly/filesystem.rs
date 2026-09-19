@@ -135,17 +135,20 @@ mod tests {
         async fn with_file(path: &str, content: &[u8]) -> MemoryFs {
             let fs = MemoryFs::new();
             let path = PathBuf::parse(path).unwrap();
-            let mut file = File::new(Box::new(
-                Backend::open(
-                    &fs,
-                    path.as_path(),
-                    &OpenOptions::new()
-                        .write(true)
-                        .create(true),
-                )
-                .await
-                .unwrap(),
-            ));
+            let mut file = File::new(
+                Box::new(
+                    Backend::open(
+                        &fs,
+                        path.as_path(),
+                        &OpenOptions::new()
+                            .write(true)
+                            .create(true),
+                    )
+                    .await
+                    .unwrap(),
+                ),
+                path,
+            );
 
             file.write_all(content).await.unwrap();
             fs

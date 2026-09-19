@@ -75,11 +75,14 @@ impl Dir {
         path: impl IntoPathBuf,
         options: &OpenOptions,
     ) -> Result<File, Error> {
+        let path = self.resolve(path)?;
+
         Ok(File::new(
             self.fs
                 .namespace
-                .open(self.resolve(path)?.as_path(), options)
+                .open(path.as_path(), options)
                 .await?,
+            path,
         ))
     }
 

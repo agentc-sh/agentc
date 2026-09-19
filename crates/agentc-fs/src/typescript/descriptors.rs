@@ -4,8 +4,6 @@
 
 use std::{cell::RefCell, collections::HashMap, io::SeekFrom, rc::Rc};
 
-use tokio::io::{AsyncReadExt, AsyncSeekExt};
-
 use crate::{errors::Error, fs::File, path::PathBuf};
 
 pub struct Session {
@@ -17,19 +15,12 @@ impl Session {
         Self { file }
     }
 
-    async fn seek(&mut self, position: SeekFrom) -> Result<u64, Error> {
-        self.file
-            .seek(position)
-            .await
-            .map_err(|error| Error::sourced_unexpected("failed to seek file", error))
-    }
-
     pub async fn read(&mut self, len: usize, position: Option<u64>) -> Result<Vec<u8>, Error> {
         let original = match position {
             Some(position) => {
-                let original = self.seek(SeekFrom::Current(0)).await?;
+                let original = self.file.seek(SeekFrom::Current(0)).await?;
 
-                self.seek(SeekFrom::Start(position))
+                self.file.seek(SeekFrom::Start(position))
                     .await?;
 
                 Some(original)
@@ -37,31 +28,10 @@ impl Session {
             None => None,
         };
 
-        let mut bytes = vec![0; len];
-        let mut filled = 0;
-
-        while filled < bytes.len() {
-            let read = self
-                .file
-                .read(&mut bytes[filled..])
-                .await
-                .map_err(|error| Error::sourced_unexpected("failed to read file", error))?;
-
-            if read == 0 {
-                break;
-            }
-
-            filled += read;
-        }
-
-        let result = {
-            bytes.truncate(filled);
-
-            Ok(bytes)
-        };
+        let result = self.file.read(len as u64).await;
 
         if let Some(original) = original {
-            self.seek(SeekFrom::Start(original))
+            self.file.seek(SeekFrom::Start(original))
                 .await?;
         }
 
@@ -71,9 +41,9 @@ impl Session {
     pub async fn write(&mut self, bytes: Vec<u8>, position: Option<u64>) -> Result<usize, Error> {
         let original = match position {
             Some(position) => {
-                let original = self.seek(SeekFrom::Current(0)).await?;
+                let original = self.file.seek(SeekFrom::Current(0)).await?;
 
-                self.seek(SeekFrom::Start(position))
+                self.file.seek(SeekFrom::Start(position))
                     .await?;
 
                 Some(original)
@@ -89,7 +59,7 @@ impl Session {
             .map(|()| len);
 
         if let Some(original) = original {
-            self.seek(SeekFrom::Start(original))
+            self.file.seek(SeekFrom::Start(original))
                 .await?;
         }
 
@@ -225,8 +195,6 @@ impl Drop for Lease {
 #[cfg(test)]
 mod tests {
     use std::io::SeekFrom;
-
-    use tokio::io::AsyncSeekExt;
 
     use super::{Descriptors, Session};
     use crate::fs::Fs;
