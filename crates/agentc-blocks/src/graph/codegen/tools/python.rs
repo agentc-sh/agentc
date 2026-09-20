@@ -79,6 +79,7 @@ impl PythonTools {
                     .bundle(agentc_executor_python::bundle!(#site_packages_path)?)
                     .with_tools()
                     .with_http(config.network.builder()?)
+                    .with_fs(fs.root())
                     .workers(4)
                     .queue_capacity(32)
                     .cancellation(shutdown.clone())
@@ -162,6 +163,8 @@ impl PythonTools {
         Self::is_present::<B>(ctx)
             .then(|| {
                 vec![
+                    ImportContribution::path(&["agentc_fs", "python", "executor"])
+                        .item_as("ExecutorBuilderFsExt", "_"),
                     ImportContribution::path(&["agentc_http", "client", "python"])
                         .item_as("ExecutorBuilderHttpExt", "_"),
                     ImportContribution::path(&["agentc_tools", "python"])
@@ -318,6 +321,28 @@ impl Fragment<ResolvedContext> for HttpPythonCargoFragment {
             "cargo::dependencies" => Ok(ErasedContributionValue::new(
                 CargoDependencies::from_entries([CargoDependencyContribution::runtime(
                     RuntimeDependencyContribution::new("agentc-http")
+                        .default_features(false)
+                        .feature("python"),
+                )])
+                .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
+            )),
+            _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
+        }
+    }
+}
+
+pub struct FilesystemPythonCargoFragment;
+
+impl Fragment<ResolvedContext> for FilesystemPythonCargoFragment {
+    fn generate_contribution(
+        &self,
+        _ctx: &GenerationContext<ResolvedContext>,
+        point: &str,
+    ) -> Result<ErasedContributionValue, GeneratorError> {
+        match point {
+            "cargo::dependencies" => Ok(ErasedContributionValue::new(
+                CargoDependencies::from_entries([CargoDependencyContribution::runtime(
+                    RuntimeDependencyContribution::new("agentc-fs")
                         .default_features(false)
                         .feature("python"),
                 )])
@@ -618,7 +643,7 @@ mod tests {
         assert!(registrations.contains(". cancellation (shutdown . clone ())"));
         assert!(!registrations.contains("standard_environment"));
         assert!(registrations.contains(". with_http (config . network . builder () ?)"));
-        assert!(!registrations.contains("with_fs"));
+        assert!(registrations.contains(". with_fs (fs . root ())"));
     }
 
     #[test]
@@ -636,7 +661,7 @@ mod tests {
     }
 
     #[test]
-    fn imports_reference_the_http_and_tool_surface() {
+    fn imports_reference_every_bound_host_library() {
         let ctx = PythonToolsFixture::context([PythonToolsFixture::tool(
             "adder",
             "/artifacts/adder",
@@ -647,6 +672,8 @@ mod tests {
         assert_eq!(
             RustPythonTools(&ctx).imports(),
             vec![
+                ImportContribution::path(&["agentc_fs", "python", "executor"])
+                    .item_as("ExecutorBuilderFsExt", "_"),
                 ImportContribution::path(&["agentc_http", "client", "python"])
                     .item_as("ExecutorBuilderHttpExt", "_"),
                 ImportContribution::path(&["agentc_tools", "python"])
@@ -656,7 +683,7 @@ mod tests {
     }
 
     #[test]
-    fn javascript_and_python_tools_import_both_http_surfaces() {
+    fn mixed_language_tools_import_each_language_binding() {
         let ctx = PythonToolsFixture::context([
             PythonToolsFixture::tool(
                 "adder",
@@ -683,6 +710,8 @@ mod tests {
 
         assert!(imports.contains("python::ExecutorBuilderHttpExt as _"));
         assert!(imports.contains("typescript::ExecutorBuilderHttpExt"));
+        assert!(imports.contains("agentc_fs::python::executor::ExecutorBuilderFsExt as _"));
+        assert!(imports.contains("agentc_fs::typescript::executor::ExecutorBuilderFsExt"));
     }
 
     #[test]

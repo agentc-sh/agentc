@@ -11,6 +11,9 @@ in-memory store, a directory on the host, a read-only view of either, or an over
   <LibLanguage name="TypeScript" specifier="agentc:fs">
     The runtime provides `agentc:fs` to every TypeScript component it executes.
   </LibLanguage>
+  <LibLanguage name="Python" specifier="agentc_fs">
+    The runtime provides `agentc_fs` to every Python component it executes.
+  </LibLanguage>
 </LibAvailability>
 
 ## What the runtime controls
@@ -28,8 +31,8 @@ against the working directory.
 
 ## Errors
 
-Every failure is an error the calling code can catch. Errors carry a message, and matching on the
-message is how code distinguishes them.
+Every failure is an error the calling code can catch. Each binding reports the categories below
+through its own language's error model, and every failure carries a message describing it.
 
 | Category | Raised when |
 | ------- | ------- |
@@ -44,11 +47,11 @@ message is how code distinguishes them.
 
 ## Differences you can observe
 
-- `readlink` returns an absolute path, because a symbolic link's target is resolved against the
+- Reading a symbolic link returns an absolute path, because a link's target is resolved against the
   working directory and stored absolute when the link is created.
-- `readdir` results are sorted.
-- `rm` removes a symbolic link itself rather than following it to its target.
-- `mkdir` and `mkdtemp` return the path they created.
+- Directory listings are sorted by name.
+- Removing a symbolic link removes the link itself rather than following it to its target.
+- Creating a directory reports the path that was created.
 
 ## Operations that are absent
 
@@ -57,4 +60,5 @@ Their absence is deliberate.
 
 ## Bindings
 
-See [TypeScript](/reference/runtime/fs/typescript) for every export of `agentc:fs`.
+- [TypeScript](/reference/runtime/fs/typescript) lists every export of `agentc:fs`.
+- [Python](/reference/runtime/fs/python) lists every export of `agentc_fs`.

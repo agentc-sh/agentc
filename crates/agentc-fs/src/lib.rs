@@ -14,6 +14,9 @@ pub mod backend;
 #[cfg(feature = "embedded")]
 pub mod embedded;
 
+#[cfg(feature = "python")]
+pub mod python;
+
 #[cfg(feature = "typescript")]
 pub mod typescript;
 

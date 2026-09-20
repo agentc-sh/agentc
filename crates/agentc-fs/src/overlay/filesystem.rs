@@ -117,6 +117,7 @@ impl OverlayFs {
             self.lower
                 .open(path, &OpenOptions::new().read(true))
                 .await?,
+            PathBuf::from(path),
         );
 
         self.create_upper_parent(path).await?;
@@ -130,6 +131,7 @@ impl OverlayFs {
                         .truncate(true),
                 )
                 .await?,
+            PathBuf::from(path),
         );
 
         upper
@@ -457,17 +459,20 @@ mod tests {
                     .unwrap();
             }
 
-            let mut file = File::new(Box::new(
-                Backend::open(
-                    &fs,
-                    path.as_path(),
-                    &OpenOptions::new()
-                        .write(true)
-                        .create(true),
-                )
-                .await
-                .unwrap(),
-            ));
+            let mut file = File::new(
+                Box::new(
+                    Backend::open(
+                        &fs,
+                        path.as_path(),
+                        &OpenOptions::new()
+                            .write(true)
+                            .create(true),
+                    )
+                    .await
+                    .unwrap(),
+                ),
+                path,
+            );
 
             file.write_all(content).await.unwrap();
             fs
