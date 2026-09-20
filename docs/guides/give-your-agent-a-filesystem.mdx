@@ -133,11 +133,12 @@ With those two variables set, `/workspace` resolves to `/srv/agent-workspace` on
 
 ## Read and write from a component
 
-Send a request from a component using the corresponding runtime library.
+Read and write files from a component using the corresponding runtime library.
 
 <Tabs defaultValue="typescript">
   <TabsList>
     <TabsTrigger value="typescript">TypeScript</TabsTrigger>
+    <TabsTrigger value="python">Python</TabsTrigger>
   </TabsList>
   <TabsContent value="typescript">
 ```typescript
@@ -149,6 +150,18 @@ await writeFile(
   "/workspace/notes.out.md",
   existing.toUpperCase(),
 );
+```
+  </TabsContent>
+  <TabsContent value="python">
+```python
+from agentc_fs import Directory
+
+
+async def shout() -> None:
+    workspace = await Directory.root().open_dir("/workspace")
+    existing = await workspace.read_text("notes.md")
+
+    await workspace.write_text("notes.out.md", existing.upper())
 ```
   </TabsContent>
 </Tabs>

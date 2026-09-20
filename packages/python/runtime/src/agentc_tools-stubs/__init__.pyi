@@ -102,7 +102,9 @@ class Tool[Args, Result, State = Any]:
     """The description of the tool, which is used by the agent to decide when to invoke it."""
     parameters: ClassVar[Schema]
     """The JSON schema that describes the input parameters for the tool."""
+
     def __init__(self) -> None: ...
+
     async def execute(self, input: ToolInput[Args, State], /) -> ToolOutput[Result]:
         """
         Execute the tool with the given input and return the output.

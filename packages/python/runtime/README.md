@@ -42,12 +42,13 @@ reference for what each library exposes:
 
 - `agentc_tools-stubs/` declares `agentc_tools`, the tool contract.
 - `agentc_http-stubs/` declares `agentc_http`, the asynchronous HTTP client.
+- `agentc_fs-stubs/` declares `agentc_fs`, the asynchronous filesystem API.
 
 ## Outside the host
 
 The package holds declarations only. In a normal Python interpreter, `import agentc_tools`,
-`import agentc_http` and other agentc host modules still raise `ModuleNotFoundError`, because those modules
-exist only inside the agentc runtime.
+`import agentc_http`, `import agentc_fs`, and other agentc host module imports still raise
+`ModuleNotFoundError`, because those modules exist only inside the agentc runtime.
 
 ## Maintenance
 

@@ -41,7 +41,9 @@ use crate::{
                 FilesystemTypescriptCargoFragment, HttpTypescriptCargoFragment,
                 JavascriptToolCargoFragment,
             },
-            python::{HttpPythonCargoFragment, PythonToolCargoFragment},
+            python::{
+                FilesystemPythonCargoFragment, HttpPythonCargoFragment, PythonToolCargoFragment,
+            },
         },
         react::{
             agent::AgentCodeGen,
@@ -191,6 +193,14 @@ impl AgentGraph for ReActGraph {
                             "cargo::dependencies",
                         ))
                         .build(HttpPythonCargoFragment),
+                )
+                .add(
+                    FragmentBlock::builder()
+                        .id("filesystem_python_cargo")
+                        .contribute(Contribution::<CargoDependencies>::strict(
+                            "cargo::dependencies",
+                        ))
+                        .build(FilesystemPythonCargoFragment),
                 );
         }
 

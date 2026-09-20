@@ -8,47 +8,83 @@ use std::{
     task::{Context, Poll},
 };
 
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncSeek, AsyncWrite, AsyncWriteExt, ReadBuf};
+use tokio::io::{
+    AsyncRead, AsyncReadExt, AsyncSeek, AsyncSeekExt, AsyncWrite, AsyncWriteExt, ReadBuf,
+};
 
-use crate::{backend::FileHandle, errors::Error};
+use crate::{
+    backend::FileHandle,
+    errors::{Error, IntoFsError},
+    path::{Path, PathBuf},
+};
 
 pub struct File {
     inner: Box<dyn FileHandle>,
+    path: PathBuf,
 }
 
 impl File {
-    pub(crate) fn new(inner: Box<dyn FileHandle>) -> Self {
-        File { inner }
+    pub(crate) fn new(inner: Box<dyn FileHandle>, path: PathBuf) -> Self {
+        Self { inner, path }
+    }
+
+    pub fn path(&self) -> &Path {
+        self.path.as_path()
     }
 
     pub async fn read_to_end(&mut self) -> Result<Vec<u8>, Error> {
         let mut bytes = Vec::new();
-        AsyncReadExt::read_to_end(self, &mut bytes)
+        AsyncReadExt::read_to_end(&mut *self, &mut bytes)
             .await
-            .map_err(|error| Error::sourced_unexpected("failed to read file", error))?;
+            .map_err(|error| error.into_fs_error(self.path.as_path(), "failed to read file"))?;
 
         Ok(bytes)
     }
 
     pub async fn read_to_string(&mut self) -> Result<String, Error> {
         let mut content = String::new();
-        AsyncReadExt::read_to_string(self, &mut content)
+        AsyncReadExt::read_to_string(&mut *self, &mut content)
             .await
-            .map_err(|error| Error::sourced_unexpected("failed to read file as string", error))?;
+            .map_err(|error| {
+                error.into_fs_error(self.path.as_path(), "failed to read file as string")
+            })?;
 
         Ok(content)
     }
 
     pub async fn write_all(&mut self, bytes: impl AsRef<[u8]>) -> Result<(), Error> {
-        AsyncWriteExt::write_all(self, bytes.as_ref())
+        AsyncWriteExt::write_all(&mut *self, bytes.as_ref())
             .await
-            .map_err(|error| Error::sourced_unexpected("failed to write file", error))
+            .map_err(|error| error.into_fs_error(self.path.as_path(), "failed to write file"))
     }
 
     pub async fn flush(&mut self) -> Result<(), Error> {
-        AsyncWriteExt::flush(self)
+        AsyncWriteExt::flush(&mut *self)
             .await
-            .map_err(|error| Error::sourced_unexpected("failed to flush file", error))
+            .map_err(|error| error.into_fs_error(self.path.as_path(), "failed to flush file"))
+    }
+
+    pub async fn read(&mut self, len: u64) -> Result<Vec<u8>, Error> {
+        let mut bytes = Vec::new();
+        AsyncReadExt::read_to_end(&mut AsyncReadExt::take(&mut *self, len), &mut bytes)
+            .await
+            .map_err(|error| error.into_fs_error(self.path.as_path(), "failed to read file"))?;
+
+        Ok(bytes)
+    }
+
+    pub async fn seek(&mut self, position: SeekFrom) -> Result<u64, Error> {
+        AsyncSeekExt::seek(&mut *self, position)
+            .await
+            .map_err(|error| error.into_fs_error(self.path.as_path(), "failed to seek file"))
+    }
+
+    pub async fn stream_position(&mut self) -> Result<u64, Error> {
+        AsyncSeekExt::stream_position(&mut *self)
+            .await
+            .map_err(|error| {
+                error.into_fs_error(self.path.as_path(), "failed to get file position")
+            })
     }
 
     pub async fn set_len(&mut self, len: u64) -> Result<(), Error> {
