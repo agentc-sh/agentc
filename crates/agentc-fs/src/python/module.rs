@@ -57,24 +57,22 @@ impl<B: ExecutorBackend> TryFrom<FsModule> for ModuleSpec<B> {
     type Error = Error;
 
     fn try_from(module: FsModule) -> Result<Self, Self::Error> {
-        Ok(
-            ModuleSpec::new(module.name.clone())
-                .state(module)
-                .exception_type::<FilesystemError>()
-                .exception_type::<NotFoundError>()
-                .exception_type::<AlreadyExistsError>()
-                .exception_type::<NotDirectoryError>()
-                .exception_type::<IsDirectoryError>()
-                .exception_type::<PermissionDeniedError>()
-                .exception_type::<PathEscapesAuthorityError>()
-                .exception_type::<CrossBackendRenameError>()
-                .exception_type::<InvalidPathError>()
-                .exception_type::<UnsupportedError>()
-                .exception_type::<UnexpectedError>()
-                .class::<Stat<B>>()?
-                .class::<Entry<B>>()?
-                .class::<File<B>>()?
-                .class::<Directory<B>>()?
-        )
+        Ok(ModuleSpec::new(module.name.clone())
+            .state(module)
+            .exception_type::<FilesystemError>()
+            .exception_type::<NotFoundError>()
+            .exception_type::<AlreadyExistsError>()
+            .exception_type::<NotDirectoryError>()
+            .exception_type::<IsDirectoryError>()
+            .exception_type::<PermissionDeniedError>()
+            .exception_type::<PathEscapesAuthorityError>()
+            .exception_type::<CrossBackendRenameError>()
+            .exception_type::<InvalidPathError>()
+            .exception_type::<UnsupportedError>()
+            .exception_type::<UnexpectedError>()
+            .class::<Stat<B>>()?
+            .class::<Entry<B>>()?
+            .class::<File<B>>()?
+            .class::<Directory<B>>()?)
     }
 }

@@ -18,9 +18,13 @@ impl Session {
     pub async fn read(&mut self, len: usize, position: Option<u64>) -> Result<Vec<u8>, Error> {
         let original = match position {
             Some(position) => {
-                let original = self.file.seek(SeekFrom::Current(0)).await?;
+                let original = self
+                    .file
+                    .seek(SeekFrom::Current(0))
+                    .await?;
 
-                self.file.seek(SeekFrom::Start(position))
+                self.file
+                    .seek(SeekFrom::Start(position))
                     .await?;
 
                 Some(original)
@@ -31,7 +35,8 @@ impl Session {
         let result = self.file.read(len as u64).await;
 
         if let Some(original) = original {
-            self.file.seek(SeekFrom::Start(original))
+            self.file
+                .seek(SeekFrom::Start(original))
                 .await?;
         }
 
@@ -41,9 +46,13 @@ impl Session {
     pub async fn write(&mut self, bytes: Vec<u8>, position: Option<u64>) -> Result<usize, Error> {
         let original = match position {
             Some(position) => {
-                let original = self.file.seek(SeekFrom::Current(0)).await?;
+                let original = self
+                    .file
+                    .seek(SeekFrom::Current(0))
+                    .await?;
 
-                self.file.seek(SeekFrom::Start(position))
+                self.file
+                    .seek(SeekFrom::Start(position))
                     .await?;
 
                 Some(original)
@@ -59,7 +68,8 @@ impl Session {
             .map(|()| len);
 
         if let Some(original) = original {
-            self.file.seek(SeekFrom::Start(original))
+            self.file
+                .seek(SeekFrom::Start(original))
                 .await?;
         }
 

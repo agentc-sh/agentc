@@ -53,27 +53,42 @@ impl<B: ExecutorBackend> Stat<B> {
 
     #[guestpy(get)]
     fn is_readonly(&self) -> Result<bool, Error> {
-        Ok(self.metadata.permissions().is_readonly())
+        Ok(self
+            .metadata
+            .permissions()
+            .is_readonly())
     }
 
     #[guestpy(get)]
     fn accessed(&self) -> Result<Option<Timestamp>, Error> {
-        Ok(self.metadata.accessed().map(Timestamp::from))
+        Ok(self
+            .metadata
+            .accessed()
+            .map(Timestamp::from))
     }
 
     #[guestpy(get)]
     fn modified(&self) -> Result<Option<Timestamp>, Error> {
-        Ok(self.metadata.modified().map(Timestamp::from))
+        Ok(self
+            .metadata
+            .modified()
+            .map(Timestamp::from))
     }
 
     #[guestpy(get)]
     fn created(&self) -> Result<Option<Timestamp>, Error> {
-        Ok(self.metadata.created().map(Timestamp::from))
+        Ok(self
+            .metadata
+            .created()
+            .map(Timestamp::from))
     }
 
     #[guestpy(get)]
     fn changed(&self) -> Result<Option<Timestamp>, Error> {
-        Ok(self.metadata.changed().map(Timestamp::from))
+        Ok(self
+            .metadata
+            .changed()
+            .map(Timestamp::from))
     }
 
     #[guestpy(get)]

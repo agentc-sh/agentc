@@ -190,12 +190,7 @@ mod tests {
     async fn memory_file_set_len_leaves_the_offset_alone() {
         let content = Arc::new(Mutex::new(b"hello world".to_vec()));
         let mut file = File::new(
-            Box::new(MemoryFile::new(
-                PathBuf::parse("/notes.txt").unwrap(),
-                content,
-                11,
-                true,
-            )),
+            Box::new(MemoryFile::new(PathBuf::parse("/notes.txt").unwrap(), content, 11, true)),
             PathBuf::parse("/notes.txt").unwrap(),
         );
 
@@ -208,17 +203,16 @@ mod tests {
     async fn file_reads_a_bounded_number_of_bytes_and_reports_its_position() {
         let content = Arc::new(Mutex::new(Vec::new()));
         let mut file = File::new(
-            Box::new(MemoryFile::new(
-                PathBuf::parse("/notes.txt").unwrap(),
-                content,
-                0,
-                true,
-            )),
+            Box::new(MemoryFile::new(PathBuf::parse("/notes.txt").unwrap(), content, 0, true)),
             PathBuf::parse("/notes.txt").unwrap(),
         );
 
-        file.write_all(b"content").await.unwrap();
-        file.seek(SeekFrom::Start(0)).await.unwrap();
+        file.write_all(b"content")
+            .await
+            .unwrap();
+        file.seek(SeekFrom::Start(0))
+            .await
+            .unwrap();
 
         assert_eq!(file.read(4).await.unwrap(), b"cont");
         assert_eq!(file.stream_position().await.unwrap(), 4);

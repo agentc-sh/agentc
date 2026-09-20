@@ -12,8 +12,6 @@ pub trait ExecutorBuilderFsExt {
 
 impl<B: ExecutorBackend> ExecutorBuilderFsExt for ExecutorBuilder<B> {
     fn with_fs(self, dir: Dir) -> Self {
-        self.configure(move |runtime| {
-            Ok(runtime.bind(FsLibrary::bind::<B>(dir.clone())?))
-        })
+        self.configure(move |runtime| Ok(runtime.bind(FsLibrary::bind::<B>(dir.clone())?)))
     }
 }

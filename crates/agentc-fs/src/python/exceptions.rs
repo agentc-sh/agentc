@@ -117,12 +117,12 @@ impl<B: ExecutorBackend> From<Error> for Raise<B> {
                 path: path.to_string_lossy(),
                 message: error.to_string(),
             }),
-            Error::Unsupported { .. } => Raise::host(UnsupportedError {
-                message: error.to_string(),
-            }),
-            Error::InvalidPath { .. } => Raise::host(InvalidPathError {
-                message: error.to_string(),
-            }),
+            Error::Unsupported { .. } => {
+                Raise::host(UnsupportedError { message: error.to_string() })
+            }
+            Error::InvalidPath { .. } => {
+                Raise::host(InvalidPathError { message: error.to_string() })
+            }
             Error::PathEscapesAuthority(ref path) => Raise::host(PathEscapesAuthorityError {
                 path: path.to_string_lossy(),
                 message: error.to_string(),
@@ -134,9 +134,7 @@ impl<B: ExecutorBackend> From<Error> for Raise<B> {
                     message: error.to_string(),
                 })
             }
-            Error::Unexpected { .. } => Raise::host(UnexpectedError {
-                message: error.to_string(),
-            }),
+            Error::Unexpected { .. } => Raise::host(UnexpectedError { message: error.to_string() }),
         }
     }
 }

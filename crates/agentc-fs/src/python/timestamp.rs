@@ -58,13 +58,7 @@ mod tests {
 
     #[test]
     fn timestamps_convert_to_signed_epoch_seconds() {
-        assert_eq!(
-            Timestamp::from(UNIX_EPOCH + Duration::from_millis(1500)).seconds(),
-            1.5,
-        );
-        assert_eq!(
-            Timestamp::from(UNIX_EPOCH - Duration::from_millis(1500)).seconds(),
-            -1.5,
-        );
+        assert_eq!(Timestamp::from(UNIX_EPOCH + Duration::from_millis(1500)).seconds(), 1.5,);
+        assert_eq!(Timestamp::from(UNIX_EPOCH - Duration::from_millis(1500)).seconds(), -1.5,);
     }
 }

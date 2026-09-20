@@ -16,8 +16,6 @@ impl FsLibrary {
     where
         B: ExecutorBackend,
     {
-        Ok(
-            HostLibrary::new().with(FsModule::new(dir).try_into()?)
-        )
+        Ok(HostLibrary::new().with(FsModule::new(dir).try_into()?))
     }
 }

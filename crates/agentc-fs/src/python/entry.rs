@@ -6,12 +6,7 @@ use std::marker::PhantomData;
 
 use agentc_executor_python::{
     backend::ExecutorBackend,
-    guestpy::{
-        host_class,
-        errors::Error,
-        marshal::ToGuest,
-        scope::Enter,
-    },
+    guestpy::{errors::Error, host_class, marshal::ToGuest, scope::Enter},
 };
 
 use crate::{
@@ -48,8 +43,7 @@ impl From<FileType> for EntryType {
 
 impl<B: ExecutorBackend> ToGuest<B> for EntryType {
     fn to_guest<'py>(self, enter: &Enter<'py, B>) -> Result<B::Value<'py>, Error> {
-        self.as_str()
-            .to_guest(enter)
+        self.as_str().to_guest(enter)
     }
 }
 
@@ -92,7 +86,11 @@ impl<B: ExecutorBackend> Entry<B> {
 
     #[guestpy(get)]
     fn stat(&self) -> Result<Option<Stat<B>>, Error> {
-        Ok(self.entry.metadata().cloned().map(Stat::<B>::from))
+        Ok(self
+            .entry
+            .metadata()
+            .cloned()
+            .map(Stat::<B>::from))
     }
 }
 

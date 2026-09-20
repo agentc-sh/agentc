@@ -36,9 +36,7 @@ impl File {
         let mut bytes = Vec::new();
         AsyncReadExt::read_to_end(&mut *self, &mut bytes)
             .await
-            .map_err(|error| {
-                error.into_fs_error(self.path.as_path(), "failed to read file")
-            })?;
+            .map_err(|error| error.into_fs_error(self.path.as_path(), "failed to read file"))?;
 
         Ok(bytes)
     }
@@ -57,26 +55,20 @@ impl File {
     pub async fn write_all(&mut self, bytes: impl AsRef<[u8]>) -> Result<(), Error> {
         AsyncWriteExt::write_all(&mut *self, bytes.as_ref())
             .await
-            .map_err(|error| {
-                error.into_fs_error(self.path.as_path(), "failed to write file")
-            })
+            .map_err(|error| error.into_fs_error(self.path.as_path(), "failed to write file"))
     }
 
     pub async fn flush(&mut self) -> Result<(), Error> {
         AsyncWriteExt::flush(&mut *self)
             .await
-            .map_err(|error| {
-                error.into_fs_error(self.path.as_path(), "failed to flush file")
-            })
+            .map_err(|error| error.into_fs_error(self.path.as_path(), "failed to flush file"))
     }
 
     pub async fn read(&mut self, len: u64) -> Result<Vec<u8>, Error> {
         let mut bytes = Vec::new();
         AsyncReadExt::read_to_end(&mut AsyncReadExt::take(&mut *self, len), &mut bytes)
             .await
-            .map_err(|error| {
-                error.into_fs_error(self.path.as_path(), "failed to read file")
-            })?;
+            .map_err(|error| error.into_fs_error(self.path.as_path(), "failed to read file"))?;
 
         Ok(bytes)
     }
@@ -84,9 +76,7 @@ impl File {
     pub async fn seek(&mut self, position: SeekFrom) -> Result<u64, Error> {
         AsyncSeekExt::seek(&mut *self, position)
             .await
-            .map_err(|error| {
-                error.into_fs_error(self.path.as_path(), "failed to seek file")
-            })
+            .map_err(|error| error.into_fs_error(self.path.as_path(), "failed to seek file"))
     }
 
     pub async fn stream_position(&mut self) -> Result<u64, Error> {

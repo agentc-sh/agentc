@@ -32,17 +32,12 @@ impl<B: ExecutorBackend> FromGuest<B> for StrPath {
         }
 
         if !B::has_attr(enter.token(), &value, "__fspath__") {
-            return Err(
-                Error::mismatch::<Self>(&B::type_name(enter.token(), &value))
-            );
+            return Err(Error::mismatch::<Self>(&B::type_name(enter.token(), &value)));
         }
 
-        Ok(
-            Self(
-                Object::<B>::from_guest(enter, value)?
-                    .call_method::<_, String>("__fspath__", ())?
-            )
-        )
+        Ok(Self(
+            Object::<B>::from_guest(enter, value)?.call_method::<_, String>("__fspath__", ())?,
+        ))
     }
 }
 

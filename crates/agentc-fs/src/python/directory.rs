@@ -13,17 +13,11 @@ use agentc_executor_python::{
     },
 };
 use bytes::Bytes;
-use futures::{stream, TryStreamExt};
+use futures::{TryStreamExt, stream};
 
 use crate::{
     fs::{AccessOptions, Dir, OpenOptions, Owner, Permissions, SetOwnerOptions},
-    python::{
-        entry::Entry,
-        file::File,
-        module::FsModule,
-        path::StrPath,
-        stat::Stat,
-    },
+    python::{entry::Entry, file::File, module::FsModule, path::StrPath, stat::Stat},
 };
 
 pub struct Directory<B: ExecutorBackend> {
@@ -45,7 +39,10 @@ impl<B: ExecutorBackend> Directory<B> {
 
     #[guestpy(get)]
     fn authority_root(&self) -> Result<String, Error> {
-        Ok(self.dir.authority_root().to_string_lossy())
+        Ok(self
+            .dir
+            .authority_root()
+            .to_string_lossy())
     }
 
     #[guestpy(async_method)]
@@ -63,23 +60,21 @@ impl<B: ExecutorBackend> Directory<B> {
         let dir = self.dir.clone();
 
         Ok(async move {
-            Ok(
-                File::<B>::from(
-                    dir.open_with_options(
-                        path.into_inner(),
-                        &OpenOptions::new()
-                            .read(read.unwrap_or(true))
-                            .write(write.unwrap_or(false))
-                            .append(append.unwrap_or(false))
-                            .truncate(truncate.unwrap_or(false))
-                            .create(create.unwrap_or(false))
-                            .create_new(create_new.unwrap_or(false))
-                            .follow_symlinks(follow_symlinks.unwrap_or(true)),
-                    )
-                    .await
-                    .map_err(Raise::<B>::from)?
+            Ok(File::<B>::from(
+                dir.open_with_options(
+                    path.into_inner(),
+                    &OpenOptions::new()
+                        .read(read.unwrap_or(true))
+                        .write(write.unwrap_or(false))
+                        .append(append.unwrap_or(false))
+                        .truncate(truncate.unwrap_or(false))
+                        .create(create.unwrap_or(false))
+                        .create_new(create_new.unwrap_or(false))
+                        .follow_symlinks(follow_symlinks.unwrap_or(true)),
                 )
-            )
+                .await
+                .map_err(Raise::<B>::from)?,
+            ))
         })
     }
 
@@ -91,16 +86,14 @@ impl<B: ExecutorBackend> Directory<B> {
         let dir = self.dir.clone();
 
         Ok(async move {
-            Ok(
-                Bytes::from(
-                    dir.open_file(path.into_inner())
-                        .await
-                        .map_err(Raise::<B>::from)?
-                        .read_to_end()
-                        .await
-                        .map_err(Raise::<B>::from)?
-                )
-            )
+            Ok(Bytes::from(
+                dir.open_file(path.into_inner())
+                    .await
+                    .map_err(Raise::<B>::from)?
+                    .read_to_end()
+                    .await
+                    .map_err(Raise::<B>::from)?,
+            ))
         })
     }
 
@@ -112,14 +105,13 @@ impl<B: ExecutorBackend> Directory<B> {
         let dir = self.dir.clone();
 
         Ok(async move {
-            Ok(
-                dir.open_file(path.into_inner())
-                    .await
-                    .map_err(Raise::<B>::from)?
-                    .read_to_string()
-                    .await
-                    .map_err(Raise::<B>::from)?
-            )
+            Ok(dir
+                .open_file(path.into_inner())
+                .await
+                .map_err(Raise::<B>::from)?
+                .read_to_string()
+                .await
+                .map_err(Raise::<B>::from)?)
         })
     }
 
@@ -196,11 +188,10 @@ impl<B: ExecutorBackend> Directory<B> {
         let dir = self.dir.clone();
 
         Ok(async move {
-            Ok(
-                dir.truncate(path.into_inner(), length)
-                    .await
-                    .map_err(Raise::<B>::from)?
-            )
+            Ok(dir
+                .truncate(path.into_inner(), length)
+                .await
+                .map_err(Raise::<B>::from)?)
         })
     }
 
@@ -232,25 +223,30 @@ impl<B: ExecutorBackend> Directory<B> {
         Ok(async move {
             let path = path.into_inner();
 
-            Ok(
-                Self::from(
-                    match (parents.unwrap_or(false), exist_ok.unwrap_or(false)) {
-                        (false, false) => dir.create_dir(path).await.map(|(dir, _)| dir),
-                        (false, true) => match dir.create_dir(&path).await {
-                            Err(error) if error.is_already_exists() => dir.open_dir(path).await,
-                            result => result.map(|(dir, _)| dir),
-                        },
-                        (true, false) => match dir.create_dir(&path).await {
-                            Err(error) if error.is_not_found() => {
-                                dir.create_dir_all(path).await.map(|(dir, _)| dir)
-                            }
-                            result => result.map(|(dir, _)| dir),
-                        },
-                        (true, true) => dir.create_dir_all(path).await.map(|(dir, _)| dir),
-                    }
-                    .map_err(Raise::<B>::from)?
-                )
-            )
+            Ok(Self::from(
+                match (parents.unwrap_or(false), exist_ok.unwrap_or(false)) {
+                    (false, false) => dir
+                        .create_dir(path)
+                        .await
+                        .map(|(dir, _)| dir),
+                    (false, true) => match dir.create_dir(&path).await {
+                        Err(error) if error.is_already_exists() => dir.open_dir(path).await,
+                        result => result.map(|(dir, _)| dir),
+                    },
+                    (true, false) => match dir.create_dir(&path).await {
+                        Err(error) if error.is_not_found() => dir
+                            .create_dir_all(path)
+                            .await
+                            .map(|(dir, _)| dir),
+                        result => result.map(|(dir, _)| dir),
+                    },
+                    (true, true) => dir
+                        .create_dir_all(path)
+                        .await
+                        .map(|(dir, _)| dir),
+                }
+                .map_err(Raise::<B>::from)?,
+            ))
         })
     }
 
@@ -322,7 +318,10 @@ impl<B: ExecutorBackend> Directory<B> {
             Ok(Stat::<B>::from(
                 match follow_symlinks.unwrap_or(true) {
                     true => dir.metadata(path.into_inner()).await,
-                    false => dir.symlink_metadata(path.into_inner()).await,
+                    false => {
+                        dir.symlink_metadata(path.into_inner())
+                            .await
+                    }
                 }
                 .map_err(Raise::<B>::from)?,
             ))
@@ -340,7 +339,10 @@ impl<B: ExecutorBackend> Directory<B> {
         Ok(async move {
             match match follow_symlinks.unwrap_or(true) {
                 true => dir.metadata(path.into_inner()).await,
-                false => dir.symlink_metadata(path.into_inner()).await,
+                false => {
+                    dir.symlink_metadata(path.into_inner())
+                        .await
+                }
             } {
                 Ok(_) => Ok(true),
                 Err(error) if error.is_not_found() => Ok(false),
@@ -388,11 +390,10 @@ impl<B: ExecutorBackend> Directory<B> {
         let dir = self.dir.clone();
 
         Ok(async move {
-            Ok(
-                dir.set_permissions(path.into_inner(), Permissions::new(mode))
-                    .await
-                    .map_err(Raise::<B>::from)?
-            )
+            Ok(dir
+                .set_permissions(path.into_inner(), Permissions::new(mode))
+                .await
+                .map_err(Raise::<B>::from)?)
         })
     }
 
@@ -407,16 +408,14 @@ impl<B: ExecutorBackend> Directory<B> {
         let dir = self.dir.clone();
 
         Ok(async move {
-            Ok(
-                dir.set_owner_with_options(
+            Ok(dir
+                .set_owner_with_options(
                     path.into_inner(),
                     Owner::new().user(uid).group(gid),
-                    &SetOwnerOptions::new()
-                        .follow_symlinks(follow_symlinks.unwrap_or(true)),
+                    &SetOwnerOptions::new().follow_symlinks(follow_symlinks.unwrap_or(true)),
                 )
                 .await
-                .map_err(Raise::<B>::from)?
-            )
+                .map_err(Raise::<B>::from)?)
         })
     }
 
@@ -429,11 +428,10 @@ impl<B: ExecutorBackend> Directory<B> {
         let dir = self.dir.clone();
 
         Ok(async move {
-            Ok(
-                dir.symlink(target.into_inner(), link.into_inner())
-                    .await
-                    .map_err(Raise::<B>::from)?
-            )
+            Ok(dir
+                .symlink(target.into_inner(), link.into_inner())
+                .await
+                .map_err(Raise::<B>::from)?)
         })
     }
 
@@ -445,12 +443,11 @@ impl<B: ExecutorBackend> Directory<B> {
         let dir = self.dir.clone();
 
         Ok(async move {
-            Ok(
-                dir.read_link(path.into_inner())
-                    .await
-                    .map_err(Raise::<B>::from)?
-                    .to_string_lossy()
-            )
+            Ok(dir
+                .read_link(path.into_inner())
+                .await
+                .map_err(Raise::<B>::from)?
+                .to_string_lossy())
         })
     }
 
@@ -463,11 +460,10 @@ impl<B: ExecutorBackend> Directory<B> {
         let dir = self.dir.clone();
 
         Ok(async move {
-            Ok(
-                dir.rename(source.into_inner(), destination.into_inner())
-                    .await
-                    .map_err(Raise::<B>::from)?
-            )
+            Ok(dir
+                .rename(source.into_inner(), destination.into_inner())
+                .await
+                .map_err(Raise::<B>::from)?)
         })
     }
 
@@ -479,11 +475,10 @@ impl<B: ExecutorBackend> Directory<B> {
         let dir = self.dir.clone();
 
         Ok(async move {
-            Ok(
-                dir.remove_file(path.into_inner())
-                    .await
-                    .map_err(Raise::<B>::from)?
-            )
+            Ok(dir
+                .remove_file(path.into_inner())
+                .await
+                .map_err(Raise::<B>::from)?)
         })
     }
 
@@ -495,11 +490,10 @@ impl<B: ExecutorBackend> Directory<B> {
         let dir = self.dir.clone();
 
         Ok(async move {
-            Ok(
-                dir.remove_dir(path.into_inner())
-                    .await
-                    .map_err(Raise::<B>::from)?
-            )
+            Ok(dir
+                .remove_dir(path.into_inner())
+                .await
+                .map_err(Raise::<B>::from)?)
         })
     }
 
@@ -511,20 +505,16 @@ impl<B: ExecutorBackend> Directory<B> {
         let dir = self.dir.clone();
 
         Ok(async move {
-            Ok(
-                dir.remove_dir_all(path.into_inner())
-                    .await
-                    .map_err(Raise::<B>::from)?
-            )
+            Ok(dir
+                .remove_dir_all(path.into_inner())
+                .await
+                .map_err(Raise::<B>::from)?)
         })
     }
 }
 
 impl<B: ExecutorBackend> From<Dir> for Directory<B> {
     fn from(dir: Dir) -> Self {
-        Self {
-            dir,
-            backend: PhantomData,
-        }
+        Self { dir, backend: PhantomData }
     }
 }

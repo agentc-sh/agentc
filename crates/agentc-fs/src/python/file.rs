@@ -2,12 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::{
-    future::Future,
-    io::SeekFrom,
-    marker::PhantomData,
-    rc::Rc,
-};
+use std::{future::Future, io::SeekFrom, marker::PhantomData, rc::Rc};
 
 use agentc_executor_python::{
     backend::ExecutorBackend,
@@ -58,11 +53,9 @@ impl<B: ExecutorBackend> FromGuest<B> for Whence {
             0 => Ok(Self::Start),
             1 => Ok(Self::Current),
             2 => Ok(Self::End),
-            whence => Err(
-                Raise::<B>::new(ExceptionClass::builtin("ValueError"))
-                    .arg(format!("invalid whence ({whence}, should be 0, 1 or 2)"))
-                    .into()
-            ),
+            whence => Err(Raise::<B>::new(ExceptionClass::builtin("ValueError"))
+                .arg(format!("invalid whence ({whence}, should be 0, 1 or 2)"))
+                .into()),
         }
     }
 }
@@ -87,10 +80,7 @@ impl<B: ExecutorBackend> FileHandle<B> {
 
     async fn lock(&self) -> Result<MappedMutexGuard<'_, crate::fs::File>, Error> {
         MutexGuard::try_map(self.file.lock().await, Option::as_mut).map_err(|_| {
-            Raise::<B>::host(UnsupportedError {
-                message: "File is closed".into(),
-            })
-            .into()
+            Raise::<B>::host(UnsupportedError { message: "File is closed".into() }).into()
         })
     }
 
@@ -137,15 +127,13 @@ impl<B: ExecutorBackend> File<B> {
         Ok(async move {
             let mut file = handle.lock().await?;
 
-            Ok(
-                Bytes::from(
-                    match size.and_then(|size| u64::try_from(size).ok()) {
-                        Some(size) => file.read(size).await,
-                        None => file.read_to_end().await,
-                    }
-                    .map_err(Raise::<B>::from)?
-                )
-            )
+            Ok(Bytes::from(
+                match size.and_then(|size| u64::try_from(size).ok()) {
+                    Some(size) => file.read(size).await,
+                    None => file.read_to_end().await,
+                }
+                .map_err(Raise::<B>::from)?,
+            ))
         })
     }
 
@@ -154,14 +142,12 @@ impl<B: ExecutorBackend> File<B> {
         let handle = self.handle.clone();
 
         Ok(async move {
-            Ok(
-                handle
-                    .lock()
-                    .await?
-                    .read_to_string()
-                    .await
-                    .map_err(Raise::<B>::from)?
-            )
+            Ok(handle
+                .lock()
+                .await?
+                .read_to_string()
+                .await
+                .map_err(Raise::<B>::from)?)
         })
     }
 
@@ -173,14 +159,12 @@ impl<B: ExecutorBackend> File<B> {
         let handle = self.handle.clone();
 
         Ok(async move {
-            Ok(
-                handle
-                    .lock()
-                    .await?
-                    .write_all(data)
-                    .await
-                    .map_err(Raise::<B>::from)?
-            )
+            Ok(handle
+                .lock()
+                .await?
+                .write_all(data)
+                .await
+                .map_err(Raise::<B>::from)?)
         })
     }
 
@@ -193,14 +177,16 @@ impl<B: ExecutorBackend> File<B> {
         let handle = self.handle.clone();
 
         Ok(async move {
-            Ok(
-                handle
-                    .lock()
-                    .await?
-                    .seek(whence.unwrap_or(Whence::Start).seek_from::<B>(offset)?)
-                    .await
-                    .map_err(Raise::<B>::from)?
-            )
+            Ok(handle
+                .lock()
+                .await?
+                .seek(
+                    whence
+                        .unwrap_or(Whence::Start)
+                        .seek_from::<B>(offset)?,
+                )
+                .await
+                .map_err(Raise::<B>::from)?)
         })
     }
 
@@ -209,14 +195,12 @@ impl<B: ExecutorBackend> File<B> {
         let handle = self.handle.clone();
 
         Ok(async move {
-            Ok(
-                handle
-                    .lock()
-                    .await?
-                    .stream_position()
-                    .await
-                    .map_err(Raise::<B>::from)?
-            )
+            Ok(handle
+                .lock()
+                .await?
+                .stream_position()
+                .await
+                .map_err(Raise::<B>::from)?)
         })
     }
 
@@ -228,14 +212,12 @@ impl<B: ExecutorBackend> File<B> {
         let handle = self.handle.clone();
 
         Ok(async move {
-            Ok(
-                handle
-                    .lock()
-                    .await?
-                    .set_len(size)
-                    .await
-                    .map_err(Raise::<B>::from)?
-            )
+            Ok(handle
+                .lock()
+                .await?
+                .set_len(size)
+                .await
+                .map_err(Raise::<B>::from)?)
         })
     }
 
@@ -244,14 +226,12 @@ impl<B: ExecutorBackend> File<B> {
         let handle = self.handle.clone();
 
         Ok(async move {
-            Ok(
-                handle
-                    .lock()
-                    .await?
-                    .flush()
-                    .await
-                    .map_err(Raise::<B>::from)?
-            )
+            Ok(handle
+                .lock()
+                .await?
+                .flush()
+                .await
+                .map_err(Raise::<B>::from)?)
         })
     }
 
@@ -260,14 +240,12 @@ impl<B: ExecutorBackend> File<B> {
         let handle = self.handle.clone();
 
         Ok(async move {
-            Ok(
-                handle
-                    .lock()
-                    .await?
-                    .sync_all()
-                    .await
-                    .map_err(Raise::<B>::from)?
-            )
+            Ok(handle
+                .lock()
+                .await?
+                .sync_all()
+                .await
+                .map_err(Raise::<B>::from)?)
         })
     }
 
@@ -276,14 +254,12 @@ impl<B: ExecutorBackend> File<B> {
         let handle = self.handle.clone();
 
         Ok(async move {
-            Ok(
-                handle
-                    .lock()
-                    .await?
-                    .sync_data()
-                    .await
-                    .map_err(Raise::<B>::from)?
-            )
+            Ok(handle
+                .lock()
+                .await?
+                .sync_data()
+                .await
+                .map_err(Raise::<B>::from)?)
         })
     }
 
@@ -317,9 +293,7 @@ impl<B: ExecutorBackend> File<B> {
 
 impl<B: ExecutorBackend> From<crate::fs::File> for File<B> {
     fn from(file: crate::fs::File) -> Self {
-        Self {
-            handle: Rc::new(FileHandle::from(file)),
-        }
+        Self { handle: Rc::new(FileHandle::from(file)) }
     }
 }
 
@@ -333,18 +307,28 @@ mod tests {
     #[test]
     fn whence_builds_seek_positions() {
         assert_eq!(
-            Whence::Start.seek_from::<RustPython>(4).unwrap(),
+            Whence::Start
+                .seek_from::<RustPython>(4)
+                .unwrap(),
             std::io::SeekFrom::Start(4),
         );
         assert_eq!(
-            Whence::Current.seek_from::<RustPython>(-4).unwrap(),
+            Whence::Current
+                .seek_from::<RustPython>(-4)
+                .unwrap(),
             std::io::SeekFrom::Current(-4),
         );
         assert_eq!(
-            Whence::End.seek_from::<RustPython>(-4).unwrap(),
+            Whence::End
+                .seek_from::<RustPython>(-4)
+                .unwrap(),
             std::io::SeekFrom::End(-4),
         );
-        assert!(Whence::Start.seek_from::<RustPython>(-1).is_err());
+        assert!(
+            Whence::Start
+                .seek_from::<RustPython>(-1)
+                .is_err()
+        );
     }
 
     #[tokio::test]

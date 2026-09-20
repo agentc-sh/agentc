@@ -175,8 +175,7 @@ async def argument_and_error_contract():
     async fn executor(dir: Dir) -> Executor<RustPython> {
         Executor::<RustPython>::builder("agentc_fs_integration_test")
             .bundle(
-                Bundle::single("agentc_fs_integration_test", SOURCE)
-                    .expect("the bundle builds"),
+                Bundle::single("agentc_fs_integration_test", SOURCE).expect("the bundle builds"),
             )
             .workers(2)
             .with_fs(dir)
@@ -222,10 +221,7 @@ async def argument_and_error_contract():
         let executor = executor(root).await;
 
         for _ in 0..4 {
-            assert_eq!(
-                call::<String>(&executor, "foundation").await,
-                "/|/|5|True|True",
-            );
+            assert_eq!(call::<String>(&executor, "foundation").await, "/|/|5|True|True",);
         }
 
         executor
