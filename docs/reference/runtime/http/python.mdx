@@ -96,16 +96,16 @@ Query parameters accept a mapping or a sequence of pairs. Booleans encode as `tr
 
 ```text
 HTTPError
-├── RequestError                     request
+├── RequestError
 │   ├── TransportError
 │   │   └── TimeoutException
-│   ├── RequestDenied                policy, reason
+│   ├── RequestDenied
 │   ├── TooManyRedirects
 │   └── InvalidRequest
-└── ResponseError                    response
+└── ResponseError
     ├── HTTPStatusError
     ├── DecodingError
-    └── ResponseTooLarge             limit
+    └── ResponseTooLarge
 
 RuntimeError
 └── BodyError
