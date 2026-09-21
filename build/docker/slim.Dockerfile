@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-ARG RUST_VERSION=1.95
+ARG RUST_VERSION=1.97
 
 FROM docker.io/library/rust:${RUST_VERSION}-slim-trixie AS build
 
