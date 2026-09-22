@@ -15,13 +15,8 @@ use agentc_core::{
     generate::pipeline::GeneratePipeline,
     manifest::Manifest,
     parser::{
-        middleware::hcl::{
-            FileFunctionDeserialize,
-            RootedFileReader,
-            RuntimeFunctionDeserialize,
-        },
-        SpecFormat,
-        SpecParser,
+        SpecFormat, SpecParser,
+        middleware::hcl::{FileFunctionDeserialize, RootedFileReader, RuntimeFunctionDeserialize},
     },
 };
 
@@ -78,9 +73,9 @@ impl Cmd for CliCommandGenerate {
                     .join("agent.acl")
                     .to_string_lossy(),
                 SpecFormat::hcl()
-                    .with_hcl_deserialize_middleware(
-                        FileFunctionDeserialize::new(RootedFileReader::new(context.clone())),
-                    )
+                    .with_hcl_deserialize_middleware(FileFunctionDeserialize::new(
+                        RootedFileReader::new(context.clone()),
+                    ))
                     .with_hcl_deserialize_middleware(RuntimeFunctionDeserialize),
             )
             .parse()

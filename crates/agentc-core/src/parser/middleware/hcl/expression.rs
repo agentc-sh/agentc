@@ -1,8 +1,6 @@
 use hcl::{
     Attribute, Block, Body, Expression, FuncCall, ObjectKey, Structure,
-    expr::{
-        BinaryOp, Conditional, ForExpr, Operation, Traversal, TraversalOperator, UnaryOp,
-    },
+    expr::{BinaryOp, Conditional, ForExpr, Operation, Traversal, TraversalOperator, UnaryOp},
 };
 
 use crate::parser::errors::ParserError;
@@ -98,19 +96,17 @@ where
                     false_expr: self.visit_expr(conditional.false_expr, position)?,
                 }))
             }
-            Expression::Operation(operation) => {
-                Expression::Operation(Box::new(match *operation {
-                    Operation::Unary(operation) => Operation::Unary(UnaryOp {
-                        expr: self.visit_expr(operation.expr, position)?,
-                        ..operation
-                    }),
-                    Operation::Binary(operation) => Operation::Binary(BinaryOp {
-                        lhs_expr: self.visit_expr(operation.lhs_expr, position)?,
-                        rhs_expr: self.visit_expr(operation.rhs_expr, position)?,
-                        ..operation
-                    }),
-                }))
-            }
+            Expression::Operation(operation) => Expression::Operation(Box::new(match *operation {
+                Operation::Unary(operation) => Operation::Unary(UnaryOp {
+                    expr: self.visit_expr(operation.expr, position)?,
+                    ..operation
+                }),
+                Operation::Binary(operation) => Operation::Binary(BinaryOp {
+                    lhs_expr: self.visit_expr(operation.lhs_expr, position)?,
+                    rhs_expr: self.visit_expr(operation.rhs_expr, position)?,
+                    ..operation
+                }),
+            })),
             Expression::ForExpr(for_expr) => Expression::ForExpr(Box::new(ForExpr {
                 collection_expr: self.visit_expr(for_expr.collection_expr, position)?,
                 key_expr: for_expr

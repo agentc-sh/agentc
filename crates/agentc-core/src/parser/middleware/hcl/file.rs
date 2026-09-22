@@ -28,10 +28,7 @@ impl FileReader for RootedFileReader {
         let path = self.root.join(requested);
 
         std::fs::read_to_string(&path).map_err(|source| ParserError::Unexpected {
-            message: format!(
-                "file({requested:?}) could not read '{}'",
-                path.display(),
-            ),
+            message: format!("file({requested:?}) could not read '{}'", path.display(),),
             source: Some(Box::new(source)),
         })
     }
@@ -51,13 +48,13 @@ impl<R: FileReader> FormatMiddleware<Body> for FileFunctionDeserialize<R> {
     fn apply(&self, input: Body) -> Result<Body, ParserError> {
         ExpressionVisitor::new(VisitOrder::Before, |expr, position| match expr {
             Expression::FuncCall(call)
-                if call.name.name.as_str() == "file"
-                    && position == ExpressionPosition::Value =>
+                if call.name.name.as_str() == "file" && position == ExpressionPosition::Value =>
             {
                 match call.args.as_slice() {
-                    [Expression::String(path)] => {
-                        self.reader.read(path).map(Expression::String)
-                    }
+                    [Expression::String(path)] => self
+                        .reader
+                        .read(path)
+                        .map(Expression::String),
                     _ => Err(ParserError::InvalidExpression(
                         "file() requires one string path".to_string(),
                     )),
@@ -76,10 +73,7 @@ mod tests {
     use serde::Deserialize;
 
     use super::*;
-    use crate::parser::{
-        SpecFormat,
-        middleware::hcl::RuntimeFunctionDeserialize,
-    };
+    use crate::parser::{SpecFormat, middleware::hcl::RuntimeFunctionDeserialize};
 
     struct FixtureReader;
 
@@ -138,7 +132,11 @@ default = runtime("DEFAULT", file("example.md"))
                 .deserialize_string::<serde_json::Value>(&format!("value = {expression}"))
                 .expect_err("invalid call must fail");
 
-            assert!(error.to_string().contains("file() requires one string path"));
+            assert!(
+                error
+                    .to_string()
+                    .contains("file() requires one string path")
+            );
         }
     }
 
