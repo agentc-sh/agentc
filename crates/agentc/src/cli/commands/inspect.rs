@@ -14,7 +14,15 @@ use agentc_core::{
     },
     inspect::pipeline::InspectPipeline,
     manifest::Manifest,
-    parser::{SpecFormat, SpecParser, middleware::hcl::RuntimeFunctionDeserialize},
+    parser::{
+        middleware::hcl::{
+            FileFunctionDeserialize,
+            RootedFileReader,
+            RuntimeFunctionDeserialize,
+        },
+        SpecFormat,
+        SpecParser,
+    },
 };
 
 use crate::cli::{
@@ -55,7 +63,11 @@ impl Cmd for CliCommandInspect {
                 context
                     .join("agent.acl")
                     .to_string_lossy(),
-                SpecFormat::hcl().with_hcl_deserialize_middleware(RuntimeFunctionDeserialize),
+                SpecFormat::hcl()
+                    .with_hcl_deserialize_middleware(
+                        FileFunctionDeserialize::new(RootedFileReader::new(context.clone())),
+                    )
+                    .with_hcl_deserialize_middleware(RuntimeFunctionDeserialize),
             )
             .parse()
             .await

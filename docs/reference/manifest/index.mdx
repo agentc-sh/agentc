@@ -102,6 +102,22 @@ To assemble a manifest step by step rather than from a finished example, see
 [Author a manifest](/guides/author-a-manifest). For the concepts behind build-time versus runtime
 values, see [The manifest](/concepts/the-manifest).
 
+## File-backed string values
+
+Use `file("path")` in `agent.acl` wherever a field expects a string value. The file's UTF-8 text is
+read while building the agent, so the file is not needed when the compiled agent runs. Relative paths are resolved
+from the directory containing `agent.acl`.
+
+For example, inside an `agent` block:
+
+```hcl
+description = file("./copy/description.txt")
+prompt      = file("./prompts/system.md")
+```
+
+A quoted path without `file(...)` is an ordinary string. You can also use `file(...)` inside list and object values,
+including the `content` of an individual prompt message.
+
 ## Blocks
 
 | Block | Purpose |

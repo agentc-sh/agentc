@@ -13,7 +13,15 @@ use agentc_core::{
         transformer::TransformerRegistry,
     },
     manifest::Manifest,
-    parser::{SpecFormat, SpecParser, middleware::hcl::RuntimeFunctionDeserialize},
+    parser::{
+        middleware::hcl::{
+            FileFunctionDeserialize,
+            RootedFileReader,
+            RuntimeFunctionDeserialize,
+        },
+        SpecFormat,
+        SpecParser,
+    },
     run::{pipeline::RunPipeline, types::RunParams},
 };
 
@@ -78,7 +86,11 @@ impl Cmd for CliCommandRun {
                 context
                     .join("agent.acl")
                     .to_string_lossy(),
-                SpecFormat::hcl().with_hcl_deserialize_middleware(RuntimeFunctionDeserialize),
+                SpecFormat::hcl()
+                    .with_hcl_deserialize_middleware(
+                        FileFunctionDeserialize::new(RootedFileReader::new(context.clone())),
+                    )
+                    .with_hcl_deserialize_middleware(RuntimeFunctionDeserialize),
             )
             .parse()
             .await

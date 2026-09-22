@@ -2,124 +2,15 @@
 //
 // SPDX-License-Identifier: MIT
 
-use hcl::{
-    Attribute, Block, Body, Expression, FuncCall, ObjectKey, Structure,
-    expr::{
-        BinaryOp, Conditional, ForExpr, Object, Operation, Traversal, TraversalOperator, UnaryOp,
+use hcl::{Body, Expression, FuncCall, ObjectKey, expr::Object};
+
+use crate::parser::{
+    errors::ParserError,
+    middleware::{
+        hcl::expression::{ExpressionVisitor, VisitOrder},
+        traits::FormatMiddleware,
     },
 };
-
-use crate::parser::{errors::ParserError, middleware::traits::FormatMiddleware};
-
-trait RuntimeExpressionTransform {
-    fn transform_before(expr: Expression) -> Result<Expression, ParserError> {
-        Ok(expr)
-    }
-
-    fn transform_after(expr: Expression) -> Result<Expression, ParserError> {
-        Ok(expr)
-    }
-
-    fn transform_expr(expr: Expression) -> Result<Expression, ParserError> {
-        Self::transform_after(match Self::transform_before(expr)? {
-            Expression::Array(values) => Expression::Array(
-                values
-                    .into_iter()
-                    .map(Self::transform_expr)
-                    .collect::<Result<_, _>>()?,
-            ),
-            Expression::Object(values) => Expression::Object(
-                values
-                    .into_iter()
-                    .map(|(key, value)| {
-                        Ok((
-                            match key {
-                                ObjectKey::Expression(expr) => {
-                                    ObjectKey::Expression(Self::transform_expr(expr)?)
-                                }
-                                key => key,
-                            },
-                            Self::transform_expr(value)?,
-                        ))
-                    })
-                    .collect::<Result<_, ParserError>>()?,
-            ),
-            Expression::Traversal(traversal) => Expression::Traversal(Box::new(Traversal {
-                expr: Self::transform_expr(traversal.expr)?,
-                operators: traversal
-                    .operators
-                    .into_iter()
-                    .map(|operator| {
-                        Ok(match operator {
-                            TraversalOperator::Index(expr) => {
-                                TraversalOperator::Index(Self::transform_expr(expr)?)
-                            }
-                            operator => operator,
-                        })
-                    })
-                    .collect::<Result<_, ParserError>>()?,
-            })),
-            Expression::FuncCall(call) => Expression::FuncCall(Box::new(FuncCall {
-                args: call
-                    .args
-                    .into_iter()
-                    .map(Self::transform_expr)
-                    .collect::<Result<_, _>>()?,
-                ..*call
-            })),
-            Expression::Parenthesis(expr) => {
-                Expression::Parenthesis(Box::new(Self::transform_expr(*expr)?))
-            }
-            Expression::Conditional(conditional) => {
-                Expression::Conditional(Box::new(Conditional {
-                    cond_expr: Self::transform_expr(conditional.cond_expr)?,
-                    true_expr: Self::transform_expr(conditional.true_expr)?,
-                    false_expr: Self::transform_expr(conditional.false_expr)?,
-                }))
-            }
-            Expression::Operation(operation) => Expression::Operation(Box::new(match *operation {
-                Operation::Unary(operation) => Operation::Unary(UnaryOp {
-                    expr: Self::transform_expr(operation.expr)?,
-                    ..operation
-                }),
-                Operation::Binary(operation) => Operation::Binary(BinaryOp {
-                    lhs_expr: Self::transform_expr(operation.lhs_expr)?,
-                    rhs_expr: Self::transform_expr(operation.rhs_expr)?,
-                    ..operation
-                }),
-            })),
-            Expression::ForExpr(for_expr) => Expression::ForExpr(Box::new(ForExpr {
-                collection_expr: Self::transform_expr(for_expr.collection_expr)?,
-                key_expr: for_expr
-                    .key_expr
-                    .map(Self::transform_expr)
-                    .transpose()?,
-                value_expr: Self::transform_expr(for_expr.value_expr)?,
-                cond_expr: for_expr
-                    .cond_expr
-                    .map(Self::transform_expr)
-                    .transpose()?,
-                ..*for_expr
-            })),
-            expr => expr,
-        })
-    }
-
-    fn transform_body(body: Body) -> Result<Body, ParserError> {
-        body.into_iter()
-            .map(|structure| match structure {
-                Structure::Attribute(attr) => Ok(Structure::Attribute(Attribute::new(
-                    attr.key,
-                    Self::transform_expr(attr.expr)?,
-                ))),
-                Structure::Block(block) => Ok(Structure::Block(Block {
-                    body: Self::transform_body(block.body)?,
-                    ..block
-                })),
-            })
-            .collect::<Result<_, ParserError>>()
-    }
-}
 
 pub struct RuntimeFunctionDeserialize;
 
@@ -161,9 +52,9 @@ impl RuntimeFunctionDeserialize {
     }
 }
 
-impl RuntimeExpressionTransform for RuntimeFunctionDeserialize {
-    fn transform_before(expr: Expression) -> Result<Expression, ParserError> {
-        match expr {
+impl FormatMiddleware<Body> for RuntimeFunctionDeserialize {
+    fn apply(&self, input: Body) -> Result<Body, ParserError> {
+        ExpressionVisitor::new(VisitOrder::Before, |expr, _| match expr {
             Expression::FuncCall(call) if call.name.name.as_str() == "runtime" => {
                 Self::transform_runtime(*call)
             }
@@ -171,13 +62,8 @@ impl RuntimeExpressionTransform for RuntimeFunctionDeserialize {
                 Self::transform_secret(*call)
             }
             expr => Ok(expr),
-        }
-    }
-}
-
-impl FormatMiddleware<Body> for RuntimeFunctionDeserialize {
-    fn apply(&self, input: Body) -> Result<Body, ParserError> {
-        Self::transform_body(input)
+        })
+        .visit_body(input)
     }
 }
 
@@ -226,18 +112,15 @@ impl RuntimeFunctionSerialize {
     }
 }
 
-impl RuntimeExpressionTransform for RuntimeFunctionSerialize {
-    fn transform_after(expr: Expression) -> Result<Expression, ParserError> {
-        Ok(match expr {
-            Expression::Object(object) => Self::transform_runtime_object(object),
-            expr => expr,
-        })
-    }
-}
-
 impl FormatMiddleware<Body> for RuntimeFunctionSerialize {
     fn apply(&self, input: Body) -> Result<Body, ParserError> {
-        Self::transform_body(input)
+        ExpressionVisitor::new(VisitOrder::After, |expr, _| {
+            Ok(match expr {
+                Expression::Object(object) => Self::transform_runtime_object(object),
+                expr => expr,
+            })
+        })
+        .visit_body(input)
     }
 }
 
