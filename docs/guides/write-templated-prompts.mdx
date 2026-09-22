@@ -77,6 +77,18 @@ prompt = [
 ]
 ```
 
+## Keep templates in files
+
+Use `file("path")` to keep a prompt template outside `agent.acl`:
+
+```hcl
+prompt = file("./prompts/system.md")
+```
+
+The file can contain the same Jinja2 expressions as an inline prompt. For a multi-message prompt, use `file("path")` on each
+message whose content comes from a file. See [File-backed string values](/reference/manifest#file-backed-string-values) for
+path behavior.
+
 ## Do not confuse the two interpolations
 
 The manifest has two interpolation syntaxes and they run at different times. `${locals.value}` is HCL
