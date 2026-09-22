@@ -16,7 +16,7 @@ which supports pure-Python packages and needs no Python installation at runtime.
 
 Generate a ready-to-use package with `agentc tool init`, then install its dependencies.
 
-<Tabs defaultValue="typescript">
+<Tabs group="language" defaultValue="typescript">
   <TabsList>
     <TabsTrigger value="typescript">TypeScript</TabsTrigger>
     <TabsTrigger value="python">Python</TabsTrigger>
@@ -55,7 +55,7 @@ compiled tool.
 Each tool supplies a name, description, JSON Schema for its inputs, and an `execute` method. The name
 and descriptions are what the model reads to decide when and how to call it, so write them carefully.
 
-<Tabs defaultValue="typescript">
+<Tabs group="language" defaultValue="typescript">
   <TabsList>
     <TabsTrigger value="typescript">TypeScript</TabsTrigger>
     <TabsTrigger value="python">Python</TabsTrigger>
@@ -159,7 +159,7 @@ The runtime provides its libraries to every tool. They are not package dependenc
 imported like any other module. The runtime libraries are catalogued at
 [runtime libraries](/reference/runtime).
 
-<Tabs defaultValue="typescript">
+<Tabs group="language" defaultValue="typescript">
   <TabsList>
     <TabsTrigger value="typescript">TypeScript</TabsTrigger>
     <TabsTrigger value="python">Python</TabsTrigger>
@@ -215,7 +215,7 @@ The host supplies the runtime libraries, so they do not belong in your dependenc
 The package exists, but the agent does not see it until you declare a `tool` block pointing `source` at
 the package directory.
 
-<Tabs defaultValue="typescript">
+<Tabs group="language" defaultValue="typescript">
   <TabsList>
     <TabsTrigger value="typescript">TypeScript</TabsTrigger>
     <TabsTrigger value="python">Python</TabsTrigger>
@@ -253,7 +253,7 @@ A tool can return a `state_update` alongside its output: an array of RFC 6902 JS
 For the ReAct graph, target paths under `/context/`. The patches are persisted and streamed to the
 client as state delta events, which is how a tool passes data to a frontend.
 
-<Tabs defaultValue="typescript">
+<Tabs group="language" defaultValue="typescript">
   <TabsList>
     <TabsTrigger value="typescript">TypeScript</TabsTrigger>
     <TabsTrigger value="python">Python</TabsTrigger>
@@ -293,7 +293,7 @@ async def execute(
 Tools can emit stateless activity updates while they run. `emit` is optional, so call it with
 optional invocation.
 
-<Tabs defaultValue="typescript">
+<Tabs group="language" defaultValue="typescript">
   <TabsList>
     <TabsTrigger value="typescript">TypeScript</TabsTrigger>
     <TabsTrigger value="python">Python</TabsTrigger>
