@@ -53,12 +53,7 @@ impl CodeGen<ResolvedContext> for CliServeCodeGen {
             use std::{sync::Arc, time::Duration};
             use anyhow::Result;
             use clap::Args;
-            use jobq::{
-                AnyExecutable,
-                BatchJobQueueSystemBuilder,
-                BatchJobWorkerOptions,
-                FifoQueue,
-            };
+            use jobq::JobQueueSystemBuilder;
             use tokio_util::sync::CancellationToken;
 
             use agentc_telemetry::info;
@@ -141,25 +136,11 @@ impl CodeGen<ResolvedContext> for CliServeCodeGen {
                 );
 
                 let (task_queue, worker_pool) =
-                    BatchJobQueueSystemBuilder::<FifoQueue<AnyExecutable>>::fifo(
-                        config.task_queue.max_queue_capacity,
-                    )
-                    .with_num_workers(config.task_queue.worker_count)
-                    .with_worker_options(BatchJobWorkerOptions {
-                        batch_size: config.task_queue.batch_size,
-                        batch_timeout: Duration::from_millis(
-                            config.task_queue.batch_timeout_ms as u64,
-                        ),
-                    })
-                    .build();
+                    JobQueueSystemBuilder::fifo(config.task_queue.max_queue_capacity)
+                        .with_num_workers(config.task_queue.worker_count)
+                        .build();
 
-                let worker_pool_handle = {
-                    let worker_pool = worker_pool.clone();
-
-                    tokio::spawn(async move {
-                        worker_pool.run().await;
-                    })
-                };
+                let worker_pool_handle = worker_pool.spawn(tokio::spawn);
 
                 let mut server = server::build(
                     service,

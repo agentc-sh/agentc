@@ -112,7 +112,7 @@ impl CodeGen<ResolvedContext> for ServerCodeGen {
 
             pub fn build(
                 service: Arc<ApplicationService>,
-                task_queue: Arc<JobQueue<FifoQueue<AnyExecutable>>>,
+                task_queue: JobQueue<FifoQueue<AnyExecutable>>,
                 bus: Bus,
                 config: &Config,
             ) -> Result<HttpServer> {
@@ -126,6 +126,7 @@ impl CodeGen<ResolvedContext> for ServerCodeGen {
                         service.clone(),
                         default_tenant_id.clone(),
                         task_queue.clone(),
+                        config.task_queue.batch_policy(),
                         bus,
                     ));
 
