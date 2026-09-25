@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use clap::{Args, CommandFactory};
 use clap_complete::{Shell, generate};
 
-use crate::cli::{args::CliArgs, context::Ctx, errors::CliError, traits::Cmd};
+use crate::cli::{args::CliArgs, context::Ctx, errors::CliError, traits::Cmd, types::CmdOutcome};
 
 #[derive(Debug, Clone, Args)]
 pub struct CliCommandCompletions {
@@ -18,8 +18,8 @@ pub struct CliCommandCompletions {
 
 #[async_trait]
 impl Cmd for CliCommandCompletions {
-    async fn run(&self, _ctx: &mut Ctx) -> Result<(), CliError> {
+    async fn run(&self, _ctx: &mut Ctx) -> Result<CmdOutcome, CliError> {
         generate(self.shell, &mut CliArgs::command(), "agentc", &mut io::stdout());
-        Ok(())
+        Ok(CmdOutcome::Success)
     }
 }

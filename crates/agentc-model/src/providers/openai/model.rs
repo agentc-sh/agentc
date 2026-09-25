@@ -12,7 +12,10 @@ use serde_json::json;
 
 use crate::{
     errors::{IntoModelError, ModelError},
-    providers::openai::constants::{OTEL_PROVIDER_NAME, PROVIDER},
+    providers::{
+        openai::constants::{OTEL_PROVIDER_NAME, PROVIDER},
+        rig::events::CompletionStreamMetadata,
+    },
     stream::ChatCompletionStream,
     traits::CompletionModel,
     types::{
@@ -21,6 +24,8 @@ use crate::{
         request::CompletionRequest,
     },
 };
+
+impl CompletionStreamMetadata for openai::completion::streaming::StreamingCompletionResponse {}
 
 /// A specific OpenAI model instance. Obtained from
 /// [`OpenAiClient::model`](crate::providers::openai::OpenAiClient::model).

@@ -148,7 +148,8 @@ Create a new attached run and stream its events back as Server-Sent Events (SSE)
     Optional run ID. If omitted, one is generated automatically.
   </Field>
   <Field name="checkpoint_id" type="string | null">
-    Optional checkpoint to resume from.
+    Optional checkpoint to start the run from. If omitted, the run continues from the session's latest
+    state.
   </Field>
   <Field name="resume_payload" type="object | null">
     Opaque resume data supplied by the graph.
@@ -480,7 +481,7 @@ Create a new attached run and stream its events back as Server-Sent Events (SSE)
   <Response status="500" description="Internal server error." />
 </Responses>
 
-<Tabs defaultValue="curl">
+<Tabs group="client" defaultValue="curl">
   <TabsList>
     <TabsTrigger value="curl">cURL</TabsTrigger>
   </TabsList>
@@ -562,7 +563,8 @@ not cancel the run.
     Optional run ID. If omitted, one is generated automatically.
   </Field>
   <Field name="checkpoint_id" type="string | null">
-    Optional checkpoint to resume from.
+    Optional checkpoint to start the run from. If omitted, the run continues from the session's latest
+    state.
   </Field>
   <Field name="resume_payload" type="object | null">
     Opaque resume data supplied by the graph.
@@ -603,7 +605,7 @@ not cancel the run.
   <Response status="500" description="Internal server error." />
 </Responses>
 
-<Tabs defaultValue="curl">
+<Tabs group="client" defaultValue="curl">
   <TabsList>
     <TabsTrigger value="curl">cURL</TabsTrigger>
   </TabsList>
@@ -659,7 +661,7 @@ terminal state. A run that does not exist and a run that belongs to another tena
   <Response status="500" description="Internal server error." />
 </Responses>
 
-<Tabs defaultValue="curl">
+<Tabs group="client" defaultValue="curl">
   <TabsList>
     <TabsTrigger value="curl">cURL</TabsTrigger>
   </TabsList>
@@ -699,7 +701,7 @@ cancel the run. Use `PUT /v1/runs/{run_id}/cancel` when the client wants to stop
   <Response status="500" description="Internal server error." />
 </Responses>
 
-<Tabs defaultValue="curl">
+<Tabs group="client" defaultValue="curl">
   <TabsList>
     <TabsTrigger value="curl">cURL</TabsTrigger>
   </TabsList>

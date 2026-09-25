@@ -9,11 +9,17 @@ use crate::{
     errors::ModelError,
     types::{
         reasoning::{Reasoning, ReasoningContent},
-        stream::{CompletionStreamEvent, ToolCallDelta},
+        stream::{CompletionStreamEvent, CompletionStreamFinal, ToolCallDelta},
         tools::ToolCall,
         usage::TokenUsage,
     },
 };
+
+pub trait CompletionStreamMetadata: GetTokenUsage {
+    fn finish_reason(&self) -> Option<String> {
+        None
+    }
+}
 
 impl TryFrom<ToolCallDeltaContent> for ToolCallDelta {
     type Error = ModelError;
@@ -28,7 +34,7 @@ impl TryFrom<ToolCallDeltaContent> for ToolCallDelta {
 
 impl<G> TryFrom<StreamedAssistantContent<G>> for CompletionStreamEvent
 where
-    G: GetTokenUsage,
+    G: CompletionStreamMetadata,
 {
     type Error = ModelError;
 
@@ -63,10 +69,13 @@ where
             StreamedAssistantContent::Final(response) => {
                 let usage = response.token_usage();
 
-                Ok(CompletionStreamEvent::Done(TokenUsage {
-                    input_tokens: usage.input_tokens as u32,
-                    output_tokens: usage.output_tokens as u32,
-                    cache_input_tokens: Some(usage.cached_input_tokens as u32),
+                Ok(CompletionStreamEvent::Done(CompletionStreamFinal {
+                    usage: TokenUsage {
+                        input_tokens: usage.input_tokens as u32,
+                        output_tokens: usage.output_tokens as u32,
+                        cache_input_tokens: Some(usage.cached_input_tokens as u32),
+                    },
+                    finish_reason: response.finish_reason(),
                 }))
             }
         }

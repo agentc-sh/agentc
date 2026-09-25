@@ -11,7 +11,7 @@ use uuid::Uuid;
 use agentc_agent::types::identity::AgentIdentity;
 use agentc_domain::{repository::scope::RepoScopeFactory, types::RunStatus};
 use agentc_domain_sql::scope::SqlScopeFactoryError;
-use agentc_http::errors::ApiError;
+use agentc_http::server::errors::ApiError;
 use agentc_protocol_a2a::{
     protocol::{
         AgentCapabilities, AgentCard, AgentInterface, AgentSkill, Artifact, ArtifactId,

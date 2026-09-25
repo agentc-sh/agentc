@@ -22,6 +22,9 @@ use crate::{
     },
 };
 
+// NOTE: Huggingface provider uses the OpenAI stream completion response which already has the completion metadata
+// trait implemented, so it is unnecessary to implement it again here.
+
 /// A specific Hugging Face model instance. Obtained from
 /// [`HuggingFaceClient::model`](crate::providers::huggingface::client::HuggingFaceClient::model).
 pub struct HuggingFaceModel {

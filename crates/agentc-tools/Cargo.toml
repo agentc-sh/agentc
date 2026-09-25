@@ -8,14 +8,31 @@ license.workspace = true
 readme.workspace = true
 
 [features]
-default = ["bash", "python-embedded"]
-javascript = ["dep:rquickjs", "dep:rquickjs-serde", "dep:llrt_modules", "dep:oxc"]
-python-embedded = ["dep:rustpython-vm", "dep:rustpython-stdlib", "dep:rustpython-pylib"]
-python-static = ["dep:pyo3", "dep:pythonize", "dep:include_dir"]
-bash = ["dep:rust-bash"]
+default = ["bash", "python-rustpython"]
+javascript = [
+    "dep:agentc-executor-typescript",
+    "dep:jsonschema",
+]
+python = ["dep:agentc-executor-python", "dep:jsonschema"]
+python-rustpython = ["python", "agentc-executor-python/rustpython"]
+python-cpython = ["python", "agentc-executor-python/pyo3"]
+bash = [
+    "dep:agentc-fs",
+    "dep:agentc-http",
+    "dep:base64",
+    "dep:bashkit",
+    "dep:uuid",
+]
 
 [dependencies]
 agentc-agent = { path = "../agentc-agent", version = "0.3.1" }
+agentc-fs = { path = "../agentc-fs", version = "0.3.1", optional = true }
+agentc-http = { path = "../agentc-http", version = "0.3.1", default-features = false, features = ["client"], optional = true }
+agentc-executor-typescript = { path = "../agentc-executor-typescript", version = "0.3.1", optional = true }
+agentc-executor-python = { path = "../agentc-executor-python", version = "0.3.1", default-features = false, optional = true }
+
+base64 = { workspace = true, optional = true }
+uuid = { workspace = true, optional = true }
 
 tokio = { workspace = true }
 tokio-util = { workspace = true }
@@ -32,18 +49,6 @@ sanitizer = { workspace = true }
 json-patch = { workspace = true }
 
 schemars = { workspace = true }
+jsonschema = { workspace = true, optional = true }
 
-rquickjs = { version = "0.11", features = ["full-async"], optional = true }
-rquickjs-serde = { version = "0.5", optional = true }
-llrt_modules = { git = "https://github.com/awslabs/llrt", rev = "e64c2b7601", default-features = false, features = ["crypto-ring", "base", "console", "tls-ring"], optional = true }
-oxc = { version = "*", features = ["transformer", "codegen"], optional = true }
-
-rustpython-vm = { git = "https://github.com/RustPython/RustPython", rev = "ea79826", features = ["freeze-stdlib", "serde", "threading"], optional = true }
-rustpython-stdlib = { git = "https://github.com/RustPython/RustPython", rev = "ea79826", optional = true }
-rustpython-pylib = { git = "https://github.com/RustPython/RustPython", rev = "ea79826", features = ["freeze-stdlib"], optional = true }
-
-pyo3 = { version = "0.29", features = ["chrono", "serde", "uuid", "macros"], optional = true }
-pythonize = { version = "0.29", optional = true }
-include_dir = { version = "0.7", optional = true }
-
-rust-bash = { version = "0.3", optional = true }
+bashkit = { version = "0.17.1", default-features = false, features = ["tzdata"], optional = true }

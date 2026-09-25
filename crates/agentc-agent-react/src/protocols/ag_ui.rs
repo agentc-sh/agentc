@@ -16,7 +16,7 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 use agentc_agent::types::tools::ToolDefinition;
-use agentc_http::errors::ApiError;
+use agentc_http::server::errors::ApiError;
 use agentc_protocol_ag_ui::{
     protocol::{
         event::{

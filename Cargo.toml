@@ -13,6 +13,7 @@ members = [
     "crates/agentc-domain",
     "crates/agentc-domain-sql",
     "crates/agentc-database",
+    "crates/agentc-fs",
     "crates/agentc-http",
     "crates/agentc-protocol-ag-ui",
     "crates/agentc-protocol-a2a",
@@ -25,6 +26,8 @@ members = [
     "crates/agentc-mcp",
     "crates/agentc-config",
     "crates/agentc-prompt",
+    "crates/agentc-executor-typescript",
+    "crates/agentc-executor-python",
     "crates/agentc-compiler",
     "crates/agentc-blocks",
     "crates/agentc-core",
@@ -44,6 +47,7 @@ pin-project-lite = "0.2"
 async-trait = { version = "0.1" }
 async-stream = { version = "0.3" }
 futures = { version = "0.3" }
+bytes = { version = "1" }
 
 rustls = { version = "0.23", features = ["aws_lc_rs"] }
 
@@ -55,18 +59,19 @@ serde_json = { version = "1" }
 serde_norway = { version = "0.9" }
 toml = { version = "1", features = ["serde"] }
 hcl-rs = { version = "0.19", features = ["perf"] }
-validator = { version = "0.20", features = ["derive"] }
+validator = { version = "0.21", features = ["derive"] }
 sanitizer = { version = "1", features = ["derive"] }
 
 bs58 = { version = "0.5" }
-base64 = { version = "0.22" }
+base64 = { version = "0.23" }
 regex = { version = "1.12" }
-convert_case = { version = "0.11" }
+convert_case = { version = "0.12" }
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1.23", features = ["v4", "v5", "fast-rng", "zerocopy", "serde"] }
 url = { version = "2", features = ["serde"] }
 json-patch = { version = "4.2", features = ["schemars", "utoipa"] }
 schemars = { version = "1.1", features = ["derive", "chrono04", "url2", "uuid1"] }
+jsonschema = { version = "0.57", default-features = false }
 
 cel = { version = "0.14", features = ["chrono", "regex", "json"] }
 minijinja = { version = "2", features = ["json"] }
@@ -76,13 +81,13 @@ sea-orm-migration = { version = "1.1" }
 
 tracing = { version = "0.1" }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "chrono"] }
-tracing-opentelemetry = { version = "0.33" }
-opentelemetry = { version = "0.32" }
-opentelemetry_sdk = { version = "0.32", features = ["rt-tokio", "serde", "serde_json"] }
-opentelemetry-otlp = { version = "0.32" }
-opentelemetry-semantic-conventions = { version = "0.32", features = ["semconv_experimental"] }
-opentelemetry-appender-tracing = { version = "0.32" }
-sentry = { version = "0.48", features = ["anyhow", "tracing", "tower-http", "opentelemetry"] }
+tracing-opentelemetry = { version = "0.34" }
+opentelemetry = { version = "0.33" }
+opentelemetry_sdk = { version = "0.33", features = ["rt-tokio", "serde", "serde_json"] }
+opentelemetry-otlp = { version = "0.33" }
+opentelemetry-semantic-conventions = { version = "0.33", features = ["semconv_experimental"] }
+opentelemetry-appender-tracing = { version = "0.33" }
+sentry = { version = "0.49", features = ["anyhow", "tracing", "tower-http", "opentelemetry"] }
 
 axum = { version = "0.8", features = ["tracing", "macros"] }
 axum-server = { version = "0.8", features = ["tls-rustls"] }
@@ -93,13 +98,13 @@ utoipa-scalar = { version = "0.3", features = ["axum"] }
 tower-http = { version = "0.7", features = ["trace"] }
 tower-layer = { version = "0.3" }
 tower = { version = "0.5", features = ["tokio", "tracing"] }
-http = { version = "1.4" }
+http = { version = "1.5" }
 
 lazy_static = { version = "1" }
 indexmap = { version = "2" }
 walkdir = { version = "2" }
 
-jobq = { git = "https://github.com/wizrds/jobq-rs.git", version = "0.3.1" }
+jobq = { git = "https://github.com/wizrds/jobq-rs.git", version = "0.5.2" }
 subway = { git = "https://github.com/wizrds/subway-rs.git", version = "0.1.0" }
 
 criterion = { version = "0.8", features = ["html_reports"] }

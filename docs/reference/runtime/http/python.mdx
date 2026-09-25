@@ -1,0 +1,443 @@
+---
+title: Python
+description: Every export of agentc_http for Python components.
+---
+
+```python
+from agentc_http import Client, Json, Request
+```
+
+`agentc_http` provides an asynchronous HTTP client. Requests use the runtime's egress policy and
+limits.
+
+## Overview
+
+<LibSymbols>
+  <LibSymbolRow name="Client">Create and send requests with shared defaults.</LibSymbolRow>
+  <LibSymbolRow name="Request">A request before client defaults are applied.</LibSymbolRow>
+  <LibSymbolRow name="PendingResponse">A single-use awaitable request.</LibSymbolRow>
+  <LibSymbolRow name="Response">The response head and body.</LibSymbolRow>
+  <LibSymbolRow name="ResponseBody">Read or stream a response body once.</LibSymbolRow>
+  <LibSymbolRow name="Headers">An immutable, case-insensitive header mapping.</LibSymbolRow>
+  <LibSymbolRow name="Json">A JSON request body.</LibSymbolRow>
+  <LibSymbolRow name="Form">A form-encoded request body.</LibSymbolRow>
+</LibSymbols>
+
+## Request lifecycle
+
+Use an absolute URL with a client that has no `base_url`, or use relative URLs with a client that
+has one. A base URL is treated as a directory, so `https://api.example.com/v1` and `/users` produce
+`https://api.example.com/v1/users`.
+
+```python
+from agentc_http import Client
+
+client = Client(base_url="https://api.example.com/v1")
+
+async with client.get("/users", params={"active": True}) as response:
+    response.raise_for_status()
+    users = await response.body.json()
+```
+
+A `PendingResponse` is single-use. `async with` closes an unread response body when the block exits.
+When awaiting directly, call `response.close()` if the body will not be consumed.
+
+## Client
+
+```python
+Client(
+    *,
+    base_url: str | None = None,
+    headers: HeaderTypes | None = None,
+    params: QueryParams | None = None,
+    timeout: float | None = None,
+)
+```
+
+Client headers and query parameters are defaults. Request values replace defaults with the same
+name, including all repeated values for that name. Query parameters are appended after a query
+already present in the URL. A request timeout can shorten the runtime's configured whole-request
+deadline but cannot extend it.
+
+`get`, `head`, and `options` accept `url`, `params`, `headers`, and `timeout`. `delete`, `post`, `put`,
+and `patch` also accept `body`. `send(request)` applies the same defaults to an explicit `Request`.
+
+## Request bodies
+
+| Value | Encoding | Default `Content-Type` |
+| ----- | -------- | ---------------------- |
+| `bytes` | unchanged | none |
+| `str` | UTF-8 | `text/plain; charset=utf-8` |
+| `Json(value)` | JSON | `application/json` |
+| `Form(fields)` | form URL encoding | `application/x-www-form-urlencoded` |
+| `AsyncIterable[bytes]` | streamed chunks | none |
+
+An explicit `Content-Type` header wins. A streamed body can be sent once.
+
+## Response
+
+`Response` exposes `status`, `reason`, `is_success`, `url`, `headers`, `request`, and `body`.
+`raise_for_status()` returns the same response for a successful status and raises `HTTPStatusError`
+otherwise. `close()` releases an unread body.
+
+`ResponseBody.read()`, `text()`, and `json()` consume the full body. Iterating the body yields byte
+chunks. `text_chunks()` yields incrementally decoded text and `lines()` yields universal-newline
+lines. Only one consuming operation may start. `consumed` and `closed` report the shared body state.
+
+## Headers and parameters
+
+`Headers` implements `Mapping[str, str]`. Lookup is case-insensitive. `get_list(name)` returns every
+value for one name, while `multi_items()` returns every name-value pair including repeats.
+
+Query parameters accept a mapping or a sequence of pairs. Booleans encode as `true` or `false`,
+`None` as an empty value, and a sequence value repeats its key.
+
+## Exceptions
+
+```text
+HTTPError
+├── RequestError
+│   ├── TransportError
+│   │   └── TimeoutException
+│   ├── RequestDenied
+│   ├── TooManyRedirects
+│   └── InvalidRequest
+└── ResponseError
+    ├── HTTPStatusError
+    ├── DecodingError
+    └── ResponseTooLarge
+
+RuntimeError
+└── BodyError
+    ├── BodyConsumed
+    └── BodyClosed
+```
+
+Request failures retain the originating `Request`. Status and response-body failures retain the
+originating `Response`. Catch `HTTPError` for all HTTP-client failures, or catch the narrower class
+when recovery depends on the failure type.
+
+## Classes
+
+### Client
+
+<LibSignature>
+```python
+Client(
+    *,
+    base_url: str | None = None,
+    headers: HeaderTypes | None = None,
+    params: QueryParams | None = None,
+    timeout: float | None = None,
+)
+```
+</LibSignature>
+
+Creates a client with optional defaults. `base_url` must be an absolute URL without a query or
+fragment. The following methods return a `PendingResponse` and do not send until it is used:
+
+<LibSignature>
+```python
+send(request: Request) -> PendingResponse
+get(url: str, *, params=None, headers=None, timeout=None) -> PendingResponse
+head(url: str, *, params=None, headers=None, timeout=None) -> PendingResponse
+options(url: str, *, params=None, headers=None, timeout=None) -> PendingResponse
+delete(url: str, *, params=None, headers=None, body=None, timeout=None) -> PendingResponse
+post(url: str, *, params=None, headers=None, body=None, timeout=None) -> PendingResponse
+put(url: str, *, params=None, headers=None, body=None, timeout=None) -> PendingResponse
+patch(url: str, *, params=None, headers=None, body=None, timeout=None) -> PendingResponse
+```
+</LibSignature>
+
+### Request
+
+<LibSignature>
+```python
+Request(
+    method: str,
+    url: str,
+    *,
+    params: QueryParams | None = None,
+    headers: HeaderTypes | None = None,
+    body: Body | None = None,
+    timeout: float | None = None,
+)
+```
+</LibSignature>
+
+The method is normalized to uppercase. A relative URL is valid when the request will be sent by a
+client with a base URL.
+
+<LibProperties>
+  <LibProperty name="method" type="str" readonly />
+  <LibProperty name="url" type="str" readonly />
+  <LibProperty name="headers" type="Headers" readonly />
+</LibProperties>
+
+### PendingResponse
+
+<LibTags>
+  <LibTag name="not constructible" />
+</LibTags>
+
+<LibSignature>
+```python
+response = await pending
+async with pending as response: ...
+```
+</LibSignature>
+
+Both forms send the request and yield a `Response`. Each pending response may be used once.
+
+### Response
+
+<LibTags>
+  <LibTag name="not constructible" />
+</LibTags>
+
+<LibProperties>
+  <LibProperty name="status" type="int" readonly />
+  <LibProperty name="reason" type="str" readonly />
+  <LibProperty name="is_success" type="bool" readonly />
+  <LibProperty name="url" type="str" readonly />
+  <LibProperty name="headers" type="Headers" readonly />
+  <LibProperty name="request" type="Request" readonly />
+  <LibProperty name="body" type="ResponseBody" readonly />
+</LibProperties>
+
+<LibSignature>
+```python
+raise_for_status() -> Response
+async def close() -> None
+```
+</LibSignature>
+
+The response supports `async with` and closes its body on exit.
+
+### ResponseBody
+
+<LibTags>
+  <LibTag name="not constructible" />
+</LibTags>
+
+<LibProperties>
+  <LibProperty name="consumed" type="bool" readonly />
+  <LibProperty name="closed" type="bool" readonly />
+</LibProperties>
+
+<LibSignature>
+```python
+async for chunk in body: ...                  # bytes
+body.text_chunks() -> AsyncIterator[str]
+body.lines() -> AsyncIterator[str]
+await body.read() -> bytes
+await body.text() -> str
+await body.json() -> Any
+```
+</LibSignature>
+
+`text()` and the text iterators use the response `Content-Type` charset. A missing or unknown
+charset defaults to UTF-8, and malformed input uses replacement characters. `json()` reads JSON
+from the response bytes and does not use the text charset.
+
+### Headers
+
+<LibSignature>
+```python
+Headers(headers: HeaderTypes | None = None)
+headers[name: str] -> str
+headers.get_list(name: str) -> list[str]
+headers.multi_items() -> list[tuple[str, str]]
+```
+</LibSignature>
+
+`Headers` is an immutable `Mapping[str, str]`. It also supports iteration, length, membership,
+and the usual mapping methods.
+
+### Json
+
+<LibSignature>
+```python
+Json(value: Any)
+```
+</LibSignature>
+
+Wraps a JSON-compatible value as a request body.
+
+### Form
+
+<LibSignature>
+```python
+Form(fields: QueryParams)
+```
+</LibSignature>
+
+Wraps fields as a form-encoded request body.
+
+## Error classes
+
+### HTTPError
+
+<LibSignature>
+```python
+class HTTPError(Exception): ...
+```
+</LibSignature>
+
+The base class for request and response failures.
+
+### RequestError
+
+<LibSignature>
+```python
+class RequestError(HTTPError): ...
+```
+</LibSignature>
+
+<LibProperties>
+  <LibProperty name="request" type="Request" readonly>
+    The original request object.
+  </LibProperty>
+</LibProperties>
+
+### TransportError
+
+<LibSignature>
+```python
+class TransportError(RequestError): ...
+```
+</LibSignature>
+
+A connection or transport failure.
+
+### TimeoutException
+
+<LibSignature>
+```python
+class TimeoutException(TransportError): ...
+```
+</LibSignature>
+
+The request exceeded its deadline.
+
+### RequestDenied
+
+<LibSignature>
+```python
+class RequestDenied(RequestError): ...
+```
+</LibSignature>
+
+The egress policy refused the request.
+
+<LibProperties>
+  <LibProperty name="policy" type="str" readonly>
+    The name of the policy that refused the request.
+  </LibProperty>
+  <LibProperty name="reason" type="str" readonly>
+    The policy's reason for refusing the request.
+  </LibProperty>
+</LibProperties>
+
+### TooManyRedirects
+
+<LibSignature>
+```python
+class TooManyRedirects(RequestError): ...
+```
+</LibSignature>
+
+The request exceeded the redirect limit.
+
+### InvalidRequest
+
+<LibSignature>
+```python
+class InvalidRequest(RequestError): ...
+```
+</LibSignature>
+
+The client could not build or send the request as supplied.
+
+### ResponseError
+
+<LibSignature>
+```python
+class ResponseError(HTTPError): ...
+```
+</LibSignature>
+
+<LibProperties>
+  <LibProperty name="response" type="Response" readonly>
+    The original response object.
+  </LibProperty>
+</LibProperties>
+
+### HTTPStatusError
+
+<LibSignature>
+```python
+class HTTPStatusError(ResponseError): ...
+```
+</LibSignature>
+
+Raised by `Response.raise_for_status()` when the status is not successful.
+
+### DecodingError
+
+<LibSignature>
+```python
+class DecodingError(ResponseError): ...
+```
+</LibSignature>
+
+The response body could not be decoded as the requested value.
+
+### ResponseTooLarge
+
+<LibSignature>
+```python
+class ResponseTooLarge(ResponseError): ...
+```
+</LibSignature>
+
+The response body exceeded the configured size limit.
+
+<LibProperties>
+  <LibProperty name="limit" type="int" readonly>
+    The response body limit in bytes.
+  </LibProperty>
+</LibProperties>
+
+### BodyError
+
+<LibSignature>
+```python
+class BodyError(RuntimeError): ...
+```
+</LibSignature>
+
+The base class for body lifecycle errors. It does not carry a request or response.
+
+### BodyConsumed
+
+<LibSignature>
+```python
+class BodyConsumed(BodyError): ...
+```
+</LibSignature>
+
+The body has already been consumed or a second read has started.
+
+### BodyClosed
+
+<LibSignature>
+```python
+class BodyClosed(BodyError): ...
+```
+</LibSignature>
+
+The body was closed before or during consumption.
+
+See [HTTP](/reference/runtime/http) for egress policy and limits, and
+[network](/reference/manifest/network) for their configuration.

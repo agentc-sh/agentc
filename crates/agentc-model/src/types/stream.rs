@@ -13,6 +13,15 @@ pub enum ToolCallDelta {
     Arguments(String),
 }
 
+/// Metadata emitted after a completion stream finishes.
+#[derive(Debug, Clone)]
+pub struct CompletionStreamFinal {
+    /// Token usage reported for the completed model call.
+    pub usage: TokenUsage,
+    /// Provider-reported reason the generation finished, when available.
+    pub finish_reason: Option<String>,
+}
+
 /// A single event yielded by a [`ChatCompletionStream`](crate::stream::ChatCompletionStream).
 #[derive(Debug, Clone)]
 pub enum CompletionStreamEvent {
@@ -33,6 +42,6 @@ pub enum CompletionStreamEvent {
     /// deltas have arrived.
     ToolCall(ToolCall),
 
-    /// Final token usage stats. Always the last event in the stream.
-    Done(TokenUsage),
+    /// Final completion metadata. Always the last event in the stream.
+    Done(CompletionStreamFinal),
 }

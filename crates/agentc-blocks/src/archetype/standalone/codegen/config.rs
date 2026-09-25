@@ -13,8 +13,8 @@ use agentc_compiler::generator::{
 };
 
 use crate::{
+    config::fields::{FieldSpec, FieldValue, FieldsSpec},
     context::ResolvedContext,
-    fields::{FieldSpec, FieldValue, FieldsSpec},
 };
 
 enum StructNode {
@@ -164,34 +164,13 @@ impl StructTree {
             current_path.push(field_name.clone());
 
             match node {
-                StructNode::Leaf { value, .. } => match value {
-                    FieldValue::Constant { value } => {
-                        let json_tokens = value
-                            .to_string()
-                            .parse::<TokenStream>()
-                            .unwrap();
+                StructNode::Leaf { value, .. } => {
+                    let tokens = value.loader_tokens(&current_path);
 
-                        constants.push(quote! {
-                            .constant(path![#(#current_path),*], serde_json::json!(#json_tokens))
-                        });
-                    }
-                    FieldValue::Runtime { env, default, .. } => {
-                        field_mappings.push(quote! {
-                            .field(path![#(#current_path),*], #env)
-                        });
-
-                        if let Some(default_val) = default {
-                            let json_tokens = default_val
-                                .to_string()
-                                .parse::<TokenStream>()
-                                .unwrap();
-
-                            defaults.push(quote! {
-                                .default(path![#(#current_path),*], serde_json::json!(#json_tokens))
-                            });
-                        }
-                    }
-                },
+                    constants.extend(tokens.constant);
+                    defaults.extend(tokens.default);
+                    field_mappings.extend(tokens.field);
+                }
                 StructNode::Interior(subtree) => {
                     subtree.generate_loader_calls(
                         &current_path,
@@ -227,6 +206,10 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
         _ctx: &GenerationContext<ResolvedContext>,
         registry: &ExtensionRegistry,
     ) -> Result<Vec<(PathBuf, TokenStream)>, GeneratorError> {
+        let config_mods = registry
+            .get("config::mods")
+            .and_then(|s| s.parse::<TokenStream>().ok());
+
         let extra_use = registry
             .get("config::use")
             .and_then(|s| s.parse::<TokenStream>().ok());
@@ -245,6 +228,26 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
 
         let extra_mapper = registry
             .get("config::mapper")
+            .and_then(|s| s.parse::<TokenStream>().ok());
+
+        let section_use = registry
+            .get("config::sections::use")
+            .and_then(|s| s.parse::<TokenStream>().ok());
+
+        let section_types = registry
+            .get("config::sections::types")
+            .and_then(|s| s.parse::<TokenStream>().ok());
+
+        let section_fields = registry
+            .get("config::sections::fields")
+            .and_then(|s| s.parse::<TokenStream>().ok());
+
+        let section_loader = registry
+            .get("config::sections::loader")
+            .and_then(|s| s.parse::<TokenStream>().ok());
+
+        let section_mapper = registry
+            .get("config::sections::mapper")
             .and_then(|s| s.parse::<TokenStream>().ok());
 
         let tree = self
@@ -287,217 +290,31 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
                 PrefixMapper::new("AGENT", "__")
                     #(#field_mappings)*
                     #extra_mapper
+                    #section_mapper
             )
         };
 
         let source = quote! {
+            #config_mods
+
             use std::collections::HashMap;
             use serde::{Serialize, Deserialize};
             use anyhow::Result;
 
             use agentc_config::traits::{OsEnvSource, PrefixMapper};
             use agentc_config::macros::path;
-            use agentc_database::{
-                Database,
-                database::DatabaseOptions,
-                errors::DatabaseError,
-            };
-            use subway::{
-                Bus,
-                memory::InMemoryTransport,
-                redis::RedisTransport,
-            };
-
-            use crate::migrator::Migrator;
 
             #extra_use
+            #section_use
 
-            #[derive(Debug, Clone, Serialize, Deserialize)]
-            #[serde(default)]
-            pub struct DatabaseConfig {
-                pub primary: String,
-                pub replicas: Vec<String>,
-                pub options: DatabaseOptions,
-                pub auto_migrate: bool,
-            }
-
-            impl DatabaseConfig {
-                pub async fn build(&self, run_migrations: bool) -> Result<Database, DatabaseError> {
-                    let db = Database::builder()
-                        .with_primary(self.primary.clone())
-                        .with_replicas(self.replicas.clone())
-                        .with_options(self.options.clone())
-                        .build()
-                        .await?;
-
-                    if run_migrations {
-                        db.run_migrations::<Migrator>().await?;
-                    }
-
-                    Ok(db)
-                }
-            }
-
-            impl Default for DatabaseConfig {
-                fn default() -> Self {
-                    DatabaseConfig {
-                        primary: "sqlite://database.db?mode=rwc".to_string(),
-                        replicas: vec![],
-                        options: DatabaseOptions::default(),
-                        auto_migrate: true,
-                    }
-                }
-            }
-
-            #[derive(Debug, Clone, Serialize, Deserialize)]
-            #[serde(tag = "type", rename_all = "snake_case")]
-            pub enum McpTransportConfig {
-                Stdio {
-                    command: String,
-                    #[serde(default)]
-                    args: Vec<String>,
-                    #[serde(default)]
-                    env: HashMap<String, String>,
-                },
-                Http {
-                    url: String,
-                    #[serde(default)]
-                    auth_token: Option<String>,
-                    #[serde(default)]
-                    headers: HashMap<String, String>,
-                },
-            }
-
-            #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-            #[serde(default)]
-            pub struct McpConfig {
-                pub servers: HashMap<String, McpTransportConfig>,
-            }
-
-            #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-            #[serde(default)]
-            pub struct A2aConfig {
-                pub agents: HashMap<String, A2aAgentConfig>,
-            }
-
-            #[derive(Debug, Clone, Serialize, Deserialize)]
-            #[serde(default)]
-            pub struct A2aAgentConfig {
-                pub url: String,
-                pub auth_token: Option<String>,
-                pub headers: HashMap<String, String>,
-                pub tenant: A2aTenantConfig,
-                pub timeout_secs: u64,
-                pub default_accepted_output_modes: Vec<String>,
-                pub description: Option<String>,
-                pub capabilities: Vec<String>,
-                pub enabled: bool,
-            }
-
-            impl Default for A2aAgentConfig {
-                fn default() -> Self {
-                    A2aAgentConfig {
-                        url: String::new(),
-                        auth_token: None,
-                        headers: HashMap::new(),
-                        tenant: A2aTenantConfig::default(),
-                        timeout_secs: 60,
-                        default_accepted_output_modes: Vec::new(),
-                        description: None,
-                        capabilities: Vec::new(),
-                        enabled: true,
-                    }
-                }
-            }
-
-            #[derive(Debug, Clone, Serialize, Deserialize)]
-            #[serde(tag = "policy", rename_all = "snake_case")]
-            pub enum A2aTenantConfig {
-                Inherit,
-                None,
-                Fixed {
-                    id: String,
-                },
-            }
-
-            impl Default for A2aTenantConfig {
-                fn default() -> Self {
-                    A2aTenantConfig::Inherit
-                }
-            }
-
-            #[derive(Debug, Clone, Serialize, Deserialize)]
-            #[serde(default)]
-            pub struct TaskQueueConfig {
-                pub worker_count: usize,
-                pub max_queue_capacity: usize,
-                pub batch_size: usize,
-                pub batch_timeout_ms: usize,
-            }
-
-            impl Default for TaskQueueConfig {
-                fn default() -> Self {
-                    TaskQueueConfig {
-                        worker_count: 4,
-                        max_queue_capacity: 256,
-                        batch_size: 16,
-                        batch_timeout_ms: 10,
-                    }
-                }
-            }
-
-            #[derive(Debug, Clone, Serialize, Deserialize)]
-            #[serde(tag = "kind", rename_all = "snake_case")]
-            pub enum PubSubConfig {
-                Memory {
-                    capacity: usize,
-                },
-                Redis {
-                    url: String,
-                },
-            }
-
-            impl PubSubConfig {
-                pub fn kind(&self) -> &str {
-                    match self {
-                        PubSubConfig::Memory { .. } => "memory",
-                        PubSubConfig::Redis { .. } => "redis",
-                    }
-                }
-
-                pub async fn build(&self) -> Result<Bus, subway::Error> {
-                    match self {
-                        PubSubConfig::Memory { capacity } => Ok(Bus::new(
-                            InMemoryTransport::with_capacity(*capacity),
-                        )),
-                        PubSubConfig::Redis { url } => Ok(Bus::new(
-                            RedisTransport::builder()
-                                .url(url.clone())
-                                .build()
-                                .await?,
-                        )),
-                    }
-                }
-            }
-
-            impl Default for PubSubConfig {
-                fn default() -> Self {
-                    PubSubConfig::Memory {
-                        capacity: 4096,
-                    }
-                }
-            }
+            #section_types
 
             #(#generated_structs)*
 
             #[derive(Debug, Clone, Serialize, Deserialize, Default)]
             #[serde(default)]
             pub struct Config {
-                pub database: DatabaseConfig,
-                pub mcp: McpConfig,
-                pub a2a: A2aConfig,
-                pub task_queue: TaskQueueConfig,
-                pub pubsub: PubSubConfig,
+                #section_fields
                 #(#config_generated_fields)*
                 #extra_fields
             }
@@ -510,6 +327,7 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
                             #(#constants)*
                             #(#defaults)*
                             #extra_loader
+                            #section_loader
                             #mapper
                             .build()
                             .await?
@@ -521,7 +339,7 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
             #extra_impls
         };
 
-        Ok(vec![("src/config.rs".into(), source)])
+        Ok(vec![("src/config/mod.rs".into(), source)])
     }
 }
 
@@ -530,6 +348,41 @@ mod tests {
     use super::*;
     use crate::types::RuntimeValue;
     use serde_json::json;
+
+    fn context() -> GenerationContext<ResolvedContext> {
+        GenerationContext::new(
+            serde_json::from_value(json!({
+                "slug": "assistant",
+                "agent_name": "assistant",
+                "runtime": { "default_tenant_id": "default" },
+                "providers": [],
+                "agent": {
+                    "version": "0.1.0",
+                    "description": null,
+                    "prompt": null,
+                    "capabilities": null,
+                    "capability_policy": null,
+                    "model": { "provider": "anthropic", "name": "claude" }
+                },
+                "blocks": {},
+                "tools": {},
+                "skills": {},
+                "http_server": null
+            }))
+            .unwrap(),
+        )
+    }
+
+    fn rendered() -> String {
+        ConfigCodeGen { fields: FieldsSpec::new(vec![]) }
+            .generate_files(&context(), &ExtensionRegistry::empty())
+            .unwrap()
+            .into_iter()
+            .find(|(path, _)| path == &PathBuf::from("src/config/mod.rs"))
+            .expect("config file should be generated")
+            .1
+            .to_string()
+    }
 
     #[test]
     fn nested_field_references_a_pascal_cased_struct_name() {
@@ -553,78 +406,11 @@ mod tests {
     }
 
     #[test]
-    fn generated_config_contains_a2a_config_types() {
-        let context = GenerationContext::new(
-            serde_json::from_value(json!({
-                "slug": "assistant",
-                "agent_name": "assistant",
-                "runtime": { "default_tenant_id": "default" },
-                "providers": [],
-                "agent": {
-                    "version": "0.1.0",
-                    "description": null,
-                    "prompt": null,
-                    "capabilities": null,
-                    "capability_policy": null,
-                    "model": { "provider": "anthropic", "name": "claude" }
-                },
-                "blocks": {},
-                "tools": {},
-                "skills": {},
-                "http_server": null
-            }))
-            .unwrap(),
-        );
+    fn config_has_no_database_section_when_no_sections_are_contributed() {
+        let rendered = rendered();
 
-        let rendered = ConfigCodeGen { fields: FieldsSpec::new(vec![]) }
-            .generate_files(&context, &ExtensionRegistry::empty())
-            .unwrap()
-            .into_iter()
-            .find(|(path, _)| path == &PathBuf::from("src/config.rs"))
-            .expect("config file should be generated")
-            .1
-            .to_string();
-
-        assert!(rendered.contains("struct A2aConfig"));
-        assert!(rendered.contains("struct A2aAgentConfig"));
-        assert!(rendered.contains("enum A2aTenantConfig"));
-        assert!(rendered.contains("pub a2a : A2aConfig"));
-    }
-
-    #[test]
-    fn database_config_defaults_auto_migrate_to_true() {
-        let context = GenerationContext::new(
-            serde_json::from_value(json!({
-                "slug": "assistant",
-                "agent_name": "assistant",
-                "runtime": { "default_tenant_id": "default" },
-                "providers": [],
-                "agent": {
-                    "version": "0.1.0",
-                    "description": null,
-                    "prompt": null,
-                    "capabilities": null,
-                    "capability_policy": null,
-                    "model": { "provider": "anthropic", "name": "claude" }
-                },
-                "blocks": {},
-                "tools": {},
-                "skills": {},
-                "http_server": null
-            }))
-            .unwrap(),
-        );
-
-        let rendered = ConfigCodeGen { fields: FieldsSpec::new(vec![]) }
-            .generate_files(&context, &ExtensionRegistry::empty())
-            .unwrap()
-            .into_iter()
-            .find(|(path, _)| path == &PathBuf::from("src/config.rs"))
-            .expect("config file should be generated")
-            .1
-            .to_string();
-
-        assert!(rendered.contains("pub auto_migrate : bool"));
-        assert!(rendered.contains("auto_migrate : true"));
+        assert!(!rendered.contains("struct ConfigDatabase"));
+        assert!(!rendered.contains("struct ConfigTaskQueue"));
+        assert!(!rendered.contains("enum ConfigPubSub"));
     }
 }

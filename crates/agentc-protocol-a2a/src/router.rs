@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 use async_stream::stream;
+use async_trait::async_trait;
 use axum::{
     extract::State,
     response::{
@@ -13,13 +14,14 @@ use axum::{
 };
 use futures::{StreamExt, stream::BoxStream};
 use jobq::{
-    AnyExecutable, Error as JobQueueError, FifoQueue, JobQueue, JobStreamOptions, StreamTask,
+    AnyExecutable, BatchPolicy, FifoQueue, Independent, IndependentBatchStreamTask, JobQueue,
+    JobStreamOptions, StreamBatcher,
 };
 use std::{convert::Infallible, sync::Arc, time::Duration};
 use tokio_util::sync::CancellationToken;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use agentc_http::{
+use agentc_http::server::{
     dto::errors::ErrorResponseDTO,
     errors::ApiError,
     extractors::{Json, Path, TenantIdHeader},
@@ -41,33 +43,49 @@ struct A2aRouterState {
     service: Arc<dyn A2aService>,
     agent_interface: AgentInterface,
     default_tenant_id: DefaultTenantId,
-    task_queue: Arc<JobQueue<FifoQueue<AnyExecutable>>>,
+    stream_task_queue: StreamBatcher<A2aStreamTask, FifoQueue<AnyExecutable>, Independent>,
 }
 
-struct A2aStreamTask {
-    service: Arc<dyn A2aService>,
+struct A2aStreamTaskInput {
     request: SendMessageRequest,
     disconnect: CancellationToken,
 }
 
-impl A2aStreamTask {
-    fn new(
-        service: Arc<dyn A2aService>,
-        request: SendMessageRequest,
-        disconnect: CancellationToken,
-    ) -> Self {
-        Self { service, request, disconnect }
+impl A2aStreamTaskInput {
+    fn new(request: SendMessageRequest, disconnect: CancellationToken) -> Self {
+        Self { request, disconnect }
     }
 }
 
-impl StreamTask for A2aStreamTask {
+struct A2aStreamTask {
+    service: Arc<dyn A2aService>,
+}
+
+impl A2aStreamTask {
+    fn new(service: Arc<dyn A2aService>) -> Self {
+        Self { service }
+    }
+}
+
+#[async_trait]
+impl IndependentBatchStreamTask for A2aStreamTask {
+    type Input = A2aStreamTaskInput;
+    type Shared = ();
     type Item = StreamResponse;
     type Error = ApiError;
 
-    fn execute(&self) -> BoxStream<'_, Result<Self::Item, Self::Error>> {
+    async fn prepare(&self, _inputs: &[Self::Input]) -> Result<Self::Shared, Self::Error> {
+        Ok(())
+    }
+
+    fn stream<'a>(
+        &'a self,
+        _shared: &'a Self::Shared,
+        input: &'a Self::Input,
+    ) -> BoxStream<'a, Result<Self::Item, Self::Error>> {
         Box::pin(stream! {
             let mut stream = match self.service
-                .stream_message(self.request.clone())
+                .stream_message(input.request.clone())
                 .await
             {
                 Ok(stream) => stream,
@@ -79,7 +97,7 @@ impl StreamTask for A2aStreamTask {
 
             loop {
                 match tokio::select! {
-                    _ = self.disconnect.cancelled() => match stream.cancel().await {
+                    _ = input.disconnect.cancelled() => match stream.cancel().await {
                         Ok(()) => Ok(None),
                         Err(err) => Err(err),
                     },
@@ -108,7 +126,8 @@ pub fn router(
     service: Arc<dyn A2aService>,
     agent_interface: AgentInterface,
     default_tenant_id: DefaultTenantId,
-    task_queue: Arc<JobQueue<FifoQueue<AnyExecutable>>>,
+    task_queue: JobQueue<FifoQueue<AnyExecutable>>,
+    batch_policy: BatchPolicy,
 ) -> OpenApiRouter {
     OpenApiRouter::new()
         .routes(routes!(agent_card_endpoint))
@@ -118,10 +137,14 @@ pub fn router(
         .route("/tasks/{id}", post(post_task_action_endpoint))
         .document::<__path_cancel_task_endpoint>()
         .with_state(A2aRouterState {
+            stream_task_queue: task_queue
+                .stream_batcher(A2aStreamTask::new(service.clone()))
+                .mode(Independent)
+                .policy(batch_policy)
+                .build(),
             service,
             agent_interface,
             default_tenant_id,
-            task_queue,
         })
 }
 
@@ -131,7 +154,7 @@ pub fn router(
     path = "/.well-known/agent-card.json",
     operation_id = "a2a_agent_card",
     tag = "a2a",
-    description = "Returns the agent card describing the A2A service.",
+    description = "Returns the agent card describing the A2A service",
     responses(
         (status = 200, description = "The agent card", body = AgentCard),
         (status = 500, description = "Internal server error", body = ErrorResponseDTO)
@@ -152,7 +175,7 @@ async fn agent_card_endpoint(State(state): State<A2aRouterState>) -> Response {
     path = "/message:send",
     operation_id = "a2a_send_message",
     tag = "a2a",
-    description = "Sends a message to the agent and returns the resulting task or message.",
+    description = "Sends a message to the agent and returns the resulting task or message",
     params(
         ("X-Tenant_id" = Option<TenantIdHeader>, Header, description = "The ID of the tenant"),
     ),
@@ -196,7 +219,7 @@ async fn send_message_endpoint(
     path = "/message:stream",
     operation_id = "a2a_stream_message",
     tag = "a2a",
-    description = "Sends a message to the agent and streams task updates using SSE.",
+    description = "Sends a message to the agent and streams task updates using SSE",
     params(
         ("X-Tenant_id" = Option<TenantIdHeader>, Header, description = "The ID of the tenant"),
     ),
@@ -227,12 +250,8 @@ async fn stream_message_endpoint(
     let disconnect = CancellationToken::new();
 
     match state
-        .task_queue
-        .enqueue_stream(JobStreamOptions::new(A2aStreamTask::new(
-            state.service.clone(),
-            request,
-            disconnect.clone(),
-        )))
+        .stream_task_queue
+        .enqueue(JobStreamOptions::new(A2aStreamTaskInput::new(request, disconnect.clone())))
         .await
     {
         Ok(handle) => Sse::new(CancelOnDropStream::new(handle, disconnect).map(|result| {
@@ -245,10 +264,10 @@ async fn stream_message_endpoint(
                 Err(err) => Ok(Event::default()
                     .event("error")
                     .json_data(ErrorResponseDTO::from(match err {
-                        JobQueueError::TaskExecution { source, .. } => {
-                            match source.downcast::<ApiError>() {
-                                Ok(err) => *err,
-                                Err(source) => ApiError::unexpected_error(source.to_string()),
+                        jobq::Error::TaskExecution { source, .. } => {
+                            match source.downcast_ref::<ApiError>() {
+                                Some(err) => err.clone(),
+                                None => ApiError::unexpected_error(source.to_string()),
                             }
                         }
                         err => ApiError::unexpected_error(err.to_string()),
@@ -274,7 +293,7 @@ async fn stream_message_endpoint(
     path = "/tasks/{id}",
     operation_id = "a2a_get_task",
     tag = "a2a",
-    description = "Retrieves the current state of an A2A task.",
+    description = "Retrieves the current state of an A2A task",
     params(
         ("id" = String, Path, description = "The task ID"),
         ("X-Tenant_id" = Option<TenantIdHeader>, Header, description = "The ID of the tenant"),
@@ -339,7 +358,7 @@ async fn post_task_action_endpoint(
     path = "/tasks/{id}:cancel",
     operation_id = "a2a_cancel_task",
     tag = "a2a",
-    description = "Cancels an active A2A task.",
+    description = "Cancels an active A2A task",
     params(
         ("id" = String, Path, description = "The task ID"),
         ("X-Tenant_id" = Option<TenantIdHeader>, Header, description = "The ID of the tenant"),

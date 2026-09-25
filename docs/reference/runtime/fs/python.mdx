@@ -1,0 +1,1330 @@
+---
+title: Python
+description: Every export of agentc_fs for Python components.
+---
+
+```python
+from agentc_fs import Directory, NotFoundError
+```
+
+`agentc_fs` provides asynchronous access to the filesystem through checked directory objects. See
+[fs](/reference/runtime/fs) for the semantics that hold in every language.
+
+## Overview
+
+<LibSymbols label="Classes">
+  <LibSymbolRow name="Directory">A checked directory, and the entry point to every operation.</LibSymbolRow>
+  <LibSymbolRow name="File">An open file with its own cursor.</LibSymbolRow>
+  <LibSymbolRow name="Entry">A directory entry returned by `scandir`, `walk`, and `entry`.</LibSymbolRow>
+  <LibSymbolRow name="Stat">Metadata about a path.</LibSymbolRow>
+</LibSymbols>
+
+<LibSymbols label="Exceptions">
+  <LibSymbolRow name="FilesystemError">The base class for every filesystem failure.</LibSymbolRow>
+  <LibSymbolRow name="NotFoundError">A path that must exist does not.</LibSymbolRow>
+  <LibSymbolRow name="AlreadyExistsError">A path that must not exist does.</LibSymbolRow>
+  <LibSymbolRow name="NotDirectoryError">A path that must be a directory is not.</LibSymbolRow>
+  <LibSymbolRow name="IsDirectoryError">An operation on a file was given a directory.</LibSymbolRow>
+  <LibSymbolRow name="PermissionDeniedError">The mode bits, or a read-only mount, refused the operation.</LibSymbolRow>
+  <LibSymbolRow name="PathEscapesAuthorityError">A path resolves outside the authority the mount grants.</LibSymbolRow>
+  <LibSymbolRow name="CrossBackendRenameError">A rename would move a path from one backend to another.</LibSymbolRow>
+  <LibSymbolRow name="InvalidPathError">A path, or a seek position, is invalid.</LibSymbolRow>
+  <LibSymbolRow name="UnsupportedError">The backend, or the state of the file, does not support the operation.</LibSymbolRow>
+  <LibSymbolRow name="UnexpectedError">The operation failed for a reason no other class describes.</LibSymbolRow>
+</LibSymbols>
+
+<LibSymbols label="Types">
+  <LibSymbolRow name="StrPath">What every path argument accepts.</LibSymbolRow>
+  <LibSymbolRow name="EntryType">The kind of a filesystem entry.</LibSymbolRow>
+</LibSymbols>
+
+## Directories
+
+`Directory.root()` returns the directory the runtime bound for this component. A `Directory` is a
+working directory rather than a sandbox: paths resolve against it, `"."` names the directory
+itself, and `".."` names its parent. What limits reach is the authority the mount grants, and a
+path that resolves outside it raises `PathEscapesAuthorityError`.
+
+```python
+from agentc_fs import Directory
+
+
+async def save(project: str, contents: str) -> None:
+    projects = await Directory.root().mkdir(
+        f"projects/{project}",
+        parents=True,
+        exist_ok=True,
+    )
+
+    await projects.write_text("notes.md", contents)
+```
+
+`open_dir`, `mkdir`, and `mkdtemp` return a `Directory`, so reaching a subdirectory means opening
+it. `scandir` and `walk` list the directory they are called on and take no path.
+
+Every path argument accepts `str | os.PathLike[str]`, so `pathlib.PurePosixPath` joins paths
+without touching the filesystem. Paths come back as `str`, with each byte that is not valid UTF-8
+replaced by `U+FFFD`.
+
+## Open files
+
+`Directory.open` returns a `File` with its own cursor. Use `async with` so the file is flushed and
+closed when the block exits.
+
+```python
+from os import SEEK_END
+
+from agentc_fs import Directory
+
+
+async def tail(logs: Directory, name: str, size: int) -> bytes:
+    async with await logs.open(name) as file:
+        await file.seek(-size, SEEK_END)
+
+        return await file.read()
+```
+
+Calls on one `File` run one at a time, in the order they started. Separate files have independent
+cursors and run concurrently. After `close`, `closed` is `True`, another `close` does nothing, and
+every other method raises `UnsupportedError`.
+
+## Exceptions
+
+```text
+FilesystemError
+├── NotFoundError
+├── AlreadyExistsError
+├── NotDirectoryError
+├── IsDirectoryError
+├── PermissionDeniedError
+├── PathEscapesAuthorityError
+├── CrossBackendRenameError
+├── InvalidPathError
+├── UnsupportedError
+└── UnexpectedError
+```
+
+Failures that concern one path retain that path. A rename across backends retains both. Catch
+`FilesystemError` for all filesystem failures, or catch the narrower class when recovery depends on
+the failure type.
+
+## Classes
+
+### Directory
+
+<LibTags>
+  <LibTag name="not constructible" />
+</LibTags>
+
+A directory reached through the authority the runtime granted the component. Directory objects are
+obtained from `root`, `open_dir`, `mkdir`, and `mkdtemp`.
+
+<LibProperties>
+  <LibProperty name="path" type="str" readonly>
+    The path of this directory.
+  </LibProperty>
+  <LibProperty name="authority_root" type="str" readonly>
+    The path no operation through this directory may escape.
+  </LibProperty>
+</LibProperties>
+
+#### root
+
+<LibTags>
+  <LibTag name="static" />
+</LibTags>
+
+<LibSignature>
+```python
+def root() -> Directory
+```
+</LibSignature>
+
+Returns the directory the runtime bound for this component.
+
+<LibReturns type="Directory">
+  The component's root directory.
+</LibReturns>
+
+#### open
+
+<LibSignature>
+```python
+async def open(
+    path: StrPath,
+    /,
+    *,
+    read: bool = True,
+    write: bool = False,
+    append: bool = False,
+    truncate: bool = False,
+    create: bool = False,
+    create_new: bool = False,
+    follow_symlinks: bool = True,
+) -> File
+```
+</LibSignature>
+
+Opens a file. Each keyword sets one open option, and the file is opened for reading unless `read`
+is turned off.
+
+<LibParams>
+  <LibParam name="path" type="StrPath" required>
+    The path to open.
+  </LibParam>
+  <LibParam name="read" type="bool">
+    Whether the file may be read.
+  </LibParam>
+  <LibParam name="write" type="bool">
+    Whether the file may be written.
+  </LibParam>
+  <LibParam name="append" type="bool">
+    Whether every write goes to the end of the file.
+  </LibParam>
+  <LibParam name="truncate" type="bool">
+    Whether the file is emptied when it is opened.
+  </LibParam>
+  <LibParam name="create" type="bool">
+    Whether the file is created when it does not exist.
+  </LibParam>
+  <LibParam name="create_new" type="bool">
+    Whether the file must not already exist.
+  </LibParam>
+  <LibParam name="follow_symlinks" type="bool">
+    Whether a symbolic link at the final path component is followed.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="File">
+  The open file.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the path does not exist and the file was not to be created" />
+  <LibThrow when="the path already exists and `create_new` was set" />
+  <LibThrow when="the path is a directory" />
+  <LibThrow when="the mount refuses the requested access" />
+</LibThrows>
+
+#### read_bytes
+
+<LibSignature>
+```python
+async def read_bytes(path: StrPath, /) -> bytes
+```
+</LibSignature>
+
+Reads the entire contents of a file.
+
+<LibParams>
+  <LibParam name="path" type="StrPath" required>
+    The path to read.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="bytes">
+  The file contents.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the path does not exist" />
+  <LibThrow when="the path is a directory" />
+  <LibThrow when="the mount refuses the read" />
+</LibThrows>
+
+#### read_text
+
+<LibSignature>
+```python
+async def read_text(path: StrPath, /) -> str
+```
+</LibSignature>
+
+Reads the entire contents of a file and decodes it as UTF-8.
+
+<LibParams>
+  <LibParam name="path" type="StrPath" required>
+    The path to read.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="str">
+  The decoded file contents.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the path does not exist" />
+  <LibThrow when="the path is a directory" />
+  <LibThrow when="the contents are not valid UTF-8" />
+</LibThrows>
+
+#### write_bytes
+
+<LibSignature>
+```python
+async def write_bytes(path: StrPath, data: bytes, /) -> None
+```
+</LibSignature>
+
+Writes bytes to a file, creating it when it does not exist and replacing any contents it already
+had.
+
+<LibParams>
+  <LibParam name="path" type="StrPath" required>
+    The path to write.
+  </LibParam>
+  <LibParam name="data" type="bytes" required>
+    The bytes to write.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="None">
+  Nothing.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the path is a directory" />
+  <LibThrow when="the mount refuses the write" />
+</LibThrows>
+
+#### write_text
+
+<LibSignature>
+```python
+async def write_text(path: StrPath, data: str, /) -> None
+```
+</LibSignature>
+
+Encodes text as UTF-8 and writes it like `write_bytes`.
+
+<LibParams>
+  <LibParam name="path" type="StrPath" required>
+    The path to write.
+  </LibParam>
+  <LibParam name="data" type="str" required>
+    The text to write.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="None">
+  Nothing.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the path is a directory" />
+  <LibThrow when="the mount refuses the write" />
+</LibThrows>
+
+#### truncate
+
+<LibSignature>
+```python
+async def truncate(path: StrPath, length: int, /) -> None
+```
+</LibSignature>
+
+Resizes a file to a given length.
+
+<LibParams>
+  <LibParam name="path" type="StrPath" required>
+    The path to resize.
+  </LibParam>
+  <LibParam name="length" type="int" required>
+    The length to resize to.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="None">
+  Nothing.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the path does not exist" />
+  <LibThrow when="the path is a directory" />
+  <LibThrow when="the mount refuses the write" />
+</LibThrows>
+
+#### open_dir
+
+<LibSignature>
+```python
+async def open_dir(path: StrPath, /) -> Directory
+```
+</LibSignature>
+
+Opens an existing directory. A symbolic link at the final path component is not followed.
+
+<LibParams>
+  <LibParam name="path" type="StrPath" required>
+    The path to open.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="Directory">
+  The directory at that path, with the same authority root.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the path does not exist" />
+  <LibThrow when="the path is not a directory" />
+  <LibThrow when="the path escapes the authority" />
+</LibThrows>
+
+#### mkdir
+
+<LibSignature>
+```python
+async def mkdir(
+    path: StrPath,
+    /,
+    *,
+    parents: bool = False,
+    exist_ok: bool = False,
+) -> Directory
+```
+</LibSignature>
+
+Creates a directory and returns it.
+
+<LibParams>
+  <LibParam name="path" type="StrPath" required>
+    The path to create.
+  </LibParam>
+  <LibParam name="parents" type="bool">
+    Whether missing parent directories are created as well.
+  </LibParam>
+  <LibParam name="exist_ok" type="bool">
+    Whether an existing directory is opened instead of being an error.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="Directory">
+  The directory that was created, or the existing one when `exist_ok` was set.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the path already exists and `exist_ok` was not set" />
+  <LibThrow when="the path exists as another entry type and `exist_ok` was set" />
+  <LibThrow when="a parent does not exist and `parents` was not set" />
+  <LibThrow when="the mount refuses the write" />
+</LibThrows>
+
+#### mkdtemp
+
+<LibSignature>
+```python
+async def mkdtemp(*, prefix: StrPath) -> Directory
+```
+</LibSignature>
+
+Creates a uniquely named directory from a prefix, with mode `0o700`, and returns it.
+
+<LibParams>
+  <LibParam name="prefix" type="StrPath" required>
+    The path prefix to create beneath.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="Directory">
+  The directory that was created.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the parent directory does not exist" />
+  <LibThrow when="the mount refuses the write" />
+</LibThrows>
+
+#### scandir
+
+<LibSignature>
+```python
+def scandir() -> AsyncIterator[Entry]
+```
+</LibSignature>
+
+Iterates the entries directly inside this directory, sorted by name. The directory is opened at the
+first iteration, so a failure to open it is raised there.
+
+<LibReturns type="AsyncIterator[Entry]">
+  The entries of this directory.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="this directory can no longer be listed" />
+</LibThrows>
+
+#### walk
+
+<LibSignature>
+```python
+def walk() -> AsyncIterator[Entry]
+```
+</LibSignature>
+
+Iterates every entry below this directory in pre-order, depth first. Subdirectories that cannot be
+listed are skipped, and the directory is opened at the first iteration.
+
+<LibReturns type="AsyncIterator[Entry]">
+  Every entry below this directory.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="this directory can no longer be listed" />
+</LibThrows>
+
+#### entry
+
+<LibSignature>
+```python
+async def entry(path: StrPath, /) -> Entry
+```
+</LibSignature>
+
+Returns one entry. A symbolic link at the final path component is not followed.
+
+<LibParams>
+  <LibParam name="path" type="StrPath" required>
+    The path to describe.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="Entry">
+  The entry at that path.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the path does not exist" />
+  <LibThrow when="the mount refuses the lookup" />
+</LibThrows>
+
+#### stat
+
+<LibSignature>
+```python
+async def stat(path: StrPath, /, *, follow_symlinks: bool = True) -> Stat
+```
+</LibSignature>
+
+Reads metadata about a path.
+
+<LibParams>
+  <LibParam name="path" type="StrPath" required>
+    The path to describe.
+  </LibParam>
+  <LibParam name="follow_symlinks" type="bool">
+    Whether a symbolic link at the final path component is followed.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="Stat">
+  The metadata for that path.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the path does not exist" />
+  <LibThrow when="the mount refuses the lookup" />
+</LibThrows>
+
+#### exists
+
+<LibSignature>
+```python
+async def exists(path: StrPath, /, *, follow_symlinks: bool = True) -> bool
+```
+</LibSignature>
+
+Checks whether a path exists. Only a missing path returns `False`, and every other failure is
+raised.
+
+<LibParams>
+  <LibParam name="path" type="StrPath" required>
+    The path to check.
+  </LibParam>
+  <LibParam name="follow_symlinks" type="bool">
+    Whether a symbolic link at the final path component is followed.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="bool">
+  `True` when the path exists.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the path could not be looked up for any reason other than being absent" />
+</LibThrows>
+
+#### access
+
+<LibSignature>
+```python
+async def access(
+    path: StrPath,
+    /,
+    *,
+    read: bool = False,
+    write: bool = False,
+    execute: bool = False,
+    follow_symlinks: bool = True,
+) -> bool
+```
+</LibSignature>
+
+Checks that a path is reachable with the requested access. Only a refusal returns `False`, and
+every other failure is raised.
+
+<LibParams>
+  <LibParam name="path" type="StrPath" required>
+    The path to check.
+  </LibParam>
+  <LibParam name="read" type="bool">
+    Whether read access is required.
+  </LibParam>
+  <LibParam name="write" type="bool">
+    Whether write access is required.
+  </LibParam>
+  <LibParam name="execute" type="bool">
+    Whether execute access is required.
+  </LibParam>
+  <LibParam name="follow_symlinks" type="bool">
+    Whether a symbolic link at the final path component is followed.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="bool">
+  `True` when the path is reachable with the requested access.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the path does not exist" />
+  <LibThrow when="the check failed for any reason other than a refusal" />
+</LibThrows>
+
+#### chmod
+
+<LibSignature>
+```python
+async def chmod(path: StrPath, mode: int, /) -> None
+```
+</LibSignature>
+
+Replaces the permission bits on a path.
+
+<LibParams>
+  <LibParam name="path" type="StrPath" required>
+    The path to change.
+  </LibParam>
+  <LibParam name="mode" type="int" required>
+    The permission bits to set.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="None">
+  Nothing.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the path does not exist" />
+  <LibThrow when="the mount refuses the change" />
+</LibThrows>
+
+#### chown
+
+<LibSignature>
+```python
+async def chown(
+    path: StrPath,
+    /,
+    *,
+    uid: int | None = None,
+    gid: int | None = None,
+    follow_symlinks: bool = True,
+) -> None
+```
+</LibSignature>
+
+Replaces the owning user or group on a path. An owner left as `None` is unchanged.
+
+<LibParams>
+  <LibParam name="path" type="StrPath" required>
+    The path to change.
+  </LibParam>
+  <LibParam name="uid" type="int | None">
+    The user identifier to set.
+  </LibParam>
+  <LibParam name="gid" type="int | None">
+    The group identifier to set.
+  </LibParam>
+  <LibParam name="follow_symlinks" type="bool">
+    Whether a symbolic link at the final path component is followed.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="None">
+  Nothing.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the path does not exist" />
+  <LibThrow when="the mount refuses the change" />
+</LibThrows>
+
+#### symlink
+
+<LibSignature>
+```python
+async def symlink(target: StrPath, link: StrPath, /) -> None
+```
+</LibSignature>
+
+Creates a symbolic link. Both paths resolve against this directory.
+
+<LibParams>
+  <LibParam name="target" type="StrPath" required>
+    The path the link points at.
+  </LibParam>
+  <LibParam name="link" type="StrPath" required>
+    The path of the link to create.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="None">
+  Nothing.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the link path already exists" />
+  <LibThrow when="either path escapes the authority" />
+  <LibThrow when="the mount refuses the write" />
+</LibThrows>
+
+#### readlink
+
+<LibSignature>
+```python
+async def readlink(path: StrPath, /) -> str
+```
+</LibSignature>
+
+Reads the target of a symbolic link, which is absolute.
+
+<LibParams>
+  <LibParam name="path" type="StrPath" required>
+    The link to read.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="str">
+  The absolute target of the link.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the path does not exist" />
+  <LibThrow when="the path is not a symbolic link" />
+</LibThrows>
+
+#### rename
+
+<LibSignature>
+```python
+async def rename(source: StrPath, destination: StrPath, /) -> None
+```
+</LibSignature>
+
+Moves a path to a new location. Both paths resolve against this directory.
+
+<LibParams>
+  <LibParam name="source" type="StrPath" required>
+    The path to move.
+  </LibParam>
+  <LibParam name="destination" type="StrPath" required>
+    The path to move it to.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="None">
+  Nothing.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the source does not exist" />
+  <LibThrow when="the two paths are served by different backends" />
+  <LibThrow when="the mount refuses the write" />
+</LibThrows>
+
+#### remove
+
+<LibSignature>
+```python
+async def remove(path: StrPath, /) -> None
+```
+</LibSignature>
+
+Removes a file, or a symbolic link itself rather than its target.
+
+<LibParams>
+  <LibParam name="path" type="StrPath" required>
+    The path to remove.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="None">
+  Nothing.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the path does not exist" />
+  <LibThrow when="the path is a directory" />
+  <LibThrow when="the mount refuses the write" />
+</LibThrows>
+
+#### rmdir
+
+<LibSignature>
+```python
+async def rmdir(path: StrPath, /) -> None
+```
+</LibSignature>
+
+Removes an empty directory.
+
+<LibParams>
+  <LibParam name="path" type="StrPath" required>
+    The directory to remove.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="None">
+  Nothing.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the path does not exist" />
+  <LibThrow when="the path is not a directory" />
+  <LibThrow when="the directory is not empty" />
+</LibThrows>
+
+#### rmtree
+
+<LibSignature>
+```python
+async def rmtree(path: StrPath, /) -> None
+```
+</LibSignature>
+
+Removes a directory and everything below it.
+
+<LibParams>
+  <LibParam name="path" type="StrPath" required>
+    The directory to remove.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="None">
+  Nothing.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the path does not exist" />
+  <LibThrow when="the path is not a directory" />
+  <LibThrow when="the mount refuses the write" />
+</LibThrows>
+
+### File
+
+<LibTags>
+  <LibTag name="not constructible" />
+</LibTags>
+
+An open file, returned by `Directory.open`. It supports `async with`, which closes the file when the
+block exits.
+
+<LibProperties>
+  <LibProperty name="closed" type="bool" readonly>
+    Whether the file has been closed.
+  </LibProperty>
+</LibProperties>
+
+#### read
+
+<LibSignature>
+```python
+async def read(size: int = -1, /) -> bytes
+```
+</LibSignature>
+
+Reads from the current position. A negative size reads to the end of the file, and a positive size
+reads fewer bytes only when the end is reached.
+
+<LibParams>
+  <LibParam name="size" type="int">
+    The number of bytes to read.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="bytes">
+  The bytes that were read, empty at the end of the file.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the file was not opened for reading" />
+  <LibThrow when="the file is closed" />
+</LibThrows>
+
+#### read_text
+
+<LibSignature>
+```python
+async def read_text() -> str
+```
+</LibSignature>
+
+Reads from the current position to the end of the file and decodes it as UTF-8.
+
+<LibReturns type="str">
+  The decoded contents.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the contents are not valid UTF-8" />
+  <LibThrow when="the file was not opened for reading" />
+  <LibThrow when="the file is closed" />
+</LibThrows>
+
+#### write
+
+<LibSignature>
+```python
+async def write(data: bytes, /) -> None
+```
+</LibSignature>
+
+Writes all of `data` at the current position.
+
+<LibParams>
+  <LibParam name="data" type="bytes" required>
+    The bytes to write.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="None">
+  Nothing.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the file was not opened for writing" />
+  <LibThrow when="the file is closed" />
+</LibThrows>
+
+#### seek
+
+<LibSignature>
+```python
+async def seek(offset: int, whence: int = 0, /) -> int
+```
+</LibSignature>
+
+Moves the current position and returns where it landed. `whence` accepts `os.SEEK_SET`,
+`os.SEEK_CUR`, and `os.SEEK_END`.
+
+<LibParams>
+  <LibParam name="offset" type="int" required>
+    The offset to move by, relative to `whence`.
+  </LibParam>
+  <LibParam name="whence" type="int">
+    The position the offset is relative to.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="int">
+  The new position.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="`whence` is not one of the three seek constants, raised as `ValueError`" />
+  <LibThrow when="the offset is negative and `whence` is `os.SEEK_SET`, raised as `ValueError`" />
+  <LibThrow when="the position would land before the start of the file" />
+  <LibThrow when="the file is closed" />
+</LibThrows>
+
+#### tell
+
+<LibSignature>
+```python
+async def tell() -> int
+```
+</LibSignature>
+
+Returns the current position.
+
+<LibReturns type="int">
+  The current position.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the file is closed" />
+</LibThrows>
+
+#### truncate
+
+<LibSignature>
+```python
+async def truncate(size: int, /) -> None
+```
+</LibSignature>
+
+Resizes the file. The size is required, and the current position does not move.
+
+<LibParams>
+  <LibParam name="size" type="int" required>
+    The size to resize to.
+  </LibParam>
+</LibParams>
+
+<LibReturns type="None">
+  Nothing.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the file was not opened for writing" />
+  <LibThrow when="the file is closed" />
+</LibThrows>
+
+#### flush
+
+<LibSignature>
+```python
+async def flush() -> None
+```
+</LibSignature>
+
+Flushes buffered writes.
+
+<LibReturns type="None">
+  Nothing.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the file is closed" />
+</LibThrows>
+
+#### fsync
+
+<LibSignature>
+```python
+async def fsync() -> None
+```
+</LibSignature>
+
+Flushes file data and metadata.
+
+<LibReturns type="None">
+  Nothing.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the backend does not support it" />
+  <LibThrow when="the file is closed" />
+</LibThrows>
+
+#### fdatasync
+
+<LibSignature>
+```python
+async def fdatasync() -> None
+```
+</LibSignature>
+
+Flushes file data.
+
+<LibReturns type="None">
+  Nothing.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the backend does not support it" />
+  <LibThrow when="the file is closed" />
+</LibThrows>
+
+#### close
+
+<LibSignature>
+```python
+async def close() -> None
+```
+</LibSignature>
+
+Flushes and closes the file. The file is closed even when the flush fails, and closing an already
+closed file does nothing.
+
+<LibReturns type="None">
+  Nothing.
+</LibReturns>
+
+<LibThrows>
+  <LibThrow when="the flush before closing fails" />
+</LibThrows>
+
+### Entry
+
+<LibTags>
+  <LibTag name="not constructible" />
+  <LibTag name="read-only" />
+</LibTags>
+
+One entry, returned by `scandir`, `walk`, and `entry`. Every property describes the entry itself
+and does not follow a symbolic link.
+
+<LibProperties>
+  <LibProperty name="name" type="str" readonly>
+    The name of the entry within its directory.
+  </LibProperty>
+  <LibProperty name="path" type="str" readonly>
+    The path of the entry.
+  </LibProperty>
+  <LibProperty name="type" type="EntryType" readonly>
+    The kind of entry.
+  </LibProperty>
+  <LibProperty name="is_file" type="bool" readonly>
+    Whether the entry is a regular file.
+  </LibProperty>
+  <LibProperty name="is_dir" type="bool" readonly>
+    Whether the entry is a directory.
+  </LibProperty>
+  <LibProperty name="is_symlink" type="bool" readonly>
+    Whether the entry is a symbolic link.
+  </LibProperty>
+  <LibProperty name="stat" type="Stat | None" readonly>
+    The entry's metadata, or `None` when the listing did not carry it.
+  </LibProperty>
+</LibProperties>
+
+### Stat
+
+<LibTags>
+  <LibTag name="not constructible" />
+  <LibTag name="read-only" />
+</LibTags>
+
+Metadata about a path, returned by `Directory.stat` and carried by `Entry.stat`. The names are
+`os.stat_result` fields without the `st_` prefix, and `mode` holds the permission bits only.
+Timestamps are timezone-aware UTC `datetime` values, and are `None` when the backend does not keep
+them.
+
+<LibProperties>
+  <LibProperty name="type" type="EntryType" readonly />
+  <LibProperty name="is_file" type="bool" readonly />
+  <LibProperty name="is_dir" type="bool" readonly />
+  <LibProperty name="is_symlink" type="bool" readonly />
+  <LibProperty name="size" type="int" readonly />
+  <LibProperty name="mode" type="int" readonly />
+  <LibProperty name="is_readonly" type="bool" readonly />
+  <LibProperty name="accessed" type="datetime | None" readonly />
+  <LibProperty name="modified" type="datetime | None" readonly />
+  <LibProperty name="created" type="datetime | None" readonly />
+  <LibProperty name="changed" type="datetime | None" readonly />
+  <LibProperty name="dev" type="int" readonly />
+  <LibProperty name="ino" type="int" readonly />
+  <LibProperty name="nlink" type="int" readonly />
+  <LibProperty name="uid" type="int" readonly />
+  <LibProperty name="gid" type="int" readonly />
+  <LibProperty name="rdev" type="int" readonly />
+  <LibProperty name="blksize" type="int" readonly />
+  <LibProperty name="blocks" type="int" readonly />
+</LibProperties>
+
+## Types
+
+### StrPath
+
+<LibSignature>
+```python
+type StrPath = str | os.PathLike[str]
+```
+</LibSignature>
+
+What every path argument accepts. Paths are always returned as `str`.
+
+### EntryType
+
+<LibSignature>
+```python
+type EntryType = Literal[
+    "file",
+    "directory",
+    "symlink",
+    "fifo",
+    "socket",
+    "block_device",
+    "character_device",
+    "other",
+]
+```
+</LibSignature>
+
+The kind of a filesystem entry.
+
+## Error classes
+
+### FilesystemError
+
+<LibSignature>
+```python
+class FilesystemError(Exception): ...
+```
+</LibSignature>
+
+The base class for every filesystem failure.
+
+<LibProperties>
+  <LibProperty name="message" type="str" readonly>
+    The description of the failure.
+  </LibProperty>
+</LibProperties>
+
+### NotFoundError
+
+<LibSignature>
+```python
+class NotFoundError(FilesystemError): ...
+```
+</LibSignature>
+
+A path that must exist does not.
+
+<LibProperties>
+  <LibProperty name="path" type="str" readonly>
+    The path that was not found.
+  </LibProperty>
+</LibProperties>
+
+### AlreadyExistsError
+
+<LibSignature>
+```python
+class AlreadyExistsError(FilesystemError): ...
+```
+</LibSignature>
+
+A path that must not exist does.
+
+<LibProperties>
+  <LibProperty name="path" type="str" readonly>
+    The path that already exists.
+  </LibProperty>
+</LibProperties>
+
+### NotDirectoryError
+
+<LibSignature>
+```python
+class NotDirectoryError(FilesystemError): ...
+```
+</LibSignature>
+
+A path that must be a directory is another kind of entry.
+
+<LibProperties>
+  <LibProperty name="path" type="str" readonly>
+    The path that is not a directory.
+  </LibProperty>
+</LibProperties>
+
+### IsDirectoryError
+
+<LibSignature>
+```python
+class IsDirectoryError(FilesystemError): ...
+```
+</LibSignature>
+
+An operation on a file was given a directory.
+
+<LibProperties>
+  <LibProperty name="path" type="str" readonly>
+    The path that is a directory.
+  </LibProperty>
+</LibProperties>
+
+### PermissionDeniedError
+
+<LibSignature>
+```python
+class PermissionDeniedError(FilesystemError): ...
+```
+</LibSignature>
+
+The mode bits, or a read-only mount, refused the operation.
+
+<LibProperties>
+  <LibProperty name="path" type="str" readonly>
+    The path the operation was refused on.
+  </LibProperty>
+</LibProperties>
+
+### PathEscapesAuthorityError
+
+<LibSignature>
+```python
+class PathEscapesAuthorityError(FilesystemError): ...
+```
+</LibSignature>
+
+A path resolves outside the authority the mount grants.
+
+<LibProperties>
+  <LibProperty name="path" type="str" readonly>
+    The path that escapes the authority.
+  </LibProperty>
+</LibProperties>
+
+### CrossBackendRenameError
+
+<LibSignature>
+```python
+class CrossBackendRenameError(FilesystemError): ...
+```
+</LibSignature>
+
+A rename would move a path from one backend to another.
+
+<LibProperties>
+  <LibProperty name="source" type="str" readonly>
+    The path that was to be moved.
+  </LibProperty>
+  <LibProperty name="destination" type="str" readonly>
+    The path it was to be moved to.
+  </LibProperty>
+</LibProperties>
+
+### InvalidPathError
+
+<LibSignature>
+```python
+class InvalidPathError(FilesystemError): ...
+```
+</LibSignature>
+
+A path, or a seek position, is invalid.
+
+### UnsupportedError
+
+<LibSignature>
+```python
+class UnsupportedError(FilesystemError): ...
+```
+</LibSignature>
+
+The backend does not implement the operation, or the file is closed.
+
+### UnexpectedError
+
+<LibSignature>
+```python
+class UnexpectedError(FilesystemError): ...
+```
+</LibSignature>
+
+The operation failed for a reason no other class describes.
+
+See [fs](/reference/runtime/fs) for the path, mount, and error semantics shared by every language,
+and [filesystem](/reference/manifest/filesystem) for how the mounts are declared.

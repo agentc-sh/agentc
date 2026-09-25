@@ -4,6 +4,7 @@
 
 pub mod config;
 pub mod extractors;
+mod instrument;
 pub mod runtime;
 pub mod state;
 

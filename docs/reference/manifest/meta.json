@@ -5,6 +5,8 @@
     "build",
     "locals",
     "runtime",
+    "filesystem",
+    "network",
     "providers",
     "agent",
     "graph",

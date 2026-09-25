@@ -5,6 +5,7 @@
 #![allow(deprecated)]
 
 use futures::future::join_all;
+use serde::Serialize;
 use serde_json::Value;
 use std::{
     sync::{Arc, LazyLock},
@@ -51,6 +52,11 @@ pub enum DispatchOutcome<U> {
     Error { call_id: String, error: String },
 }
 
+#[derive(Serialize)]
+struct ToolResultAttribute<'a> {
+    value: &'a Value,
+}
+
 /// A struct responsible for dispatching tool calls to the appropriate tool implementations.
 pub struct ToolDispatcher {
     registry: ToolRegistry,
@@ -92,7 +98,7 @@ impl ToolDispatcher {
         let start = Instant::now();
         let attributes = vec![
             KeyValue::new(attribute::GEN_AI_TOOL_NAME, call.name.clone()),
-            KeyValue::new(attribute::GEN_AI_TOOL_TYPE, "function"),
+            KeyValue::new(attribute::GEN_AI_TOOL_TYPE, "extension"),
         ];
 
         if let Some(tool) = self.registry.get(&call.name) {
@@ -103,9 +109,15 @@ impl ToolDispatcher {
                 gen_ai.operation.name = "execute_tool",
                 gen_ai.tool.name = %call.name,
                 gen_ai.tool.call.id = %call.id,
-                gen_ai.tool.type = "function",
+                gen_ai.tool.type = "extension",
+                gen_ai.tool.call.arguments = field::Empty,
+                gen_ai.tool.call.result = field::Empty,
                 error.type = field::Empty,
             );
+
+            if let Ok(arguments) = serde_json::to_string(&call.arguments) {
+                span.record(attribute::GEN_AI_TOOL_CALL_ARGUMENTS, arguments.as_str());
+            }
 
             match tool
                 .execute(
@@ -117,6 +129,12 @@ impl ToolDispatcher {
                 .await
             {
                 ToolResponse::Success { content, state_update } => {
+                    if let Ok(value) =
+                        serde_json::to_string(&ToolResultAttribute { value: &content })
+                    {
+                        span.record(attribute::GEN_AI_TOOL_CALL_RESULT, value.as_str());
+                    }
+
                     EXECUTE_TOOL_DURATION.record(start.elapsed().as_secs_f64(), &attributes);
 
                     return DispatchOutcome::Success {
@@ -179,5 +197,35 @@ pub trait ToolRegistryExt {
 impl ToolRegistryExt for ToolRegistry {
     fn dispatcher(&self) -> ToolDispatcher {
         ToolDispatcher::new(self.clone())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use serde_json::{from_str, json};
+
+    #[test]
+    fn tool_result_attribute_preserves_every_json_shape() {
+        for result in [
+            json!({"value": 42}),
+            json!(["one", "two"]),
+            json!("text"),
+            json!(42),
+            json!(true),
+            Value::Null,
+        ] {
+            assert_eq!(
+                from_str::<Value>(
+                    &serde_json::to_string(&ToolResultAttribute { value: &result },)
+                        .expect("tool result should serialize"),
+                )
+                .expect("tool result JSON should parse"),
+                json!({
+                    "value": result
+                }),
+            );
+        }
     }
 }

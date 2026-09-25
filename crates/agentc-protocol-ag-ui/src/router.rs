@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 use async_stream::stream;
+use async_trait::async_trait;
 use axum::{
     extract::State,
     response::{
@@ -12,13 +13,14 @@ use axum::{
 };
 use futures::{StreamExt, stream::BoxStream};
 use jobq::{
-    AnyExecutable, Error as JobQueueError, FifoQueue, JobQueue, JobStreamOptions, StreamTask,
+    AnyExecutable, BatchPolicy, FifoQueue, Independent, IndependentBatchStreamTask, JobQueue,
+    JobStreamOptions, StreamBatcher,
 };
 use std::{convert::Infallible, sync::Arc, time::Duration};
 use tokio_util::sync::CancellationToken;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use agentc_http::{
+use agentc_http::server::{
     dto::errors::ErrorResponseDTO,
     errors::ApiError,
     extractors::{Json, TenantIdHeader},
@@ -33,27 +35,23 @@ use crate::{
 
 #[derive(Clone)]
 struct AgUiRouterState {
-    service: Arc<dyn AgUiService>,
     default_tenant_id: DefaultTenantId,
-    task_queue: Arc<JobQueue<FifoQueue<AnyExecutable>>>,
+    stream_task_queue: StreamBatcher<AgUiStreamTask, FifoQueue<AnyExecutable>, Independent>,
 }
 
-struct AgUiStreamTask {
-    service: Arc<dyn AgUiService>,
+struct AgUiStreamTaskInput {
     input: RunAgentInput,
     tenant_id: String,
     disconnect: CancellationToken,
 }
 
-impl AgUiStreamTask {
+impl AgUiStreamTaskInput {
     fn new(
-        service: Arc<dyn AgUiService>,
         input: RunAgentInput,
         tenant_id: impl Into<String>,
         disconnect: CancellationToken,
     ) -> Self {
         Self {
-            service,
             input,
             tenant_id: tenant_id.into(),
             disconnect,
@@ -61,14 +59,35 @@ impl AgUiStreamTask {
     }
 }
 
-impl StreamTask for AgUiStreamTask {
+struct AgUiStreamTask {
+    service: Arc<dyn AgUiService>,
+}
+
+impl AgUiStreamTask {
+    fn new(service: Arc<dyn AgUiService>) -> Self {
+        Self { service }
+    }
+}
+
+#[async_trait]
+impl IndependentBatchStreamTask for AgUiStreamTask {
+    type Input = AgUiStreamTaskInput;
+    type Shared = ();
     type Item = AgUiEvent;
     type Error = ApiError;
 
-    fn execute(&self) -> BoxStream<'_, Result<Self::Item, Self::Error>> {
+    async fn prepare(&self, _inputs: &[Self::Input]) -> Result<Self::Shared, Self::Error> {
+        Ok(())
+    }
+
+    fn stream<'a>(
+        &'a self,
+        _shared: &'a Self::Shared,
+        input: &'a Self::Input,
+    ) -> BoxStream<'a, Result<Self::Item, Self::Error>> {
         Box::pin(stream! {
             let mut stream = match self.service
-                .ag_ui_run(self.input.clone(), &self.tenant_id)
+                .ag_ui_run(input.input.clone(), &input.tenant_id)
                 .await
             {
                 Ok(stream) => stream,
@@ -80,7 +99,7 @@ impl StreamTask for AgUiStreamTask {
 
             loop {
                 match tokio::select! {
-                    _ = self.disconnect.cancelled() => match stream.cancel().await {
+                    _ = input.disconnect.cancelled() => match stream.cancel().await {
                         Ok(()) => Ok(None),
                         Err(err) => Err(err),
                     },
@@ -104,11 +123,97 @@ impl StreamTask for AgUiStreamTask {
     }
 }
 
+/// Builds the OpenAPI router for the AG-UI protocol.
+pub fn router(
+    service: Arc<dyn AgUiService>,
+    default_tenant_id: DefaultTenantId,
+    task_queue: JobQueue<FifoQueue<AnyExecutable>>,
+    batch_policy: BatchPolicy,
+) -> OpenApiRouter {
+    OpenApiRouter::new()
+        .routes(routes!(ag_ui_run_endpoint))
+        .with_state(AgUiRouterState {
+            default_tenant_id,
+            stream_task_queue: task_queue
+                .stream_batcher(AgUiStreamTask::new(service))
+                .mode(Independent)
+                .policy(batch_policy)
+                .build(),
+        })
+}
+
+/// AG-UI Run endpoint
+#[utoipa::path(
+    post,
+    path = "/run",
+    operation_id = "ag_ui_run",
+    tag = "ag_ui",
+    description = "Run an agent with the given input and receive a stream of events in response following the AG-UI protocol.",
+    params(
+        ("X-Tenant_id" = Option<TenantIdHeader>, Header, description = "The ID of the tenant"),
+    ),
+    request_body = RunAgentInput,
+    responses(
+        (status = 200, description = "A stream of events", content_type = "text/event-stream"),
+        (status = 400, description = "Bad request", body = ErrorResponseDTO),
+        (status = 500, description = "Internal server error", body = ErrorResponseDTO)
+    )
+)]
+async fn ag_ui_run_endpoint(
+    State(state): State<AgUiRouterState>,
+    tenant_id: Option<TenantIdHeader>,
+    Json(input): Json<RunAgentInput>,
+) -> Response {
+    let disconnect = CancellationToken::new();
+
+    match state
+        .stream_task_queue
+        .enqueue(JobStreamOptions::new(AgUiStreamTaskInput::new(
+            input,
+            tenant_id.map_or(state.default_tenant_id.into_inner(), TenantIdHeader::into_inner),
+            disconnect.clone(),
+        )))
+        .await
+    {
+        Ok(handle) => Sse::new(CancelOnDropStream::new(handle, disconnect).map(|result| {
+            match result {
+                Ok(event) => Ok::<_, Infallible>(
+                    Event::default()
+                        .event(event.event_type().as_str())
+                        .json_data(event)
+                        .expect("failed to serialize event data"),
+                ),
+                Err(err) => Ok(Event::default()
+                    .event("error")
+                    .json_data(ErrorResponseDTO::from(match err {
+                        jobq::Error::TaskExecution { source, .. } => {
+                            match source.downcast_ref::<ApiError>() {
+                                Some(err) => err.clone(),
+                                None => ApiError::unexpected_error(source.to_string()),
+                            }
+                        }
+                        err => ApiError::unexpected_error(err.to_string()),
+                    }))
+                    .expect("failed to serialize error response")),
+            }
+        }))
+        .keep_alive(
+            KeepAlive::new()
+                .interval(Duration::from_secs(15))
+                .text("keep-alive"),
+        )
+        .into_response(),
+        Err(err) => {
+            ErrorResponseDTO::from(ApiError::unexpected_error(err.to_string())).into_response()
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use async_trait::async_trait;
     use futures::{StreamExt, stream};
-    use jobq::BatchJobQueueSystemBuilder;
+    use jobq::JobQueueSystemBuilder;
     use serde_json::Value;
     use std::sync::{
         Arc,
@@ -195,8 +300,8 @@ mod tests {
     async fn ag_ui_stream_task_cancels_run_stream_on_disconnect() {
         let cancelled = Arc::new(AtomicBool::new(false));
         let disconnect = CancellationToken::new();
-        let task = AgUiStreamTask::new(
-            Arc::new(TestService { cancelled: cancelled.clone() }),
+        let task = AgUiStreamTask::new(Arc::new(TestService { cancelled: cancelled.clone() }));
+        let input = AgUiStreamTaskInput::new(
             RunAgentInput::new(
                 ThreadId::random(),
                 RunId::random(),
@@ -209,7 +314,7 @@ mod tests {
             "tenant",
             disconnect.clone(),
         );
-        let mut stream = task.execute();
+        let mut stream = task.stream(&(), &input);
 
         disconnect.cancel();
 
@@ -218,79 +323,27 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn ag_ui_run_endpoint_cancels_stream_task_when_response_is_dropped() {
-        let cancelled = Arc::new(AtomicBool::new(false));
-        let (task_queue, worker_pool) =
-            BatchJobQueueSystemBuilder::<FifoQueue<AnyExecutable>>::fifo(16)
-                .with_num_workers(1)
-                .build();
-        let worker_pool_handle = {
-            let worker_pool = worker_pool.clone();
-
-            tokio::spawn(async move {
-                worker_pool.run().await;
-            })
-        };
-
-        drop(
-            ag_ui_run_endpoint(
-                State(AgUiRouterState {
-                    service: Arc::new(TestService { cancelled: cancelled.clone() }),
-                    default_tenant_id: DefaultTenantId::new("tenant"),
-                    task_queue,
-                }),
-                None,
-                Json(RunAgentInput::new(
-                    ThreadId::random(),
-                    RunId::random(),
-                    Value::Null,
-                    vec![],
-                    vec![],
-                    vec![],
-                    Value::Null,
-                )),
-            )
-            .await,
-        );
-
-        tokio::time::timeout(Duration::from_secs(1), async {
-            while !cancelled.load(Ordering::SeqCst) {
-                tokio::time::sleep(Duration::from_millis(10)).await;
-            }
-        })
-        .await
-        .unwrap();
-
-        worker_pool.shutdown().await;
-        worker_pool_handle.await.unwrap();
-    }
-
-    #[tokio::test]
     async fn ag_ui_run_endpoint_stops_streaming_after_response_body_is_dropped() {
         const TOTAL_EVENTS: usize = 32;
 
         let cancelled = Arc::new(AtomicBool::new(false));
         let emitted = Arc::new(AtomicUsize::new(0));
-        let (task_queue, worker_pool) =
-            BatchJobQueueSystemBuilder::<FifoQueue<AnyExecutable>>::fifo(16)
-                .with_num_workers(1)
-                .build();
-        let worker_pool_handle = {
-            let worker_pool = worker_pool.clone();
+        let (task_queue, worker_pool) = JobQueueSystemBuilder::<FifoQueue<AnyExecutable>>::fifo(16)
+            .with_num_workers(1)
+            .build();
+        let worker_pool_handle = worker_pool.spawn(tokio::spawn);
 
-            tokio::spawn(async move {
-                worker_pool.run().await;
-            })
-        };
         let mut body = ag_ui_run_endpoint(
             State(AgUiRouterState {
-                service: Arc::new(StreamingTestService {
-                    cancelled: cancelled.clone(),
-                    emitted: emitted.clone(),
-                    total_events: TOTAL_EVENTS,
-                }),
                 default_tenant_id: DefaultTenantId::new("tenant"),
-                task_queue,
+                stream_task_queue: task_queue
+                    .stream_batcher(AgUiStreamTask::new(Arc::new(StreamingTestService {
+                        cancelled: cancelled.clone(),
+                        emitted: emitted.clone(),
+                        total_events: TOTAL_EVENTS,
+                    })))
+                    .mode(Independent)
+                    .build(),
             }),
             None,
             Json(RunAgentInput::new(
@@ -329,86 +382,5 @@ mod tests {
         assert!(cancelled.load(Ordering::SeqCst));
         assert!(emitted.load(Ordering::SeqCst) > 0);
         assert!(emitted.load(Ordering::SeqCst) < TOTAL_EVENTS);
-    }
-}
-
-/// Builds the OpenAPI router for the AG-UI protocol.
-pub fn router(
-    service: Arc<dyn AgUiService>,
-    default_tenant_id: DefaultTenantId,
-    task_queue: Arc<JobQueue<FifoQueue<AnyExecutable>>>,
-) -> OpenApiRouter {
-    OpenApiRouter::new()
-        .routes(routes!(ag_ui_run_endpoint))
-        .with_state(AgUiRouterState { service, default_tenant_id, task_queue })
-}
-
-/// AG-UI Run endpoint
-#[utoipa::path(
-    post,
-    path = "/run",
-    operation_id = "ag_ui_run",
-    tag = "ag_ui",
-    description = "Run an agent with the given input and receive a stream of events in response following the AG-UI protocol.",
-    params(
-        ("X-Tenant_id" = Option<TenantIdHeader>, Header, description = "The ID of the tenant"),
-    ),
-    request_body = RunAgentInput,
-    responses(
-        (status = 200, description = "A stream of events", content_type = "text/event-stream"),
-        (status = 400, description = "Bad request", body = ErrorResponseDTO),
-        (status = 500, description = "Internal server error", body = ErrorResponseDTO)
-    )
-)]
-async fn ag_ui_run_endpoint(
-    State(state): State<AgUiRouterState>,
-    tenant_id: Option<TenantIdHeader>,
-    Json(input): Json<RunAgentInput>,
-) -> Response {
-    let tenant_id =
-        tenant_id.map_or(state.default_tenant_id.into_inner(), TenantIdHeader::into_inner);
-    let disconnect = CancellationToken::new();
-
-    match state
-        .task_queue
-        .enqueue_stream(JobStreamOptions::new(AgUiStreamTask::new(
-            state.service.clone(),
-            input,
-            tenant_id,
-            disconnect.clone(),
-        )))
-        .await
-    {
-        Ok(handle) => Sse::new(CancelOnDropStream::new(handle, disconnect).map(|result| {
-            match result {
-                Ok(event) => Ok::<_, Infallible>(
-                    Event::default()
-                        .event(event.event_type().as_str())
-                        .json_data(event)
-                        .expect("failed to serialize event data"),
-                ),
-                Err(err) => Ok(Event::default()
-                    .event("error")
-                    .json_data(ErrorResponseDTO::from(match err {
-                        JobQueueError::TaskExecution { source, .. } => {
-                            match source.downcast::<ApiError>() {
-                                Ok(err) => *err,
-                                Err(source) => ApiError::unexpected_error(source.to_string()),
-                            }
-                        }
-                        err => ApiError::unexpected_error(err.to_string()),
-                    }))
-                    .expect("failed to serialize error response")),
-            }
-        }))
-        .keep_alive(
-            KeepAlive::new()
-                .interval(Duration::from_secs(15))
-                .text("keep-alive"),
-        )
-        .into_response(),
-        Err(err) => {
-            ErrorResponseDTO::from(ApiError::unexpected_error(err.to_string())).into_response()
-        }
     }
 }

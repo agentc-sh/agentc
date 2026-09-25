@@ -4,8 +4,9 @@
 
 pub mod agent;
 pub mod block;
+pub mod filesystem;
 pub mod http_server;
-pub mod observability;
+pub mod network;
 pub mod provider;
 pub mod runtime;
 pub mod skill;
@@ -13,7 +14,9 @@ pub mod tool;
 
 pub use agent::*;
 pub use block::*;
+pub use filesystem::*;
 pub use http_server::*;
+pub use network::*;
 pub use provider::*;
 pub use runtime::*;
 pub use skill::*;
@@ -42,4 +45,110 @@ pub struct ResolvedContext {
     pub skills: HashMap<String, ResolvedContextSkill>,
     /// Optional HTTP server configuration.
     pub http_server: Option<ResolvedContextHttpServer>,
+    /// The resolved outbound network configuration.
+    #[serde(default)]
+    pub network: ResolvedContextNetwork,
+    /// The resolved virtual filesystem topology.
+    #[serde(default)]
+    pub filesystem: ResolvedContextFilesystem,
+}
+
+impl ResolvedContext {
+    /// Whether any component in this context is implemented in TypeScript.
+    pub fn has_typescript_components(&self) -> bool {
+        self.tools
+            .values()
+            .any(|tool| tool.kind.is_javascript())
+    }
+
+    /// Whether any component in this context is implemented in Python.
+    pub fn has_python_components(&self) -> bool {
+        self.tools
+            .values()
+            .any(|tool| tool.kind.is_python())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+
+    fn context(tools: serde_json::Value) -> ResolvedContext {
+        serde_json::from_value(json!({
+            "slug": "assistant",
+            "agent_name": "assistant",
+            "runtime": { "default_tenant_id": "default" },
+            "providers": [],
+            "agent": {
+                "version": "0.1.0",
+                "description": null,
+                "prompt": null,
+                "capabilities": null,
+                "capability_policy": null,
+                "model": { "provider": "anthropic", "name": "claude" }
+            },
+            "blocks": {},
+            "tools": tools,
+            "skills": {},
+            "http_server": null
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn typescript_components_are_detected_from_javascript_tools() {
+        assert!(
+            context(json!({
+                "search": {
+                    "name": "search",
+                    "description": null,
+                    "enabled": true,
+                    "capabilities": [],
+                    "config": {},
+                    "kind": {
+                        "kind": "javascript",
+                        "bundle_path": "/artifacts/search/dist/index.js",
+                        "export_name": "search"
+                    }
+                }
+            }))
+            .has_typescript_components()
+        );
+    }
+
+    #[test]
+    fn no_typescript_components_without_a_javascript_tool() {
+        assert!(!context(json!({})).has_typescript_components());
+    }
+
+    #[test]
+    fn python_components_are_detected_from_python_tools() {
+        assert!(
+            context(json!({
+                "adder": {
+                    "name": "adder",
+                    "description": null,
+                    "enabled": true,
+                    "capabilities": [],
+                    "config": {},
+                    "kind": {
+                        "kind": "python",
+                        "project_path": "/artifacts/adder",
+                        "site_packages_path": "/artifacts/adder/.venv/site-packages",
+                        "module_name": "adder",
+                        "export_name": "Adder",
+                        "interpreter": "embedded"
+                    }
+                }
+            }))
+            .has_python_components()
+        );
+    }
+
+    #[test]
+    fn no_python_components_without_a_python_tool() {
+        assert!(!context(json!({})).has_python_components());
+    }
 }
