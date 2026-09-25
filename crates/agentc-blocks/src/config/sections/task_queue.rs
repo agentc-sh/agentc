@@ -47,13 +47,22 @@ impl TaskQueueSection {
                     pub batch_timeout_ms: usize,
                 }
 
+                impl ConfigTaskQueue {
+                    pub fn batch_policy(&self) -> jobq::BatchPolicy {
+                        jobq::BatchPolicy {
+                            max_size: self.batch_size,
+                            max_wait: std::time::Duration::from_millis(self.batch_timeout_ms as u64),
+                        }
+                    }
+                }
+
                 impl Default for ConfigTaskQueue {
                     fn default() -> Self {
                         ConfigTaskQueue {
-                            worker_count: 4,
+                            worker_count: 64,
                             max_queue_capacity: 256,
                             batch_size: 16,
-                            batch_timeout_ms: 10,
+                            batch_timeout_ms: 25,
                         }
                     }
                 }
@@ -81,7 +90,7 @@ impl Fragment<ResolvedContext> for TaskQueueSection {
                 CargoDependencies::from_entries([CargoDependencyContribution::external(
                     ExternalDependencyContribution::new("jobq")
                         .git("https://github.com/wizrds/jobq-rs.git")
-                        .version("0.3.1"),
+                        .version("0.5.2"),
                 )])
                 .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
             )),

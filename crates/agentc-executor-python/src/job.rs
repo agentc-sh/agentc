@@ -56,11 +56,20 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::rc::Rc;
+    use std::{panic::resume_unwind, rc::Rc};
 
     use guestpy::{bundle::Bundle, runtime::Runtime, rustpython::RustPython};
+    use tokio::{
+        runtime::Builder,
+        task::{LocalSet, yield_now},
+    };
 
-    use crate::{context::Context, errors::Error, job::TypedJob};
+    use crate::{
+        context::Context,
+        errors::Error,
+        job::TypedJob,
+        worker::{ExecutorId, WorkerId, WorkerThread},
+    };
 
     struct TestContext;
 
@@ -77,47 +86,74 @@ mod tests {
         }
     }
 
-    #[tokio::test(flavor = "current_thread")]
-    async fn executes_local_future_with_typed_result() {
-        let (job, response) = TypedJob::prepare(|_context| {
-            Box::pin(async move {
-                let value = Rc::new(42);
+    struct TestWorker;
 
-                tokio::task::yield_now().await;
-
-                Ok(*value)
-            })
-        });
-
-        let context = TestContext::build();
-
-        job.execute(context.clone()).await;
-
-        assert_eq!(response.await.unwrap().unwrap(), 42);
-
-        let Ok(context) = Rc::try_unwrap(context) else {
-            panic!("test retained the worker context");
-        };
-
-        context.shutdown().await.unwrap();
+    impl TestWorker {
+        fn run<F, Fut>(operation: F)
+        where
+            F: FnOnce() -> Fut + Send + 'static,
+            Fut: Future<Output = ()> + 'static,
+        {
+            // Re-raising on the test thread fails the test with the worker's original panic.
+            if let Err(panic) = WorkerThread::new(ExecutorId::next(), WorkerId::new(0))
+                .spawn(|| {
+                    Builder::new_current_thread()
+                        .enable_all()
+                        .build()
+                        .unwrap()
+                        .block_on(LocalSet::new().run_until(operation()))
+                })
+                .unwrap()
+                .join()
+            {
+                resume_unwind(panic);
+            }
+        }
     }
 
-    #[tokio::test(flavor = "current_thread")]
-    async fn converts_guest_error() {
-        let (job, response) = TypedJob::<_, ()>::prepare(|_context| {
-            Box::pin(async move { Err(guestpy::errors::Error::unexpected("failed")) })
+    #[test]
+    fn executes_local_future_with_typed_result() {
+        TestWorker::run(|| async {
+            let (job, response) = TypedJob::prepare(|_context| {
+                Box::pin(async move {
+                    let value = Rc::new(42);
+
+                    yield_now().await;
+
+                    Ok(*value)
+                })
+            });
+            let context = TestContext::build();
+
+            job.execute(context.clone()).await;
+
+            assert_eq!(response.await.unwrap().unwrap(), 42);
+
+            let Ok(context) = Rc::try_unwrap(context) else {
+                panic!("test retained the worker context");
+            };
+
+            context.shutdown().await.unwrap();
         });
+    }
 
-        let context = TestContext::build();
+    #[test]
+    fn converts_guest_error() {
+        TestWorker::run(|| async {
+            let (job, response) = TypedJob::<_, ()>::prepare(|_context| {
+                Box::pin(async move { Err(guestpy::errors::Error::unexpected("failed")) })
+            });
+            let context = TestContext::build();
 
-        job.execute(context.clone()).await;
+            job.execute(context.clone()).await;
 
-        assert!(matches!(response.await.unwrap(), Err(Error::Guest(_))));
+            assert!(matches!(response.await.unwrap(), Err(Error::Guest(_))));
 
-        let Ok(context) = Rc::try_unwrap(context) else {
-            panic!("test retained the worker context");
-        };
+            let Ok(context) = Rc::try_unwrap(context) else {
+                panic!("test retained the worker context");
+            };
 
-        context.shutdown().await.unwrap();
+            context.shutdown().await.unwrap();
+        });
     }
 }

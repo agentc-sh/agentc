@@ -59,6 +59,7 @@ impl CodeGen<ResolvedContext> for A2aCodeGen {
                                     ),
                                     default_tenant_id.clone(),
                                     task_queue.clone(),
+                                    config.task_queue.batch_policy(),
                                 ),
                             )
                     );
@@ -237,6 +238,7 @@ mod tests {
         assert!(rendered.contains("service . clone"));
         assert!(rendered.contains("default_tenant_id . clone"));
         assert!(rendered.contains("task_queue . clone"));
+        assert!(rendered.contains("config . task_queue . batch_policy ()"));
     }
 
     #[test]

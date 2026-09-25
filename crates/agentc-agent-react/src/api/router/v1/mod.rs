@@ -7,7 +7,7 @@ pub mod messages;
 pub mod runs;
 pub mod sessions;
 
-use jobq::{AnyExecutable, FifoQueue, JobQueue};
+use jobq::{AnyExecutable, BatchPolicy, FifoQueue, JobQueue};
 use std::sync::Arc;
 use subway::Bus;
 use utoipa_axum::router::OpenApiRouter;
@@ -19,15 +19,17 @@ use crate::{api::state::ReActApiState, service::ApplicationService};
 pub fn router(
     service: Arc<ApplicationService>,
     default_tenant_id: DefaultTenantId,
-    task_queue: Arc<JobQueue<FifoQueue<AnyExecutable>>>,
+    task_queue: JobQueue<FifoQueue<AnyExecutable>>,
+    batch_policy: BatchPolicy,
     bus: Bus,
 ) -> OpenApiRouter {
+    let state = ReActApiState::new(service, default_tenant_id, task_queue, batch_policy, bus);
     OpenApiRouter::new().nest("/v1", {
         OpenApiRouter::new()
             .merge(sessions::router())
             .merge(messages::router())
-            .merge(runs::router())
+            .merge(runs::router(&state))
             .merge(checkpoints::router())
-            .with_state(ReActApiState::new(service, default_tenant_id, task_queue, bus))
+            .with_state(state)
     })
 }

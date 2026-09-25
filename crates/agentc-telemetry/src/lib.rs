@@ -378,14 +378,14 @@ where
     let _sentry_guard = std::env::var("SENTRY_DSN")
         .ok()
         .and_then(|dsn| {
-            Some(sentry::init(sentry::ClientOptions {
-                dsn: Some(dsn.parse().ok()?),
-                release: Some(env!("CARGO_PKG_VERSION").into()),
-                environment: std::env::var("APP_ENV")
-                    .ok()
-                    .map(Into::into),
-                ..Default::default()
-            }))
+            Some(sentry::init(
+                sentry::ClientOptions::new()
+                    .dsn(&dsn)
+                    .release(env!("CARGO_PKG_VERSION"))
+                    .environment(
+                        std::env::var("APP_ENV").unwrap_or_else(|_| "production".to_string()),
+                    ),
+            ))
         });
 
     let telemetry = Telemetry::builder()

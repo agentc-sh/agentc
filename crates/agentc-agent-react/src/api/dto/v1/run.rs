@@ -470,103 +470,6 @@ impl FindRunEndpointParams {
     }
 }
 
-// #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-// pub struct StateResponseDTO {
-//     pub run_id: Uuid,
-//     pub session_id: Uuid,
-//     pub model: Option<ModelConfigDTO>,
-//     pub capability_override: Option<CapabilityOverrideDTO>,
-//     pub messages: Vec<MessageResponseDTO>,
-//     pub context_vars: Vec<ContextVarDTO>,
-//     pub context: Value,
-//     pub tools: Vec<ToolDefinitionDTO>,
-// }
-
-// impl StateResponseDTO {
-//     pub fn from_response(response: StateResponse) -> Self {
-//         Self {
-//             run_id: response.run_id,
-//             session_id: response.session_id,
-//             model: response.model.map(ModelConfigDTO::from_response),
-//             capability_override: response.capability_override.map(CapabilityOverrideDTO::from_response),
-//             messages: response.messages
-//                 .into_iter()
-//                 .map(MessageResponseDTO::from_response)
-//                 .collect(),
-//             context_vars: response.context_vars
-//                 .into_iter()
-//                 .map(ContextVarDTO::from_response)
-//                 .collect(),
-//             context: response.context,
-//             tools: response.tools
-//                 .into_iter()
-//                 .map(ToolDefinitionDTO::from_response)
-//                 .collect(),
-//         }
-//     }
-// }
-
-// #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-// pub struct StateUpdateResponseDTO {
-//     pub messages: Vec<MessageResponseDTO>,
-//     pub context: Vec<PatchOperation>,
-// }
-
-// impl StateUpdateResponseDTO {
-//     pub fn from_response(response: StateUpdateResponse) -> Self {
-//         Self {
-//             messages: response.messages
-//                 .into_iter()
-//                 .map(MessageResponseDTO::from_response)
-//                 .collect(),
-//             context: response.context,
-//         }
-//     }
-
-//     pub fn into_patch(self) -> Patch {
-//         Patch(
-//             (!self.messages.is_empty())
-//                 .then(|| {
-//                     PatchOperation::Add(AddOperation {
-//                         path: "/messages".try_into().expect("invalid patch path"),
-//                         value: to_value(self.messages).expect("failed to serialize messages"),
-//                     })
-//                 })
-//                 .into_iter()
-//                 .chain(self.context.into_iter().filter_map(|patch_op| match patch_op {
-//                     PatchOperation::Add(mut add_op) => {
-//                         add_op.path = format!("/context{}", add_op.path).try_into().ok()?;
-//                         Some(PatchOperation::Add(add_op))
-//                     },
-//                     PatchOperation::Remove(mut remove_op) => {
-//                         remove_op.path = format!("/context{}", remove_op.path).try_into().ok()?;
-//                         Some(PatchOperation::Remove(remove_op))
-//                     },
-//                     PatchOperation::Replace(mut replace_op) => {
-//                         replace_op.path = format!("/context{}", replace_op.path).try_into().ok()?;
-//                         Some(PatchOperation::Replace(replace_op))
-//                     },
-//                     PatchOperation::Move(mut move_op) => {
-//                         move_op.from = format!("/context{}", move_op.from).try_into().ok()?;
-//                         move_op.path = format!("/context{}", move_op.path).try_into().ok()?;
-//                         Some(PatchOperation::Move(move_op))
-//                     },
-//                     PatchOperation::Copy(mut copy_op) => {
-//                         copy_op.from = format!("/context{}", copy_op.from).try_into().ok()?;
-//                         copy_op.path = format!("/context{}", copy_op.path).try_into().ok()?;
-//                         Some(PatchOperation::Copy(copy_op))
-//                     },
-//                     PatchOperation::Test(mut test_op) => {
-//                         test_op.path = format!("/context{}", test_op.path).try_into().ok()?;
-//                         Some(PatchOperation::Test(test_op))
-//                     }
-//                 }))
-//                 .collect()
-//         )
-//     }
-// }
-
-/// DTO for [`ReasoningSignatureSubtype`](crate::types::event::ReasoningSignatureSubtype).
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ReasoningSignatureSubtypeDTO {
@@ -597,7 +500,6 @@ pub enum RunEventDTO {
         run_id: Uuid,
         status: RunStatusDTO,
         interrupt_payload: Option<Value>,
-        // result: Option<StateResponseDTO>,
         result: Option<Value>,
     },
     RunError {
@@ -715,7 +617,6 @@ impl RunEventDTO {
                 run_id,
                 status: RunStatusDTO::from_status(status),
                 interrupt_payload,
-                // result: result.map(StateResponseDTO::from_response),
                 result: result.map(|r| r.context),
             },
             RunEvent::RunError {
@@ -812,17 +713,12 @@ impl RunEventDTO {
                 entity_id,
                 value,
             },
-            RunEvent::StateSnapshot { timestamp, state } => Self::StateSnapshot {
-                timestamp,
-                // state: StateResponseDTO::from_response(state),
-                state: state.context,
-            },
-            RunEvent::StateDelta { timestamp, delta } => Self::StateDelta {
-                timestamp,
-                // delta: StateUpdateResponseDTO::from_response(delta)
-                //     .into_patch(),
-                delta: delta.context,
-            },
+            RunEvent::StateSnapshot { timestamp, state } => {
+                Self::StateSnapshot { timestamp, state: state.context }
+            }
+            RunEvent::StateDelta { timestamp, delta } => {
+                Self::StateDelta { timestamp, delta: delta.context }
+            }
             RunEvent::MessagesSnapshot { timestamp, messages } => Self::MessagesSnapshot {
                 timestamp,
                 messages: messages

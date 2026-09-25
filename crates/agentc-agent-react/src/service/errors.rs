@@ -103,8 +103,8 @@ impl ServiceError {
 }
 
 #[cfg(feature = "api")]
-impl From<ServiceError> for ApiError {
-    fn from(err: ServiceError) -> Self {
+impl From<&ServiceError> for ApiError {
+    fn from(err: &ServiceError) -> Self {
         match err {
             ServiceError::SessionNotFound(_) => ApiError::new(404010, err.to_string()),
             ServiceError::SessionAlreadyExists(_) => ApiError::new(400010, err.to_string()),
@@ -114,5 +114,12 @@ impl From<ServiceError> for ApiError {
             ServiceError::MessageAlreadyExists(_) => ApiError::new(400012, err.to_string()),
             _ => ApiError::unexpected_error(err.to_string()),
         }
+    }
+}
+
+#[cfg(feature = "api")]
+impl From<ServiceError> for ApiError {
+    fn from(err: ServiceError) -> Self {
+        ApiError::from(&err)
     }
 }
