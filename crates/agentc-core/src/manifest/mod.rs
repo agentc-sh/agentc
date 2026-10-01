@@ -120,294 +120,369 @@ impl Manifest {
         Ok(agent_label)
     }
 
-    fn resolve_runtime(&self) -> ResolvedContextRuntime {
-        ResolvedContextRuntime {
-            default_tenant_id: self.runtime.default_tenant_id.clone(),
-        }
+    fn resolve_runtime(&self, locals: &Value) -> Result<ResolvedContextRuntime, ManifestError> {
+        Ok(ResolvedContextRuntime {
+            default_tenant_id: self
+                .runtime
+                .default_tenant_id
+                .clone()
+                .interpolate(locals)?,
+        })
     }
 
-    fn resolve_provider_params(p: ManifestProviderParams) -> ResolvedContextProviderParams {
-        ResolvedContextProviderParams {
-            max_tokens: p.max_tokens,
-            temperature: p.temperature,
-            top_p: p.top_p,
-            top_k: p.top_k,
-            stop_sequences: p.stop_sequences,
-            frequency_penalty: p.frequency_penalty,
-            presence_penalty: p.presence_penalty,
-            seed: p.seed,
-            provider_params: p.provider_params,
-        }
+    fn resolve_provider_params(
+        params: ManifestProviderParams,
+        locals: &Value,
+    ) -> Result<ResolvedContextProviderParams, ManifestError> {
+        Ok(ResolvedContextProviderParams {
+            max_tokens: params.max_tokens,
+            temperature: params.temperature,
+            top_p: params.top_p,
+            top_k: params.top_k,
+            stop_sequences: params.stop_sequences.interpolate(locals)?,
+            frequency_penalty: params.frequency_penalty,
+            presence_penalty: params.presence_penalty,
+            seed: params.seed,
+            provider_params: params.provider_params.interpolate(locals)?,
+        })
     }
 
-    fn resolve_providers(&self) -> Vec<ResolvedContextProvider> {
+    fn resolve_providers(
+        &self,
+        locals: &Value,
+    ) -> Result<Vec<ResolvedContextProvider>, ManifestError> {
         let mut providers = Vec::new();
 
         if let Some(anthropic) = &self.providers.anthropic {
             providers.push(ResolvedContextProvider::Anthropic(ResolvedContextProviderAnthropic {
-                models: anthropic.models.as_ref().map(|models| {
-                    models
-                        .iter()
-                        .map(|m| match m {
-                            ManifestProviderAnthropicModel::Name(name) => {
-                                ResolvedContextProviderAnthropicModel {
-                                    name: name.clone(),
-                                    params: None,
+                models: anthropic
+                    .models
+                    .as_ref()
+                    .map(|models| {
+                        models
+                            .iter()
+                            .map(|model| match model {
+                                ManifestProviderAnthropicModel::Name(name) => {
+                                    Ok(ResolvedContextProviderAnthropicModel {
+                                        name: name.clone().interpolate(locals)?,
+                                        params: None,
+                                    })
                                 }
-                            }
-                            ManifestProviderAnthropicModel::Config(c) => {
-                                ResolvedContextProviderAnthropicModel {
-                                    name: c.name.clone(),
-                                    params: c
-                                        .params
-                                        .clone()
-                                        .map(Self::resolve_provider_params),
+                                ManifestProviderAnthropicModel::Config(config) => {
+                                    Ok(ResolvedContextProviderAnthropicModel {
+                                        name: config.name.clone().interpolate(locals)?,
+                                        params: config
+                                            .params
+                                            .clone()
+                                            .map(|params| Self::resolve_provider_params(params, locals))
+                                            .transpose()?,
+                                    })
                                 }
-                            }
-                        })
-                        .collect()
-                }),
+                            })
+                            .collect::<Result<Vec<_>, ManifestError>>()
+                    })
+                    .transpose()?,
                 config: anthropic
                     .config
                     .as_ref()
-                    .map(|c| ResolvedContextProviderAnthropicConfig {
-                        api_key: c.api_key.clone(),
-                        base_url: c.base_url.clone(),
-                    }),
+                    .map(|config| {
+                        Ok::<_, ManifestError>(ResolvedContextProviderAnthropicConfig {
+                            api_key: config.api_key.clone().interpolate(locals)?,
+                            base_url: config.base_url.clone().interpolate(locals)?,
+                        })
+                    })
+                    .transpose()?,
                 params: anthropic
                     .params
                     .clone()
-                    .map(Self::resolve_provider_params),
+                    .map(|params| Self::resolve_provider_params(params, locals))
+                    .transpose()?,
             }));
         }
 
         if let Some(openai) = &self.providers.openai {
             providers.push(ResolvedContextProvider::OpenAi(ResolvedContextProviderOpenAi {
-                models: openai.models.as_ref().map(|models| {
-                    models
-                        .iter()
-                        .map(|m| match m {
-                            ManifestProviderOpenAiModel::Name(name) => {
-                                ResolvedContextProviderOpenAiModel {
-                                    name: name.clone(),
-                                    params: None,
+                models: openai
+                    .models
+                    .as_ref()
+                    .map(|models| {
+                        models
+                            .iter()
+                            .map(|model| match model {
+                                ManifestProviderOpenAiModel::Name(name) => {
+                                    Ok(ResolvedContextProviderOpenAiModel {
+                                        name: name.clone().interpolate(locals)?,
+                                        params: None,
+                                    })
                                 }
-                            }
-                            ManifestProviderOpenAiModel::Config(c) => {
-                                ResolvedContextProviderOpenAiModel {
-                                    name: c.name.clone(),
-                                    params: c
-                                        .params
-                                        .clone()
-                                        .map(Self::resolve_provider_params),
+                                ManifestProviderOpenAiModel::Config(config) => {
+                                    Ok(ResolvedContextProviderOpenAiModel {
+                                        name: config.name.clone().interpolate(locals)?,
+                                        params: config
+                                            .params
+                                            .clone()
+                                            .map(|params| Self::resolve_provider_params(params, locals))
+                                            .transpose()?,
+                                    })
                                 }
-                            }
-                        })
-                        .collect()
-                }),
+                            })
+                            .collect::<Result<Vec<_>, ManifestError>>()
+                    })
+                    .transpose()?,
                 config: openai
                     .config
                     .as_ref()
-                    .map(|c| ResolvedContextProviderOpenAiConfig {
-                        api_key: c.api_key.clone(),
-                        base_url: c.base_url.clone(),
-                    }),
+                    .map(|config| {
+                        Ok::<_, ManifestError>(ResolvedContextProviderOpenAiConfig {
+                            api_key: config.api_key.clone().interpolate(locals)?,
+                            base_url: config.base_url.clone().interpolate(locals)?,
+                        })
+                    })
+                    .transpose()?,
                 params: openai
                     .params
                     .clone()
-                    .map(Self::resolve_provider_params),
+                    .map(|params| Self::resolve_provider_params(params, locals))
+                    .transpose()?,
             }));
         }
 
         if let Some(ollama) = &self.providers.ollama {
             providers.push(ResolvedContextProvider::Ollama(ResolvedContextProviderOllama {
-                models: ollama.models.as_ref().map(|models| {
-                    models
-                        .iter()
-                        .map(|m| match m {
-                            ManifestProviderOllamaModel::Name(name) => {
-                                ResolvedContextProviderOllamaModel {
-                                    name: name.clone(),
-                                    params: None,
+                models: ollama
+                    .models
+                    .as_ref()
+                    .map(|models| {
+                        models
+                            .iter()
+                            .map(|model| match model {
+                                ManifestProviderOllamaModel::Name(name) => {
+                                    Ok(ResolvedContextProviderOllamaModel {
+                                        name: name.clone().interpolate(locals)?,
+                                        params: None,
+                                    })
                                 }
-                            }
-                            ManifestProviderOllamaModel::Config(c) => {
-                                ResolvedContextProviderOllamaModel {
-                                    name: c.name.clone(),
-                                    params: c
-                                        .params
-                                        .clone()
-                                        .map(Self::resolve_provider_params),
+                                ManifestProviderOllamaModel::Config(config) => {
+                                    Ok(ResolvedContextProviderOllamaModel {
+                                        name: config.name.clone().interpolate(locals)?,
+                                        params: config
+                                            .params
+                                            .clone()
+                                            .map(|params| Self::resolve_provider_params(params, locals))
+                                            .transpose()?,
+                                    })
                                 }
-                            }
-                        })
-                        .collect()
-                }),
+                            })
+                            .collect::<Result<Vec<_>, ManifestError>>()
+                    })
+                    .transpose()?,
                 config: ollama
                     .config
                     .as_ref()
-                    .map(|c| ResolvedContextProviderOllamaConfig { base_url: c.base_url.clone() }),
+                    .map(|config| {
+                        Ok::<_, ManifestError>(ResolvedContextProviderOllamaConfig {
+                            base_url: config.base_url.clone().interpolate(locals)?,
+                        })
+                    })
+                    .transpose()?,
                 params: ollama
                     .params
                     .clone()
-                    .map(Self::resolve_provider_params),
+                    .map(|params| Self::resolve_provider_params(params, locals))
+                    .transpose()?,
             }));
         }
 
         if let Some(openrouter) = &self.providers.openrouter {
-            providers.push(ResolvedContextProvider::OpenRouter(
-                ResolvedContextProviderOpenRouter {
-                    models: openrouter
-                        .models
-                        .as_ref()
-                        .map(|models| {
-                            models
-                                .iter()
-                                .map(|m| match m {
-                                    ManifestProviderOpenRouterModel::Name(name) => {
-                                        ResolvedContextProviderOpenRouterModel {
-                                            name: name.clone(),
-                                            params: None,
-                                        }
-                                    }
-                                    ManifestProviderOpenRouterModel::Config(c) => {
-                                        ResolvedContextProviderOpenRouterModel {
-                                            name: c.name.clone(),
-                                            params: c
-                                                .params
-                                                .clone()
-                                                .map(Self::resolve_provider_params),
-                                        }
-                                    }
-                                })
-                                .collect()
-                        }),
-                    config: openrouter.config.as_ref().map(|c| {
-                        ResolvedContextProviderOpenRouterConfig { api_key: c.api_key.clone() }
-                    }),
-                    params: openrouter
-                        .params
-                        .clone()
-                        .map(Self::resolve_provider_params),
-                },
-            ));
+            providers.push(ResolvedContextProvider::OpenRouter(ResolvedContextProviderOpenRouter {
+                models: openrouter
+                    .models
+                    .as_ref()
+                    .map(|models| {
+                        models
+                            .iter()
+                            .map(|model| match model {
+                                ManifestProviderOpenRouterModel::Name(name) => {
+                                    Ok(ResolvedContextProviderOpenRouterModel {
+                                        name: name.clone().interpolate(locals)?,
+                                        params: None,
+                                    })
+                                }
+                                ManifestProviderOpenRouterModel::Config(config) => {
+                                    Ok(ResolvedContextProviderOpenRouterModel {
+                                        name: config.name.clone().interpolate(locals)?,
+                                        params: config
+                                            .params
+                                            .clone()
+                                            .map(|params| Self::resolve_provider_params(params, locals))
+                                            .transpose()?,
+                                    })
+                                }
+                            })
+                            .collect::<Result<Vec<_>, ManifestError>>()
+                    })
+                    .transpose()?,
+                config: openrouter
+                    .config
+                    .as_ref()
+                    .map(|config| {
+                        Ok::<_, ManifestError>(ResolvedContextProviderOpenRouterConfig {
+                            api_key: config.api_key.clone().interpolate(locals)?,
+                        })
+                    })
+                    .transpose()?,
+                params: openrouter
+                    .params
+                    .clone()
+                    .map(|params| Self::resolve_provider_params(params, locals))
+                    .transpose()?,
+            }));
         }
 
         if let Some(xai) = &self.providers.xai {
             providers.push(ResolvedContextProvider::Xai(ResolvedContextProviderXai {
-                models: xai.models.as_ref().map(|models| {
-                    models
-                        .iter()
-                        .map(|m| match m {
-                            ManifestProviderXaiModel::Name(name) => {
-                                ResolvedContextProviderXaiModel { name: name.clone(), params: None }
-                            }
-                            ManifestProviderXaiModel::Config(c) => {
-                                ResolvedContextProviderXaiModel {
-                                    name: c.name.clone(),
-                                    params: c
-                                        .params
-                                        .clone()
-                                        .map(Self::resolve_provider_params),
+                models: xai
+                    .models
+                    .as_ref()
+                    .map(|models| {
+                        models
+                            .iter()
+                            .map(|model| match model {
+                                ManifestProviderXaiModel::Name(name) => {
+                                    Ok(ResolvedContextProviderXaiModel {
+                                        name: name.clone().interpolate(locals)?,
+                                        params: None,
+                                    })
                                 }
-                            }
-                        })
-                        .collect()
-                }),
+                                ManifestProviderXaiModel::Config(config) => {
+                                    Ok(ResolvedContextProviderXaiModel {
+                                        name: config.name.clone().interpolate(locals)?,
+                                        params: config
+                                            .params
+                                            .clone()
+                                            .map(|params| Self::resolve_provider_params(params, locals))
+                                            .transpose()?,
+                                    })
+                                }
+                            })
+                            .collect::<Result<Vec<_>, ManifestError>>()
+                    })
+                    .transpose()?,
                 config: xai
                     .config
                     .as_ref()
-                    .map(|c| ResolvedContextProviderXaiConfig { api_key: c.api_key.clone() }),
+                    .map(|config| {
+                        Ok::<_, ManifestError>(ResolvedContextProviderXaiConfig {
+                            api_key: config.api_key.clone().interpolate(locals)?,
+                        })
+                    })
+                    .transpose()?,
                 params: xai
                     .params
                     .clone()
-                    .map(Self::resolve_provider_params),
+                    .map(|params| Self::resolve_provider_params(params, locals))
+                    .transpose()?,
             }));
         }
 
         if let Some(gemini) = &self.providers.gemini {
             providers.push(ResolvedContextProvider::Gemini(ResolvedContextProviderGemini {
-                models: gemini.models.as_ref().map(|models| {
-                    models
-                        .iter()
-                        .map(|m| match m {
-                            ManifestProviderGeminiModel::Name(name) => {
-                                ResolvedContextProviderGeminiModel {
-                                    name: name.clone(),
-                                    params: None,
+                models: gemini
+                    .models
+                    .as_ref()
+                    .map(|models| {
+                        models
+                            .iter()
+                            .map(|model| match model {
+                                ManifestProviderGeminiModel::Name(name) => {
+                                    Ok(ResolvedContextProviderGeminiModel {
+                                        name: name.clone().interpolate(locals)?,
+                                        params: None,
+                                    })
                                 }
-                            }
-                            ManifestProviderGeminiModel::Config(c) => {
-                                ResolvedContextProviderGeminiModel {
-                                    name: c.name.clone(),
-                                    params: c
-                                        .params
-                                        .clone()
-                                        .map(Self::resolve_provider_params),
+                                ManifestProviderGeminiModel::Config(config) => {
+                                    Ok(ResolvedContextProviderGeminiModel {
+                                        name: config.name.clone().interpolate(locals)?,
+                                        params: config
+                                            .params
+                                            .clone()
+                                            .map(|params| Self::resolve_provider_params(params, locals))
+                                            .transpose()?,
+                                    })
                                 }
-                            }
-                        })
-                        .collect()
-                }),
+                            })
+                            .collect::<Result<Vec<_>, ManifestError>>()
+                    })
+                    .transpose()?,
                 config: gemini
                     .config
                     .as_ref()
-                    .map(|c| ResolvedContextProviderGeminiConfig { api_key: c.api_key.clone() }),
+                    .map(|config| {
+                        Ok::<_, ManifestError>(ResolvedContextProviderGeminiConfig {
+                            api_key: config.api_key.clone().interpolate(locals)?,
+                        })
+                    })
+                    .transpose()?,
                 params: gemini
                     .params
                     .clone()
-                    .map(Self::resolve_provider_params),
+                    .map(|params| Self::resolve_provider_params(params, locals))
+                    .transpose()?,
             }));
         }
 
         if let Some(huggingface) = &self.providers.huggingface {
-            providers.push(ResolvedContextProvider::HuggingFace(
-                ResolvedContextProviderHuggingFace {
-                    models: huggingface
-                        .models
-                        .as_ref()
-                        .map(|models| {
-                            models
-                                .iter()
-                                .map(|m| match m {
-                                    ManifestProviderHuggingFaceModel::Name(name) => {
-                                        ResolvedContextProviderHuggingFaceModel {
-                                            name: name.clone(),
-                                            params: None,
-                                        }
-                                    }
-                                    ManifestProviderHuggingFaceModel::Config(c) => {
-                                        ResolvedContextProviderHuggingFaceModel {
-                                            name: c.name.clone(),
-                                            params: c
-                                                .params
-                                                .clone()
-                                                .map(Self::resolve_provider_params),
-                                        }
-                                    }
-                                })
-                                .collect()
-                        }),
-                    config: huggingface.config.as_ref().map(|c| {
-                        ResolvedContextProviderHuggingFaceConfig {
-                            api_key: c.api_key.clone(),
-                            base_url: c.base_url.clone(),
-                        }
-                    }),
-                    params: huggingface
-                        .params
-                        .clone()
-                        .map(Self::resolve_provider_params),
-                },
-            ));
+            providers.push(ResolvedContextProvider::HuggingFace(ResolvedContextProviderHuggingFace {
+                models: huggingface
+                    .models
+                    .as_ref()
+                    .map(|models| {
+                        models
+                            .iter()
+                            .map(|model| match model {
+                                ManifestProviderHuggingFaceModel::Name(name) => {
+                                    Ok(ResolvedContextProviderHuggingFaceModel {
+                                        name: name.clone().interpolate(locals)?,
+                                        params: None,
+                                    })
+                                }
+                                ManifestProviderHuggingFaceModel::Config(config) => {
+                                    Ok(ResolvedContextProviderHuggingFaceModel {
+                                        name: config.name.clone().interpolate(locals)?,
+                                        params: config
+                                            .params
+                                            .clone()
+                                            .map(|params| Self::resolve_provider_params(params, locals))
+                                            .transpose()?,
+                                    })
+                                }
+                            })
+                            .collect::<Result<Vec<_>, ManifestError>>()
+                    })
+                    .transpose()?,
+                config: huggingface
+                    .config
+                    .as_ref()
+                    .map(|config| {
+                        Ok::<_, ManifestError>(ResolvedContextProviderHuggingFaceConfig {
+                            api_key: config.api_key.clone().interpolate(locals)?,
+                            base_url: config.base_url.clone().interpolate(locals)?,
+                        })
+                    })
+                    .transpose()?,
+                params: huggingface
+                    .params
+                    .clone()
+                    .map(|params| Self::resolve_provider_params(params, locals))
+                    .transpose()?,
+            }));
         }
 
-        providers
+        Ok(providers)
     }
 
-    async fn resolve_agent(&self) -> Result<ResolvedContextAgent, ManifestError> {
+    async fn resolve_agent(&self, locals: &Value) -> Result<ResolvedContextAgent, ManifestError> {
         let agent_label = self.resolve_agent_label()?;
-        let locals = self.resolve_locals();
         let agent_block = self
             .agent
             .get(&agent_label)
@@ -419,17 +494,15 @@ impl Manifest {
             .clone();
 
         Ok(ResolvedContextAgent {
-            version: agent_block.version.interpolate(&locals),
-            description: agent_block
-                .description
-                .map(|d| d.interpolate(&locals)),
+            version: agent_block.version.interpolate(locals)?,
+            description: agent_block.description.interpolate(locals)?,
             prompt: match agent_block.prompt {
                 None => None,
                 Some(ManifestAgentPrompt::Prompt(content)) => {
                     Some(ResolvedContextAgentPromptSource::Constant {
                         messages: vec![ResolvedContextAgentPromptMessage {
                             role: ResolvedContextAgentPromptMessageRole::System,
-                            content: content.interpolate(&locals),
+                            content: content.interpolate(locals)?,
                         }],
                     })
                 }
@@ -437,7 +510,7 @@ impl Manifest {
                     Some(ResolvedContextAgentPromptSource::Constant {
                         messages: messages
                             .into_iter()
-                            .map(|message| ResolvedContextAgentPromptMessage {
+                            .map(|message| Ok(ResolvedContextAgentPromptMessage {
                                 role: match message.role {
                                     ManifestAgentPromptMessageRole::System => {
                                         ResolvedContextAgentPromptMessageRole::System
@@ -449,9 +522,9 @@ impl Manifest {
                                         ResolvedContextAgentPromptMessageRole::Assistant
                                     }
                                 },
-                                content: message.content.interpolate(&locals),
-                            })
-                            .collect(),
+                                content: message.content.interpolate(locals)?,
+                            }))
+                            .collect::<Result<_, ManifestError>>()?,
                     })
                 }
                 Some(ManifestAgentPrompt::Source(ManifestAgentPromptSource::Langfuse(prompt))) => {
@@ -463,15 +536,11 @@ impl Manifest {
 
                     Some(ResolvedContextAgentPromptSource::Langfuse(
                         ResolvedContextAgentPromptSourceLangfuse {
-                            prompt_name: prompt.prompt_name.interpolate(&locals),
-                            public_key: prompt.public_key.interpolate(&locals),
-                            secret_key: prompt.secret_key.interpolate(&locals),
-                            base_url: prompt
-                                .base_url
-                                .map(|value| value.interpolate(&locals)),
-                            label: prompt
-                                .label
-                                .map(|value| value.interpolate(&locals)),
+                            prompt_name: prompt.prompt_name.interpolate(locals)?,
+                            public_key: prompt.public_key.interpolate(locals)?,
+                            secret_key: prompt.secret_key.interpolate(locals)?,
+                            base_url: prompt.base_url.interpolate(locals)?,
+                            label: prompt.label.interpolate(locals)?,
                             version: prompt.version,
                             cache_ttl_seconds: prompt.cache_ttl_seconds,
                             fetch_timeout_seconds: prompt.fetch_timeout_seconds,
@@ -480,23 +549,11 @@ impl Manifest {
                     ))
                 }
             },
-            capabilities: agent_block
-                .capabilities
-                .clone()
-                .map(|cv| cv.interpolate(&locals)),
-            capability_policy: agent_block
-                .capability_policy
-                .clone()
-                .map(|cp| cp.interpolate(&locals)),
+            capabilities: agent_block.capabilities.interpolate(locals)?,
+            capability_policy: agent_block.capability_policy.interpolate(locals)?,
             model: ResolvedContextAgentModel {
-                provider: agent_block
-                    .model
-                    .provider
-                    .interpolate(&locals),
-                name: agent_block
-                    .model
-                    .name
-                    .interpolate(&locals),
+                provider: agent_block.model.provider.interpolate(locals)?,
+                name: agent_block.model.name.interpolate(locals)?,
             },
         })
     }
@@ -504,8 +561,8 @@ impl Manifest {
     async fn resolve_blocks(
         &self,
         loader: &dyn ResourceLoader,
+        locals: &Value,
     ) -> Result<HashMap<String, ResolvedContextBlock>, ManifestError> {
-        let locals = self.resolve_locals();
         let mut resolved_blocks = HashMap::new();
 
         for (label, block) in &self.block {
@@ -541,8 +598,8 @@ impl Manifest {
                     name: label.clone(),
                     description: block
                         .description
-                        .as_ref()
-                        .map(|d| d.clone().interpolate(&locals)),
+                        .clone()
+                        .interpolate(locals)?,
                     generates,
                     contributes,
                     dependencies: block.dependencies.clone(),
@@ -556,6 +613,7 @@ impl Manifest {
     fn resolve_tools(
         &self,
         assets: &[TransformedAsset],
+        locals: &Value,
     ) -> Result<HashMap<String, ResolvedContextTool>, ManifestError> {
         let mut resolved = HashMap::new();
 
@@ -594,16 +652,16 @@ impl Manifest {
                         transport: match mcp {
                             ManifestMcpTool::Stdio { command, args, config } => {
                                 ResolvedContextToolMcpTransport::Stdio {
-                                    command: command.clone(),
-                                    args: args.clone(),
-                                    env: config.clone(),
+                                    command: command.clone().interpolate(locals)?,
+                                    args: args.clone().interpolate(locals)?,
+                                    env: config.clone().interpolate(locals)?,
                                 }
                             }
                             ManifestMcpTool::Http { url, auth_token, headers } => {
                                 ResolvedContextToolMcpTransport::Http {
-                                    url: url.clone(),
-                                    auth_token: auth_token.clone(),
-                                    headers: headers.clone(),
+                                    url: url.clone().interpolate(locals)?,
+                                    auth_token: auth_token.clone().interpolate(locals)?,
+                                    headers: headers.clone().interpolate(locals)?,
                                 }
                             }
                         },
@@ -612,20 +670,23 @@ impl Manifest {
 
                 ManifestToolKind::A2a(a2a) => {
                     ResolvedContextToolKind::A2a(ResolvedContextToolA2a {
-                        url: a2a.url.clone(),
-                        auth_token: a2a.auth_token.clone(),
-                        headers: a2a.headers.clone(),
+                        url: a2a.url.clone().interpolate(locals)?,
+                        auth_token: a2a.auth_token.clone().interpolate(locals)?,
+                        headers: a2a.headers.clone().interpolate(locals)?,
                         tenant: match &a2a.tenant {
                             ManifestA2aTenant::Inherit => ResolvedContextToolA2aTenant::Inherit,
                             ManifestA2aTenant::None => ResolvedContextToolA2aTenant::None,
                             ManifestA2aTenant::Fixed { id } => {
-                                ResolvedContextToolA2aTenant::Fixed { id: id.clone() }
+                                ResolvedContextToolA2aTenant::Fixed {
+                                    id: id.clone().interpolate(locals)?,
+                                }
                             }
                         },
                         timeout_secs: a2a.timeout_secs.clone(),
                         default_accepted_output_modes: a2a
                             .default_accepted_output_modes
-                            .clone(),
+                            .clone()
+                            .interpolate(locals)?,
                     })
                 }
 
@@ -693,8 +754,8 @@ impl Manifest {
 
                 ManifestToolKind::Bash(bash) => {
                     ResolvedContextToolKind::Bash(ResolvedContextToolBash {
-                        commands: bash.commands.clone(),
-                        cwd: bash.cwd.clone(),
+                        commands: bash.commands.clone().interpolate(locals)?,
+                        cwd: bash.cwd.clone().interpolate(locals)?,
                         env: match &bash.env.kind {
                             ManifestBashEnvKind::Empty => ResolvedContextToolBashEnv::Empty,
                             ManifestBashEnvKind::Inherit => ResolvedContextToolBashEnv::Inherit,
@@ -732,10 +793,10 @@ impl Manifest {
                 name.clone(),
                 ResolvedContextTool {
                     name: name.clone(),
-                    description: tool.description.clone(),
+                    description: tool.description.clone().interpolate(locals)?,
                     enabled: tool.enabled.clone(),
-                    capabilities: tool.capabilities.clone(),
-                    config: tool.config.clone(),
+                    capabilities: tool.capabilities.clone().interpolate(locals)?,
+                    config: tool.config.clone().interpolate(locals)?,
                     kind,
                 },
             );
@@ -747,6 +808,7 @@ impl Manifest {
     fn resolve_skills(
         &self,
         assets: &[TransformedAsset],
+        locals: &Value,
     ) -> Result<HashMap<String, ResolvedContextSkill>, ManifestError> {
         let mut resolved = HashMap::new();
 
@@ -788,11 +850,17 @@ impl Manifest {
                     })
                 }
 
-                ManifestSkill::Content(c) => {
+                ManifestSkill::Content(content) => {
                     ResolvedContextSkillKind::Content(ResolvedContextSkillContent {
-                        description: c.description.clone(),
-                        content: c.content.clone(),
-                        resources: c.resources.clone(),
+                        description: content.description.clone().interpolate(locals)?,
+                        content: content.content.clone().interpolate(locals)?,
+                        resources: content
+                            .resources
+                            .iter()
+                            .map(|(path, value)| {
+                                Ok((path.clone(), value.clone().interpolate(locals)?))
+                            })
+                            .collect::<Result<_, ManifestError>>()?,
                     })
                 }
             };
@@ -803,140 +871,101 @@ impl Manifest {
         Ok(resolved)
     }
 
-    fn resolve_http_server(&self) -> Option<ResolvedContextHttpServer> {
-        self.http_server
-            .as_ref()
-            .map(|http| ResolvedContextHttpServer {
-                host: http.host.clone(),
-                port: http.port.clone(),
-                max_request_size: http.max_request_size.clone(),
-                protocols: http
-                    .protocol
-                    .as_ref()
-                    .map_or_else(Vec::new, |p| {
-                        vec![
-                            p.ag_ui.as_ref().map(|ag_ui| {
-                                ResolvedContextHttpServerProtocol::AgUi(
-                                    ResolvedContextHttpServerProtocolAgUi {
-                                        path: ag_ui.path.clone(),
-                                    },
-                                )
-                            }),
-                            p.a2a.as_ref().map(|a2a| {
-                                ResolvedContextHttpServerProtocol::A2a(
-                                    ResolvedContextHttpServerProtocolA2a { path: a2a.path.clone() },
-                                )
-                            }),
-                        ]
-                        .into_iter()
-                        .flatten()
-                        .collect()
-                    }),
-            })
+    fn resolve_http_server(
+        &self,
+        locals: &Value,
+    ) -> Result<Option<ResolvedContextHttpServer>, ManifestError> {
+        let Some(http) = &self.http_server else {
+            return Ok(None);
+        };
+
+        let mut protocols = Vec::new();
+
+        if let Some(ag_ui) = http.protocol.as_ref().and_then(|protocol| protocol.ag_ui.as_ref()) {
+            protocols.push(ResolvedContextHttpServerProtocol::AgUi(
+                ResolvedContextHttpServerProtocolAgUi {
+                    path: ag_ui.path.clone().interpolate(locals)?,
+                },
+            ));
+        }
+
+        if let Some(a2a) = http.protocol.as_ref().and_then(|protocol| protocol.a2a.as_ref()) {
+            protocols.push(ResolvedContextHttpServerProtocol::A2a(
+                ResolvedContextHttpServerProtocolA2a {
+                    path: a2a.path.clone().interpolate(locals)?,
+                },
+            ));
+        }
+
+        Ok(Some(ResolvedContextHttpServer {
+            host: http.host.clone().interpolate(locals)?,
+            port: http.port.clone(),
+            max_request_size: http.max_request_size.clone(),
+            protocols,
+        }))
     }
 
-    fn resolve_network(&self) -> ResolvedContextNetwork {
-        ResolvedContextNetwork {
-            user_agent: self.network.user_agent.clone(),
-            headers: self.network.headers.clone(),
+    fn resolve_network(&self, locals: &Value) -> Result<ResolvedContextNetwork, ManifestError> {
+        Ok(ResolvedContextNetwork {
+            user_agent: self.network.user_agent.clone().interpolate(locals)?,
+            headers: self.network.headers.clone().interpolate(locals)?,
             limits: ResolvedContextNetworkLimits {
-                connect_timeout_ms: self
-                    .network
-                    .limits
-                    .connect_timeout_ms
-                    .clone(),
-                read_timeout_ms: self
-                    .network
-                    .limits
-                    .read_timeout_ms
-                    .clone(),
-                request_timeout_ms: self
-                    .network
-                    .limits
-                    .request_timeout_ms
-                    .clone(),
-                max_redirects: self
-                    .network
-                    .limits
-                    .max_redirects
-                    .clone(),
-                max_response_bytes: self
-                    .network
-                    .limits
-                    .max_response_bytes
-                    .clone(),
-                concurrency_limit: self
-                    .network
-                    .limits
-                    .concurrency_limit
-                    .clone(),
+                connect_timeout_ms: self.network.limits.connect_timeout_ms.clone(),
+                read_timeout_ms: self.network.limits.read_timeout_ms.clone(),
+                request_timeout_ms: self.network.limits.request_timeout_ms.clone(),
+                max_redirects: self.network.limits.max_redirects.clone(),
+                max_response_bytes: self.network.limits.max_response_bytes.clone(),
+                concurrency_limit: self.network.limits.concurrency_limit.clone(),
             },
             policy: ResolvedContextNetworkPolicy {
                 addresses: ResolvedContextNetworkPolicyAddresses {
-                    allow_loopback: self
-                        .network
-                        .policy
-                        .addresses
-                        .allow_loopback
-                        .clone(),
-                    allow_private: self
-                        .network
-                        .policy
-                        .addresses
-                        .allow_private
-                        .clone(),
-                    allow_link_local: self
-                        .network
-                        .policy
-                        .addresses
-                        .allow_link_local
-                        .clone(),
+                    allow_loopback: self.network.policy.addresses.allow_loopback.clone(),
+                    allow_private: self.network.policy.addresses.allow_private.clone(),
+                    allow_link_local: self.network.policy.addresses.allow_link_local.clone(),
                 },
-                methods: self.network.policy.methods.clone(),
+                methods: self.network.policy.methods.clone().interpolate(locals)?,
                 allow: match &self.network.policy.allow {
                     RuntimeValue::Constant(patterns) => RuntimeValue::Constant(
                         patterns
                             .iter()
-                            .map(|pattern| ResolvedContextNetworkUrlPattern {
-                                protocol: pattern.protocol.clone(),
-                                hostname: pattern.hostname.clone(),
-                                port: pattern.port.clone(),
-                                pathname: pattern.pathname.clone(),
-                            })
-                            .collect(),
+                            .map(|pattern| pattern.resolve(locals))
+                            .collect::<Result<_, ManifestError>>()?,
                     ),
                     RuntimeValue::Runtime { env, default, secret } => RuntimeValue::Runtime {
                         env: env.clone(),
-                        default: default.as_ref().map(|patterns| {
-                            patterns
-                                .iter()
-                                .map(|pattern| ResolvedContextNetworkUrlPattern {
-                                    protocol: pattern.protocol.clone(),
-                                    hostname: pattern.hostname.clone(),
-                                    port: pattern.port.clone(),
-                                    pathname: pattern.pathname.clone(),
-                                })
-                                .collect()
-                        }),
+                        default: default
+                            .as_ref()
+                            .map(|patterns| {
+                                patterns
+                                    .iter()
+                                    .map(|pattern| pattern.resolve(locals))
+                                    .collect::<Result<_, ManifestError>>()
+                            })
+                            .transpose()?,
                         secret: *secret,
                     },
                 },
             },
-        }
+        })
     }
 
-    fn resolve_filesystem(&self) -> ResolvedContextFilesystem {
-        ResolvedContextFilesystem {
+    fn resolve_filesystem(
+        &self,
+        locals: &Value,
+    ) -> Result<ResolvedContextFilesystem, ManifestError> {
+        Ok(ResolvedContextFilesystem {
             mounts: self
                 .filesystem
                 .mounts
                 .iter()
-                .map(|mount| ResolvedContextFilesystemMount {
-                    path: mount.path.clone(),
-                    backend: mount.backend.resolve(),
+                .map(|mount| {
+                    Ok(ResolvedContextFilesystemMount {
+                        path: mount.path.clone().interpolate(locals)?,
+                        backend: mount.backend.resolve(locals)?,
+                    })
                 })
-                .collect(),
-        }
+                .collect::<Result<_, ManifestError>>()?,
+        })
     }
 
     pub async fn resolve(
@@ -945,22 +974,21 @@ impl Manifest {
         assets: &[TransformedAsset],
     ) -> Result<(ResolvedContext, Value), ManifestError> {
         let agent_label = self.resolve_agent_label()?;
+        let locals = self.resolve_locals();
 
         Ok((
             ResolvedContext {
-                slug: agent_label
-                    .to_lowercase()
-                    .replace([' ', '-'], "_"),
+                slug: agent_label.to_lowercase().replace([' ', '-'], "_"),
                 agent_name: agent_label,
-                runtime: self.resolve_runtime(),
-                providers: self.resolve_providers(),
-                agent: self.resolve_agent().await?,
-                blocks: self.resolve_blocks(loader).await?,
-                tools: self.resolve_tools(assets)?,
-                skills: self.resolve_skills(assets)?,
-                http_server: self.resolve_http_server(),
-                network: self.resolve_network(),
-                filesystem: self.resolve_filesystem(),
+                runtime: self.resolve_runtime(&locals)?,
+                providers: self.resolve_providers(&locals)?,
+                agent: self.resolve_agent(&locals).await?,
+                blocks: self.resolve_blocks(loader, &locals).await?,
+                tools: self.resolve_tools(assets, &locals)?,
+                skills: self.resolve_skills(assets, &locals)?,
+                http_server: self.resolve_http_server(&locals)?,
+                network: self.resolve_network(&locals)?,
+                filesystem: self.resolve_filesystem(&locals)?,
             },
             self.build.config(),
         ))
@@ -987,11 +1015,18 @@ impl Manifest {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::{BTreeMap, BTreeSet};
+
     use async_trait::async_trait;
 
     use super::*;
-    use crate::parser::{SpecFormat, SpecParser, middleware::hcl::RuntimeFunctionDeserialize};
-    use agentc_compiler::generator::errors::GeneratorError;
+    use crate::parser::{
+        SpecFormat, SpecParser, errors::ParserError, middleware::hcl::RuntimeFunctionDeserialize,
+    };
+    use agentc_compiler::{
+        generator::errors::GeneratorError,
+        transformer::types::AssetArtifact,
+    };
 
     struct EmptyLoader;
 
@@ -1381,6 +1416,53 @@ network {
     }
 
     #[tokio::test]
+    async fn network_allow_type_error_names_the_nested_field() {
+        let error = SpecParser::<Manifest>::default()
+            .with_content(
+                r#"
+build {
+  archetype = "standalone"
+}
+
+providers {}
+
+agent "assistant" {
+  graph {
+    type = "react"
+  }
+
+  model {
+    provider = "anthropic"
+    name     = "claude-haiku-4-5"
+  }
+}
+
+network {
+  policy {
+    allow = [{ protocol = "http", port = [1] }]
+  }
+}
+"#,
+                SpecFormat::hcl().with_hcl_deserialize_middleware(RuntimeFunctionDeserialize),
+            )
+            .parse()
+            .await
+            .unwrap_err();
+
+        assert!(
+            matches!(
+                &error,
+                ParserError::Parser(config::ConfigError::Type {
+                    key: Some(path),
+                    ..
+                }) if path == "network.policy.allow[0]port"
+            ),
+            "{error}"
+        );
+        assert!(error.to_string().contains("expected a string"));
+    }
+
+    #[tokio::test]
     async fn spec_parser_preserves_typed_runtime_default() {
         let manifest = SpecParser::<Manifest>::default()
             .with_content(
@@ -1626,5 +1708,393 @@ limits {
         assert_eq!(bash.limits.max_command_count, 10_000);
         assert_eq!(bash.limits.max_loop_iterations, 10_000);
         assert!(!bash.shared);
+    }
+
+    #[tokio::test]
+    async fn locals_interpolate_resolved_configuration_values() {
+        let mut manifest = A2aManifestFixture::manifest();
+        manifest.locals.insert(
+            "value".to_owned(),
+            RuntimeValue::constant("interpolated".to_owned()),
+        );
+        manifest.runtime.default_tenant_id =
+            RuntimeValue::default_runtime("TENANT", "${locals.value}".to_owned());
+        manifest.providers.anthropic = Some(ManifestProviderAnthropic {
+            models: Some(vec![
+                ManifestProviderAnthropicModel::Name("${locals.value}".to_owned()),
+                ManifestProviderAnthropicModel::Config(ManifestProviderAnthropicModelConfig {
+                    name: "${locals.value}".to_owned(),
+                    params: Some(ManifestProviderParams {
+                        max_tokens: None,
+                        temperature: None,
+                        top_p: None,
+                        top_k: None,
+                        stop_sequences: Some(RuntimeValue::constant(vec![
+                            "${locals.value}".to_owned(),
+                        ])),
+                        frequency_penalty: None,
+                        presence_penalty: None,
+                        seed: None,
+                        provider_params: None,
+                    }),
+                }),
+            ]),
+            config: Some(ManifestProviderAnthropicConfig {
+                api_key: Some(RuntimeValue::default_runtime(
+                    "ANTHROPIC_API_KEY",
+                    "${locals.value}".to_owned(),
+                )),
+                base_url: Some(RuntimeValue::constant("${locals.value}".to_owned())),
+            }),
+            params: Some(ManifestProviderParams {
+                max_tokens: None,
+                temperature: None,
+                top_p: None,
+                top_k: None,
+                stop_sequences: None,
+                frequency_penalty: None,
+                presence_penalty: None,
+                seed: None,
+                provider_params: Some(RuntimeValue::constant(
+                    json!({ "nested": ["${locals.value}"] }),
+                )),
+            }),
+        });
+
+        let agent = manifest.agent.get_mut("assistant").unwrap();
+        agent.version = "${locals.value}".to_owned();
+        agent.description = Some("${locals.value}".to_owned());
+        agent.prompt = Some(ManifestAgentPrompt::Prompt("${locals.value}".to_owned()));
+        agent.model.name = RuntimeValue::constant("${locals.value}".to_owned());
+
+        manifest.block.insert(
+            "${locals.value}".to_owned(),
+            ManifestBlock {
+                description: Some("${locals.value}".to_owned()),
+                generates: HashMap::new(),
+                contributes: HashMap::new(),
+                dependencies: HashMap::from([("dep".to_owned(), "1".to_owned())]),
+            },
+        );
+
+        let tool = manifest.tool.get_mut("planner").unwrap();
+        tool.description = Some("${locals.value}".to_owned());
+        tool.capabilities = vec!["${locals.value}".to_owned()];
+        tool.config = HashMap::from([(
+            "${locals.value}".to_owned(),
+            RuntimeValue::default_runtime("TOOL_CONFIG", "${locals.value}".to_owned()),
+        )]);
+        let ManifestToolKind::A2a(a2a) = &mut tool.kind else {
+            panic!("planner should be an A2A tool");
+        };
+        a2a.url = RuntimeValue::default_runtime(
+            "PLANNER_A2A_URL",
+            "https://${locals.value}.example.com".to_owned(),
+        );
+        a2a.headers = HashMap::from([(
+            "${locals.value}".to_owned(),
+            RuntimeValue::constant("${locals.value}".to_owned()),
+        )]);
+        a2a.tenant = ManifestA2aTenant::Fixed {
+            id: RuntimeValue::constant("${locals.value}".to_owned()),
+        };
+        a2a.default_accepted_output_modes = vec!["${locals.value}".to_owned()];
+
+        manifest.skill.insert(
+            "inline".to_owned(),
+            ManifestSkill::Content(ManifestSkillContent {
+                description: "${locals.value}".to_owned(),
+                content: "${locals.value}".to_owned(),
+                resources: HashMap::from([(
+                    "${locals.value}.txt".to_owned(),
+                    "${locals.value}".to_owned(),
+                )]),
+            }),
+        );
+        manifest.http_server = Some(ManifestHttpServer {
+            host: RuntimeValue::default_runtime("HTTP_HOST", "${locals.value}".to_owned()),
+            port: RuntimeValue::constant(8080),
+            max_request_size: RuntimeValue::constant(1024),
+            protocol: Some(ManifestHttpServerProtocol {
+                ag_ui: Some(ManifestHttpServerProtocolAgUi {
+                    path: "/${locals.value}".to_owned(),
+                }),
+                a2a: Some(ManifestHttpServerProtocolA2a {
+                    path: "/${locals.value}".to_owned(),
+                }),
+            }),
+        });
+        manifest.network.user_agent =
+            RuntimeValue::default_runtime("USER_AGENT", Some("${locals.value}".to_owned()));
+        manifest.network.headers = RuntimeValue::default_runtime(
+            "HEADERS",
+            BTreeMap::from([(
+                "${locals.value}".to_owned(),
+                "${locals.value}".to_owned(),
+            )]),
+        );
+        manifest.network.policy.methods = RuntimeValue::default_runtime(
+            "METHODS",
+            Some(BTreeSet::from(["${locals.value}".to_owned()])),
+        );
+        manifest.network.policy.allow = RuntimeValue::default_runtime(
+            "PATTERNS",
+            vec![ManifestNetworkUrlPattern {
+                protocol: Some("${locals.value}".to_owned()),
+                hostname: Some("${locals.value}".to_owned()),
+                port: Some("${locals.value}".to_owned()),
+                pathname: Some("${locals.value}".to_owned()),
+            }],
+        );
+        manifest.filesystem.mounts = vec![ManifestFilesystemMount {
+            path: "/${locals.value}".to_owned(),
+            backend: ManifestFilesystemBackend::Overlay {
+                upper: Box::new(ManifestFilesystemBackend::Memory),
+                lower: Box::new(ManifestFilesystemBackend::Host {
+                    root: "/${locals.value}".to_owned(),
+                    follow_symlinks: false,
+                }),
+            },
+        }];
+
+        let (resolved, _) = manifest.resolve(&EmptyLoader, &[]).await.unwrap();
+
+        assert_eq!(
+            resolved.runtime.default_tenant_id.as_runtime(),
+            Some(("TENANT", Some(&"interpolated".to_owned()), false)),
+        );
+        let ResolvedContextProvider::Anthropic(provider) = &resolved.providers[0] else {
+            panic!("provider should be Anthropic");
+        };
+        let models = provider.models.as_ref().unwrap();
+        assert_eq!(models[0].name, "interpolated");
+        assert_eq!(models[1].name, "interpolated");
+        assert_eq!(
+            models[1]
+                .params
+                .as_ref()
+                .unwrap()
+                .stop_sequences
+                .as_ref()
+                .unwrap()
+                .default_value()
+                .unwrap(),
+            &vec!["interpolated".to_owned()],
+        );
+        assert_eq!(
+            provider
+                .config
+                .as_ref()
+                .unwrap()
+                .api_key
+                .as_ref()
+                .unwrap()
+                .default_value()
+                .map(String::as_str),
+            Some("interpolated"),
+        );
+        assert_eq!(
+            provider
+                .params
+                .as_ref()
+                .unwrap()
+                .provider_params
+                .as_ref()
+                .unwrap()
+                .default_value(),
+            Some(&json!({ "nested": ["interpolated"] })),
+        );
+        assert_eq!(resolved.agent.version, "interpolated");
+        assert_eq!(resolved.agent.description.as_deref(), Some("interpolated"));
+        let Some(ResolvedContextAgentPromptSource::Constant { messages }) =
+            &resolved.agent.prompt
+        else {
+            panic!("agent prompt should be constant");
+        };
+        assert_eq!(messages[0].content, "interpolated");
+        assert_eq!(
+            resolved.agent.model.name.default_value().map(String::as_str),
+            Some("interpolated"),
+        );
+        let block = resolved.blocks.get("${locals.value}").unwrap();
+        assert_eq!(block.name, "${locals.value}");
+        assert_eq!(block.description.as_deref(), Some("interpolated"));
+        assert_eq!(block.dependencies.get("dep").map(String::as_str), Some("1"));
+
+        let tool = resolved.tools.get("planner").unwrap();
+        assert_eq!(tool.description.as_deref(), Some("interpolated"));
+        assert_eq!(tool.capabilities, ["interpolated"]);
+        assert_eq!(
+            tool.config
+                .get("interpolated")
+                .unwrap()
+                .default_value()
+                .map(String::as_str),
+            Some("interpolated"),
+        );
+        let ResolvedContextToolKind::A2a(a2a) = &tool.kind else {
+            panic!("planner should resolve as A2A");
+        };
+        assert_eq!(
+            a2a.url.default_value().map(String::as_str),
+            Some("https://interpolated.example.com"),
+        );
+        assert_eq!(
+            a2a.headers
+                .get("interpolated")
+                .unwrap()
+                .default_value()
+                .map(String::as_str),
+            Some("interpolated"),
+        );
+        assert!(matches!(
+            &a2a.tenant,
+            ResolvedContextToolA2aTenant::Fixed { id }
+                if id.default_value().map(String::as_str) == Some("interpolated")
+        ));
+        assert_eq!(a2a.default_accepted_output_modes, ["interpolated"]);
+
+        let ResolvedContextSkillKind::Content(skill) =
+            &resolved.skills.get("inline").unwrap().kind
+        else {
+            panic!("inline skill should have content");
+        };
+        assert_eq!(skill.description, "interpolated");
+        assert_eq!(skill.content, "interpolated");
+        assert_eq!(
+            skill.resources.get("${locals.value}.txt").map(String::as_str),
+            Some("interpolated"),
+        );
+
+        let http = resolved.http_server.as_ref().unwrap();
+        assert_eq!(http.host.default_value().map(String::as_str), Some("interpolated"));
+        assert!(matches!(
+            &http.protocols[0],
+            ResolvedContextHttpServerProtocol::AgUi(ag_ui)
+                if ag_ui.path == "/interpolated"
+        ));
+        assert!(matches!(
+            &http.protocols[1],
+            ResolvedContextHttpServerProtocol::A2a(a2a)
+                if a2a.path == "/interpolated"
+        ));
+        assert_eq!(
+            resolved.network.user_agent.default_value(),
+            Some(&Some("interpolated".to_owned())),
+        );
+        assert_eq!(
+            resolved.network.headers.default_value().unwrap().get("interpolated"),
+            Some(&"interpolated".to_owned()),
+        );
+        assert!(
+            resolved
+                .network
+                .policy
+                .methods
+                .default_value()
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .contains("interpolated")
+        );
+        let pattern = &resolved.network.policy.allow.default_value().unwrap()[0];
+        assert_eq!(pattern.protocol.as_deref(), Some("interpolated"));
+        assert_eq!(pattern.hostname.as_deref(), Some("interpolated"));
+        assert_eq!(pattern.port.as_deref(), Some("interpolated"));
+        assert_eq!(pattern.pathname.as_deref(), Some("interpolated"));
+
+        let mount = &resolved.filesystem.mounts[0];
+        assert_eq!(mount.path, "/interpolated");
+        assert!(matches!(
+            &mount.backend,
+            ResolvedContextFilesystemBackend::Overlay { lower, .. }
+                if matches!(
+                    lower.as_ref(),
+                    ResolvedContextFilesystemBackend::Host { root, follow_symlinks }
+                        if root == "/interpolated" && !follow_symlinks
+                )
+        ));
+    }
+
+    #[tokio::test]
+    async fn missing_local_in_tool_url_fails_resolution() {
+        let mut manifest = A2aManifestFixture::manifest();
+        let tool = manifest.tool.get_mut("planner").unwrap();
+        let ManifestToolKind::A2a(a2a) = &mut tool.kind else {
+            panic!("planner should be an A2A tool");
+        };
+        a2a.url = RuntimeValue::constant("https://${locals.missing}".to_owned());
+
+        let error = manifest.resolve(&EmptyLoader, &[]).await.unwrap_err();
+
+        assert!(matches!(
+            error,
+            ManifestError::Resolution(message)
+                if message.contains("${locals.missing}")
+        ));
+    }
+
+    #[tokio::test]
+    async fn asset_sources_exports_and_resource_paths_keep_their_identity() {
+        let mut manifest = A2aManifestFixture::manifest();
+        manifest.locals.insert(
+            "value".to_owned(),
+            RuntimeValue::constant("interpolated".to_owned()),
+        );
+        manifest.tool.insert(
+            "js_${locals.value}".to_owned(),
+            ManifestTool {
+                description: None,
+                enabled: RuntimeValue::constant(true),
+                capabilities: Vec::new(),
+                config: HashMap::new(),
+                kind: ManifestToolKind::Javascript(ManifestJavascriptTool {
+                    source: "${locals.value}/tool".to_owned(),
+                    export: Some("${locals.value}".to_owned()),
+                }),
+            },
+        );
+        manifest.skill.insert(
+            "skill_${locals.value}".to_owned(),
+            ManifestSkill::Source(ManifestSkillSource {
+                source: "${locals.value}/skill".to_owned(),
+            }),
+        );
+
+        let references = manifest.collect_assets();
+        assert!(references.iter().any(|asset| {
+            asset.uri == "${locals.value}/tool"
+                && matches!(&asset.origin, AssetOrigin::Tool { name } if name == "js_${locals.value}")
+        }));
+        assert!(references.iter().any(|asset| {
+            asset.uri == "${locals.value}/skill"
+                && matches!(&asset.origin, AssetOrigin::Skill { name } if name == "skill_${locals.value}")
+        }));
+
+        let assets = [
+            TransformedAsset {
+                uri: "${locals.value}/tool".to_owned(),
+                origin: AssetOrigin::tool("js_${locals.value}"),
+                artifacts: vec![AssetArtifact::path("source", "/tmp/agentc-tool.js")],
+            },
+            TransformedAsset {
+                uri: "${locals.value}/skill".to_owned(),
+                origin: AssetOrigin::skill("skill_${locals.value}"),
+                artifacts: vec![AssetArtifact::path("skill_md", "/tmp/agentc-skill/SKILL.md")],
+            },
+        ];
+        let (resolved, _) = manifest.resolve(&EmptyLoader, &assets).await.unwrap();
+        let ResolvedContextToolKind::Javascript(tool) =
+            &resolved.tools.get("js_${locals.value}").unwrap().kind
+        else {
+            panic!("JavaScript tool should resolve");
+        };
+        assert_eq!(tool.export_name, "${locals.value}");
+        let ResolvedContextSkillKind::Source(skill) =
+            &resolved.skills.get("skill_${locals.value}").unwrap().kind
+        else {
+            panic!("source skill should resolve");
+        };
+        assert_eq!(skill.dir, "/tmp/agentc-skill");
     }
 }
