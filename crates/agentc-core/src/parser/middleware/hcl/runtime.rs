@@ -2,7 +2,10 @@
 //
 // SPDX-License-Identifier: MIT
 
-use hcl::{Body, Expression, FuncCall, ObjectKey, expr::Object};
+use hcl::{Body, Expression, FuncCall};
+use serde::Deserialize;
+
+use agentc_blocks::types::RuntimeValueWire;
 
 use crate::parser::{
     errors::ParserError,
@@ -15,40 +18,26 @@ use crate::parser::{
 pub struct RuntimeFunctionDeserialize;
 
 impl RuntimeFunctionDeserialize {
-    fn transform_runtime(call: FuncCall) -> Result<Expression, ParserError> {
-        Ok(match call.args.as_slice() {
-            [env_param] => hcl::expression!({ "env" = (env_param.clone()) }),
-            [env_param, default_param] => hcl::expression!({
-                "env" = (env_param.clone()),
-                "default" = (default_param.clone())
-            }),
-            _ => {
-                return Err(ParserError::InvalidExpression(
-                    "runtime() takes 1 or 2 arguments".to_string(),
-                ));
-            }
-        })
-    }
+    fn transform_runtime(call: FuncCall, secret: bool) -> Result<Expression, ParserError> {
+        let mut args = call.args.into_iter();
 
-    fn transform_secret(call: FuncCall) -> Result<Expression, ParserError> {
-        match call.args.as_slice() {
-            [Expression::FuncCall(inner)] if inner.name.name.as_str() == "runtime" => {
-                match Self::transform_runtime(*inner.clone())? {
-                    Expression::Object(mut object) => {
-                        object.insert(ObjectKey::from("secret"), Expression::Bool(true));
+        let Some(env) = args.next() else {
+            return Err(ParserError::InvalidExpression(
+                "runtime() takes 1 or 2 arguments".to_string(),
+            ));
+        };
 
-                        Ok(Expression::Object(object))
-                    }
-                    _ => unreachable!(),
-                }
-            }
-            [_] => Err(ParserError::InvalidExpression(
-                "secret() must wrap a runtime() call".to_string(),
-            )),
-            _ => {
-                Err(ParserError::InvalidExpression("secret() takes exactly 1 argument".to_string()))
-            }
+        let default = args.next();
+
+        if args.next().is_some() {
+            return Err(ParserError::InvalidExpression(
+                "runtime() takes 1 or 2 arguments".to_string(),
+            ));
         }
+
+        Ok(hcl::to_expression(RuntimeValueWire::new(
+            env, default, secret,
+        ))?)
     }
 }
 
@@ -56,10 +45,24 @@ impl FormatMiddleware<Body> for RuntimeFunctionDeserialize {
     fn apply(&self, input: Body) -> Result<Body, ParserError> {
         ExpressionVisitor::new(VisitOrder::Before, |expr, _| match expr {
             Expression::FuncCall(call) if call.name.name.as_str() == "runtime" => {
-                Self::transform_runtime(*call)
+                Self::transform_runtime(*call, false)
             }
             Expression::FuncCall(call) if call.name.name.as_str() == "secret" => {
-                Self::transform_secret(*call)
+                let mut args = call.args.into_iter();
+
+                match (args.next(), args.next()) {
+                    (Some(Expression::FuncCall(inner)), None)
+                        if inner.name.name.as_str() == "runtime" =>
+                    {
+                        Self::transform_runtime(*inner, true)
+                    }
+                    (Some(_), None) => Err(ParserError::InvalidExpression(
+                        "secret() must wrap a runtime() call".to_string(),
+                    )),
+                    _ => Err(ParserError::InvalidExpression(
+                        "secret() takes exactly 1 argument".to_string(),
+                    )),
+                }
             }
             expr => Ok(expr),
         })
@@ -69,56 +72,41 @@ impl FormatMiddleware<Body> for RuntimeFunctionDeserialize {
 
 pub struct RuntimeFunctionSerialize;
 
-impl RuntimeFunctionSerialize {
-    fn transform_runtime_object(object: Object<ObjectKey, Expression>) -> Expression {
-        let env_key = ObjectKey::from("env");
-        let default_key = ObjectKey::from("default");
-        let secret_key = ObjectKey::from("secret");
-
-        if object
-            .keys()
-            .any(|key| key != &env_key && key != &default_key && key != &secret_key)
-        {
-            return Expression::Object(object);
-        }
-
-        let Some(Expression::String(env)) = object.get(&env_key) else {
-            return Expression::Object(object);
-        };
-
-        let secret = match object.get(&secret_key) {
-            Some(Expression::Bool(secret)) => *secret,
-            Some(_) => return Expression::Object(object),
-            None => false,
-        };
-
-        let mut builder = FuncCall::builder("runtime").arg(Expression::String(env.clone()));
-
-        if let Some(default) = object.get(&default_key) {
-            builder = builder.arg(default.clone());
-        }
-
-        let runtime = Expression::FuncCall(Box::new(builder.build()));
-
-        if secret {
-            Expression::FuncCall(Box::new(
-                FuncCall::builder("secret")
-                    .arg(runtime)
-                    .build(),
-            ))
-        } else {
-            runtime
-        }
-    }
-}
-
 impl FormatMiddleware<Body> for RuntimeFunctionSerialize {
     fn apply(&self, input: Body) -> Result<Body, ParserError> {
         ExpressionVisitor::new(VisitOrder::After, |expr, _| {
-            Ok(match expr {
-                Expression::Object(object) => Self::transform_runtime_object(object),
-                expr => expr,
-            })
+            let Expression::Object(object) = expr else {
+                return Ok(expr);
+            };
+
+            if object.len() != 1 {
+                return Ok(Expression::Object(object));
+            }
+
+            let Ok(wire) = RuntimeValueWire::<String, Expression>::deserialize(
+                Expression::Object(object.clone()),
+            ) else {
+                return Ok(Expression::Object(object));
+            };
+
+            let (env, default, secret) = wire.into_parts();
+            let mut builder = FuncCall::builder("runtime").arg(Expression::String(env));
+
+            if let Some(default) = default {
+                builder = builder.arg(default);
+            }
+
+            let runtime = Expression::FuncCall(Box::new(builder.build()));
+
+            if secret {
+                Ok(Expression::FuncCall(Box::new(
+                    FuncCall::builder("secret")
+                        .arg(runtime)
+                        .build(),
+                )))
+            } else {
+                Ok(runtime)
+            }
         })
         .visit_body(input)
     }
@@ -152,6 +140,16 @@ mod tests {
     struct OrdinaryNestedFixture {
         env: String,
         description: String,
+    }
+
+    #[derive(Debug, Deserialize, Serialize, PartialEq, Eq)]
+    struct OrdinaryRuntimeFixture {
+        value: RuntimeValue<OrdinaryNestedFixture>,
+    }
+
+    #[derive(Debug, Deserialize, Serialize, PartialEq, Eq)]
+    struct MarkerFixture {
+        value: RuntimeValue<String>,
     }
 
     fn format() -> SpecFormat {
@@ -258,5 +256,93 @@ nested = {
                 .unwrap(),
             fixture
         );
+    }
+
+    #[test]
+    fn ordinary_env_map_remains_a_constant() {
+        let fixture = format()
+            .deserialize_string::<OrdinaryRuntimeFixture>(
+                r#"
+value = {
+  env = "production"
+  description = "deployment environment"
+}
+"#,
+            )
+            .unwrap();
+
+        assert_eq!(
+            fixture,
+            OrdinaryRuntimeFixture {
+                value: RuntimeValue::Constant(OrdinaryNestedFixture {
+                    env: "production".to_string(),
+                    description: "deployment environment".to_string(),
+                }),
+            }
+        );
+
+        let serialized = format().serialize_string(&fixture).unwrap();
+
+        assert!(!serialized.contains("runtime("));
+        assert_eq!(
+            format()
+                .deserialize_string::<OrdinaryRuntimeFixture>(&serialized)
+                .unwrap(),
+            fixture
+        );
+    }
+
+    #[test]
+    fn explicit_marker_with_identifier_fields_round_trips() {
+        let fixture = format()
+            .deserialize_string::<MarkerFixture>(
+                r#"
+value = {
+  "$runtime" = {
+    env = "PORT"
+    default = "8080"
+    secret = true
+  }
+}
+"#,
+            )
+            .unwrap();
+
+        assert_eq!(
+            fixture,
+            MarkerFixture {
+                value: RuntimeValue::secret_default_runtime("PORT", "8080".to_string()),
+            }
+        );
+
+        let serialized = format().serialize_string(&fixture).unwrap();
+
+        assert!(serialized.contains("secret(runtime("));
+        assert_eq!(
+            format()
+                .deserialize_string::<MarkerFixture>(&serialized)
+                .unwrap(),
+            fixture
+        );
+    }
+
+    #[test]
+    fn marker_with_sibling_is_rejected_in_both_orders() {
+        for source in [
+            r#"
+value = {
+  "$runtime" = { env = "PORT" }
+  other = "value"
+}
+"#,
+            r#"
+value = {
+  other = "value"
+  "$runtime" = { env = "PORT" }
+}
+"#,
+        ] {
+            assert!(format().deserialize_string::<MarkerFixture>(source).is_err());
+        }
     }
 }

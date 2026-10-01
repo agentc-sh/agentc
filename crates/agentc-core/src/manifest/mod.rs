@@ -990,7 +990,7 @@ mod tests {
     use async_trait::async_trait;
 
     use super::*;
-    use crate::parser::{SpecFormat, middleware::hcl::RuntimeFunctionDeserialize};
+    use crate::parser::{SpecFormat, SpecParser, middleware::hcl::RuntimeFunctionDeserialize};
     use agentc_compiler::generator::errors::GeneratorError;
 
     struct EmptyLoader;
@@ -1070,66 +1070,54 @@ agent "assistant" {{
     struct A2aManifestFixture;
 
     impl A2aManifestFixture {
-        fn json() -> &'static str {
+        fn hcl() -> &'static str {
             r#"
-{
-  "build": {
-    "archetype": "standalone"
-  },
-  "providers": {},
-  "agent": {
-    "assistant": {
-      "version": "0.1.0",
-      "graph": {
-        "type": "react"
-      },
-      "model": {
-        "provider": "anthropic",
-        "name": "claude-haiku-4-5"
-      }
-    }
-  },
-  "tool": {
-    "planner": {
-      "kind": "a2a",
-      "description": "Delegate planning subtasks.",
-      "enabled": {
-        "env": "PLANNER_A2A_ENABLED",
-        "default": true
-      },
-      "capabilities": ["a2a:planner"],
-      "url": {
-        "env": "PLANNER_A2A_URL",
-        "default": "https://planner.example.com"
-      },
-      "auth_token": {
-        "env": "PLANNER_A2A_TOKEN",
-        "secret": true
-      },
-      "headers": {
-        "X-Agent": "assistant"
-      },
-      "tenant": {
-        "policy": "fixed",
-        "id": {
-          "env": "PLANNER_A2A_TENANT",
-          "default": "tenant-1"
-        }
-      },
-      "timeout_secs": {
-        "env": "PLANNER_A2A_TIMEOUT",
-        "default": 90
-      },
-      "default_accepted_output_modes": ["text/plain"]
-    }
+build {
+  archetype = "standalone"
+}
+
+providers {}
+
+agent "assistant" {
+  version = "0.1.0"
+
+  graph {
+    type = "react"
   }
+
+  model {
+    provider = "anthropic"
+    name     = "claude-haiku-4-5"
+  }
+}
+
+tool "planner" {
+  kind          = "a2a"
+  description   = "Delegate planning subtasks."
+  enabled       = runtime("PLANNER_A2A_ENABLED", true)
+  capabilities  = ["a2a:planner"]
+  url           = runtime("PLANNER_A2A_URL", "https://planner.example.com")
+  auth_token    = secret(runtime("PLANNER_A2A_TOKEN"))
+
+  headers = {
+    "X-Agent" = "assistant"
+  }
+
+  tenant = {
+    policy = "fixed"
+    id     = runtime("PLANNER_A2A_TENANT", "tenant-1")
+  }
+
+  timeout_secs                  = runtime("PLANNER_A2A_TIMEOUT", 90)
+  default_accepted_output_modes = ["text/plain"]
 }
 "#
         }
 
         fn manifest() -> Manifest {
-            SpecFormat::json()
-                .deserialize_string::<Manifest>(Self::json())
+            SpecFormat::hcl()
+                .with_hcl_deserialize_middleware(RuntimeFunctionDeserialize)
+                .deserialize_string::<Manifest>(Self::hcl())
                 .expect("manifest should deserialize")
         }
     }
@@ -1347,6 +1335,91 @@ version = 7
                 .collect_assets()
                 .is_empty()
         );
+    }
+
+    #[tokio::test]
+    async fn spec_parser_preserves_nested_network_port_conversion() {
+        let manifest = SpecParser::<Manifest>::default()
+            .with_content(
+                r#"
+build {
+  archetype = "standalone"
+}
+
+providers {}
+
+agent "assistant" {
+  graph {
+    type = "react"
+  }
+
+  model {
+    provider = "anthropic"
+    name     = "claude-haiku-4-5"
+  }
+}
+
+network {
+  policy {
+    allow = [{ protocol = "http", port = 8086 }]
+  }
+}
+"#,
+                SpecFormat::hcl().with_hcl_deserialize_middleware(RuntimeFunctionDeserialize),
+            )
+            .parse()
+            .await
+            .expect("manifest should parse");
+
+        assert!(matches!(
+            &manifest.network.policy.allow,
+            RuntimeValue::Constant(patterns)
+                if patterns.len() == 1
+                    && patterns[0].protocol.as_deref() == Some("http")
+                    && patterns[0].port.as_deref() == Some("8086")
+        ));
+    }
+
+    #[tokio::test]
+    async fn spec_parser_preserves_typed_runtime_default() {
+        let manifest = SpecParser::<Manifest>::default()
+            .with_content(
+                r#"
+build {
+  archetype = "standalone"
+}
+
+providers {}
+
+agent "assistant" {
+  graph {
+    type = "react"
+  }
+
+  model {
+    provider = "anthropic"
+    name     = "claude-haiku-4-5"
+  }
+}
+
+http_server {
+  port = runtime("HTTP_PORT", "8080")
+}
+"#,
+                SpecFormat::hcl().with_hcl_deserialize_middleware(RuntimeFunctionDeserialize),
+            )
+            .parse()
+            .await
+            .expect("manifest should parse");
+
+        assert!(matches!(
+            &manifest.http_server.expect("HTTP server should be present").port,
+            RuntimeValue::Runtime {
+                env,
+                default: Some(8080),
+                secret: false,
+            } if env == "HTTP_PORT"
+        ));
     }
 
     #[tokio::test]
