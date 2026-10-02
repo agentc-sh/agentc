@@ -21,7 +21,7 @@ These fields apply to all tool kinds.
 
 | Field | Type | Required | runtime() | Default | Description |
 |-------|------|----------|-----------|---------|-------------|
-| `kind` | `"javascript"` \| `"python"` \| `"bash"` \| `"mcp"` \| `"a2a"` | yes | no | … | Execution or connection mechanism used for the tool. |
+| `kind` | `javascript` \| `python` \| `bash` \| `mcp` \| `a2a` | yes | no | … | Execution or connection mechanism used for the tool. |
 | `description` | string | no | no | unset | Human-readable description of what the tool does. |
 | `capabilities` | array&lt;string&gt; | no | no | `[]` | Capability tags required to invoke this tool. See [Tools and capabilities](/concepts/tools-and-capabilities). |
 | `enabled` | boolean | no | yes | `true` | Whether the tool is registered at startup. |
@@ -77,7 +77,7 @@ tool "weather" {
 |-------|------|----------|-----------|---------|-------------|
 | `source` | string | yes | no | … | Path to the tool's directory, relative to the manifest. Must contain a `pyproject.toml`. |
 | `export` | string | no | no | tool block name | Name of the exported `Tool` subclass. Becomes the registered tool name. |
-| `interpreter` | `"embedded"` \| `"static"` | no | no | `"embedded"` | Python runtime backend. `"embedded"` uses RustPython, supports pure-Python packages, and produces a self-contained binary. `"static"` uses CPython 3.14 and supports packages with C extensions, but requires a compatible shared CPython installation and `libpython` available at runtime. |
+| `interpreter` | `embedded` \| `static` | no | no | `"embedded"` | Python runtime backend. `"embedded"` uses RustPython, supports pure-Python packages, and produces a self-contained binary. `"static"` uses CPython 3.14 and supports packages with C extensions, but requires a compatible shared CPython installation and `libpython` available at runtime. |
 
 See [Write a tool](/guides/write-a-tool) for how to write the tool source.
 
@@ -121,7 +121,7 @@ tool "shell" {
 
 | Field | Type | Required | runtime() | Default | Description |
 |-------|------|----------|-----------|---------|-------------|
-| `kind` | `"empty"` \| `"inherit"` \| `"allow"` \| `"deny"` | no | no | `"empty"` | Rule for selecting host environment variables available to Bash commands. |
+| `kind` | `empty` \| `inherit` \| `allow` \| `deny` | no | no | `"empty"` | Rule for selecting host environment variables available to Bash commands. |
 | `vars` | array&lt;string&gt; | no | no | `[]` | Variable names used by the `"allow"` and `"deny"` policies. |
 
 Supported policies are `"empty"` (no variables), `"inherit"` (all variables), `"allow"` (only `vars`), and `"deny"` (all except `vars`).
@@ -174,7 +174,7 @@ tool "remote_tools" {
 
 | Field | Type | Required | runtime() | Default | Description |
 |-------|------|----------|-----------|---------|-------------|
-| `transport` | `"stdio"` | yes | no | … | Launches the MCP server as a subprocess and exchanges messages over standard input and output. |
+| `transport` | `stdio` | yes | no | … | Launches the MCP server as a subprocess and exchanges messages over standard input and output. |
 | `command` | string | yes | yes | … | Executable used to spawn the MCP server subprocess. |
 | `args` | array&lt;string&gt; | no | yes | `[]` | Arguments passed to the command. Each element may be a `runtime()` expression. |
 | `config` | map&lt;string, string&gt; | no | yes | `{}` | Environment variables forwarded to the subprocess. Each value may be a `runtime()` expression. |
@@ -183,7 +183,7 @@ tool "remote_tools" {
 
 | Field | Type | Required | runtime() | Default | Description |
 |-------|------|----------|-----------|---------|-------------|
-| `transport` | `"http"` | yes | no | … | Connects to the MCP server over HTTP. |
+| `transport` | `http` | yes | no | … | Connects to the MCP server over HTTP. |
 | `url` | string | yes | yes | … | Base URL of the MCP server. |
 | `auth_token` | string | no | yes | unset | Bearer token sent in the `Authorization` header. Use `secret(runtime(...))`. |
 | `headers` | map&lt;string, string&gt; | no | yes | `{}` | Additional HTTP headers sent with every request. Each value may be a `runtime()` expression. |
@@ -248,7 +248,7 @@ tenant = {
 
 | Field | Type | Required | runtime() | Default | Description |
 |-------|------|----------|-----------|---------|-------------|
-| `policy` | `"inherit"` \| `"fixed"` \| `"none"` | yes | no | … | Rule for inheriting, fixing, or omitting the downstream tenant ID. |
+| `policy` | `inherit` \| `fixed` \| `none` | yes | no | … | Rule for inheriting, fixing, or omitting the downstream tenant ID. |
 | `id` | string | required for `fixed` | yes | … | Tenant ID sent when `policy = "fixed"`. |
 
 `inherit` forwards the effective tenant from the parent run. `fixed` sends the configured `id`.
