@@ -29,20 +29,39 @@ agent "my_agent" {
 
 ## Fields
 
-| Field | Type | Required | runtime() | Description |
-|-------|------|----------|-----------|-------------|
-| `graph` | block | yes | | Graph selection. See below. |
-| `version` | string | no | no | Semver version string embedded in the binary. Defaults to `"0.1.0"`. |
-| `description` | string | no | no | Human-readable description of the agent. |
-| `prompt` | string, list, or source object | no | no | System prompt. Supports Jinja2 templates. |
-| `capabilities` | list of strings | no | yes | Capability tags the agent is allowed to use. |
-| `capability_policy` | string | no | yes | How capabilities are enforced. See below. |
-| `model` | block | yes | | Model configuration. |
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `graph` | [Graph](#graph) | yes | | … | Execution graph that controls how the agent processes a run. |
+| `version` | string | no | no | `"0.1.0"` | Semver version string embedded in the binary. |
+| `description` | string | no | no | unset | Human-readable description of the agent. |
+| `prompt` | string \| array&lt;[PromptMessage](#promptmessage)&gt; \| [LangfusePromptSource](#langfusepromptsource) | no | no | unset | Prompt messages or source used to guide the agent during a run. |
+| `capabilities` | array&lt;string&gt; | no | yes | unset | Capability tags the agent is allowed to use. |
+| `capability_policy` | string | no | yes | unset | Policy controlling tool access through capability tags. |
+| `model` | [AgentModel](#agentmodel) | yes | | … | Default provider and model used for the agent's model calls. |
 
-## graph block
+## Graph
 
-The `graph` block selects which graph implementation drives the agent. Graph selection is required
-and currently the only shipped value is `react`.
+The `graph` block selects the implementation that drives the agent. See the [graph reference](/reference/manifest/graph) for its behavior.
+
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `type` | `"react"` | yes | no | … | Execution graph used for the agent's runs. |
+| `model` | [GraphModelCallPolicy](#graphmodelcallpolicy) | no | | unset | Default timeout and retry settings for model calls. |
+
+### GraphModelCallPolicy
+
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `timeout` | integer | no | yes | unset | Time in milliseconds allowed to establish a model response stream. |
+| `retry` | [RetryPolicy](#retrypolicy) | no | | unset | Attempts and delays for temporary failures while establishing a model response stream. |
+
+### RetryPolicy
+
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `max_attempts` | integer | yes | yes | … | Maximum attempts, including the first. |
+| `initial_backoff` | integer | yes | yes | … | First retry delay in milliseconds. |
+| `max_backoff` | integer | yes | yes | … | Maximum base delay in milliseconds. |
 
 ```hcl
 graph {
@@ -50,12 +69,7 @@ graph {
 }
 ```
 
-| Field | Type | Required | runtime() | Description |
-|-------|------|----------|-----------|-------------|
-| `type` | string | yes | no | Graph name. Must be `react` in this distribution. |
-
-See [graph](/reference/manifest/graph) for the block reference and [ReAct](/reference/graph/react)
-for the shipped graph's behavior.
+See [ReAct](/reference/graph/react) for the graph's behavior.
 
 ## prompt
 
@@ -77,7 +91,14 @@ The prompt supports Jinja2 template syntax. Variables are injected at runtime be
 set of available variables is graph-dependent; see [ReAct prompt templates](/reference/graph/react/prompt-templates)
 for the list the ReAct graph provides, and [Write templated prompts](/guides/write-templated-prompts) for how to use them.
 
-### Langfuse prompt source
+### PromptMessage
+
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `role` | `"system"` \| `"user"` \| `"assistant"` | yes | no | … | Role assigned to this message as system instructions, a user turn, or an assistant turn. |
+| `content` | string | yes | no | … | Text template rendered as the message content for each run. |
+
+### LangfusePromptSource
 
 Use a Langfuse source object to retrieve the prompt from Langfuse Prompt Management at runtime:
 
@@ -98,16 +119,16 @@ prompt = {
 
 | Field | Type | Required | runtime() | Default | Description |
 |-------|------|----------|-----------|---------|-------------|
-| `source` | string | yes | no | | Must be `langfuse`. |
-| `prompt_name` | string | yes | yes | | Langfuse prompt name, including any folder path. |
-| `public_key` | string | yes | yes | | Langfuse project public key. |
-| `secret_key` | string | yes | yes | | Langfuse project secret key. Normally wrapped in `secret(runtime(...))`. |
+| `source` | `"langfuse"` | yes | no | … | Service that supplies the prompt at runtime. |
+| `prompt_name` | string | yes | yes | … | Langfuse prompt name, including any folder path. |
+| `public_key` | string | yes | yes | … | Langfuse project public key. |
+| `secret_key` | string | yes | yes | … | Langfuse project secret key. Normally wrapped in `secret(runtime(...))`. |
 | `base_url` | string | no | yes | `https://cloud.langfuse.com` | Langfuse Cloud or self-hosted base URL. |
-| `label` | string | no | yes | | Movable label used to select a prompt version. |
-| `version` | number | no | yes | | Immutable numeric prompt version. |
-| `cache_ttl_seconds` | number | no | yes | `60` | Local cache lifetime. Set to `0` to disable caching. |
-| `fetch_timeout_seconds` | number | no | yes | `5` | Fetch timeout for each request attempt. |
-| `max_retries` | number | no | yes | `2` | Additional attempts for transient fetch failures. |
+| `label` | string | no | yes | unset | Movable label used to select a prompt version. |
+| `version` | integer | no | yes | unset | Immutable numeric prompt version. |
+| `cache_ttl_seconds` | integer | no | yes | `60` | Local cache lifetime. Set to `0` to disable caching. |
+| `fetch_timeout_seconds` | integer | no | yes | `5` | Fetch timeout for each request attempt. |
+| `max_retries` | integer | no | yes | `2` | Additional attempts for transient fetch failures. |
 
 `label` and `version` are mutually exclusive. When both are omitted, Langfuse applies its default
 production selection.
@@ -140,14 +161,14 @@ See [Tools and capabilities](/concepts/tools-and-capabilities) for how capabilit
 and [Control tool access with capabilities](/guides/control-tool-access-with-capabilities) for the
 recipe.
 
-## model block
+## AgentModel
 
 The `model` block selects the LLM the agent uses.
 
-| Field | Type | Required | runtime() | Description |
-|-------|------|----------|-----------|-------------|
-| `provider` | string | yes | yes | Provider name. Must match a key in the `providers` block. |
-| `name` | string | yes | yes | Model identifier as recognised by the provider. |
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `provider` | string | yes | yes | … | Provider name. Must match a key in the `providers` block. |
+| `name` | string | yes | yes | … | Model identifier as recognised by the provider. |
 
 Inference parameters such as `temperature`, `max_tokens`, and `top_p` are declared in the
 `providers` block, not here. Provider-level defaults apply to every model request, and individual

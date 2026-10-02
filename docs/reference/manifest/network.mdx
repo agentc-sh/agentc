@@ -33,48 +33,43 @@ network {
 | Field | Type | Required | runtime() | Default | Description |
 |-------|------|----------|-----------|---------|-------------|
 | `user_agent` | string | no | yes | unset | The `User-Agent` header sent with every request. |
-| `headers` | map of string to string | no | yes | empty | Additional headers sent with every request. |
-| `limits` | block | no | | defaults below | Connection, timeout, and size limits. |
-| `policy` | block | no | | defaults below | The egress policy applied to every request. |
+| `headers` | map&lt;string, string&gt; | no | yes | `{}` | Additional headers sent with every request. |
+| `limits` | [NetworkLimits](#networklimits) | no | | defaults below | Connection, timeout, and size limits. |
+| `policy` | [NetworkPolicy](#networkpolicy) | no | | defaults below | Rules governing the destination addresses, HTTP methods, and URLs available to outgoing requests. |
 
-## limits
+## NetworkLimits
 
-| Field | Type | Default |
-|-------|------|---------|
-| `connect_timeout_ms` | number | unset |
-| `read_timeout_ms` | number | unset |
-| `request_timeout_ms` | number | unset |
-| `max_redirects` | number | `5` |
-| `max_response_bytes` | number | unset |
-| `concurrency_limit` | number | unset |
-
-- `connect_timeout_ms` is the time allowed to establish a connection.
-- `read_timeout_ms` is the time allowed between response body chunks.
-- `request_timeout_ms` is the deadline for the whole request.
-- `max_redirects` is how many redirects one request may follow.
-- `max_response_bytes` is how many response body bytes are accepted.
-- `concurrency_limit` is how many requests may be in flight at once.
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `connect_timeout_ms` | integer | no | yes | unset | Time in milliseconds allowed to establish a connection. |
+| `read_timeout_ms` | integer | no | yes | unset | Time in milliseconds allowed between response body chunks. |
+| `request_timeout_ms` | integer | no | yes | unset | Time in milliseconds allowed for the entire request. |
+| `max_redirects` | integer | no | yes | `5` | Number of redirects one request may follow. |
+| `max_response_bytes` | integer | no | yes | unset | Maximum accepted response body size in bytes. |
+| `concurrency_limit` | integer | no | yes | unset | Maximum requests in flight at once. |
 
 An unset limit is not enforced.
 
-## policy
+## NetworkPolicy
 
 The `policy` block contains `addresses`, `methods`, and `allow`.
 
 ### addresses
 
-| Field | Default |
-|-------|---------|
-| `allow_loopback` | `false` |
-| `allow_private` | `false` |
-| `allow_link_local` | `false` |
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `allow_loopback` | boolean | no | yes | `false` | Allow requests to this machine through addresses such as `127.0.0.1` and `::1`. |
+| `allow_private` | boolean | no | yes | `false` | Allow destinations on private networks, such as `10.0.0.1`, `192.168.1.1`, and IPv6 unique-local addresses. |
+| `allow_link_local` | boolean | no | yes | `false` | Allow addresses usable only on the immediately connected network, such as `169.254.0.1`. |
 
 These permit categories of destination address. The checks apply to every address a host name
 resolves to. The link-local category is the one covering the cloud instance metadata address.
 
 ### methods
 
-`methods` is a set of HTTP method names. When it is unset, methods are unrestricted.
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `methods` | array&lt;string&gt; | no | yes | unset (all methods) | HTTP methods the agent may use. |
 
 ### allow
 
@@ -83,12 +78,20 @@ resolves to. The link-local category is the one covering the cloud instance meta
 list means URL patterns are unrestricted. Each pattern uses the `protocol`, `hostname`, `port`, and
 `pathname` components. An omitted component matches anything.
 
-| Component | Matches |
-|-----------|---------|
-| `protocol` | The URL scheme, for example `https`. |
-| `hostname` | The host name. |
-| `port` | The port. |
-| `pathname` | The path. |
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `allow` | array&lt;[URLPattern](#urlpattern)&gt; | no | yes | `[]` | URL patterns the agent may request. |
+
+#### URLPattern
+
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `protocol` | string | no | no | any | URL scheme to match, such as `https`. |
+| `hostname` | string | no | no | any | Host name to match, such as `api.example.com`. |
+| `port` | string | no | no | any | Port to match in the request URL, such as `443`. |
+| `pathname` | string | no | no | any | Path component to match in the request URL. |
+
+In an HCL pattern, a whole-number port such as `port = 8086` is accepted as the string `"8086"`.
 
 ### Host name patterns
 

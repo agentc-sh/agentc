@@ -19,13 +19,13 @@ tool "adder" {
 
 These fields apply to all tool kinds.
 
-| Field | Type | Required | runtime() | Description |
-|-------|------|----------|-----------|-------------|
-| `kind` | string | yes | no | Tool type. One of `"javascript"`, `"python"`, `"bash"`, `"mcp"`, `"a2a"`. |
-| `description` | string | no | no | Human-readable description of what the tool does. |
-| `capabilities` | list of strings | no | no | Capability tags required to invoke this tool. See [Tools and capabilities](/concepts/tools-and-capabilities). |
-| `enabled` | bool | no | yes | Whether the tool is registered at startup. Defaults to `true`. |
-| `config` | map | no | yes | Named string values made available to the tool at runtime, each of which may be a constant or a `runtime()` expression. |
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `kind` | `"javascript"` \| `"python"` \| `"bash"` \| `"mcp"` \| `"a2a"` | yes | no | … | Execution or connection mechanism used for the tool. |
+| `description` | string | no | no | unset | Human-readable description of what the tool does. |
+| `capabilities` | array&lt;string&gt; | no | no | `[]` | Capability tags required to invoke this tool. See [Tools and capabilities](/concepts/tools-and-capabilities). |
+| `enabled` | boolean | no | yes | `true` | Whether the tool is registered at startup. |
+| `config` | map&lt;string, string&gt; | no | yes | `{}` | Named string values made available to the tool at runtime, each of which may be a constant or a `runtime()` expression. |
 
 ## javascript
 
@@ -49,10 +49,10 @@ tool "adder" {
 }
 ```
 
-| Field | Type | Required | runtime() | Description |
-|-------|------|----------|-----------|-------------|
-| `source` | string | yes | no | Path to the tool's package directory, relative to the manifest. Must contain a `package.json`. |
-| `export` | string | no | no | Name of the exported `Tool` subclass. Defaults to the tool block name, and becomes the registered tool name. |
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `source` | string | yes | no | … | Path to the tool's package directory, relative to the manifest. Must contain a `package.json`. |
+| `export` | string | no | no | tool block name | Name of the exported `Tool` subclass. Becomes the registered tool name. |
 
 See [Write a tool](/guides/write-a-tool) for how to write the tool source.
 
@@ -73,11 +73,11 @@ tool "weather" {
 }
 ```
 
-| Field | Type | Required | runtime() | Description |
-|-------|------|----------|-----------|-------------|
-| `source` | string | yes | no | Path to the tool's directory, relative to the manifest. Must contain a `pyproject.toml`. |
-| `export` | string | no | no | Name of the exported `Tool` subclass. Defaults to the tool block name, and becomes the registered tool name. |
-| `interpreter` | string | no | no | Python runtime backend. `"embedded"` (default) uses RustPython, supports pure-Python packages, and produces a self-contained binary. `"static"` uses CPython 3.14 and supports packages with C extensions, but requires a compatible shared CPython installation and `libpython` available at runtime. |
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `source` | string | yes | no | … | Path to the tool's directory, relative to the manifest. Must contain a `pyproject.toml`. |
+| `export` | string | no | no | tool block name | Name of the exported `Tool` subclass. Becomes the registered tool name. |
+| `interpreter` | `"embedded"` \| `"static"` | no | no | `"embedded"` | Python runtime backend. `"embedded"` uses RustPython, supports pure-Python packages, and produces a self-contained binary. `"static"` uses CPython 3.14 and supports packages with C extensions, but requires a compatible shared CPython installation and `libpython` available at runtime. |
 
 See [Write a tool](/guides/write-a-tool) for how to write the tool source.
 
@@ -109,31 +109,33 @@ tool "shell" {
 }
 ```
 
-| Field | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
-| `commands` | list of strings | no | `[]` | Additional host programs to register as passthrough commands. Each program must be available on the host at runtime. |
-| `cwd` | string | no | `"/home/agent"` | Initial directory in the agent filesystem. The value is always a POSIX path. |
-| `env` | block | no | defaults below | Host environment variable forwarding policy. |
-| `limits` | block | no | defaults below | Resource limits applied to each invocation. |
-| `shared` | bool | no | `false` | Whether invocations share one interpreter. Shared invocations retain shell-local state and execute serially. |
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `commands` | array&lt;string&gt; | no | no | `[]` | Additional host programs to register as passthrough commands. Each program must be available on the host at runtime. |
+| `cwd` | string | no | no | `"/home/agent"` | Initial directory in the agent filesystem. The value is always a POSIX path. |
+| `env` | [BashEnv](#bashenv) | no | | defaults below | Controls which host environment variables Bash commands receive. |
+| `limits` | [BashLimits](#bashlimits) | no | | defaults below | Resource limits applied to each invocation. |
+| `shared` | boolean | no | no | `false` | Whether invocations share one interpreter. Shared invocations retain shell-local state and execute serially. |
 
-### env block
+### BashEnv
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `kind` | string | `"empty"` | Forwarding policy. One of `"empty"` (no variables), `"inherit"` (all variables), `"allow"` (only those listed in `vars`), `"deny"` (all except those listed in `vars`). |
-| `vars` | list of strings | `[]` | Variable names used by the `"allow"` and `"deny"` policies. |
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `kind` | `"empty"` \| `"inherit"` \| `"allow"` \| `"deny"` | no | no | `"empty"` | Rule for selecting host environment variables available to Bash commands. |
+| `vars` | array&lt;string&gt; | no | no | `[]` | Variable names used by the `"allow"` and `"deny"` policies. |
 
-### limits block
+Supported policies are `"empty"` (no variables), `"inherit"` (all variables), `"allow"` (only `vars`), and `"deny"` (all except `vars`).
+
+### BashLimits
 
 All fields are optional and use the following defaults when absent.
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `max_execution_time_secs` | integer | `30` | Maximum wall-clock execution time in seconds. |
-| `max_output_size` | integer | `10485760` | Maximum combined output size in bytes. |
-| `max_command_count` | integer | `10000` | Maximum number of commands that may be dispatched. |
-| `max_loop_iterations` | integer | `10000` | Maximum number of loop iterations. |
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `max_execution_time_secs` | integer | no | no | `30` | Maximum wall-clock execution time in seconds. |
+| `max_output_size` | integer | no | no | `10485760` | Maximum combined output size in bytes. |
+| `max_command_count` | integer | no | no | `10000` | Maximum number of commands that may be dispatched. |
+| `max_loop_iterations` | integer | no | no | `10000` | Maximum number of loop iterations. |
 
 With `shared = false`, each invocation gets a fresh interpreter. With `shared = true`, variables,
 functions, aliases, and working directory changes persist between invocations. Filesystem changes
@@ -170,21 +172,21 @@ tool "remote_tools" {
 
 **stdio fields:**
 
-| Field | Type | Required | runtime() | Description |
-|-------|------|----------|-----------|-------------|
-| `transport` | string | yes | no | Must be `"stdio"`. |
-| `command` | string | yes | yes | Executable used to spawn the MCP server subprocess. |
-| `args` | list of strings | no | yes | Arguments passed to the command. Each element may be a `runtime()` expression. |
-| `config` | map | no | yes | Environment variables forwarded to the subprocess. Each value may be a `runtime()` expression. |
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `transport` | `"stdio"` | yes | no | … | Launches the MCP server as a subprocess and exchanges messages over standard input and output. |
+| `command` | string | yes | yes | … | Executable used to spawn the MCP server subprocess. |
+| `args` | array&lt;string&gt; | no | yes | `[]` | Arguments passed to the command. Each element may be a `runtime()` expression. |
+| `config` | map&lt;string, string&gt; | no | yes | `{}` | Environment variables forwarded to the subprocess. Each value may be a `runtime()` expression. |
 
 **HTTP fields:**
 
-| Field | Type | Required | runtime() | Description |
-|-------|------|----------|-----------|-------------|
-| `transport` | string | yes | no | Must be `"http"`. |
-| `url` | string | yes | yes | Base URL of the MCP server. |
-| `auth_token` | string | no | yes | Bearer token sent in the `Authorization` header. Use `secret(runtime(...))`. |
-| `headers` | map | no | yes | Additional HTTP headers sent with every request. Each value may be a `runtime()` expression. |
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `transport` | `"http"` | yes | no | … | Connects to the MCP server over HTTP. |
+| `url` | string | yes | yes | … | Base URL of the MCP server. |
+| `auth_token` | string | no | yes | unset | Bearer token sent in the `Authorization` header. Use `secret(runtime(...))`. |
+| `headers` | map&lt;string, string&gt; | no | yes | `{}` | Additional HTTP headers sent with every request. Each value may be a `runtime()` expression. |
 
 See [Connect external tools via MCP](/guides/connect-external-tools-via-mcp) for more on Model
 Context Protocol integration.
@@ -222,19 +224,19 @@ tool "planner" {
 }
 ```
 
-| Field | Type | Required | runtime() | Description |
-|-------|------|----------|-----------|-------------|
-| `url` | string | yes | yes | Base URL of the downstream A2A server. |
-| `auth_token` | string | no | yes | Bearer token sent in the `Authorization` header. Use `secret(runtime(...))`. |
-| `headers` | map | no | yes | Additional HTTP headers sent with every request. Each value may be a `runtime()` expression. |
-| `tenant` | block | no | yes, for fixed IDs | Tenant policy for the downstream request. Defaults to `inherit`. |
-| `timeout_secs` | integer | no | yes | Request timeout in seconds. |
-| `default_accepted_output_modes` | list of strings | no | no | Output modes used when a tool call does not provide its own accepted modes. |
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `url` | string | yes | yes | … | Base URL of the downstream A2A server. |
+| `auth_token` | string | no | yes | unset | Bearer token sent in the `Authorization` header. Use `secret(runtime(...))`. |
+| `headers` | map&lt;string, string&gt; | no | yes | `{}` | Additional HTTP headers sent with every request. Each value may be a `runtime()` expression. |
+| `tenant` | [TenantPolicy](#tenantpolicy) | no | no | inherit | Controls the tenant ID sent to the downstream A2A server. |
+| `timeout_secs` | integer | no | yes | unset | Request timeout in seconds. |
+| `default_accepted_output_modes` | array&lt;string&gt; | no | no | `[]` | Default output formats accepted from downstream A2A operations. |
 
 There is no operation-selection field. Every target always gets send, stream, get-task, and
 cancel-task tools.
 
-### tenant block
+### TenantPolicy
 
 The `tenant` block controls the `X-Tenant-Id` value sent to the downstream A2A server.
 
@@ -244,10 +246,10 @@ tenant = {
 }
 ```
 
-| Field | Type | Required | runtime() | Description |
-|-------|------|----------|-----------|-------------|
-| `policy` | string | yes | no | One of `"inherit"`, `"fixed"`, or `"none"`. |
-| `id` | string | required for `fixed` | yes | Tenant ID sent when `policy = "fixed"`. |
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `policy` | `"inherit"` \| `"fixed"` \| `"none"` | yes | no | … | Rule for inheriting, fixing, or omitting the downstream tenant ID. |
+| `id` | string | required for `fixed` | yes | … | Tenant ID sent when `policy = "fixed"`. |
 
 `inherit` forwards the effective tenant from the parent run. `fixed` sends the configured `id`.
 `none` omits the A2A tenant header.
