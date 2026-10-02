@@ -22,22 +22,26 @@ filesystem {
 
 | Field | Type | Required | runtime() | Default | Description |
 |-------|------|----------|-----------|---------|-------------|
-| `mounts` | list of mount objects | no | no | A single in-memory mount at `/` | The mounts making up the virtual filesystem. |
+| `mounts` | array&lt;[Mount](#mount)&gt; | no | no | A single in-memory mount at `/` | The mounts making up the virtual filesystem. |
 
-## Mounts
+## Mount
 
 Each mount has two fields:
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `path` | string | yes | Where the backend is mounted in the virtual filesystem. |
-| `backend` | backend object | yes | What serves that path. |
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `path` | string | yes | no | … | Where the backend is mounted in the virtual filesystem. |
+| `backend` | [Backend](#backend) | yes | no | … | Storage backend that supplies files at this mount path. |
 
 Later entries win. If two mounts target the same path, the later one replaces the earlier one.
 
-## Backends
+## Backend
 
-Every backend object has a `kind` field written in snake case.
+Every backend has a `kind` field written in snake case.
+
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `kind` | `"memory"` \| `"host"` \| `"read_only"` \| `"overlay"` | yes | no | … | Storage behavior supplied by this backend: memory, host directory, read-only view, or layered storage. |
 
 ### memory
 
@@ -60,10 +64,10 @@ This backend has no additional fields.
 
 A `host` backend exposes a real host directory inside the virtual filesystem.
 
-| Field | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
-| `root` | string | yes | | The host directory this mount exposes. |
-| `follow_symlinks` | boolean | no | `false` | Whether a symbolic link inside the mount may resolve outside its root. |
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `root` | string | yes | no | … | The host directory this mount exposes. |
+| `follow_symlinks` | boolean | no | no | `false` | Whether a symbolic link inside the mount may resolve outside its root. |
 
 ```hcl title="agent.acl"
 filesystem {
@@ -85,9 +89,9 @@ Nothing above `root` is reachable.
 
 A `read_only` backend wraps another backend and refuses every write through it.
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `inner` | backend object | yes | The backend to expose as read only. |
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `inner` | backend object | yes | no | … | The backend to expose as read only. |
 
 ```hcl title="agent.acl"
 filesystem {
@@ -111,10 +115,10 @@ filesystem {
 An `overlay` backend reads from an upper backend first and falls through to a lower backend. Writes
 go to the upper backend.
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `upper` | backend object | yes | The writable layer checked first. |
-| `lower` | backend object | yes | The fallback layer checked second. |
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `upper` | backend object | yes | no | … | The writable layer checked first. |
+| `lower` | backend object | yes | no | … | The fallback layer checked second. |
 
 ```hcl title="agent.acl"
 filesystem {

@@ -32,7 +32,10 @@ impl ManifestAgentGraph {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{manifest::Manifest, parser::format::SpecFormat};
+    use crate::{
+        manifest::Manifest,
+        parser::{format::SpecFormat, middleware::hcl::RuntimeFunctionDeserialize},
+    };
     use agentc_blocks::{
         graph::{ReActGraphModelConfig, ReActGraphModelRetryConfig},
         types::RuntimeValue,
@@ -99,21 +102,16 @@ agent "assistant" {{
     #[test]
     fn manifest_parses_react_model_defaults() {
         let manifest = SpecFormat::hcl()
+            .with_hcl_deserialize_middleware(RuntimeFunctionDeserialize)
             .deserialize_string::<Manifest>(&manifest_with_graph(
                 r#"    type = "react"
 
     model {
-      timeout = {
-        env     = "MODEL_TIMEOUT_MS"
-        default = 30000
-      }
+      timeout = runtime("MODEL_TIMEOUT_MS", 30000)
 
       retry {
         max_attempts   = 3
-        initial_backoff = {
-          env     = "MODEL_INITIAL_BACKOFF_MS"
-          default = 100
-        }
+        initial_backoff = runtime("MODEL_INITIAL_BACKOFF_MS", 100)
         max_backoff = 5000
       }
     }"#,

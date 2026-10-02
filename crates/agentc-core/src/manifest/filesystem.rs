@@ -3,9 +3,12 @@
 // SPDX-License-Identifier: MIT
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use validator::Validate;
 
 use agentc_blocks::context::ResolvedContextFilesystemBackend;
+
+use crate::manifest::{errors::ManifestError, interpolate::Interpolate};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 #[serde(default)]
@@ -53,20 +56,23 @@ pub enum ManifestFilesystemBackend {
 }
 
 impl ManifestFilesystemBackend {
-    pub fn resolve(&self) -> ResolvedContextFilesystemBackend {
-        match self {
+    pub fn resolve(
+        &self,
+        locals: &Value,
+    ) -> Result<ResolvedContextFilesystemBackend, ManifestError> {
+        Ok(match self {
             Self::Memory => ResolvedContextFilesystemBackend::Memory,
             Self::Host { root, follow_symlinks } => ResolvedContextFilesystemBackend::Host {
-                root: root.clone(),
+                root: root.clone().interpolate(locals)?,
                 follow_symlinks: *follow_symlinks,
             },
-            Self::ReadOnly { inner } => {
-                ResolvedContextFilesystemBackend::ReadOnly { inner: Box::new(inner.resolve()) }
-            }
-            Self::Overlay { upper, lower } => ResolvedContextFilesystemBackend::Overlay {
-                upper: Box::new(upper.resolve()),
-                lower: Box::new(lower.resolve()),
+            Self::ReadOnly { inner } => ResolvedContextFilesystemBackend::ReadOnly {
+                inner: Box::new(inner.resolve(locals)?),
             },
-        }
+            Self::Overlay { upper, lower } => ResolvedContextFilesystemBackend::Overlay {
+                upper: Box::new(upper.resolve(locals)?),
+                lower: Box::new(lower.resolve(locals)?),
+            },
+        })
     }
 }

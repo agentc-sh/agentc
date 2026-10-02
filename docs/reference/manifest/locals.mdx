@@ -25,8 +25,7 @@ agent "my_agent" {
 
 ## Referencing locals
 
-Locals are referenced with `locals.<name>` syntax. They can be used anywhere in the manifest that
-accepts a constant value.
+Locals hold strings that can be reused in manifest string values. Write `${locals.name}` inside a string to substitute a local when the manifest is resolved. Use `locals.name` where a field accepts a direct local reference.
 
 In string fields, you can use `${locals.name}` for inline interpolation:
 
@@ -36,17 +35,4 @@ description = "Version ${locals.version} running in ${locals.region}."
 
 ## Constraints
 
-Locals are always build-time constants. They cannot contain `runtime()` or `secret()` expressions.
-If you need a value to be configurable at deployment, use `runtime()` directly in the field instead.
-
-```hcl
-# This does not work. locals cannot use runtime().
-locals {
-  port = runtime("PORT", 8080)  # invalid
-}
-
-# Do this instead.
-http_server {
-  port = runtime("PORT", 8080)
-}
-```
+Only a local's constant value or its `runtime()` default is available when compiling the manifest. A runtime environment variable is not read to substitute another field. A missing local reference is an error. Use `$${locals.name}` when the final string should contain `${locals.name}` literally.

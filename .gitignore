@@ -50,8 +50,8 @@ yek.*.txt
 # Local manifests
 manifests/
 local.yml
-*.test.acl
-*.test.hcl
+*.acl
+*.hcl
 
 # Agent
 .agent/

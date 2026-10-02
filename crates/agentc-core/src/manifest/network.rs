@@ -6,9 +6,12 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use sanitizer::prelude::*;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use validator::Validate;
 
-use agentc_blocks::types::RuntimeValue;
+use agentc_blocks::{context::ResolvedContextNetworkUrlPattern, types::RuntimeValue};
+
+use crate::manifest::{errors::ManifestError, interpolate::Interpolate};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Validate, Sanitizer)]
 #[serde(default)]
@@ -115,4 +118,27 @@ pub struct ManifestNetworkUrlPattern {
     pub hostname: Option<String>,
     pub port: Option<String>,
     pub pathname: Option<String>,
+}
+
+impl ManifestNetworkUrlPattern {
+    pub fn resolve(
+        &self,
+        locals: &Value,
+    ) -> Result<ResolvedContextNetworkUrlPattern, ManifestError> {
+        Ok(ResolvedContextNetworkUrlPattern {
+            protocol: self
+                .protocol
+                .clone()
+                .interpolate(locals)?,
+            hostname: self
+                .hostname
+                .clone()
+                .interpolate(locals)?,
+            port: self.port.clone().interpolate(locals)?,
+            pathname: self
+                .pathname
+                .clone()
+                .interpolate(locals)?,
+        })
+    }
 }

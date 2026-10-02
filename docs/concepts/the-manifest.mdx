@@ -108,13 +108,11 @@ agent "my_agent" {
 }
 ```
 
-Locals are referenced with `locals.name` syntax. They cannot contain `runtime()` expressions; they
-are always build-time constants.
+Locals are referenced with `locals.name` syntax. A local can provide a constant string or a `runtime()` default string for build-time interpolation. See [locals](/reference/manifest/locals) for the constraints.
 
 ## Interpolation in strings
 
-String values in the manifest support `${...}` interpolation. This works for locals and for simple
-HCL expressions.
+String values in the manifest support `${...}` interpolation. This substitutes local values when the manifest is resolved.
 
 ```hcl
 locals {

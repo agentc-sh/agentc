@@ -15,19 +15,19 @@ build {
 
 ## Fields
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `archetype` | string | no | The archetype to compile for. Defaults to `"standalone"`. |
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `archetype` | `"standalone"` | no | no | `"standalone"` | Artifact shape and build toolchain selected for the agent. |
 
 ## standalone options
 
 When `archetype = "standalone"` (the default), the following additional fields control
 cross-compilation targeting:
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `os` | string | no | Target operating system. One of `"linux"`, `"mac_os"`, `"windows"`. |
-| `arch` | string | no | Target CPU architecture. One of `"x86_64"`, `"aarch64"`. |
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `os` | `"linux"` \| `"mac_os"` \| `"windows"` | no | no | host platform | Target operating system. |
+| `arch` | `"x86_64"` \| `"aarch64"` | no | no | host platform | Target CPU architecture. |
 
 `os` and `arch` must always be specified together. When both are omitted, the binary is compiled
 for the host platform. Specifying only one of them is an error.

@@ -91,9 +91,9 @@ path behavior.
 
 ## Do not confuse the two interpolations
 
-The manifest has two interpolation syntaxes and they run at different times. `${locals.value}` is HCL
-interpolation, evaluated at build time when the manifest is parsed. `{{ variable }}` and `{%- ... %}`
-are Jinja2, evaluated at runtime for every run. Use HCL interpolation for build-time constants and
+The manifest has two interpolation syntaxes and they run at different times. `${locals.value}` is local
+interpolation, applied when the manifest is resolved at build time. `{{ variable }}` and `{%- ... %}`
+are Jinja2, evaluated at runtime for every run. Use local interpolation for build-time values and
 Jinja2 for values that change per run:
 
 ```hcl

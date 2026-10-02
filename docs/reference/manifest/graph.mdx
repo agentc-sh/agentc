@@ -5,7 +5,9 @@ description: The graph block selects the graph implementation that drives the ag
 
 The `graph` block chooses which graph implementation drives an `agent` block. It lives inside the
 `agent` block because the graph is part of the agent's definition, not a separate top-level build
-choice. In this distribution, the only shipped graph is `react`.
+choice.
+
+Supported graph type: `react`.
 
 ```hcl title="agent.acl"
 agent "assistant" {
@@ -27,17 +29,12 @@ agent "assistant" {
 
 ## Fields
 
-| Field | Type | Required | runtime() | Description |
-|-------|------|----------|-----------|-------------|
-| `type` | string | yes | no | Graph implementation name. Currently this must be `react`. |
-| `model` | block | no | no | Default model call policy for the ReAct graph. |
-| `model.timeout` | integer | no | yes | Maximum time in milliseconds to establish a model response stream. |
-| `model.retry` | block | no | no | Retry policy for transient failures while establishing a model response stream. |
-| `model.retry.max_attempts` | integer | yes when `retry` is present | yes | Maximum number of attempts, including the first request. |
-| `model.retry.initial_backoff` | integer | yes when `retry` is present | yes | Delay in milliseconds before the first retry. |
-| `model.retry.max_backoff` | integer | yes when `retry` is present | yes | Maximum base backoff between attempts, in milliseconds. |
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `type` | `"react"` | yes | no | … | Execution graph used for the agent's runs. |
+| `model` | [GraphModelCallPolicy](#graphmodelcallpolicy) | no | | unset | Default timeout and retry settings for ReAct model calls. |
 
-## ReAct model call defaults
+## GraphModelCallPolicy
 
 The optional `model` block sets startup defaults for calls made by the ReAct graph. Constant values
 are compiled into the generated configuration. A `runtime()` value creates an environment mapping
@@ -53,6 +50,19 @@ Clients may supply a `model` object when starting a ReAct run. Client timeout an
 precedence over these manifest defaults independently. For example, a request can replace the timeout
 while continuing to use the compiled retry policy. Provider, model, and inference parameter overrides
 remain request-only values and are not configured by this manifest block.
+
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `timeout` | integer | no | yes | unset | Maximum time in milliseconds to establish a model response stream. |
+| `retry` | [RetryPolicy](#retrypolicy) | no | | unset | Attempts and delays for temporary failures while establishing a model response stream. |
+
+### RetryPolicy
+
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `max_attempts` | integer | yes | yes | … | Maximum number of attempts, including the first request. |
+| `initial_backoff` | integer | yes | yes | … | Delay in milliseconds before the first retry. |
+| `max_backoff` | integer | yes | yes | … | Maximum base backoff between attempts, in milliseconds. |
 
 ## Usage
 
