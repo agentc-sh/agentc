@@ -17,7 +17,7 @@ build {
 
 | Field | Type | Required | runtime() | Default | Description |
 |-------|------|----------|-----------|---------|-------------|
-| `archetype` | `"standalone"` | no | no | `"standalone"` | Artifact shape and build toolchain selected for the agent. |
+| `archetype` | `standalone` | no | no | `"standalone"` | Artifact shape and build toolchain selected for the agent. |
 
 ## standalone options
 
@@ -26,8 +26,8 @@ cross-compilation targeting:
 
 | Field | Type | Required | runtime() | Default | Description |
 |-------|------|----------|-----------|---------|-------------|
-| `os` | `"linux"` \| `"mac_os"` \| `"windows"` | no | no | host platform | Target operating system. |
-| `arch` | `"x86_64"` \| `"aarch64"` | no | no | host platform | Target CPU architecture. |
+| `os` | `linux` \| `mac_os` \| `windows` | no | no | host platform | Target operating system. |
+| `arch` | `x86_64` \| `aarch64` | no | no | host platform | Target CPU architecture. |
 
 `os` and `arch` must always be specified together. When both are omitted, the binary is compiled
 for the host platform. Specifying only one of them is an error.
