@@ -24,11 +24,11 @@ http_server {
 | Field | Type | Required | runtime() | Default | Description |
 |-------|------|----------|-----------|---------|-------------|
 | `host` | string | no | yes | `"127.0.0.1"` | Host address to bind the server to. Overridable via the `HTTP_HOST` environment variable. |
-| `port` | integer | no | yes | `8080` | Port to listen on. Overridable via the `HTTP_PORT` environment variable. |
+| `port` | integer | no | yes | `8080` | Port to listen on (0 to 65535). Overridable via the `HTTP_PORT` environment variable. |
 | `max_request_size` | integer | no | yes | `2097152` | Maximum accepted request body size, in bytes. Requests exceeding it are rejected with `413 Payload Too Large`. Overridable via the `HTTP_MAX_REQUEST_SIZE` environment variable. |
-| `protocol` | block | no | | | Enables optional protocol implementations. |
+| `protocol` | [HttpProtocol](#httpprotocol) | no | | unset | HTTP interfaces exposed by the server, such as AG-UI and A2A. |
 
-## protocol block
+## HttpProtocol
 
 The `protocol` block enables specific protocol implementations on the HTTP server. Supported
 protocols are `ag_ui` and `a2a`.
@@ -47,9 +47,9 @@ Enabling `ag_ui` mounts the AG-UI streaming protocol on the server. This allows 
 clients to connect to the agent and receive real-time execution events as a Server-Sent Events
 stream.
 
-| Field | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
-| `path` | string | no | `"/ag-ui"` | Base URL path at which the AG-UI endpoint is mounted. The run endpoint is served at `<path>/run`. |
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `path` | string | no | no | `"/ag-ui"` | Base URL path at which the AG-UI endpoint is mounted. The run endpoint is served at `<path>/run`. |
 
 See [AG-UI](/reference/http-api/ag-ui) for the full protocol documentation, event types, and client
 connection examples.
@@ -71,9 +71,9 @@ task, and cancel a task.
 This setting exposes the current agent as an inbound A2A server. To let the current agent call
 another A2A server, configure an A2A tool with `tool { kind = "a2a" }`.
 
-| Field | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
-| `path` | string | no | `"/a2a"` | Base URL path at which the A2A endpoints are mounted. |
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `path` | string | no | no | `"/a2a"` | Base URL path at which the A2A endpoints are mounted. |
 
 See [A2A](/reference/http-api/a2a) for the supported endpoint shapes and current implementation
 scope. See [Connect agents via A2A](/guides/connect-agents-via-a2a) for outbound A2A tools.
