@@ -28,7 +28,9 @@ impl Interpolate for String {
         let mut end = 0;
 
         for captures in PATTERN.captures_iter(&self) {
-            let whole = captures.get(0).expect("regex capture has a full match");
+            let whole = captures
+                .get(0)
+                .expect("regex capture has a full match");
             let path = &captures["path"];
 
             output.push_str(&self[end..whole.start()]);
@@ -37,9 +39,11 @@ impl Interpolate for String {
                 output.push_str(&format!("${{{path}}}"));
             } else {
                 let pointer = format!("/{}", path.replace('.', "/"));
-                let value = context.pointer(&pointer).ok_or_else(|| {
-                    ManifestError::resolution(format!("unknown reference `${{{path}}}`"))
-                })?;
+                let value = context
+                    .pointer(&pointer)
+                    .ok_or_else(|| {
+                        ManifestError::resolution(format!("unknown reference `${{{path}}}`"))
+                    })?;
 
                 match value {
                     Value::String(value) => output.push_str(value),
@@ -58,7 +62,8 @@ impl Interpolate for String {
 
 impl<T: Interpolate> Interpolate for Option<T> {
     fn interpolate(self, context: &Value) -> Result<Self, ManifestError> {
-        self.map(|value| value.interpolate(context)).transpose()
+        self.map(|value| value.interpolate(context))
+            .transpose()
     }
 }
 
@@ -77,9 +82,7 @@ where
 {
     fn interpolate(self, context: &Value) -> Result<Self, ManifestError> {
         self.into_iter()
-            .map(|(key, value)| {
-                Ok((key.interpolate(context)?, value.interpolate(context)?))
-            })
+            .map(|(key, value)| Ok((key.interpolate(context)?, value.interpolate(context)?)))
             .collect()
     }
 }
@@ -91,9 +94,7 @@ where
 {
     fn interpolate(self, context: &Value) -> Result<Self, ManifestError> {
         self.into_iter()
-            .map(|(key, value)| {
-                Ok((key.interpolate(context)?, value.interpolate(context)?))
-            })
+            .map(|(key, value)| Ok((key.interpolate(context)?, value.interpolate(context)?)))
             .collect()
     }
 }
@@ -132,9 +133,7 @@ impl Interpolate for Value {
 impl<T: Interpolate> Interpolate for RuntimeValue<T> {
     fn interpolate(self, context: &Value) -> Result<Self, ManifestError> {
         Ok(match self {
-            RuntimeValue::Constant(value) => {
-                RuntimeValue::Constant(value.interpolate(context)?)
-            }
+            RuntimeValue::Constant(value) => RuntimeValue::Constant(value.interpolate(context)?),
             RuntimeValue::Runtime { env, default, secret } => RuntimeValue::Runtime {
                 env,
                 default: default.interpolate(context)?,
@@ -174,7 +173,9 @@ mod tests {
             .interpolate(&json!({ "locals": {} }))
             .unwrap_err();
 
-        assert!(matches!(error, ManifestError::Resolution(message) if message.contains("${locals.missing}")));
+        assert!(
+            matches!(error, ManifestError::Resolution(message) if message.contains("${locals.missing}"))
+        );
     }
 
     #[test]
@@ -193,7 +194,12 @@ mod tests {
     fn optional_and_ordered_containers_propagate_interpolation() {
         let context = json!({ "locals": { "key": "name", "value": "agentc" } });
 
-        assert_eq!(None::<String>.interpolate(&context).unwrap(), None);
+        assert_eq!(
+            None::<String>
+                .interpolate(&context)
+                .unwrap(),
+            None
+        );
         assert_eq!(
             Some("${locals.value}".to_owned())
                 .interpolate(&context)
@@ -225,12 +231,9 @@ mod tests {
             RuntimeValue::constant("agentc".to_owned()),
         );
         assert_eq!(
-            RuntimeValue::default_runtime(
-                "${locals.value}",
-                "${locals.value}".to_owned(),
-            )
-            .interpolate(&context)
-            .unwrap(),
+            RuntimeValue::default_runtime("${locals.value}", "${locals.value}".to_owned(),)
+                .interpolate(&context)
+                .unwrap(),
             RuntimeValue::default_runtime("${locals.value}", "agentc".to_owned()),
         );
         assert_eq!(

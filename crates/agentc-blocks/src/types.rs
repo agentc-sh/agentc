@@ -9,10 +9,9 @@ use serde::{
     de::{
         self, DeserializeSeed, IgnoredAny, MapAccess, SeqAccess, Visitor,
         value::{
-            BoolDeserializer, CharDeserializer, F32Deserializer, F64Deserializer,
-            I64Deserializer, I128Deserializer, MapAccessDeserializer,
-            SeqAccessDeserializer, StringDeserializer, U64Deserializer,
-            U128Deserializer, UnitDeserializer,
+            BoolDeserializer, CharDeserializer, F32Deserializer, F64Deserializer, I64Deserializer,
+            I128Deserializer, MapAccessDeserializer, SeqAccessDeserializer, StringDeserializer,
+            U64Deserializer, U128Deserializer, UnitDeserializer,
         },
     },
     ser::SerializeMap,
@@ -46,7 +45,10 @@ impl<'de, T: Deserialize<'de>> Deserialize<'de> for RuntimeValueDefault<T> {
 }
 
 #[derive(Deserialize)]
-#[serde(bound(deserialize = "E: Deserialize<'de>, T: Deserialize<'de>"), deny_unknown_fields)]
+#[serde(
+    bound(deserialize = "E: Deserialize<'de>, T: Deserialize<'de>"),
+    deny_unknown_fields
+)]
 struct RuntimeValuePayload<E, T> {
     env: E,
     #[serde(default)]
@@ -116,7 +118,8 @@ impl<'de, D: Deserializer<'de>> Deserializer<'de> for RuntimeValuePresent<D> {
         variants: &'static [&'static str],
         visitor: V,
     ) -> Result<V::Value, Self::Error> {
-        self.0.deserialize_enum(name, variants, visitor)
+        self.0
+            .deserialize_enum(name, variants, visitor)
     }
 
     serde::forward_to_deserialize_any! {
@@ -148,11 +151,7 @@ impl<'de, T: Deserialize<'de>> Visitor<'de> for RuntimeValueVisitor<T> {
             let (env, default, secret) =
                 RuntimeValueWire::<String, T>::from_marker_value(map)?.into_parts();
 
-            return Ok(RuntimeValue::Runtime {
-                env,
-                default,
-                secret,
-            });
+            return Ok(RuntimeValue::Runtime { env, default, secret });
         }
 
         Self::constant(MapAccessDeserializer::new(RuntimeValueReplayMapAccess {
@@ -255,9 +254,7 @@ impl<'de, A: MapAccess<'de>> MapAccess<'de> for RuntimeValueReplayMapAccess<A> {
 
 struct RuntimeValueWireVisitor<E, T>(PhantomData<(E, T)>);
 
-impl<'de, E: Deserialize<'de>, T: Deserialize<'de>> Visitor<'de>
-    for RuntimeValueWireVisitor<E, T>
-{
+impl<'de, E: Deserialize<'de>, T: Deserialize<'de>> Visitor<'de> for RuntimeValueWireVisitor<E, T> {
     type Value = RuntimeValueWire<E, T>;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
@@ -477,8 +474,7 @@ mod tests {
             RuntimeValue::constant(Some("x".to_string()))
         );
         assert_eq!(
-            from_value::<RuntimeValue<Option<BTreeSet<String>>>>(json!(["GET"]))
-                .unwrap(),
+            from_value::<RuntimeValue<Option<BTreeSet<String>>>>(json!(["GET"])).unwrap(),
             RuntimeValue::constant(Some(BTreeSet::from(["GET".to_string()])))
         );
         assert_eq!(
@@ -498,12 +494,7 @@ mod tests {
         let value = RuntimeValue::secret_default_runtime("TOKEN", "fallback".to_string());
 
         assert_eq!(
-            to_value(RuntimeValueWire::new(
-                "TOKEN",
-                Some("fallback"),
-                true,
-            ))
-            .unwrap(),
+            to_value(RuntimeValueWire::new("TOKEN", Some("fallback"), true,)).unwrap(),
             to_value(&value).unwrap()
         );
 
@@ -520,16 +511,12 @@ mod tests {
             to_value(&value).unwrap(),
             json!({ "$runtime": { "env": "TOKEN", "default": "fallback", "secret": true } })
         );
-        assert_eq!(
-            from_value::<RuntimeValue<String>>(to_value(&value).unwrap()).unwrap(),
-            value
-        );
+        assert_eq!(from_value::<RuntimeValue<String>>(to_value(&value).unwrap()).unwrap(), value);
 
         let null_default = RuntimeValue::default_runtime("USER_AGENT", None::<String>);
 
         assert_eq!(
-            from_value::<RuntimeValue<Option<String>>>(to_value(&null_default).unwrap())
-                .unwrap(),
+            from_value::<RuntimeValue<Option<String>>>(to_value(&null_default).unwrap()).unwrap(),
             null_default
         );
         assert_eq!(
@@ -555,7 +542,7 @@ mod tests {
         }
 
         let error = from_value::<RuntimeValue<String>>(
-            json!({ "$runtime": { "env": "X", "defualt": "x" } })
+            json!({ "$runtime": { "env": "X", "defualt": "x" } }),
         )
         .unwrap_err()
         .to_string();
@@ -565,11 +552,10 @@ mod tests {
 
     #[test]
     fn inner_errors_are_not_replaced_by_variant_errors() {
-        let error = from_value::<RuntimeValue<Vec<BTreeMap<String, String>>>>(
-            json!([{ "port": [1] }])
-        )
-        .unwrap_err()
-        .to_string();
+        let error =
+            from_value::<RuntimeValue<Vec<BTreeMap<String, String>>>>(json!([{ "port": [1] }]))
+                .unwrap_err()
+                .to_string();
 
         assert!(error.contains("expected a string"), "{error}");
         assert!(!error.contains("did not match any variant"), "{error}");

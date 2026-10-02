@@ -35,9 +35,7 @@ impl RuntimeFunctionDeserialize {
             ));
         }
 
-        Ok(hcl::to_expression(RuntimeValueWire::new(
-            env, default, secret,
-        ))?)
+        Ok(hcl::to_expression(RuntimeValueWire::new(env, default, secret))?)
     }
 }
 
@@ -83,9 +81,9 @@ impl FormatMiddleware<Body> for RuntimeFunctionSerialize {
                 return Ok(Expression::Object(object));
             }
 
-            let Ok(wire) = RuntimeValueWire::<String, Expression>::deserialize(
-                Expression::Object(object.clone()),
-            ) else {
+            let Ok(wire) = RuntimeValueWire::<String, Expression>::deserialize(Expression::Object(
+                object.clone(),
+            )) else {
                 return Ok(Expression::Object(object));
             };
 
@@ -281,7 +279,9 @@ value = {
             }
         );
 
-        let serialized = format().serialize_string(&fixture).unwrap();
+        let serialized = format()
+            .serialize_string(&fixture)
+            .unwrap();
 
         assert!(!serialized.contains("runtime("));
         assert_eq!(
@@ -315,7 +315,9 @@ value = {
             }
         );
 
-        let serialized = format().serialize_string(&fixture).unwrap();
+        let serialized = format()
+            .serialize_string(&fixture)
+            .unwrap();
 
         assert!(serialized.contains("secret(runtime("));
         assert_eq!(
@@ -342,7 +344,11 @@ value = {
 }
 "#,
         ] {
-            assert!(format().deserialize_string::<MarkerFixture>(source).is_err());
+            assert!(
+                format()
+                    .deserialize_string::<MarkerFixture>(source)
+                    .is_err()
+            );
         }
     }
 }
