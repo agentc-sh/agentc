@@ -15,42 +15,66 @@ embeds your configuration, your tools, and the entire runtime. You ship one thin
 application.
 
 <CardGrid cols={3}>
-  <CardGrid.Card
-    title="Get started"
-    description="Install the compiler and build your first agent in minutes."
+  <Link
     href="/get-started/concepts-in-5-minutes"
-    icon={<Rocket size={20} />}
-  />
-  <CardGrid.Card
-    title="Architecture overview"
-    description="See how the manifest, compiler, artifact, and runtime fit together."
+    className="not-prose group/card-link block h-full"
+  >
+    <CardGrid.Card
+      title="Get started"
+      description="Install the compiler and build your first agent in minutes."
+      icon={<Rocket size={20} />}
+    />
+  </Link>
+  <Link
     href="/concepts/architecture-overview"
-    icon={<Layers size={20} />}
-  />
-  <CardGrid.Card
-    title="Archetypes"
-    description="Choose a deployment target. The archetype determines what artifact gets built."
+    className="not-prose group/card-link block h-full"
+  >
+    <CardGrid.Card
+      title="Architecture overview"
+      description="See how the manifest, compiler, artifact, and runtime fit together."
+      icon={<Layers size={20} />}
+    />
+  </Link>
+  <Link
     href="/concepts/archetypes"
-    icon={<Box size={20} />}
-  />
-  <CardGrid.Card
-    title="Write a tool"
-    description="Write tools in TypeScript or Python, or connect any MCP server."
+    className="not-prose group/card-link block h-full"
+  >
+    <CardGrid.Card
+      title="Archetypes"
+      description="Choose a deployment target. The archetype determines what artifact gets built."
+      icon={<Box size={20} />}
+    />
+  </Link>
+  <Link
     href="/guides/write-a-tool"
-    icon={<Wrench size={20} />}
-  />
-  <CardGrid.Card
-    title="Skills"
-    description="Package reusable prompt logic that agents can reference by name."
+    className="not-prose group/card-link block h-full"
+  >
+    <CardGrid.Card
+      title="Write a tool"
+      description="Write tools in TypeScript or Python, or connect any MCP server."
+      icon={<Wrench size={20} />}
+    />
+  </Link>
+  <Link
     href="/concepts/skills"
-    icon={<Sparkles size={20} />}
-  />
-  <CardGrid.Card
-    title="Deploy"
-    description="Ship a self-contained binary. One artifact, one command, running anywhere."
+    className="not-prose group/card-link block h-full"
+  >
+    <CardGrid.Card
+      title="Skills"
+      description="Package reusable prompt logic that agents can reference by name."
+      icon={<Sparkles size={20} />}
+    />
+  </Link>
+  <Link
     href="/guides/deploy-standalone"
-    icon={<Server size={20} />}
-  />
+    className="not-prose group/card-link block h-full"
+  >
+    <CardGrid.Card
+      title="Deploy"
+      description="Ship a self-contained binary. One artifact, one command, running anywhere."
+      icon={<Server size={20} />}
+    />
+  </Link>
 </CardGrid>
 
 ## Core ideas

@@ -13,72 +13,555 @@ import { readFile, writeFile } from "agentc:fs"
 ## Overview
 
 <LibSymbols label="Reading and writing files">
-  <LibSymbolRow name="readFile" also="readFileSync">Read the entire contents of a file.</LibSymbolRow>
-  <LibSymbolRow name="writeFile" also="writeFileSync">Write data to a file, replacing any existing contents.</LibSymbolRow>
-  <LibSymbolRow name="appendFile" also="appendFileSync">Append data to a file.</LibSymbolRow>
-  <LibSymbolRow name="copyFile" also="copyFileSync">Copy a file to another path.</LibSymbolRow>
-  <LibSymbolRow name="truncate" also="truncateSync">Resize a file to a given length.</LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <>
+        <Link href="#readfile" className="not-prose">
+          <LibSymbolRow.Symbol>readFile</LibSymbolRow.Symbol>
+        </Link>
+        <Link href="#readfile" className="not-prose">
+          <LibSymbolRow.Symbol secondary>
+            readFileSync
+          </LibSymbolRow.Symbol>
+        </Link>
+      </>
+    }
+  >
+    Read the entire contents of a file.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <>
+        <Link href="#writefile" className="not-prose">
+          <LibSymbolRow.Symbol>writeFile</LibSymbolRow.Symbol>
+        </Link>
+        <Link href="#writefile" className="not-prose">
+          <LibSymbolRow.Symbol secondary>
+            writeFileSync
+          </LibSymbolRow.Symbol>
+        </Link>
+      </>
+    }
+  >
+    Write data to a file, replacing any existing contents.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <>
+        <Link href="#appendfile" className="not-prose">
+          <LibSymbolRow.Symbol>appendFile</LibSymbolRow.Symbol>
+        </Link>
+        <Link href="#appendfile" className="not-prose">
+          <LibSymbolRow.Symbol secondary>
+            appendFileSync
+          </LibSymbolRow.Symbol>
+        </Link>
+      </>
+    }
+  >
+    Append data to a file.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <>
+        <Link href="#copyfile" className="not-prose">
+          <LibSymbolRow.Symbol>copyFile</LibSymbolRow.Symbol>
+        </Link>
+        <Link href="#copyfile" className="not-prose">
+          <LibSymbolRow.Symbol secondary>
+            copyFileSync
+          </LibSymbolRow.Symbol>
+        </Link>
+      </>
+    }
+  >
+    Copy a file to another path.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <>
+        <Link href="#truncate" className="not-prose">
+          <LibSymbolRow.Symbol>truncate</LibSymbolRow.Symbol>
+        </Link>
+        <Link href="#truncate" className="not-prose">
+          <LibSymbolRow.Symbol secondary>
+            truncateSync
+          </LibSymbolRow.Symbol>
+        </Link>
+      </>
+    }
+  >
+    Resize a file to a given length.
+  </LibSymbolRow>
 </LibSymbols>
 
 <LibSymbols label="Directories">
-  <LibSymbolRow name="mkdir" also="mkdirSync">Create a directory.</LibSymbolRow>
-  <LibSymbolRow name="mkdtemp" also="mkdtempSync">Create a uniquely named directory from a prefix.</LibSymbolRow>
-  <LibSymbolRow name="readdir" also="readdirSync">List directory entries.</LibSymbolRow>
-  <LibSymbolRow name="rmdir" also="rmdirSync">Remove a directory.</LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <>
+        <Link href="#mkdir" className="not-prose">
+          <LibSymbolRow.Symbol>mkdir</LibSymbolRow.Symbol>
+        </Link>
+        <Link href="#mkdir" className="not-prose">
+          <LibSymbolRow.Symbol secondary>
+            mkdirSync
+          </LibSymbolRow.Symbol>
+        </Link>
+      </>
+    }
+  >
+    Create a directory.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <>
+        <Link href="#mkdtemp" className="not-prose">
+          <LibSymbolRow.Symbol>mkdtemp</LibSymbolRow.Symbol>
+        </Link>
+        <Link href="#mkdtemp" className="not-prose">
+          <LibSymbolRow.Symbol secondary>
+            mkdtempSync
+          </LibSymbolRow.Symbol>
+        </Link>
+      </>
+    }
+  >
+    Create a uniquely named directory from a prefix.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <>
+        <Link href="#readdir" className="not-prose">
+          <LibSymbolRow.Symbol>readdir</LibSymbolRow.Symbol>
+        </Link>
+        <Link href="#readdir" className="not-prose">
+          <LibSymbolRow.Symbol secondary>
+            readdirSync
+          </LibSymbolRow.Symbol>
+        </Link>
+      </>
+    }
+  >
+    List directory entries.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <>
+        <Link href="#rmdir" className="not-prose">
+          <LibSymbolRow.Symbol>rmdir</LibSymbolRow.Symbol>
+        </Link>
+        <Link href="#rmdir" className="not-prose">
+          <LibSymbolRow.Symbol secondary>
+            rmdirSync
+          </LibSymbolRow.Symbol>
+        </Link>
+      </>
+    }
+  >
+    Remove a directory.
+  </LibSymbolRow>
 </LibSymbols>
 
 <LibSymbols label="Removing and renaming">
-  <LibSymbolRow name="rm" also="rmSync">Remove a path.</LibSymbolRow>
-  <LibSymbolRow name="unlink" also="unlinkSync">Remove a file or symbolic link.</LibSymbolRow>
-  <LibSymbolRow name="rename" also="renameSync">Move a path to a new location.</LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <>
+        <Link href="#rm" className="not-prose">
+          <LibSymbolRow.Symbol>rm</LibSymbolRow.Symbol>
+        </Link>
+        <Link href="#rm" className="not-prose">
+          <LibSymbolRow.Symbol secondary>
+            rmSync
+          </LibSymbolRow.Symbol>
+        </Link>
+      </>
+    }
+  >
+    Remove a path.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <>
+        <Link href="#unlink" className="not-prose">
+          <LibSymbolRow.Symbol>unlink</LibSymbolRow.Symbol>
+        </Link>
+        <Link href="#unlink" className="not-prose">
+          <LibSymbolRow.Symbol secondary>
+            unlinkSync
+          </LibSymbolRow.Symbol>
+        </Link>
+      </>
+    }
+  >
+    Remove a file or symbolic link.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <>
+        <Link href="#rename" className="not-prose">
+          <LibSymbolRow.Symbol>rename</LibSymbolRow.Symbol>
+        </Link>
+        <Link href="#rename" className="not-prose">
+          <LibSymbolRow.Symbol secondary>
+            renameSync
+          </LibSymbolRow.Symbol>
+        </Link>
+      </>
+    }
+  >
+    Move a path to a new location.
+  </LibSymbolRow>
 </LibSymbols>
 
 <LibSymbols label="Metadata and permissions">
-  <LibSymbolRow name="stat" also="statSync">Read metadata, following a final symbolic link.</LibSymbolRow>
-  <LibSymbolRow name="lstat" also="lstatSync">Read metadata without following a final symbolic link.</LibSymbolRow>
-  <LibSymbolRow name="access" also="accessSync">Check that a path is reachable with a given access mode.</LibSymbolRow>
-  <LibSymbolRow name="chmod" also="chmodSync">Replace permission bits on a path.</LibSymbolRow>
-  <LibSymbolRow name="chown" also="chownSync">Replace the owning user and group on a path.</LibSymbolRow>
-  <LibSymbolRow name="lchown" also="lchownSync">Replace the owning user and group on a symbolic link itself.</LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <>
+        <Link href="#stat" className="not-prose">
+          <LibSymbolRow.Symbol>stat</LibSymbolRow.Symbol>
+        </Link>
+        <Link href="#stat" className="not-prose">
+          <LibSymbolRow.Symbol secondary>
+            statSync
+          </LibSymbolRow.Symbol>
+        </Link>
+      </>
+    }
+  >
+    Read metadata, following a final symbolic link.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <>
+        <Link href="#lstat" className="not-prose">
+          <LibSymbolRow.Symbol>lstat</LibSymbolRow.Symbol>
+        </Link>
+        <Link href="#lstat" className="not-prose">
+          <LibSymbolRow.Symbol secondary>
+            lstatSync
+          </LibSymbolRow.Symbol>
+        </Link>
+      </>
+    }
+  >
+    Read metadata without following a final symbolic link.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <>
+        <Link href="#access" className="not-prose">
+          <LibSymbolRow.Symbol>access</LibSymbolRow.Symbol>
+        </Link>
+        <Link href="#access" className="not-prose">
+          <LibSymbolRow.Symbol secondary>
+            accessSync
+          </LibSymbolRow.Symbol>
+        </Link>
+      </>
+    }
+  >
+    Check that a path is reachable with a given access mode.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <>
+        <Link href="#chmod" className="not-prose">
+          <LibSymbolRow.Symbol>chmod</LibSymbolRow.Symbol>
+        </Link>
+        <Link href="#chmod" className="not-prose">
+          <LibSymbolRow.Symbol secondary>
+            chmodSync
+          </LibSymbolRow.Symbol>
+        </Link>
+      </>
+    }
+  >
+    Replace permission bits on a path.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <>
+        <Link href="#chown" className="not-prose">
+          <LibSymbolRow.Symbol>chown</LibSymbolRow.Symbol>
+        </Link>
+        <Link href="#chown" className="not-prose">
+          <LibSymbolRow.Symbol secondary>
+            chownSync
+          </LibSymbolRow.Symbol>
+        </Link>
+      </>
+    }
+  >
+    Replace the owning user and group on a path.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <>
+        <Link href="#lchown" className="not-prose">
+          <LibSymbolRow.Symbol>lchown</LibSymbolRow.Symbol>
+        </Link>
+        <Link href="#lchown" className="not-prose">
+          <LibSymbolRow.Symbol secondary>
+            lchownSync
+          </LibSymbolRow.Symbol>
+        </Link>
+      </>
+    }
+  >
+    Replace the owning user and group on a symbolic link itself.
+  </LibSymbolRow>
 </LibSymbols>
 
 <LibSymbols label="Symbolic links">
-  <LibSymbolRow name="symlink" also="symlinkSync">Create a symbolic link.</LibSymbolRow>
-  <LibSymbolRow name="readlink" also="readlinkSync">Read the absolute target of a symbolic link.</LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <>
+        <Link href="#symlink" className="not-prose">
+          <LibSymbolRow.Symbol>symlink</LibSymbolRow.Symbol>
+        </Link>
+        <Link href="#symlink" className="not-prose">
+          <LibSymbolRow.Symbol secondary>
+            symlinkSync
+          </LibSymbolRow.Symbol>
+        </Link>
+      </>
+    }
+  >
+    Create a symbolic link.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <>
+        <Link href="#readlink" className="not-prose">
+          <LibSymbolRow.Symbol>readlink</LibSymbolRow.Symbol>
+        </Link>
+        <Link href="#readlink" className="not-prose">
+          <LibSymbolRow.Symbol secondary>
+            readlinkSync
+          </LibSymbolRow.Symbol>
+        </Link>
+      </>
+    }
+  >
+    Read the absolute target of a symbolic link.
+  </LibSymbolRow>
 </LibSymbols>
 
 <LibSymbols label="File descriptors">
-  <LibSymbolRow name="open" also="openSync">Open a file.</LibSymbolRow>
-  <LibSymbolRow name="closeSync">Close a descriptor.</LibSymbolRow>
-  <LibSymbolRow name="readSync">Read bytes from a descriptor into a buffer.</LibSymbolRow>
-  <LibSymbolRow name="writeSync">Write bytes from a buffer to a descriptor.</LibSymbolRow>
-  <LibSymbolRow name="fstatSync">Read metadata about an open descriptor.</LibSymbolRow>
-  <LibSymbolRow name="ftruncateSync">Resize the file behind a descriptor.</LibSymbolRow>
-  <LibSymbolRow name="fsyncSync">Flush the file behind a descriptor.</LibSymbolRow>
-  <LibSymbolRow name="fdatasyncSync">Flush file data behind a descriptor.</LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <>
+        <Link href="#open" className="not-prose">
+          <LibSymbolRow.Symbol>open</LibSymbolRow.Symbol>
+        </Link>
+        <Link href="#open" className="not-prose">
+          <LibSymbolRow.Symbol secondary>
+            openSync
+          </LibSymbolRow.Symbol>
+        </Link>
+      </>
+    }
+  >
+    Open a file.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#closesync" className="not-prose">
+        <LibSymbolRow.Symbol>closeSync</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    Close a descriptor.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#readsync" className="not-prose">
+        <LibSymbolRow.Symbol>readSync</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    Read bytes from a descriptor into a buffer.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#writesync" className="not-prose">
+        <LibSymbolRow.Symbol>writeSync</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    Write bytes from a buffer to a descriptor.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#fstatsync" className="not-prose">
+        <LibSymbolRow.Symbol>fstatSync</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    Read metadata about an open descriptor.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#ftruncatesync" className="not-prose">
+        <LibSymbolRow.Symbol>ftruncateSync</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    Resize the file behind a descriptor.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#fsyncsync" className="not-prose">
+        <LibSymbolRow.Symbol>fsyncSync</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    Flush the file behind a descriptor.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#fdatasyncsync" className="not-prose">
+        <LibSymbolRow.Symbol>fdatasyncSync</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    Flush file data behind a descriptor.
+  </LibSymbolRow>
 </LibSymbols>
 
 <LibSymbols label="Classes">
-  <LibSymbolRow name="FileHandle">An open file returned by `open`.</LibSymbolRow>
-  <LibSymbolRow name="Stats">Metadata about a path.</LibSymbolRow>
-  <LibSymbolRow name="Dirent">A directory entry returned by `readdir`.</LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#filehandle" className="not-prose">
+        <LibSymbolRow.Symbol>FileHandle</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    An open file returned by `open`.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#stats" className="not-prose">
+        <LibSymbolRow.Symbol>Stats</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    Metadata about a path.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#dirent" className="not-prose">
+        <LibSymbolRow.Symbol>Dirent</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    A directory entry returned by `readdir`.
+  </LibSymbolRow>
 </LibSymbols>
 
 <LibSymbols label="Types">
-  <LibSymbolRow name="FileEncoding">Supported string encodings.</LibSymbolRow>
-  <LibSymbolRow name="FileOptions">Common file options.</LibSymbolRow>
-  <LibSymbolRow name="MkdirOptions">Directory creation options.</LibSymbolRow>
-  <LibSymbolRow name="ReaddirOptions">Directory listing options.</LibSymbolRow>
-  <LibSymbolRow name="RmOptions">Removal options.</LibSymbolRow>
-  <LibSymbolRow name="RmdirOptions">Directory removal options.</LibSymbolRow>
-  <LibSymbolRow name="ReadOptions">Low-level read options.</LibSymbolRow>
-  <LibSymbolRow name="ReadResult">The result of a descriptor or handle read.</LibSymbolRow>
-  <LibSymbolRow name="WriteBufferResult">The result of a buffer write.</LibSymbolRow>
-  <LibSymbolRow name="WriteStringResult">The result of a string write.</LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#fileencoding" className="not-prose">
+        <LibSymbolRow.Symbol>FileEncoding</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    Supported string encodings.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#fileoptions" className="not-prose">
+        <LibSymbolRow.Symbol>FileOptions</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    Common file options.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#mkdiroptions" className="not-prose">
+        <LibSymbolRow.Symbol>MkdirOptions</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    Directory creation options.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#readdiroptions" className="not-prose">
+        <LibSymbolRow.Symbol>ReaddirOptions</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    Directory listing options.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#rmoptions" className="not-prose">
+        <LibSymbolRow.Symbol>RmOptions</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    Removal options.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#rmdiroptions" className="not-prose">
+        <LibSymbolRow.Symbol>RmdirOptions</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    Directory removal options.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#readoptions" className="not-prose">
+        <LibSymbolRow.Symbol>ReadOptions</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    Low-level read options.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#readresult" className="not-prose">
+        <LibSymbolRow.Symbol>ReadResult</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    The result of a descriptor or handle read.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#writebufferresult" className="not-prose">
+        <LibSymbolRow.Symbol>WriteBufferResult</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    The result of a buffer write.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#writestringresult" className="not-prose">
+        <LibSymbolRow.Symbol>WriteStringResult</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    The result of a string write.
+  </LibSymbolRow>
 </LibSymbols>
 
 <LibSymbols label="Constants">
-  <LibSymbolRow name="constants">Access modes, file kinds, permission bits, open flags, and copy flags.</LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#constants" className="not-prose">
+        <LibSymbolRow.Symbol>constants</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    Access modes, file kinds, permission bits, open flags, and copy flags.
+  </LibSymbolRow>
 </LibSymbols>
 
 ## Reading and writing files

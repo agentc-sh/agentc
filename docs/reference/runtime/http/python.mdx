@@ -13,14 +13,78 @@ limits.
 ## Overview
 
 <LibSymbols>
-  <LibSymbolRow name="Client">Create and send requests with shared defaults.</LibSymbolRow>
-  <LibSymbolRow name="Request">A request before client defaults are applied.</LibSymbolRow>
-  <LibSymbolRow name="PendingResponse">A single-use awaitable request.</LibSymbolRow>
-  <LibSymbolRow name="Response">The response head and body.</LibSymbolRow>
-  <LibSymbolRow name="ResponseBody">Read or stream a response body once.</LibSymbolRow>
-  <LibSymbolRow name="Headers">An immutable, case-insensitive header mapping.</LibSymbolRow>
-  <LibSymbolRow name="Json">A JSON request body.</LibSymbolRow>
-  <LibSymbolRow name="Form">A form-encoded request body.</LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#client" className="not-prose">
+        <LibSymbolRow.Symbol>Client</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    Create and send requests with shared defaults.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#request" className="not-prose">
+        <LibSymbolRow.Symbol>Request</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    A request before client defaults are applied.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#pendingresponse" className="not-prose">
+        <LibSymbolRow.Symbol>PendingResponse</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    A single-use awaitable request.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#response" className="not-prose">
+        <LibSymbolRow.Symbol>Response</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    The response head and body.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#responsebody" className="not-prose">
+        <LibSymbolRow.Symbol>ResponseBody</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    Read or stream a response body once.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#headers" className="not-prose">
+        <LibSymbolRow.Symbol>Headers</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    An immutable, case-insensitive header mapping.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#json" className="not-prose">
+        <LibSymbolRow.Symbol>Json</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    A JSON request body.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#form" className="not-prose">
+        <LibSymbolRow.Symbol>Form</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    A form-encoded request body.
+  </LibSymbolRow>
 </LibSymbols>
 
 ## Request lifecycle

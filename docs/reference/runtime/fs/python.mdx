@@ -13,29 +13,165 @@ from agentc_fs import Directory, NotFoundError
 ## Overview
 
 <LibSymbols label="Classes">
-  <LibSymbolRow name="Directory">A checked directory, and the entry point to every operation.</LibSymbolRow>
-  <LibSymbolRow name="File">An open file with its own cursor.</LibSymbolRow>
-  <LibSymbolRow name="Entry">A directory entry returned by `scandir`, `walk`, and `entry`.</LibSymbolRow>
-  <LibSymbolRow name="Stat">Metadata about a path.</LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#directory" className="not-prose">
+        <LibSymbolRow.Symbol>Directory</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    A checked directory, and the entry point to every operation.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#file" className="not-prose">
+        <LibSymbolRow.Symbol>File</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    An open file with its own cursor.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#entry" className="not-prose">
+        <LibSymbolRow.Symbol>Entry</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    A directory entry returned by `scandir`, `walk`, and `entry`.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#stat" className="not-prose">
+        <LibSymbolRow.Symbol>Stat</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    Metadata about a path.
+  </LibSymbolRow>
 </LibSymbols>
 
 <LibSymbols label="Exceptions">
-  <LibSymbolRow name="FilesystemError">The base class for every filesystem failure.</LibSymbolRow>
-  <LibSymbolRow name="NotFoundError">A path that must exist does not.</LibSymbolRow>
-  <LibSymbolRow name="AlreadyExistsError">A path that must not exist does.</LibSymbolRow>
-  <LibSymbolRow name="NotDirectoryError">A path that must be a directory is not.</LibSymbolRow>
-  <LibSymbolRow name="IsDirectoryError">An operation on a file was given a directory.</LibSymbolRow>
-  <LibSymbolRow name="PermissionDeniedError">The mode bits, or a read-only mount, refused the operation.</LibSymbolRow>
-  <LibSymbolRow name="PathEscapesAuthorityError">A path resolves outside the authority the mount grants.</LibSymbolRow>
-  <LibSymbolRow name="CrossBackendRenameError">A rename would move a path from one backend to another.</LibSymbolRow>
-  <LibSymbolRow name="InvalidPathError">A path, or a seek position, is invalid.</LibSymbolRow>
-  <LibSymbolRow name="UnsupportedError">The backend, or the state of the file, does not support the operation.</LibSymbolRow>
-  <LibSymbolRow name="UnexpectedError">The operation failed for a reason no other class describes.</LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#filesystemerror" className="not-prose">
+        <LibSymbolRow.Symbol>FilesystemError</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    The base class for every filesystem failure.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#notfounderror" className="not-prose">
+        <LibSymbolRow.Symbol>NotFoundError</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    A path that must exist does not.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#alreadyexistserror" className="not-prose">
+        <LibSymbolRow.Symbol>AlreadyExistsError</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    A path that must not exist does.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#notdirectoryerror" className="not-prose">
+        <LibSymbolRow.Symbol>NotDirectoryError</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    A path that must be a directory is not.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#isdirectoryerror" className="not-prose">
+        <LibSymbolRow.Symbol>IsDirectoryError</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    An operation on a file was given a directory.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#permissiondeniederror" className="not-prose">
+        <LibSymbolRow.Symbol>PermissionDeniedError</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    The mode bits, or a read-only mount, refused the operation.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#pathescapesauthorityerror" className="not-prose">
+        <LibSymbolRow.Symbol>PathEscapesAuthorityError</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    A path resolves outside the authority the mount grants.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#crossbackendrenameerror" className="not-prose">
+        <LibSymbolRow.Symbol>CrossBackendRenameError</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    A rename would move a path from one backend to another.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#invalidpatherror" className="not-prose">
+        <LibSymbolRow.Symbol>InvalidPathError</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    A path, or a seek position, is invalid.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#unsupportederror" className="not-prose">
+        <LibSymbolRow.Symbol>UnsupportedError</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    The backend, or the state of the file, does not support the operation.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#unexpectederror" className="not-prose">
+        <LibSymbolRow.Symbol>UnexpectedError</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    The operation failed for a reason no other class describes.
+  </LibSymbolRow>
 </LibSymbols>
 
 <LibSymbols label="Types">
-  <LibSymbolRow name="StrPath">What every path argument accepts.</LibSymbolRow>
-  <LibSymbolRow name="EntryType">The kind of a filesystem entry.</LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#strpath" className="not-prose">
+        <LibSymbolRow.Symbol>StrPath</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    What every path argument accepts.
+  </LibSymbolRow>
+  <LibSymbolRow
+    symbols={
+      <Link href="#entrytype" className="not-prose">
+        <LibSymbolRow.Symbol>EntryType</LibSymbolRow.Symbol>
+      </Link>
+    }
+  >
+    The kind of a filesystem entry.
+  </LibSymbolRow>
 </LibSymbols>
 
 ## Directories
