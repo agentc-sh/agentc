@@ -34,18 +34,41 @@ impl ToolCall {
 }
 
 /// A tool definition.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct Tool {
     /// The tool name
     pub name: String,
     /// The tool description
     pub description: String,
     /// The tool parameters
-    pub parameters: Value,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parameters: Option<Value>,
 }
 
 impl Tool {
-    pub fn new(name: String, description: String, parameters: Value) -> Self {
+    pub fn new(name: String, description: String, parameters: Option<Value>) -> Self {
         Self { name, description, parameters }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::{from_value, json, to_value};
+
+    use crate::protocol::tool::Tool;
+
+    #[test]
+    fn parameters_are_optional() {
+        let tool = from_value::<Tool>(json!({
+            "name": "search",
+            "description": "Search"
+        }))
+        .unwrap();
+
+        assert_eq!(tool.parameters, None);
+        assert_eq!(
+            to_value(tool).unwrap(),
+            json!({ "name": "search", "description": "Search" })
+        );
     }
 }

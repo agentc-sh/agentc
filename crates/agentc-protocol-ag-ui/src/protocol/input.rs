@@ -10,6 +10,7 @@ use crate::protocol::{
     context::Context,
     ids::{RunId, ThreadId},
     message::Message,
+    outcome::ResumeEntry,
     tool::Tool,
 };
 
@@ -29,6 +30,8 @@ pub struct RunAgentInput<StateT = Value, FwdPropsT = Value> {
     pub context: Vec<Context>,
     #[serde(rename = "forwardedProps", default)]
     pub forwarded_props: FwdPropsT,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub resume: Vec<ResumeEntry>,
 }
 
 impl<StateT, FwdPropsT> RunAgentInput<StateT, FwdPropsT> {
@@ -49,6 +52,12 @@ impl<StateT, FwdPropsT> RunAgentInput<StateT, FwdPropsT> {
             tools,
             context,
             forwarded_props,
+            resume: Vec::new(),
         }
+    }
+
+    pub fn with_resume(mut self, resume: Vec<ResumeEntry>) -> Self {
+        self.resume = resume;
+        self
     }
 }
