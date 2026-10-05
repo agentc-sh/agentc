@@ -12,7 +12,10 @@ use std::{
 };
 use uuid::Uuid;
 
-use agentc_agent::types::event::AgentEvent;
+use agentc_agent::{
+    graph::checkpoint::types::RunStatus as AgentRunStatus,
+    types::event::AgentEvent,
+};
 use agentc_domain::types::run::RunStatus;
 
 use crate::{
@@ -653,10 +656,10 @@ impl From<AgentEvent<ReActState>> for Event {
             } => Event::run_finished(
                 session_id,
                 run_id,
-                if status.is_interrupted() {
-                    RunStatus::Interrupted
-                } else {
-                    RunStatus::Completed
+                match status {
+                    AgentRunStatus::Interrupted => RunStatus::Interrupted,
+                    AgentRunStatus::Cancelled => RunStatus::Cancelled,
+                    _ => RunStatus::Completed,
                 },
                 interrupt_payload,
                 result,
