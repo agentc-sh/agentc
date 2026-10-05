@@ -54,6 +54,9 @@ pub enum ServiceError {
     #[error("agent error: {0}")]
     Agent(#[from] AgentError),
 
+    #[error("invalid input: {0}")]
+    InvalidInput(String),
+
     #[error("unexpected error: {message}")]
     Unexpected {
         message: String,
@@ -87,6 +90,10 @@ impl ServiceError {
         ServiceError::MessageAlreadyExists(id.into())
     }
 
+    pub fn invalid_input(message: impl Into<String>) -> Self {
+        ServiceError::InvalidInput(message.into())
+    }
+
     pub fn unexpected(message: impl Into<String>) -> Self {
         ServiceError::Unexpected { message: message.into(), source: None }
     }
@@ -112,6 +119,7 @@ impl From<&ServiceError> for ApiError {
             ServiceError::RunAlreadyExists(_) => ApiError::new(400011, err.to_string()),
             ServiceError::MessageNotFound(_) => ApiError::new(404012, err.to_string()),
             ServiceError::MessageAlreadyExists(_) => ApiError::new(400012, err.to_string()),
+            ServiceError::InvalidInput(_) => ApiError::bad_request(err.to_string()),
             _ => ApiError::unexpected_error(err.to_string()),
         }
     }
