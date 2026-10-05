@@ -593,6 +593,7 @@ dependencies = [
  "axum",
  "futures",
  "jobq",
+ "json-patch",
  "serde",
  "serde_json",
  "thiserror",

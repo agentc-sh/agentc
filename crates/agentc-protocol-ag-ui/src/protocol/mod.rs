@@ -7,5 +7,6 @@ pub mod event;
 pub mod ids;
 pub mod input;
 pub mod message;
+pub mod outcome;
 pub mod state;
 pub mod tool;

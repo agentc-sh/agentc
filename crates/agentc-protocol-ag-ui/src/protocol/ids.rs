@@ -7,7 +7,7 @@ use std::ops::Deref;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-/// Macro to define a newtype ID based on Uuid.
+/// Macro to define a newtype ID based on a string.
 macro_rules! define_id_type {
     // This arm of the macro handles calls that don't specify extra derives.
     ($name:ident) => {
@@ -15,34 +15,45 @@ macro_rules! define_id_type {
     };
     // This arm handles calls that do specify extra derives (like Eq).
     ($name:ident, $($extra_derive:ident),*) => {
-        #[doc = concat!(stringify!($name), ": A newtype used to prevent mixing it with other ID values.")]
-        #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Eq, Hash, $($extra_derive),*)]
-        pub struct $name(Uuid);
+        #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, $($extra_derive),*)]
+        pub struct $name(String);
 
         impl $name {
             /// Creates a new random ID.
             pub fn random() -> Self {
-                Self(Uuid::new_v4())
+                Self(Uuid::new_v4().to_string())
             }
         }
 
         /// Allows creating an ID from a Uuid.
         impl From<Uuid> for $name {
             fn from(uuid: Uuid) -> Self {
-                Self(uuid)
+                Self(uuid.to_string())
             }
         }
 
-        /// Allows converting an ID back into a Uuid.
-        impl From<$name> for Uuid {
+        impl From<String> for $name {
+            fn from(value: String) -> Self {
+                Self(value)
+            }
+        }
+
+        impl From<&str> for $name {
+            fn from(value: &str) -> Self {
+                Self(value.to_string())
+            }
+        }
+
+        impl From<$name> for String {
             fn from(id: $name) -> Self {
                 id.0
             }
         }
 
-        /// Allows getting a reference to the inner Uuid.
-        impl AsRef<Uuid> for $name {
-            fn as_ref(&self) -> &Uuid {
+        impl Deref for $name {
+            type Target = str;
+
+            fn deref(&self) -> &Self::Target {
                 &self.0
             }
         }
@@ -53,33 +64,6 @@ macro_rules! define_id_type {
                 write!(f, "{}", self.0)
             }
         }
-
-        /// Allows parsing an ID from a string slice.
-        impl std::str::FromStr for $name {
-            type Err = uuid::Error;
-
-            fn from_str(s: &str) -> Result<Self, Self::Err> {
-                Ok(Self(Uuid::parse_str(s)?))
-            }
-        }
-
-        /// Allows comparing the ID with a Uuid.
-        impl PartialEq<Uuid> for $name {
-            fn eq(&self, other: &Uuid) -> bool {
-                self.0 == *other
-            }
-        }
-
-        /// Allows comparing the ID with a string slice.
-        impl PartialEq<str> for $name {
-            fn eq(&self, other: &str) -> bool {
-                if let Ok(uuid) = Uuid::parse_str(other) {
-                    self.0 == uuid
-                } else {
-                    false
-                }
-            }
-        }
     };
 }
 
@@ -87,6 +71,7 @@ define_id_type!(AgentId, ToSchema);
 define_id_type!(ThreadId, ToSchema);
 define_id_type!(RunId, ToSchema);
 define_id_type!(MessageId, ToSchema);
+define_id_type!(InterruptId, ToSchema);
 
 /// A tool call ID.
 /// Used by some providers to denote a specific ID for a tool call generation, where the result of the tool call must also use this ID.
