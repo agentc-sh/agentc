@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use futures::stream::{StreamExt, TryStreamExt};
 use json_patch::Patch;
 use serde::{Deserialize, Serialize};
-use serde_json::{from_value, json, to_string, Map, Value};
+use serde_json::{Map, Value, from_value, json, to_string};
 use std::{
     convert::Infallible,
     fmt::{Debug, Display, Formatter, Result as FmtResult},
@@ -263,11 +263,9 @@ impl FromAgUiType<InputContent> for DomainUserContent {
                         Url::parse(&s.value)
                             .map_err(|err| ServiceError::invalid_input(err.to_string()))?,
                     ),
-                    media_type: s
-                        .mime_type
-                        .ok_or_else(|| {
-                            ServiceError::invalid_input("mimeType is required for url sources")
-                        })?,
+                    media_type: s.mime_type.ok_or_else(|| {
+                        ServiceError::invalid_input("mimeType is required for url sources")
+                    })?,
                 },
                 InputContentSource::Data(s) => DomainImage {
                     source: DomainMediaSource::Base64(s.value),
@@ -280,11 +278,9 @@ impl FromAgUiType<InputContent> for DomainUserContent {
                         Url::parse(&s.value)
                             .map_err(|err| ServiceError::invalid_input(err.to_string()))?,
                     ),
-                    media_type: s
-                        .mime_type
-                        .ok_or_else(|| {
-                            ServiceError::invalid_input("mimeType is required for url sources")
-                        })?,
+                    media_type: s.mime_type.ok_or_else(|| {
+                        ServiceError::invalid_input("mimeType is required for url sources")
+                    })?,
                 },
                 InputContentSource::Data(s) => DomainAudio {
                     source: DomainMediaSource::Base64(s.value),
@@ -297,11 +293,9 @@ impl FromAgUiType<InputContent> for DomainUserContent {
                         Url::parse(&s.value)
                             .map_err(|err| ServiceError::invalid_input(err.to_string()))?,
                     ),
-                    media_type: s
-                        .mime_type
-                        .ok_or_else(|| {
-                            ServiceError::invalid_input("mimeType is required for url sources")
-                        })?,
+                    media_type: s.mime_type.ok_or_else(|| {
+                        ServiceError::invalid_input("mimeType is required for url sources")
+                    })?,
                 },
                 InputContentSource::Data(s) => DomainVideo {
                     source: DomainMediaSource::Base64(s.value),
@@ -314,11 +308,9 @@ impl FromAgUiType<InputContent> for DomainUserContent {
                         Url::parse(&s.value)
                             .map_err(|err| ServiceError::invalid_input(err.to_string()))?,
                     ),
-                    media_type: s
-                        .mime_type
-                        .ok_or_else(|| {
-                            ServiceError::invalid_input("mimeType is required for url sources")
-                        })?,
+                    media_type: s.mime_type.ok_or_else(|| {
+                        ServiceError::invalid_input("mimeType is required for url sources")
+                    })?,
                 },
                 InputContentSource::Data(s) => DomainDocument {
                     source: DomainMediaSource::Base64(s.value),
@@ -363,9 +355,8 @@ impl ToAgUiType<Event> for RunEvent {
                         interrupts: vec![Interrupt {
                             id: run_id.into(),
                             reason: AG_UI_INTERRUPT_REASON.to_string(),
-                            metadata: interrupt_payload.map(|payload| {
-                                Map::from_iter([("payload".to_string(), payload)])
-                            }),
+                            metadata: interrupt_payload
+                                .map(|payload| Map::from_iter([("payload".to_string(), payload)])),
                         }],
                     }),
                     RunStatus::Running | RunStatus::Failed => None,
@@ -606,127 +597,105 @@ impl ToAgUiType<Message> for MessageResponse {
 impl<'a> FromAgUiType<(RunAgentInput, &'a str)> for RunParams {
     type Error = ServiceError;
 
-    fn from_ag_ui_type(
-        (input, tenant_id): (RunAgentInput, &'a str),
-    ) -> Result<Self, Self::Error> {
+    fn from_ag_ui_type((input, tenant_id): (RunAgentInput, &'a str)) -> Result<Self, Self::Error> {
         let mut entries = input.resume.into_iter();
 
-        Ok(
-            RunParams::new(tenant_id, DeterministicUuid::from(input.thread_id))
-                .with_run_id(DeterministicUuid::from(input.run_id))
-                .maybe_with_resume_payload(
-                    match (entries.next(), entries.next()) {
-                        (None, _) => None,
-                        (
-                            Some(ResumeEntry {
-                                status: ResumeStatus::Resolved,
-                                payload,
-                                ..
-                            }),
-                            None,
-                        ) => Some(payload.unwrap_or(Value::Null)),
-                        (
-                            Some(ResumeEntry {
-                                status: ResumeStatus::Cancelled,
-                                ..
-                            }),
-                            None,
-                        ) => {
-                            return Err(ServiceError::invalid_input(
-                                "cancelling an interrupt is not supported",
-                            ));
-                        }
-                        (Some(_), Some(_)) => {
-                            return Err(ServiceError::invalid_input(
-                                "a run resumes at most one interrupt",
-                            ));
-                        }
-                    },
-                )
-                .maybe_with_model(
-                    input
-                        .forwarded_props
-                        .as_object()
-                        .and_then(|props| props.get("model"))
-                        .and_then(|value| from_value(value.clone()).ok()),
-                )
-                .maybe_with_capability_override(
-                    input
-                        .forwarded_props
-                        .as_object()
-                        .and_then(|props| props.get("capability_override"))
-                        .and_then(|value| from_value(value.clone()).ok()),
-                )
-                .with_context_vars(
-                    input
-                        .context
-                        .into_iter()
-                        .map(|context| ContextVar {
-                            description: context.description,
-                            value: context.value,
-                        }),
-                )
-                .with_tools(
-                    input
-                        .tools
-                        .into_iter()
-                        .map(|tool| ToolDefinition {
-                            name: tool.name,
-                            description: tool.description,
-                            parameters: tool.parameters.unwrap_or_else(|| {
-                                json!({ "type": "object", "properties": {} })
-                            }),
-                        }),
-                )
-                .with_messages(
-                    input
-                        .messages
-                        .into_iter()
-                        .map(|message| {
-                            Ok(match message {
-                                Message::System { id, content, name } => {
-                                    Some(CreateMessageParams::System(CreateSystemMessageParams {
-                                        id: DeterministicUuid::from(id).into(),
-                                        content,
-                                        name,
-                                    }))
-                                }
-                                Message::User { id, content, name } => {
-                                    Some(CreateMessageParams::User(CreateUserMessageParams {
-                                        id: DeterministicUuid::from(id).into(),
-                                        name,
-                                        content: match content {
-                                            UserMessageContent::Text(text) => {
-                                                vec![DomainUserContent::Text(text)]
-                                            }
-                                            UserMessageContent::Parts(parts) => parts
-                                                .into_iter()
-                                                .map(DomainUserContent::from_ag_ui_type)
-                                                .collect::<Result<_, _>>()?,
-                                        },
-                                    }))
-                                }
-                                Message::Tool {
-                                    id,
+        Ok(RunParams::new(tenant_id, DeterministicUuid::from(input.thread_id))
+            .with_run_id(DeterministicUuid::from(input.run_id))
+            .maybe_with_resume_payload(match (entries.next(), entries.next()) {
+                (None, _) => None,
+                (
+                    Some(ResumeEntry {
+                        status: ResumeStatus::Resolved, payload, ..
+                    }),
+                    None,
+                ) => Some(payload.unwrap_or(Value::Null)),
+                (Some(ResumeEntry { status: ResumeStatus::Cancelled, .. }), None) => {
+                    return Err(ServiceError::invalid_input(
+                        "cancelling an interrupt is not supported",
+                    ));
+                }
+                (Some(_), Some(_)) => {
+                    return Err(ServiceError::invalid_input("a run resumes at most one interrupt"));
+                }
+            })
+            .maybe_with_model(
+                input
+                    .forwarded_props
+                    .as_object()
+                    .and_then(|props| props.get("model"))
+                    .and_then(|value| from_value(value.clone()).ok()),
+            )
+            .maybe_with_capability_override(
+                input
+                    .forwarded_props
+                    .as_object()
+                    .and_then(|props| props.get("capability_override"))
+                    .and_then(|value| from_value(value.clone()).ok()),
+            )
+            .with_context_vars(
+                input
+                    .context
+                    .into_iter()
+                    .map(|context| ContextVar {
+                        description: context.description,
+                        value: context.value,
+                    }),
+            )
+            .with_tools(input.tools.into_iter().map(|tool| {
+                ToolDefinition {
+                    name: tool.name,
+                    description: tool.description,
+                    parameters: tool
+                        .parameters
+                        .unwrap_or_else(|| json!({ "type": "object", "properties": {} })),
+                }
+            }))
+            .with_messages(
+                input
+                    .messages
+                    .into_iter()
+                    .map(|message| {
+                        Ok(match message {
+                            Message::System { id, content, name } => {
+                                Some(CreateMessageParams::System(CreateSystemMessageParams {
+                                    id: DeterministicUuid::from(id).into(),
                                     content,
-                                    tool_call_id,
-                                    error,
-                                } => Some(CreateMessageParams::Tool(CreateToolMessageParams {
+                                    name,
+                                }))
+                            }
+                            Message::User { id, content, name } => {
+                                Some(CreateMessageParams::User(CreateUserMessageParams {
+                                    id: DeterministicUuid::from(id).into(),
+                                    name,
+                                    content: match content {
+                                        UserMessageContent::Text(text) => {
+                                            vec![DomainUserContent::Text(text)]
+                                        }
+                                        UserMessageContent::Parts(parts) => parts
+                                            .into_iter()
+                                            .map(DomainUserContent::from_ag_ui_type)
+                                            .collect::<Result<_, _>>()?,
+                                    },
+                                }))
+                            }
+                            Message::Tool { id, content, tool_call_id, error } => {
+                                Some(CreateMessageParams::Tool(CreateToolMessageParams {
                                     id: DeterministicUuid::from(id).into(),
                                     content: Some(content),
                                     tool_call_id: tool_call_id.into(),
                                     parent_message_id: None,
                                     error,
                                     name: None,
-                                })),
-                                _ => None,
-                            })
+                                }))
+                            }
+                            _ => None,
                         })
-                        .collect::<Result<Vec<_>, ServiceError>>()?
-                        .into_iter()
-                        .flatten(),
-                ),
-        )
+                    })
+                    .collect::<Result<Vec<_>, ServiceError>>()?
+                    .into_iter()
+                    .flatten(),
+            ))
     }
 }
 

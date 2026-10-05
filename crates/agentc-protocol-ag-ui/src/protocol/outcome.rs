@@ -20,9 +20,7 @@ pub struct Interrupt {
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum RunFinishedOutcome {
     Success,
-    Interrupt {
-        interrupts: Vec<Interrupt>,
-    },
+    Interrupt { interrupts: Vec<Interrupt> },
     Cancelled,
 }
 

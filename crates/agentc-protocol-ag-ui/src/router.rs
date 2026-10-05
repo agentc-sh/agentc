@@ -183,10 +183,7 @@ async fn ag_ui_run_endpoint(
 
     match state
         .stream_task_queue
-        .enqueue(JobStreamOptions::new(AgUiStreamTaskInput::new(
-            stream,
-            disconnect.clone(),
-        )))
+        .enqueue(JobStreamOptions::new(AgUiStreamTaskInput::new(stream, disconnect.clone())))
         .await
     {
         Ok(handle) => Sse::new(CancelOnDropStream::new(handle, disconnect).map(|result| {
@@ -417,7 +414,6 @@ mod tests {
         .await;
 
         assert_eq!(response.status().as_u16(), 400);
-
     }
 
     #[tokio::test]
@@ -458,7 +454,11 @@ mod tests {
             .unwrap()
             .unwrap();
 
-        assert!(std::str::from_utf8(&chunk).unwrap().contains("RUN_ERROR"));
+        assert!(
+            std::str::from_utf8(&chunk)
+                .unwrap()
+                .contains("RUN_ERROR")
+        );
 
         drop(body);
 

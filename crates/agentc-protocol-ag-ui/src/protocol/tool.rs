@@ -66,9 +66,6 @@ mod tests {
         .unwrap();
 
         assert_eq!(tool.parameters, None);
-        assert_eq!(
-            to_value(tool).unwrap(),
-            json!({ "name": "search", "description": "Search" })
-        );
+        assert_eq!(to_value(tool).unwrap(), json!({ "name": "search", "description": "Search" }));
     }
 }

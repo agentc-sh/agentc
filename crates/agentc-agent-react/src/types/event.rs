@@ -13,8 +13,7 @@ use std::{
 use uuid::Uuid;
 
 use agentc_agent::{
-    graph::checkpoint::types::RunStatus as AgentRunStatus,
-    types::event::AgentEvent,
+    graph::checkpoint::types::RunStatus as AgentRunStatus, types::event::AgentEvent,
 };
 use agentc_domain::types::run::RunStatus;
 
