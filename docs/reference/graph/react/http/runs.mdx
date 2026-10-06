@@ -576,13 +576,13 @@ not cancel the run.
     Optional capability override for this run.
   </Field>
   <Field name="messages" type={<>{<Link href="/reference/graph/react/http/messages">Message</Link>}[]</>}>
-    Messages that seed the run. At least one message is required.
+    The messages to append to the current session.
   </Field>
   <Field name="context_vars" type={<>{<Link href="#contextvar">ContextVar</Link>}[]</>}>
     Client-supplied context variables.
   </Field>
   <Field name="context" type="object | null">
-    Initial context object.
+    Create or replace the context for the current session.
   </Field>
   <Field name="tools" type={<>{<Link href="#tooldefinition">ToolDefinition</Link>}[]</>}>
     Client-defined tools available to the run.
