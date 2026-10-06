@@ -786,10 +786,7 @@ mod tests {
         checkpoint::handle::SqlReActCheckpointStoreHandle,
         graph::state::ReActStateInput,
         migrations::all as react_migrations,
-        types::{
-            message::MessageRole,
-            model::ModelConfigRetry,
-        },
+        types::{message::MessageRole, model::ModelConfigRetry},
     };
 
     struct StubModel {
@@ -913,9 +910,7 @@ mod tests {
     impl Script {
         fn text(text: &str) -> Vec<CompletionStreamEvent> {
             vec![
-                CompletionStreamEvent::TextDelta {
-                    delta: text.to_string(),
-                },
+                CompletionStreamEvent::TextDelta { delta: text.to_string() },
                 Self::done(),
             ]
         }
@@ -1067,9 +1062,9 @@ mod tests {
 
             Self {
                 graph: ReActNode::graph(Default::default())
-                    .with_checkpointer(GraphCheckpointer::new(
-                        SqlReActCheckpointStoreHandle::new(database),
-                    ))
+                    .with_checkpointer(GraphCheckpointer::new(SqlReActCheckpointStoreHandle::new(
+                        database,
+                    )))
                     .build(),
                 model_registry: ModelRegistry::builder()
                     .with_factory(ScriptedProvider(script.clone()))
@@ -1141,9 +1136,7 @@ mod tests {
         }
 
         fn model_calls(&self) -> u32 {
-            self.script
-                .calls
-                .load(Ordering::SeqCst)
+            self.script.calls.load(Ordering::SeqCst)
         }
 
         fn tool_result(tool_call_id: &str) -> Message {
@@ -1265,9 +1258,7 @@ mod tests {
     #[tokio::test]
     async fn text_reply_exits_after_one_model_call() {
         let harness = GraphHarness::new([Script::text("hello")]).await;
-        let run = harness
-            .run([Message::user("hi")])
-            .await;
+        let run = harness.run([Message::user("hi")]).await;
 
         assert_eq!(
             run.kinds(),
@@ -1285,14 +1276,9 @@ mod tests {
 
     #[tokio::test]
     async fn server_tool_result_returns_to_model() {
-        let harness = GraphHarness::new([
-            Script::calls([("s1", "server_echo")]),
-            Script::text("done"),
-        ])
-        .await;
-        let run = harness
-            .run([Message::user("hi")])
-            .await;
+        let harness =
+            GraphHarness::new([Script::calls([("s1", "server_echo")]), Script::text("done")]).await;
+        let run = harness.run([Message::user("hi")]).await;
 
         assert_eq!(
             run.kinds(),
@@ -1324,9 +1310,7 @@ mod tests {
     async fn answered_session_exits_without_model_call() {
         let harness = GraphHarness::new([Script::text("hello")]).await;
 
-        harness
-            .run([Message::user("hi")])
-            .await;
+        harness.run([Message::user("hi")]).await;
 
         let run = harness.run([]).await;
 
@@ -1345,10 +1329,7 @@ mod tests {
             let harness = GraphHarness::new([]).await;
 
             assert_eq!(
-                harness
-                    .run(messages)
-                    .await
-                    .kinds(),
+                harness.run(messages).await.kinds(),
                 ["state_snapshot", "messages_snapshot"],
             );
             assert_eq!(harness.model_calls(), 0);
@@ -1368,21 +1349,20 @@ mod tests {
                 .run([Message::user("hi")])
                 .await
                 .roles(),
-            [MessageRole::System, MessageRole::User, MessageRole::Assistant],
+            [
+                MessageRole::System,
+                MessageRole::User,
+                MessageRole::Assistant
+            ],
         );
         assert_eq!(harness.model_calls(), 1);
     }
 
     #[tokio::test]
     async fn client_call_is_handed_off_once() {
-        let harness = GraphHarness::new([
-            Script::calls([("c1", "client_echo")]),
-            Script::text("done"),
-        ])
-        .await;
-        let run = harness
-            .run([Message::user("hi")])
-            .await;
+        let harness =
+            GraphHarness::new([Script::calls([("c1", "client_echo")]), Script::text("done")]).await;
+        let run = harness.run([Message::user("hi")]).await;
 
         assert_eq!(
             run.kinds(),
@@ -1419,9 +1399,7 @@ mod tests {
             Script::text("done"),
         ])
         .await;
-        let run = harness
-            .run([Message::user("hi")])
-            .await;
+        let run = harness.run([Message::user("hi")]).await;
 
         assert_eq!(
             run.kinds(),
@@ -1459,9 +1437,7 @@ mod tests {
     async fn unanswered_client_call_is_announced_again() {
         let harness = GraphHarness::new([Script::calls([("c1", "client_echo")])]).await;
 
-        harness
-            .run([Message::user("hi")])
-            .await;
+        harness.run([Message::user("hi")]).await;
 
         let run = harness.run([]).await;
 
@@ -1487,9 +1463,7 @@ mod tests {
         ])])
         .await;
 
-        harness
-            .run([Message::user("hi")])
-            .await;
+        harness.run([Message::user("hi")]).await;
 
         assert_eq!(
             harness
@@ -1509,14 +1483,15 @@ mod tests {
         ])])
         .await;
 
-        harness
-            .run([Message::user("hi")])
-            .await;
+        harness.run([Message::user("hi")]).await;
 
         let run = harness.run([]).await;
 
         assert_eq!(run.announced(), ["c1"]);
-        assert!(!run.kinds().contains(&"tool_call_result"));
+        assert!(
+            !run.kinds()
+                .contains(&"tool_call_result")
+        );
         assert_eq!(harness.model_calls(), 1);
     }
 }
