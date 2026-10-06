@@ -16,10 +16,17 @@ use agentc_agent::{
         errors::GraphError,
         state::{FromStateUpdate, GraphState, GraphStateInput, GraphStateUpdate, IntoStateUpdate},
     },
-    types::{capability::CapabilityOverride, tools::ToolDefinition},
+    types::{
+        capability::CapabilityOverride,
+        tools::{ToolCall, ToolDefinition},
+    },
 };
 
-use crate::types::{context_var::ContextVar, message::Message, model::ModelConfig};
+use crate::types::{
+    context_var::ContextVar,
+    message::{AssistantMessage, Message},
+    model::ModelConfig,
+};
 
 /// The main state corresponding to a specific session of an agent.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -40,6 +47,31 @@ pub struct ReActState {
     pub tools: Vec<ToolDefinition>,
     /// Additional arbitrary context that can be used by the agent or tools, not structured as variables.
     pub context: Value,
+}
+
+impl ReActState {
+    pub fn pending_tool_calls(&self) -> Option<(AssistantMessage, Vec<ToolCall>)> {
+        self.messages
+            .iter()
+            .rposition(|m| m.as_assistant().is_some())
+            .and_then(|idx| {
+                let assistant = self.messages[idx].as_assistant()?;
+                let calls = assistant
+                    .tool_calls
+                    .iter()
+                    .flatten()
+                    .filter(|call| {
+                        !self.messages[idx + 1..]
+                            .iter()
+                            .filter_map(Message::as_tool)
+                            .any(|tool| tool.tool_call_id == call.id)
+                    })
+                    .cloned()
+                    .collect::<Vec<_>>();
+
+                (!calls.is_empty()).then(|| (assistant.clone(), calls))
+            })
+    }
 }
 
 /// Updates that can be applied to the `ReActState`.

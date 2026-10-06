@@ -14,12 +14,16 @@ use agentc_agent::{
         state::GraphNode,
     },
     tools::dispatcher::{ToolDispatcher, ToolRegistryExt},
-    types::tools::ToolDefinition,
+    types::tools::{ToolCall, ToolDefinition},
 };
 
 use crate::{
     graph::state::ReActState,
-    types::{context_var::ContextVar, message::Message, model::ModelConfig as ReActModelConfig},
+    types::{
+        context_var::ContextVar,
+        message::{AssistantMessage, Message},
+        model::ModelConfig as ReActModelConfig,
+    },
 };
 
 /// An extractor for the messages from the agent state.
@@ -41,6 +45,28 @@ where
 {
     fn from_rtx(rtx: &RuntimeContext<N>) -> Result<Self, GraphError> {
         Ok(Messages(rtx.state.messages.clone()))
+    }
+}
+
+/// An extractor for the pending tool calls from the agent state.
+pub struct PendingToolCalls(pub Option<(AssistantMessage, Vec<ToolCall>)>);
+
+impl PendingToolCalls {
+    pub fn as_inner(&self) -> Option<&(AssistantMessage, Vec<ToolCall>)> {
+        self.0.as_ref()
+    }
+
+    pub fn into_inner(self) -> Option<(AssistantMessage, Vec<ToolCall>)> {
+        self.0
+    }
+}
+
+impl<N> FromRuntimeContext<N> for PendingToolCalls
+where
+    N: GraphNode<State = ReActState>,
+{
+    fn from_rtx(rtx: &RuntimeContext<N>) -> Result<Self, GraphError> {
+        Ok(PendingToolCalls(rtx.state.pending_tool_calls()))
     }
 }
 

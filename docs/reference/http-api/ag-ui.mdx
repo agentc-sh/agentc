@@ -48,7 +48,8 @@ With a custom base path, the run endpoint becomes `<path>/run`.
     Optional identifier for this run. Generated automatically if not provided.
   </Field>
   <Field name="messages" type={<>{<Link href="#message">Message</Link>}[]</>}>
-    Conversation messages. Each has a `role` and `content`.
+    Conversation messages. A run accepts `system`, `user` and `tool` messages. Messages with any
+    other role are ignored.
   </Field>
   <Field name="tools" type={<>{<Link href="#tool">Tool</Link>}[]</>}>
     Optional client-defined tool definitions to make available for this run.
@@ -69,12 +70,179 @@ With a custom base path, the run endpoint becomes `<path>/run`.
 
 ### Message
 
-<Fields label="Message">
-  <Field name="role" type="string" enum={["user", "assistant", "system"]}>
-    The role of the message sender.
+<Variants label="Message">
+  <Variant label="user">
+    <Field name="role" type="string" enum={["user"]}>
+      The role of the message sender.
+    </Field>
+    <Field name="id" type="string">
+      Optional message ID. Generated automatically if not provided.
+    </Field>
+    <Field name="content" type={<>string | {<Link href="#input-content">InputContent</Link>}[]</>}>
+      The content of the message, as text or as a list of content blocks.
+    </Field>
+    <Field name="name" type="string">
+      Optional name of the message sender.
+    </Field>
+  </Variant>
+  <Variant label="assistant">
+    <Field name="role" type="string" enum={["assistant"]}>
+      The role of the message sender.
+    </Field>
+    <Field name="id" type="string">
+      Optional message ID. Generated automatically if not provided.
+    </Field>
+    <Field name="content" type="string">
+      Optional text content of the message.
+    </Field>
+    <Field name="name" type="string">
+      Optional name of the message sender.
+    </Field>
+    <Field name="toolCalls" type={<>{<Link href="#tool-call">ToolCall</Link>}[]</>}>
+      Optional tool calls the assistant requested.
+    </Field>
+  </Variant>
+  <Variant label="system">
+    <Field name="role" type="string" enum={["system"]}>
+      The role of the message sender.
+    </Field>
+    <Field name="id" type="string">
+      Optional message ID. Generated automatically if not provided.
+    </Field>
+    <Field name="content" type="string">
+      The text content of the message.
+    </Field>
+    <Field name="name" type="string">
+      Optional name of the message sender.
+    </Field>
+  </Variant>
+  <Variant label="tool">
+    <Field name="role" type="string" enum={["tool"]}>
+      The role of the message sender.
+    </Field>
+    <Field name="id" type="string">
+      Optional message ID. Generated automatically if not provided.
+    </Field>
+    <Field name="content" type="string">
+      The result of the tool call.
+    </Field>
+    <Field name="toolCallId" type="string">
+      The ID of the tool call this message answers.
+    </Field>
+    <Field name="error" type="string">
+      Optional error from the tool call.
+    </Field>
+  </Variant>
+  <Variant label="reasoning">
+    <Field name="role" type="string" enum={["reasoning"]}>
+      The role of the message sender.
+    </Field>
+    <Field name="id" type="string">
+      Optional message ID. Generated automatically if not provided.
+    </Field>
+    <Field name="content" type="string">
+      The reasoning text.
+    </Field>
+    <Field name="encryptedValue" type="string">
+      Optional encrypted reasoning, passed through unchanged.
+    </Field>
+  </Variant>
+</Variants>
+
+### Input Content
+
+<Variants label="InputContent">
+  <Variant label="text">
+    <Field name="type" type="string" enum={["text"]}>
+      The block type.
+    </Field>
+    <Field name="text" type="string">
+      The text.
+    </Field>
+  </Variant>
+  <Variant label="image">
+    <Field name="type" type="string" enum={["image"]}>
+      The block type.
+    </Field>
+    <Field name="source" type={<Link href="#input-content-source">InputContentSource</Link>}>
+      Where the image's bytes come from.
+    </Field>
+  </Variant>
+  <Variant label="audio">
+    <Field name="type" type="string" enum={["audio"]}>
+      The block type.
+    </Field>
+    <Field name="source" type={<Link href="#input-content-source">InputContentSource</Link>}>
+      Where the audio's bytes come from.
+    </Field>
+  </Variant>
+  <Variant label="video">
+    <Field name="type" type="string" enum={["video"]}>
+      The block type.
+    </Field>
+    <Field name="source" type={<Link href="#input-content-source">InputContentSource</Link>}>
+      Where the video's bytes come from.
+    </Field>
+  </Variant>
+  <Variant label="document">
+    <Field name="type" type="string" enum={["document"]}>
+      The block type.
+    </Field>
+    <Field name="source" type={<Link href="#input-content-source">InputContentSource</Link>}>
+      Where the document's bytes come from.
+    </Field>
+  </Variant>
+</Variants>
+
+### Input Content Source
+
+<Variants label="InputContentSource">
+  <Variant label="data">
+    <Field name="type" type="string" enum={["data"]}>
+      The source type.
+    </Field>
+    <Field name="value" type="string">
+      The base64-encoded bytes.
+    </Field>
+    <Field name="mimeType" type="string">
+      The MIME type of the bytes.
+    </Field>
+  </Variant>
+  <Variant label="url">
+    <Field name="type" type="string" enum={["url"]}>
+      The source type.
+    </Field>
+    <Field name="value" type="string">
+      The URL of the bytes.
+    </Field>
+    <Field name="mimeType" type="string">
+      The MIME type of the bytes.
+    </Field>
+  </Variant>
+</Variants>
+
+### Tool Call
+
+<Fields label="ToolCall">
+  <Field name="id" type="string">
+    The tool call ID.
   </Field>
-  <Field name="content" type="string">
-    The text content of the message.
+  <Field name="type" type="string" enum={["function"]}>
+    The tool call type.
+  </Field>
+  <Field name="function" type={<Link href="#function-call">FunctionCall</Link>}>
+    The function to call.
+  </Field>
+</Fields>
+
+### Function Call
+
+<Fields label="FunctionCall">
+  <Field name="name" type="string">
+    The tool name.
+  </Field>
+  <Field name="arguments" type="string">
+    The tool arguments, as a JSON-encoded string.
   </Field>
 </Fields>
 
