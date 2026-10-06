@@ -294,7 +294,6 @@ pub struct CreateRunRequestDTO {
     pub model: Option<ModelConfigDTO>,
     #[serde(default)]
     pub capability_override: Option<CapabilityOverrideDTO>,
-    #[validate(length(min = 1))]
     #[serde(default)]
     pub messages: Vec<CreateMessageRequestDTO>,
     #[validate(nested)]
