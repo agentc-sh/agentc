@@ -504,10 +504,7 @@ impl RunParams {
         self
     }
 
-    pub fn with_capability_override(
-        mut self,
-        capability_override: CapabilityOverride,
-    ) -> Self {
+    pub fn with_capability_override(mut self, capability_override: CapabilityOverride) -> Self {
         self.capability_override = Some(Some(capability_override));
         self
     }
@@ -538,10 +535,7 @@ impl RunParams {
         self
     }
 
-    pub fn with_context_vars(
-        mut self,
-        context_vars: impl IntoIterator<Item = ContextVar>,
-    ) -> Self {
+    pub fn with_context_vars(mut self, context_vars: impl IntoIterator<Item = ContextVar>) -> Self {
         self.context_vars = Some(context_vars.into_iter().collect());
         self
     }
@@ -848,10 +842,7 @@ mod tests {
             .to_input();
 
         assert_eq!(specified.model, Some(Some(model)));
-        assert_eq!(
-            specified.capability_override,
-            Some(Some(CapabilityOverride::Inherit))
-        );
+        assert_eq!(specified.capability_override, Some(Some(CapabilityOverride::Inherit)));
         assert_eq!(specified.context_vars, Some(vec![context_var]));
         assert_eq!(specified.tools, Some(vec![tool]));
 

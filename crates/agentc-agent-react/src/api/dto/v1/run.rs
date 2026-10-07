@@ -322,27 +322,38 @@ impl CreateRunRequestDTO {
             run_id: self.run_id,
             checkpoint_id: self.checkpoint_id,
             resume_payload: self.resume_payload.clone(),
-            model: self
-                .model
-                .as_ref()
-                .map(|model| model.as_ref().map(ModelConfigDTO::to_params)),
+            model: self.model.as_ref().map(|model| {
+                model
+                    .as_ref()
+                    .map(ModelConfigDTO::to_params)
+            }),
             capability_override: self
                 .capability_override
                 .as_ref()
-                .map(|value| value.as_ref().map(CapabilityOverrideDTO::to_params)),
+                .map(|value| {
+                    value
+                        .as_ref()
+                        .map(CapabilityOverrideDTO::to_params)
+                }),
             messages: self
                 .messages
                 .iter()
                 .map(|m| m.to_params())
                 .collect(),
-            context_vars: self.context_vars.as_ref().map(|context_vars| {
-                context_vars
-                    .iter()
-                    .map(ContextVarDTO::to_params)
-                    .collect()
-            }),
+            context_vars: self
+                .context_vars
+                .as_ref()
+                .map(|context_vars| {
+                    context_vars
+                        .iter()
+                        .map(ContextVarDTO::to_params)
+                        .collect()
+                }),
             tools: self.tools.as_ref().map(|tools| {
-                tools.iter().map(ToolDefinitionDTO::to_params).collect()
+                tools
+                    .iter()
+                    .map(ToolDefinitionDTO::to_params)
+                    .collect()
             }),
             context: self.context.clone(),
         }
@@ -392,27 +403,38 @@ impl StartRunRequestDTO {
             run_id: self.run_id,
             checkpoint_id: self.checkpoint_id,
             resume_payload: self.resume_payload.clone(),
-            model: self
-                .model
-                .as_ref()
-                .map(|model| model.as_ref().map(ModelConfigDTO::to_params)),
+            model: self.model.as_ref().map(|model| {
+                model
+                    .as_ref()
+                    .map(ModelConfigDTO::to_params)
+            }),
             capability_override: self
                 .capability_override
                 .as_ref()
-                .map(|value| value.as_ref().map(CapabilityOverrideDTO::to_params)),
+                .map(|value| {
+                    value
+                        .as_ref()
+                        .map(CapabilityOverrideDTO::to_params)
+                }),
             messages: self
                 .messages
                 .iter()
                 .map(|m| m.to_params())
                 .collect(),
-            context_vars: self.context_vars.as_ref().map(|context_vars| {
-                context_vars
-                    .iter()
-                    .map(ContextVarDTO::to_params)
-                    .collect()
-            }),
+            context_vars: self
+                .context_vars
+                .as_ref()
+                .map(|context_vars| {
+                    context_vars
+                        .iter()
+                        .map(ContextVarDTO::to_params)
+                        .collect()
+                }),
             tools: self.tools.as_ref().map(|tools| {
-                tools.iter().map(ToolDefinitionDTO::to_params).collect()
+                tools
+                    .iter()
+                    .map(ToolDefinitionDTO::to_params)
+                    .collect()
             }),
             context: self.context.clone(),
         }

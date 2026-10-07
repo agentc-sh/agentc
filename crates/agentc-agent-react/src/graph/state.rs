@@ -290,37 +290,33 @@ impl Default for ReActStateInput {
 
 impl IntoStateUpdate<ReActStateUpdate> for ReActStateInput {
     fn into_update(self) -> Result<Option<ReActStateUpdate>, GraphError> {
-        Ok(
-            Some(
-                ReActStateUpdate {
-                    messages: self.messages,
-                    // Convert the context Value into RFC 6902 `add` operations, one per
-                    // top-level key. `add` replaces an existing key or inserts a missing
-                    // one, giving shallow-merge semantics without needing the current state.
-                    // Non-object values produce no operations.
-                    context: match self.context {
-                        Value::Object(map) => map
-                            .into_iter()
-                            .filter_map(|(key, value)| {
-                                format!(
-                                    "/{}",
-                                    key.replace('~', "~0")
-                                        .replace('/', "~1")
-                                )
-                                .try_into()
-                                .ok()
-                                .map(|path| PatchOperation::Add(AddOperation { path, value }))
-                            })
-                            .collect(),
-                        _ => Vec::new(),
-                    },
-                    model: self.model,
-                    capability_override: self.capability_override,
-                    context_vars: self.context_vars,
-                    tools: self.tools,
-                }
-            )
-        )
+        Ok(Some(ReActStateUpdate {
+            messages: self.messages,
+            // Convert the context Value into RFC 6902 `add` operations, one per
+            // top-level key. `add` replaces an existing key or inserts a missing
+            // one, giving shallow-merge semantics without needing the current state.
+            // Non-object values produce no operations.
+            context: match self.context {
+                Value::Object(map) => map
+                    .into_iter()
+                    .filter_map(|(key, value)| {
+                        format!(
+                            "/{}",
+                            key.replace('~', "~0")
+                                .replace('/', "~1")
+                        )
+                        .try_into()
+                        .ok()
+                        .map(|path| PatchOperation::Add(AddOperation { path, value }))
+                    })
+                    .collect(),
+                _ => Vec::new(),
+            },
+            model: self.model,
+            capability_override: self.capability_override,
+            context_vars: self.context_vars,
+            tools: self.tools,
+        }))
     }
 }
 
@@ -586,10 +582,7 @@ mod tests {
         });
 
         assert_eq!(merged.model, Some(None));
-        assert_eq!(
-            merged.capability_override,
-            Some(Some(CapabilityOverride::Inherit))
-        );
+        assert_eq!(merged.capability_override, Some(Some(CapabilityOverride::Inherit)));
         assert_eq!(merged.context_vars, Some(vec![]));
         assert_eq!(merged.tools, Some(vec![]));
 
@@ -604,20 +597,22 @@ mod tests {
         let default = serde_json::to_value(ReActStateUpdate::default()).unwrap();
 
         assert!(default.get("model").is_none());
-        assert!(default.get("capability_override").is_none());
+        assert!(
+            default
+                .get("capability_override")
+                .is_none()
+        );
         assert!(default.get("context_vars").is_none());
         assert!(default.get("tools").is_none());
 
-        let clear = serde_json::from_value::<ReActStateUpdate>(
-            json!({
-                "messages": [],
-                "context": [],
-                "model": null,
-                "capability_override": null,
-                "context_vars": [],
-                "tools": []
-            }),
-        )
+        let clear = serde_json::from_value::<ReActStateUpdate>(json!({
+            "messages": [],
+            "context": [],
+            "model": null,
+            "capability_override": null,
+            "context_vars": [],
+            "tools": []
+        }))
         .unwrap();
 
         assert_eq!(clear.model, Some(None));
@@ -646,7 +641,9 @@ mod tests {
             tools: Some(vec![]),
             ..Default::default()
         };
-        let patch = Patch::from_update(clear.clone()).unwrap().unwrap();
+        let patch = Patch::from_update(clear.clone())
+            .unwrap()
+            .unwrap();
 
         assert_eq!(
             serde_json::to_value(&patch).unwrap(),
