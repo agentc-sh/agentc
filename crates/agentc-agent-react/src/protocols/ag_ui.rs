@@ -387,14 +387,17 @@ impl ToAgUiType<Event> for RunEvent {
                     message_id: message_id.into(),
                 }))
             }
-            Self::ToolCallStart { timestamp, tool_call_id, tool_name } => {
-                Ok(Event::ToolCallStart(ToolCallStartEvent {
-                    base: BaseEvent::at(Timestamp::from_secs_f64(timestamp)),
-                    tool_call_id: tool_call_id.into(),
-                    tool_call_name: tool_name,
-                    parent_message_id: None,
-                }))
-            }
+            Self::ToolCallStart {
+                timestamp,
+                tool_call_id,
+                parent_message_id,
+                tool_name,
+            } => Ok(Event::ToolCallStart(ToolCallStartEvent {
+                base: BaseEvent::at(Timestamp::from_secs_f64(timestamp)),
+                tool_call_id: tool_call_id.into(),
+                tool_call_name: tool_name,
+                parent_message_id: Some(parent_message_id.into()),
+            })),
             Self::ToolCallArgs { timestamp, tool_call_id, delta } => {
                 Ok(Event::ToolCallArgs(ToolCallArgsEvent {
                     base: BaseEvent::at(Timestamp::from_secs_f64(timestamp)),

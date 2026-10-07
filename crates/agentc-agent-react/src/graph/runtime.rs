@@ -547,8 +547,12 @@ impl ReActNode {
         for tool_call in tool_calls {
             let message_id = Uuid::new_v4();
 
-            ctx.emit(Event::tool_call_start(tool_call.id.clone(), tool_call.name.clone()))
-                .map_err(GraphError::execution_error)?;
+            ctx.emit(Event::tool_call_start(
+                tool_call.id.clone(),
+                *assistant_message.id(),
+                tool_call.name.clone(),
+            ))
+            .map_err(GraphError::execution_error)?;
 
             ctx.emit(Event::tool_call_args(
                 tool_call.id.clone(),
@@ -685,13 +689,8 @@ impl ReActNode {
                         error = &error,
                     );
 
-                    ctx.emit(Event::tool_call_error(
-                        &call_id,
-                        assistant_message.id,
-                        &error,
-                        None::<String>,
-                    ))
-                    .map_err(GraphError::execution_error)?;
+                    ctx.emit(Event::tool_call_error(&call_id, message_id, &error, None::<String>))
+                        .map_err(GraphError::execution_error)?;
 
                     results.push(Message::Tool(
                         ToolMessage::new(call_id)

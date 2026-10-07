@@ -104,6 +104,7 @@ pub enum Event {
     ToolCallStart {
         timestamp: f64,
         tool_call_id: String,
+        parent_message_id: Uuid,
         tool_name: String,
     },
     /// Event indicating the end of a tool call.
@@ -340,17 +341,23 @@ impl Event {
     ///
     /// # Arguments
     /// * `tool_call_id` - A string slice representing the tool call ID.
+    /// * `parent_message_id` - The ID of the assistant message that contains the tool call.
     /// * `tool_name` - A string slice representing the tool name.
     ///
     /// # Returns
     /// An instance of the Event enum representing a [`Event::ToolCallStart`](crate::types::event::Event::ToolCallStart) event.
-    pub fn tool_call_start(tool_call_id: impl Into<String>, tool_name: impl Into<String>) -> Self {
+    pub fn tool_call_start(
+        tool_call_id: impl Into<String>,
+        parent_message_id: impl Into<Uuid>,
+        tool_name: impl Into<String>,
+    ) -> Self {
         Event::ToolCallStart {
             timestamp: SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap()
                 .as_secs_f64(),
             tool_call_id: tool_call_id.into(),
+            parent_message_id: parent_message_id.into(),
             tool_name: tool_name.into(),
         }
     }
