@@ -290,20 +290,28 @@ pub struct CreateRunRequestDTO {
     #[serde(default)]
     pub resume_payload: Option<Value>,
     #[validate(nested)]
-    #[serde(default)]
-    pub model: Option<ModelConfigDTO>,
-    #[serde(default)]
-    pub capability_override: Option<CapabilityOverrideDTO>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "serde_with::rust::double_option"
+    )]
+    pub model: Option<Option<ModelConfigDTO>>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "serde_with::rust::double_option"
+    )]
+    pub capability_override: Option<Option<CapabilityOverrideDTO>>,
     #[serde(default)]
     pub messages: Vec<CreateMessageRequestDTO>,
     #[validate(nested)]
-    #[serde(default)]
-    pub context_vars: Vec<ContextVarDTO>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_vars: Option<Vec<ContextVarDTO>>,
     #[serde(default)]
     pub context: Option<Value>,
     #[validate(nested)]
-    #[serde(default)]
-    pub tools: Vec<ToolDefinitionDTO>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tools: Option<Vec<ToolDefinitionDTO>>,
 }
 
 impl CreateRunRequestDTO {
@@ -317,26 +325,25 @@ impl CreateRunRequestDTO {
             model: self
                 .model
                 .as_ref()
-                .map(|m| m.to_params()),
+                .map(|model| model.as_ref().map(ModelConfigDTO::to_params)),
             capability_override: self
                 .capability_override
                 .as_ref()
-                .map(|c| c.to_params()),
+                .map(|value| value.as_ref().map(CapabilityOverrideDTO::to_params)),
             messages: self
                 .messages
                 .iter()
                 .map(|m| m.to_params())
                 .collect(),
-            context_vars: self
-                .context_vars
-                .iter()
-                .map(|c| c.to_params())
-                .collect(),
-            tools: self
-                .tools
-                .iter()
-                .map(|t| t.to_params())
-                .collect(),
+            context_vars: self.context_vars.as_ref().map(|context_vars| {
+                context_vars
+                    .iter()
+                    .map(ContextVarDTO::to_params)
+                    .collect()
+            }),
+            tools: self.tools.as_ref().map(|tools| {
+                tools.iter().map(ToolDefinitionDTO::to_params).collect()
+            }),
             context: self.context.clone(),
         }
     }
@@ -353,20 +360,28 @@ pub struct StartRunRequestDTO {
     #[serde(default)]
     pub resume_payload: Option<Value>,
     #[validate(nested)]
-    #[serde(default)]
-    pub model: Option<ModelConfigDTO>,
-    #[serde(default)]
-    pub capability_override: Option<CapabilityOverrideDTO>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "serde_with::rust::double_option"
+    )]
+    pub model: Option<Option<ModelConfigDTO>>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "serde_with::rust::double_option"
+    )]
+    pub capability_override: Option<Option<CapabilityOverrideDTO>>,
     #[serde(default)]
     pub messages: Vec<CreateMessageRequestDTO>,
     #[validate(nested)]
-    #[serde(default)]
-    pub context_vars: Vec<ContextVarDTO>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_vars: Option<Vec<ContextVarDTO>>,
     #[serde(default)]
     pub context: Option<Value>,
     #[validate(nested)]
-    #[serde(default)]
-    pub tools: Vec<ToolDefinitionDTO>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tools: Option<Vec<ToolDefinitionDTO>>,
 }
 
 impl StartRunRequestDTO {
@@ -380,26 +395,25 @@ impl StartRunRequestDTO {
             model: self
                 .model
                 .as_ref()
-                .map(|m| m.to_params()),
+                .map(|model| model.as_ref().map(ModelConfigDTO::to_params)),
             capability_override: self
                 .capability_override
                 .as_ref()
-                .map(|c| c.to_params()),
+                .map(|value| value.as_ref().map(CapabilityOverrideDTO::to_params)),
             messages: self
                 .messages
                 .iter()
                 .map(|m| m.to_params())
                 .collect(),
-            context_vars: self
-                .context_vars
-                .iter()
-                .map(|c| c.to_params())
-                .collect(),
-            tools: self
-                .tools
-                .iter()
-                .map(|t| t.to_params())
-                .collect(),
+            context_vars: self.context_vars.as_ref().map(|context_vars| {
+                context_vars
+                    .iter()
+                    .map(ContextVarDTO::to_params)
+                    .collect()
+            }),
+            tools: self.tools.as_ref().map(|tools| {
+                tools.iter().map(ToolDefinitionDTO::to_params).collect()
+            }),
             context: self.context.clone(),
         }
     }
