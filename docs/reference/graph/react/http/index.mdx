@@ -18,7 +18,6 @@ by resource on their own pages.
 - [Messages](/reference/graph/react/http/messages): create, find, read, and delete messages.
 - [Runs](/reference/graph/react/http/runs): start, stream, cancel, reattach to, list, and read runs.
 - [Checkpoints](/reference/graph/react/http/checkpoints): find checkpoints.
-- [Types](/reference/graph/react/http/types): the named object types shared across the endpoints.
 
 ## Conventions
 
@@ -83,11 +82,22 @@ A validation error reports the failing fields instead of a single message:
 | Field | Type | Description |
 |-------|------|-------------|
 | `code` | integer | Numeric error code. See the code scheme below. |
-| `fields` | array | One entry per field that failed validation. |
+| `fields` | array&lt;[ValidationField](#validationfield)&gt; | One entry per field that failed validation. |
 
-Each entry in `fields` has a `field` name and a list of `errors`, where each error has a `code`
-string, an optional human-readable `message`, and an optional `params` object with details about the
-failed rule.
+#### ValidationField
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `field` | string | The field that failed validation. |
+| `errors` | array&lt;[ValidationFieldError](#validationfielderror)&gt; | Validation failures for this field. |
+
+#### ValidationFieldError
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `code` | string | Identifier for the failed validation rule. |
+| `message` | string \| null | Human-readable detail about the failure. |
+| `params` | object | Optional parameters of the failed rule. |
 
 The numeric `code` encodes the HTTP status: it is the status multiplied by 1000 plus a sub-index, so
 the HTTP status is `code / 1000`. For example `404001` and `404002` are both `404` responses with

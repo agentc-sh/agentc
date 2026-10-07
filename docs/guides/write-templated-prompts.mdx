@@ -3,10 +3,9 @@ title: Write templated prompts
 description: Write system prompts that adapt at runtime using Jinja2 template variables.
 ---
 
-The `prompt` field is a Jinja2 template rendered before every run. That lets one prompt adapt to the
-agent's identity, the skills it has, the context a client sends, and the current time, without
-rebuilding. This guide shows how to write those templates. For the concept, see
-[Agents and prompts](/concepts/agents-and-prompts).
+The `prompt` field accepts a Jinja2 template. The graph determines when it renders the template
+and which values it supplies. This guide shows how to write templates that adapt to those
+values. For the concept, see [Agents and prompts](/concepts/agents-and-prompts).
 
 ## Reference variables in the prompt
 
@@ -45,7 +44,7 @@ decides what state exists during a run. For the ReAct graph the variables are `a
 
 ## Use client context
 
-Context variables are values a client attaches to a run, such as the user's name or account tier. Loop
+Context variables are values held in run state, such as the user's name or account tier. Loop
 over `context_vars` to fold them into the prompt:
 
 ```hcl
@@ -93,18 +92,18 @@ path behavior.
 
 The manifest has two interpolation syntaxes and they run at different times. `${locals.value}` is local
 interpolation, applied when the manifest is resolved at build time. `{{ variable }}` and `{%- ... %}`
-are Jinja2, evaluated at runtime for every run. Use local interpolation for build-time values and
-Jinja2 for values that change per run:
+are Jinja2, evaluated when the graph renders the prompt. Use local interpolation for build-time
+values and Jinja2 for values supplied at runtime:
 
 ```hcl
 prompt = "You are {{ agent_name }}, version ${locals.version}. Today is {{ current_datetime }}."
 ```
 
 Here `${locals.version}` is replaced once at build time, while `{{ agent_name }}` and
-`{{ current_datetime }}` are replaced on every run.
+`{{ current_datetime }}` are replaced when the ReAct graph renders the prompt.
 
 ## Where to go next
 
-- [Pass context from the client](/guides/pass-context-from-the-client): send per-request values into the prompt.
+- [Pass context from the client](/guides/pass-context-from-the-client): supply context variables in a run request.
 - [Agents and prompts](/concepts/agents-and-prompts): how the prompt relates to identity, model, and capabilities.
 - [ReAct prompt templates reference](/reference/graph/react/prompt-templates): the variables available to the ReAct graph.
