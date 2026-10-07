@@ -141,6 +141,7 @@ pub enum RunEvent {
     ToolCallStart {
         timestamp: f64,
         tool_call_id: String,
+        parent_message_id: Uuid,
         tool_name: String,
     },
     ToolCallEnd {
@@ -292,9 +293,15 @@ impl RunEvent {
                     delta: delta.clone(),
                 }
             }
-            Event::ToolCallStart { timestamp, tool_call_id, tool_name } => Self::ToolCallStart {
+            Event::ToolCallStart {
+                timestamp,
+                tool_call_id,
+                parent_message_id,
+                tool_name,
+            } => Self::ToolCallStart {
                 timestamp: *timestamp,
                 tool_call_id: tool_call_id.clone(),
+                parent_message_id: *parent_message_id,
                 tool_name: tool_name.clone(),
             },
             Event::ToolCallEnd { timestamp, tool_call_id } => Self::ToolCallEnd {

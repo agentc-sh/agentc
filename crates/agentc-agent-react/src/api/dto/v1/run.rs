@@ -559,6 +559,7 @@ pub enum RunEventDTO {
     ToolCallStart {
         timestamp: f64,
         tool_call_id: String,
+        parent_message_id: Uuid,
         tool_name: String,
     },
     ToolCallEnd {
@@ -675,9 +676,17 @@ impl RunEventDTO {
             RunEvent::TextMessageContent { timestamp, message_id, delta } => {
                 Self::TextMessageContent { timestamp, message_id, delta }
             }
-            RunEvent::ToolCallStart { timestamp, tool_call_id, tool_name } => {
-                Self::ToolCallStart { timestamp, tool_call_id, tool_name }
-            }
+            RunEvent::ToolCallStart {
+                timestamp,
+                tool_call_id,
+                parent_message_id,
+                tool_name,
+            } => Self::ToolCallStart {
+                timestamp,
+                tool_call_id,
+                parent_message_id,
+                tool_name,
+            },
             RunEvent::ToolCallEnd { timestamp, tool_call_id } => {
                 Self::ToolCallEnd { timestamp, tool_call_id }
             }
