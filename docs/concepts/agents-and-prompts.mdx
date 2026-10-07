@@ -17,9 +17,9 @@ travel with the artifact and appear in diagnostics. A manifest defines a single 
 ## The prompt
 
 The system prompt is the agent's standing instructions. In agentc the prompt is not a static string
-baked in and forgotten; it is a template rendered before every run. That lets one prompt adapt to the
-agent's identity, the skills currently registered, per-request context sent by the client, and the
-current time.
+baked in and forgotten; it is a template that can adapt to the agent's current context.
+The graph renders it when needed, using values available in its state and environment.
+The example below uses the ReAct graph.
 
 ```hcl title="agent.acl"
 agent "assistant" {
@@ -40,7 +40,7 @@ agent "assistant" {
 ```
 
 Here `{{ agent_name }}` and the `context_vars` loop are filled in at runtime. Context variables are
-values the client attaches to a run, so the same prompt can greet a signed-in customer by name or note
+values held in run state, so the same prompt can greet a signed-in customer by name or note
 their account tier without any change to the manifest. A client might send a context variable whose
 description is "the user's name" and whose value is "Ada", and the loop above renders it into the
 prompt. You can also provide several messages instead of one, seeding the conversation with more than a
@@ -50,7 +50,7 @@ The set of variables you can reference is not fixed by agentc as a whole; it is 
 the agent runs on, because the graph decides what state exists during a run. The variables available
 to the ReAct graph, such as `agent_name`, `skills`, `context_vars`, and `current_datetime`, are listed
 in the [ReAct prompt templates reference](/reference/graph/react/prompt-templates). The mechanics of writing these templates are
-covered in [Write templated prompts](/guides/write-templated-prompts), and sending per-request values from
+covered in [Write templated prompts](/guides/write-templated-prompts), and supplying context variables from
 a client is covered in [Pass context from the client](/guides/pass-context-from-the-client).
 
 ## The model

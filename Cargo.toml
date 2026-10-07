@@ -57,6 +57,7 @@ anyhow = { version = "1" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1" }
 serde_norway = { version = "0.9" }
+serde_with = { version = "3", features = ["chrono"] }
 toml = { version = "1", features = ["serde"] }
 hcl-rs = { version = "0.19", features = ["perf"] }
 validator = { version = "0.21", features = ["derive"] }

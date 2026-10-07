@@ -3,7 +3,7 @@ title: Prompt templates
 description: The variables the ReAct graph injects into the system prompt.
 ---
 
-The ReAct graph injects the following variables into the agent's system prompt before each run.
+The ReAct graph injects the following variables when it renders the agent's system prompt for a model call.
 Reference them with Jinja2 syntax, for example `{{ agent_name }}`. The set of available variables is
 graph-dependent, so it is documented here alongside the graph that provides it. See
 [Write templated prompts](/guides/write-templated-prompts) for usage patterns.
@@ -11,10 +11,28 @@ graph-dependent, so it is documented here alongside the graph that provides it. 
 | Variable | Type | Description |
 |----------|------|-------------|
 | `agent_name` | string | The agent's name, taken from the `agent` block label in the manifest. |
-| `skills` | list | The skills available to the agent. Each entry carries the skill's name and description. |
-| `context_vars` | object | The context variables supplied by the client for this run, keyed by name. |
-| `current_datetime` | string | The current date and time captured at the start of the run. |
+| `skills` | array&lt;[Skill](#skill)&gt; | The skills available to the agent. |
+| `context_vars` | array&lt;[ContextVar](#contextvar)&gt; | The context variables held in the current run state, in the order they were supplied. |
+| `current_datetime` | string | The UTC date and time when the model call is prepared, in RFC 3339 format, for example `2026-10-06T17:00:00.123456789Z`. |
 
-Variables are injected at runtime before each run, so a template can react to the client-supplied
-context of the current request. The `prompt` field itself is declared on the
+### Skill
+
+Each entry in `skills` describes one skill available in the prompt.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | The skill's name. |
+| `description` | string | What the skill is for. |
+
+### ContextVar
+
+Each entry in `context_vars` describes one context variable available in the prompt.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `description` | string | The human-readable label for the value. |
+| `value` | string | The context variable's value. |
+
+Variables are injected when the prompt is rendered, so a template can use the context variables
+held in the run state. The `prompt` field itself is declared on the
 [agent](/reference/manifest/agent) block.

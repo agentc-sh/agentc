@@ -250,8 +250,9 @@ host must provide a compatible shared CPython 3.14 installation.
 ## Write back to state
 
 A tool can return a `state_update` alongside its output: an array of RFC 6902 JSON Patch operations.
-For the ReAct graph, target paths under `/context/`. The patches are persisted and streamed to the
-client as state delta events, which is how a tool passes data to a frontend.
+For ReAct, add an operation at `/context/-` whose value is the operation to apply to `context`.
+The nested operation's path is relative to the `context` object. Context changes persist and
+appear in state delta events. See the [ReAct state reference](/reference/graph/react/state).
 
 <Tabs group="language" defaultValue="typescript">
   <TabsList>
@@ -265,7 +266,11 @@ export class Adder extends Tool<AddArgs, number> {
     return {
       output: input.args.a + input.args.b,
       state_update: [
-        { op: "add", path: "/context/last_sum", value: input.args.a + input.args.b }
+        {
+          op: "add",
+          path: "/context/-",
+          value: { op: "add", path: "/last_sum", value: input.args.a + input.args.b }
+        }
       ]
     };
   }
@@ -281,7 +286,15 @@ async def execute(
     return ToolOutput(
         WeatherResult(temperature=72.0, description="Sunny"),
         state_update=[
-            {"op": "add", "path": "/context/last_location", "value": input.args.location},
+            {
+                "op": "add",
+                "path": "/context/-",
+                "value": {
+                    "op": "add",
+                    "path": "/last_location",
+                    "value": input.args.location,
+                },
+            },
         ],
     )
 ```

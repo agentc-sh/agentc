@@ -49,10 +49,10 @@ the same runtime libraries and the same environment regardless of its capabiliti
 Tools are aware of the agent's state. When invoked, a tool can receive a snapshot of the current
 run state and read it to make context-aware decisions.
 
-Tools can also return a state update alongside their output. State updates are
-[RFC 6902 JSON Patch](https://jsonpatch.com/) operations that are applied to the agent's state,
-persisted, and emitted to the client as state delta events. What fields are patchable depends on the
-graph implementation. For ReAct, patches target paths under `/context/`.
+Tools can also return a state update alongside their output. The graph interprets its
+[RFC 6902 JSON Patch](https://jsonpatch.com/) operations and determines which state fields they
+can update. See the [ReAct state reference](/reference/graph/react/state) for that graph's patch
+shape and persistence behavior.
 
 Additionally, tools can emit activity events during execution. These deliver stateless updates to
 the client as custom events and are intended for generative UI. Activity events are not persisted.

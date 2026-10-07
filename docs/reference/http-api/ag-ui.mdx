@@ -52,16 +52,16 @@ With a custom base path, the run endpoint becomes `<path>/run`.
     other role are ignored.
   </Field>
   <Field name="tools" type={<>{<Link href="#tool">Tool</Link>}[]</>}>
-    Optional client-defined tool definitions to make available for this run.
+    Tool definitions supplied in the run request.
   </Field>
   <Field name="context" type={<>{<Link href="#context-variable">ContextVariable</Link>}[]</>}>
-    Optional per-run context variables.
+    Context variables supplied in the run request.
   </Field>
   <Field name="state" type="object">
     Optional initial or updated state. Applied to the `context` field of the agent state.
   </Field>
   <Field name="forwardedProps" type="object">
-    Optional arbitrary additional properties forwarded to the agent.
+    Additional properties forwarded to the agent.
   </Field>
   <Field name="resume" type={<>{<Link href="#resume-entry">ResumeEntry</Link>}[]}</>}>
     Optional interrupt to resume. Supply at most one entry.
@@ -277,8 +277,8 @@ With a custom base path, the run endpoint becomes `<path>/run`.
 ### Context Variable
 
 <Fields label="Context Variable">
-  <Field name="name" type="string">
-    The variable name.
+  <Field name="description" type="string">
+    What the variable represents.
   </Field>
   <Field name="value" type="string">
     The variable value.

@@ -1113,11 +1113,11 @@ mod tests {
                                         .with_session_id(self.session_id)
                                 })
                                 .collect(),
-                            tools: vec![ToolDefinition {
+                            tools: Some(vec![ToolDefinition {
                                 name: "client_echo".to_string(),
                                 description: "Echoes its arguments on the client.".to_string(),
                                 parameters: json!({ "type": "object" }),
-                            }],
+                            }]),
                             ..Default::default()
                         },
                         SessionConfig {
