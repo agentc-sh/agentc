@@ -20,7 +20,6 @@ use agentc_executor_typescript::{
     error::Error,
     executor::Executor,
     guestjs::{
-        errors::Error as GuestError,
         handle::{BoundClass, BoundConstructorProtocol, BoundObjectProtocol},
         marshal::{FromGuestBound, ToGuestBound},
     },
@@ -120,6 +119,8 @@ where
 pub struct JavascriptToolBuilder {
     executor: Option<Executor>,
     export_name: Option<String>,
+    name: Option<String>,
+    description: Option<String>,
     capabilities: CapabilitySet,
     timeout: Duration,
 }
@@ -130,6 +131,8 @@ impl JavascriptToolBuilder {
         Self {
             executor: None,
             export_name: None,
+            name: None,
+            description: None,
             capabilities: CapabilitySet::default(),
             timeout: Duration::from_secs(30),
         }
@@ -144,6 +147,16 @@ impl JavascriptToolBuilder {
     /// Sets the package export implementing the tool.
     pub fn export_name(mut self, name: impl Into<String>) -> Self {
         self.export_name = Some(name.into());
+        self
+    }
+
+    pub fn name(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+
+    pub fn description(mut self, description: impl Into<String>) -> Self {
+        self.description = Some(description.into());
         self
     }
 
@@ -191,26 +204,39 @@ impl JavascriptToolBuilder {
                                     .module()
                                     .bind(&scope)?
                                     .class(&export_name)
-                                    .map_err(|_| GuestError::unexpected(format!(
-                                        "export '{export_name}' does not exist or is not a class",
-                                    )))?;
+                                    .map_err(|_| {
+                                        agentc_executor_typescript::guestjs::errors::Error::unexpected(format!(
+                                            "export '{export_name}' does not exist or is not a class",
+                                        ))
+                                    })?;
 
                                 if !exported
                                     .is_subclass_of(&BoundClass::of::<GuestToolBase>(&scope)?)?
                                 {
-                                    return Err(GuestError::unexpected(format!(
-                                        "export '{export_name}' is not a Tool subclass",
-                                    )));
+                                    return Err(
+                                        agentc_executor_typescript::guestjs::errors::Error::unexpected(format!(
+                                            "export '{export_name}' is not a Tool subclass",
+                                        )),
+                                    );
                                 }
 
                                 Ok(ToolDefinition {
-                                    name: export_name.clone(),
-                                    description: exported.get::<String>("description")?,
+                                    description: match self.description {
+                                        Some(description) => description,
+                                        None => exported
+                                            .get::<Option<String>>("description")?
+                                            .ok_or_else(|| {
+                                                agentc_executor_typescript::guestjs::errors::Error::unexpected(format!(
+                                                    "export '{export_name}' has no description",
+                                                ))
+                                            })?,
+                                    },
                                     parameters: exported
                                         .get::<Schema>("parameters")?
                                         .borrow()?
                                         .document()
                                         .clone(),
+                                    name: self.name.unwrap_or(export_name),
                                 })
                             })
                             .await
@@ -334,6 +360,23 @@ export class Untyped extends Tool {
     }
 }
 
+export class Undescribed extends Tool {
+    static readonly parameters = new Schema({ type: "object" });
+
+    async execute() {
+        return { output: null };
+    }
+}
+
+export class NullDescribed extends Tool {
+    static readonly description = null;
+    static readonly parameters = new Schema({ type: "object" });
+
+    async execute() {
+        return { output: null };
+    }
+}
+
 export class Unrelated {
     async execute() {
         return { output: null };
@@ -439,6 +482,97 @@ export const plain = {
                 .output,
             serde_json::json!(4),
         );
+
+        executor.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn name_and_description_override_the_export_definition() {
+        let executor = TestHarness::executor(1).await;
+        let tool = JavascriptTool::builder()
+            .executor(executor.clone())
+            .export_name("Direct")
+            .name("direct_tool")
+            .description("doubles a value")
+            .build()
+            .await
+            .unwrap();
+        let definition = Tool::<TestState>::definition(&tool);
+
+        assert_eq!(definition.name, "direct_tool");
+        assert_eq!(definition.description, "doubles a value");
+        assert_eq!(definition.parameters, serde_json::json!({ "type": "object" }));
+
+        executor.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn name_without_description_keeps_the_export_description() {
+        let executor = TestHarness::executor(1).await;
+        let tool = JavascriptTool::builder()
+            .executor(executor.clone())
+            .export_name("Direct")
+            .name("direct_tool")
+            .build()
+            .await
+            .unwrap();
+        let definition = Tool::<TestState>::definition(&tool);
+
+        assert_eq!(definition.name, "direct_tool");
+        assert_eq!(definition.description, "returns a direct result");
+
+        executor.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn builder_description_completes_an_undescribed_export() {
+        let executor = TestHarness::executor(1).await;
+
+        for export in ["Undescribed", "NullDescribed"] {
+            assert_eq!(
+                Tool::<TestState>::definition(
+                    &JavascriptTool::builder()
+                        .executor(executor.clone())
+                        .export_name(export)
+                        .description("described by the manifest")
+                        .build()
+                        .await
+                        .unwrap(),
+                )
+                .description,
+                "described by the manifest",
+            );
+        }
+
+        executor.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn build_rejects_an_export_without_a_description() {
+        let executor = TestHarness::executor(1).await;
+
+        for export in ["Undescribed", "NullDescribed"] {
+            let error = match JavascriptTool::builder()
+                .executor(executor.clone())
+                .export_name(export)
+                .build()
+                .await
+            {
+                Ok(_) => panic!("an export without a description builds"),
+                Err(error) => error,
+            };
+
+            assert!(
+                error
+                    .to_string()
+                    .contains("has no description"),
+                "the message must name the failure; got: {error}",
+            );
+            assert!(
+                error.to_string().contains(export),
+                "the message must name the export; got: {error}",
+            );
+        }
 
         executor.shutdown().await.unwrap();
     }

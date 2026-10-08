@@ -12,6 +12,9 @@ pub struct Tool;
 
 #[host_class(backend = B, generic, crate_path = agentc_executor_python::guestpy)]
 impl Tool {
+    #[guestpy(constant, name = "description")]
+    const DESCRIPTION: Option<&'static str> = None;
+
     #[guestpy(constructor)]
     fn new() -> Result<Self, Error> {
         Ok(Self)

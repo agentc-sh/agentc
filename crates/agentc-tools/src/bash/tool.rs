@@ -9,7 +9,7 @@ use agentc_agent::{
         traits::TypedTool,
         types::{TypedToolInput, TypedToolOutput},
     },
-    types::capability::CapabilitySet,
+    types::capability::{Capability, CapabilitySet},
 };
 use agentc_fs::fs::Fs;
 use agentc_http::client::HttpClient;
@@ -36,6 +36,9 @@ pub struct BashOutput {
 
 pub struct BashTool {
     scope: Box<dyn ShellScope>,
+    name: String,
+    description: String,
+    capabilities: CapabilitySet,
 }
 
 impl BashTool {
@@ -52,15 +55,15 @@ impl<S: GraphState + 'static> TypedTool<S> for BashTool {
     type StateUpdate = ();
 
     fn name(&self) -> &str {
-        "bash"
+        &self.name
     }
 
     fn description(&self) -> &str {
-        "Invoke bash commands and scripts."
+        &self.description
     }
 
     fn capabilities(&self) -> CapabilitySet {
-        CapabilitySet::from(["bash"])
+        self.capabilities.clone()
     }
 
     async fn execute(
@@ -85,6 +88,9 @@ pub struct BashToolBuilder {
     http: HttpClient,
     config: BashConfig,
     shared: bool,
+    name: String,
+    description: String,
+    capabilities: CapabilitySet,
 }
 
 impl BashToolBuilder {
@@ -94,6 +100,9 @@ impl BashToolBuilder {
             http,
             config: BashConfig::default(),
             shared: false,
+            name: String::from("bash"),
+            description: String::from("Invoke bash commands and scripts."),
+            capabilities: CapabilitySet::from(["bash"]),
         }
     }
 
@@ -122,6 +131,31 @@ impl BashToolBuilder {
         self
     }
 
+    pub fn name(mut self, name: impl Into<String>) -> Self {
+        self.name = name.into();
+        self
+    }
+
+    pub fn description(mut self, description: impl Into<String>) -> Self {
+        self.description = description.into();
+        self
+    }
+
+    pub fn capability(mut self, capability: impl Into<Capability>) -> Self {
+        self.capabilities
+            .insert(capability.into());
+        self
+    }
+
+    pub fn capabilities<I, C>(mut self, capabilities: I) -> Self
+    where
+        I: IntoIterator<Item = C>,
+        C: Into<Capability>,
+    {
+        self.capabilities.extend(capabilities);
+        self
+    }
+
     pub fn build(self) -> BashTool {
         let factory = BashFactory::new(self.fs, self.http, self.config);
 
@@ -131,6 +165,9 @@ impl BashToolBuilder {
             } else {
                 Box::new(FactoryScope::new(factory))
             },
+            name: self.name,
+            description: self.description,
+            capabilities: self.capabilities,
         }
     }
 }
@@ -222,6 +259,23 @@ mod tests {
         assert_eq!(output.stdout, "output");
         assert_eq!(output.stderr, "error");
         assert_eq!(output.exit_code, 7);
+    }
+
+    #[tokio::test]
+    async fn builder_replaces_the_name_and_description_and_adds_capabilities() {
+        let tool = BashTool::builder(Fs::memory(), HttpClient::builder().build().unwrap())
+            .name("shell")
+            .description("Runs workspace commands.")
+            .capability("network")
+            .capabilities(["workspace"])
+            .build();
+
+        assert_eq!(TypedTool::<TestState>::name(&tool), "shell");
+        assert_eq!(TypedTool::<TestState>::description(&tool), "Runs workspace commands.");
+        assert_eq!(
+            TypedTool::<TestState>::capabilities(&tool),
+            ["bash", "network", "workspace"].into(),
+        );
     }
 
     #[tokio::test]
