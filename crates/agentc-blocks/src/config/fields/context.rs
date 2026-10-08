@@ -3,10 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 use crate::{
-    config::fields::{
-        spec::{FieldsSpec, IntoFieldSpecs},
-        tools::NamedTool,
-    },
+    config::fields::spec::{FieldsSpec, IntoFieldSpecs},
     context::{ResolvedContext, ResolvedContextProvider},
 };
 
@@ -28,8 +25,8 @@ impl IntoFieldSpecs for ResolvedContext {
 
         fields.extend_from(&self.agent);
 
-        for (name, tool) in &self.tools {
-            fields.extend_from(&NamedTool(name.as_str(), tool));
+        for tool in self.tools.values() {
+            fields.extend_from(tool);
         }
 
         if let Some(http) = &self.http_server {

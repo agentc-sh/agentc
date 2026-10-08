@@ -87,7 +87,7 @@ Validates a JSON Schema draft 2020-12 document for a tool's parameters.
 <LibSignature>
 ```ts
 abstract class Tool<Args, Result, State = unknown> {
-  static readonly description: string
+  static readonly description?: string
   static readonly parameters: Schema
 
   abstract execute(input: ToolInput<Args, State>): Promise<ToolOutput<Result>>
@@ -96,7 +96,8 @@ abstract class Tool<Args, Result, State = unknown> {
 </LibSignature>
 
 The abstract base class for every tool. Export a subclass and select it with the manifest's `export`
-field. Its static `description` tells the model what the tool does, and static `parameters` supplies
+field. Its optional static `description` is the tool's description when the manifest's
+[`description`](/reference/manifest/tool#common-fields) is unset. Its static `parameters` supplies
 the model-facing input schema.
 
 A subclass that does not implement `execute` rejects with `a Tool subclass must implement execute`.

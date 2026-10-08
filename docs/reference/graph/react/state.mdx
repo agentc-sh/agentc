@@ -86,6 +86,7 @@ Clients only have access to the `context` field of the run state. When state del
 emitted, the client receives patches scoped to `context`. When a client sends new state in a run
 request, it is applied to `context`.
 
-This design means `context` is the shared data contract between your tools and your frontend.
-Structure it as needed for your use case. The event stream that carries these updates is documented
-in the [HTTP reference](/reference/graph/react/http).
+This design means `context` is the shared data contract between your tools, your frontend and your
+[prompt](/reference/graph/react/prompt-templates). Structure it as needed for your use case. The
+event stream that carries these updates is documented in the
+[HTTP reference](/reference/graph/react/http).

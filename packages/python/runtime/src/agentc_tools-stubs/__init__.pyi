@@ -98,8 +98,8 @@ class Tool[Args, Result, State = Any]:
     A tool that can be executed by an agent, with defined input parameters and output results.
     """
 
-    description: ClassVar[str]
-    """The description of the tool, which is used by the agent to decide when to invoke it."""
+    description: ClassVar[str | None] = None
+    """The description of the tool, used when the manifest sets none."""
     parameters: ClassVar[Schema]
     """The JSON schema that describes the input parameters for the tool."""
 
