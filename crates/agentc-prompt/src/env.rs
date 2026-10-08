@@ -10,6 +10,9 @@ use serde_json::Value;
 
 use crate::errors::PromptError;
 
+#[cfg(feature = "datetime")]
+use crate::filters::DateTimeFilters;
+
 /// A shared Jinja2 rendering environment.
 ///
 /// Strict undefined variable mode is enabled by default. A render will return
@@ -34,7 +37,9 @@ impl PromptEnv {
 
 impl Default for PromptEnv {
     fn default() -> Self {
-        PromptEnvBuilder::new().build()
+        PromptEnvBuilder::new()
+            .with_builtin_filters()
+            .build()
     }
 }
 
@@ -49,12 +54,26 @@ impl PromptEnvBuilder {
         Self { env }
     }
 
+    #[cfg(feature = "datetime")]
+    fn with_datetime_filters(self) -> Self {
+        self.with_filter("strftime", DateTimeFilters::strftime)
+    }
+
+    #[cfg(not(feature = "datetime"))]
+    fn with_datetime_filters(self) -> Self {
+        self
+    }
+
     /// Switch to lenient undefined variable mode. Missing variables render as
     /// empty strings rather than producing an error.
     pub fn lenient(mut self) -> Self {
         self.env
             .set_undefined_behavior(UndefinedBehavior::Lenient);
         self
+    }
+
+    pub fn with_builtin_filters(self) -> Self {
+        self.with_datetime_filters()
     }
 
     /// Register a custom Jinja2 function available in all templates rendered
@@ -264,6 +283,55 @@ mod tests {
             env.render_str("{{ x }}", &ctx).unwrap(),
             env2.render_str("{{ x }}", &ctx)
                 .unwrap(),
+        );
+    }
+
+    #[cfg(feature = "datetime")]
+    #[test]
+    fn default_registers_strftime() {
+        let env = PromptEnv::default();
+        let ctx = PromptContext::from_json(json!({
+            "current_datetime": "2026-10-06T17:00:00.123456789Z",
+        }));
+        let result = env
+            .render_str("{{ current_datetime | strftime(\"%Y-%m-%d\") }}", &ctx)
+            .unwrap();
+        assert_eq!(result, "2026-10-06");
+    }
+
+    #[cfg(feature = "datetime")]
+    #[test]
+    fn strftime_takes_tz_from_a_template_value() {
+        let env = PromptEnv::default();
+        let ctx = PromptContext::from_json(json!({
+            "current_datetime": "2026-10-06T17:00:00.123456789Z",
+            "user_tz": "America/New_York",
+        }));
+        let result = env
+            .render_str("{{ current_datetime | strftime(\"%H:%M\", tz=user_tz) }}", &ctx)
+            .unwrap();
+        assert_eq!(result, "13:00");
+    }
+
+    #[test]
+    fn default_renders_current_datetime_unchanged() {
+        let env = PromptEnv::default();
+        let ctx = PromptContext::from_json(json!({
+            "current_datetime": "2026-10-06T17:00:00.123456789Z",
+        }));
+        let result = env
+            .render_str("{{ current_datetime }}", &ctx)
+            .unwrap();
+        assert_eq!(result, "2026-10-06T17:00:00.123456789Z");
+    }
+
+    #[test]
+    fn builder_without_builtin_filters_has_no_strftime() {
+        let env = PromptEnv::builder().build();
+        let ctx = PromptContext::from_json(json!({ "x": "2026-10-06T17:00:00Z" }));
+        assert!(
+            env.render_str("{{ x | strftime(\"%Y\") }}", &ctx)
+                .is_err()
         );
     }
 }
