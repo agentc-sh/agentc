@@ -93,8 +93,7 @@ module loads, so an invalid schema prevents the tool from loading. `ToolInput` s
 `args`, `state`, and optional `emit`; `ToolOutput` contains required `output` and optional
 `state_update`. `execute` must be asynchronous.
 
-A single package can export as many tool classes as you need. The selected export name is the tool
-name.
+A single package can export as many tool classes as you need.
   </TabsContent>
   <TabsContent value="python">
 Export a class subclassing `Tool` from the package's module. Its type arguments are the argument
@@ -148,8 +147,7 @@ does, and `parameters` is the JSON Schema it uses to call the tool, wrapped in `
 schema prevents the module from importing. `execute` must be `async`. See
 [tools](/reference/runtime/tools/python) for the full surface.
 
-A single package can export as many tool classes as you need. The selected export name is the tool
-name.
+A single package can export as many tool classes as you need.
   </TabsContent>
 </Tabs>
 
@@ -228,8 +226,6 @@ tool "adder" {
   export = "Adder"
 }
 ```
-
-The block name matches the export name by default. `export` selects the tool class when they differ.
   </TabsContent>
   <TabsContent value="python">
 ```hcl title="agent.acl"
@@ -241,7 +237,6 @@ tool "weather" {
 }
 ```
 
-The block name matches the export name by default. `export` selects the tool class when they differ.
 Change `interpreter` to `"static"` when the package requires CPython or a C extension. The runtime
 host must provide a compatible shared CPython 3.14 installation.
   </TabsContent>
