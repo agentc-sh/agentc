@@ -2,7 +2,6 @@
 //
 // SPDX-License-Identifier: MIT
 
-use convert_case::{Case, Casing};
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 use std::collections::HashMap;
@@ -16,7 +15,10 @@ use agentc_compiler::generator::{
 
 use crate::{
     config::fields::FieldsSpec,
-    context::{ResolvedContext, ResolvedContextToolJavascript, ResolvedContextToolKind},
+    context::{
+        ResolvedContext, ResolvedContextTool, ResolvedContextToolJavascript,
+        ResolvedContextToolKind,
+    },
     contributions::{
         dependency::{
             CargoDependencies, CargoDependencyContribution, CargoPatchContribution, CargoPatches,
@@ -24,7 +26,7 @@ use crate::{
         },
         import::ImportContribution,
     },
-    graph::codegen::tools::ToolCodeGen,
+    graph::codegen::tools::{ToolCodeGen, enabled::ToolEnabledGuard},
 };
 
 /// All JavaScript tools in the context. Tools that share a bundle path share a single
@@ -65,17 +67,17 @@ impl ToolCodeGen for JavascriptTools<'_> {
     /// Emits one `Executor` binding per unique bundle path, then one
     /// `.with_tool(JavascriptTool::builder()...)` registration per JS tool.
     fn registrations(&self, fields: &FieldsSpec) -> Result<Vec<TokenStream>, GeneratorError> {
-        let ctx = self.0;
         let mut registrations = Vec::new();
 
-        // Group tools by bundle path so each unique bundle shares one executor.
-        let mut by_bundle = HashMap::<&str, Vec<(&str, &ResolvedContextToolJavascript)>>::new();
-        for (tool_name, tool) in &ctx.tools {
+        let mut by_bundle =
+            HashMap::<&str, Vec<(&ResolvedContextTool, &ResolvedContextToolJavascript)>>::new();
+
+        for tool in self.0.tools.values() {
             if let ResolvedContextToolKind::Javascript(js) = &tool.kind {
                 by_bundle
                     .entry(js.bundle_path.as_str())
                     .or_default()
-                    .push((tool_name.as_str(), js));
+                    .push((tool, js));
             }
         }
 
@@ -97,56 +99,34 @@ impl ToolCodeGen for JavascriptTools<'_> {
                     .await?;
             });
 
-            for (tool_name, js) in tools {
+            for (tool, js) in tools {
                 let export_name = &js.export_name;
+                let name = &tool.name;
+                let description = tool
+                    .description
+                    .as_ref()
+                    .map(|description| quote! { .description(#description) });
+                let capabilities = (!tool.capabilities.is_empty()).then(|| {
+                    let capabilities = &tool.capabilities;
 
-                let tool_caps = ctx
-                    .tools
-                    .get(*tool_name)
-                    .map(|t| {
-                        t.capabilities
-                            .iter()
-                            .map(String::as_str)
-                            .collect::<Vec<_>>()
-                    })
-                    .unwrap_or_default();
+                    quote! { .capabilities([#(#capabilities),*]) }
+                });
 
-                let caps_call = if tool_caps.is_empty() {
-                    quote! {}
-                } else {
-                    quote! { .capabilities([#(#tool_caps),*]) }
-                };
-
-                let build_tool = quote! {
-                    JavascriptTool::builder()
-                        .executor(#executor_ident.clone())
-                        .export_name(#export_name)
-                        #caps_call
-                        .build()
-                        .await?
-                };
-
-                let enabled_path = fields.config_accessor(&[
-                    "tool",
-                    &if tool_name.contains(|c: char| !c.is_alphanumeric() && c != '_') {
-                        tool_name.to_case(Case::Snake)
-                    } else {
-                        tool_name.to_string()
+                registrations.push(ToolEnabledGuard(tool).wrap(
+                    fields,
+                    quote! {
+                        builder = builder.with_tool(
+                            JavascriptTool::builder()
+                                .executor(#executor_ident.clone())
+                                .export_name(#export_name)
+                                .name(#name)
+                                #description
+                                #capabilities
+                                .build()
+                                .await?
+                        );
                     },
-                    "enabled",
-                ]);
-
-                if let Some(enabled) = enabled_path {
-                    registrations.push(quote! {
-                        if #enabled {
-                            builder = builder.with_tool(#build_tool);
-                        }
-                    });
-                } else {
-                    registrations.push(quote! {
-                        builder = builder.with_tool(#build_tool);
-                    });
-                }
+                ));
             }
         }
 
@@ -395,6 +375,38 @@ mod tests {
         let registrations = JavascriptToolsFixture::registrations(&ctx);
 
         assert!(registrations.contains(". capabilities ([\"network\"])"));
+    }
+
+    #[test]
+    fn registration_passes_the_block_name() {
+        let ctx = JavascriptToolsFixture::context([JavascriptToolsFixture::tool(
+            "search_document_sections",
+            "/artifacts/pkg/dist/index.js",
+            "SearchDocumentSections",
+            [],
+        )]);
+        let registrations = JavascriptToolsFixture::registrations(&ctx);
+
+        assert!(registrations.contains(". export_name (\"SearchDocumentSections\")"));
+        assert!(registrations.contains(". name (\"search_document_sections\")"));
+        assert!(!registrations.contains(". description ("));
+        assert!(!registrations.contains(". capabilities ("));
+    }
+
+    #[test]
+    fn registration_passes_the_block_description_when_set() {
+        let (name, mut tool) = JavascriptToolsFixture::tool(
+            "search",
+            "/artifacts/pkg/dist/index.js",
+            "Search",
+            [],
+        );
+        tool.description = Some("Searches the documentation.".to_string());
+
+        let registrations =
+            JavascriptToolsFixture::registrations(&JavascriptToolsFixture::context([(name, tool)]));
+
+        assert!(registrations.contains(". description (\"Searches the documentation.\")"));
     }
 
     #[test]

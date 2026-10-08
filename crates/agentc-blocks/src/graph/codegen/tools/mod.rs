@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 pub mod bash;
+pub mod enabled;
 pub mod javascript;
 pub mod python;
 

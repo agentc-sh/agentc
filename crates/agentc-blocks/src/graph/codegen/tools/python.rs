@@ -2,7 +2,6 @@
 //
 // SPDX-License-Identifier: MIT
 
-use convert_case::{Case, Casing};
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 use std::collections::HashMap;
@@ -17,7 +16,7 @@ use agentc_compiler::generator::{
 use crate::{
     config::fields::FieldsSpec,
     context::{
-        ResolvedContext, ResolvedContextToolKind, ResolvedContextToolPython,
+        ResolvedContext, ResolvedContextTool, ResolvedContextToolKind, ResolvedContextToolPython,
         ResolvedContextToolPythonInterpreter,
     },
     contributions::{
@@ -27,7 +26,7 @@ use crate::{
         },
         import::ImportContribution,
     },
-    graph::codegen::tools::ToolCodeGen,
+    graph::codegen::tools::{ToolCodeGen, enabled::ToolEnabledGuard},
 };
 
 trait PythonBackend {
@@ -45,17 +44,18 @@ struct PythonTools;
 impl PythonTools {
     fn by_package<B: PythonBackend>(
         ctx: &ResolvedContext,
-    ) -> HashMap<&str, Vec<(&str, &ResolvedContextToolPython)>> {
-        let mut by_package = HashMap::<&str, Vec<(&str, &ResolvedContextToolPython)>>::new();
+    ) -> HashMap<&str, Vec<(&ResolvedContextTool, &ResolvedContextToolPython)>> {
+        let mut by_package =
+            HashMap::<&str, Vec<(&ResolvedContextTool, &ResolvedContextToolPython)>>::new();
 
-        for (tool_name, tool) in &ctx.tools {
+        for tool in ctx.tools.values() {
             if let ResolvedContextToolKind::Python(py) = &tool.kind
                 && B::selects(&py.interpreter)
             {
                 by_package
                     .entry(py.project_path.as_str())
                     .or_default()
-                    .push((tool_name.as_str(), py));
+                    .push((tool, py));
             }
         }
 
@@ -89,65 +89,42 @@ impl PythonTools {
     }
 
     fn tool_registrations(
-        tools: &[(&str, &ResolvedContextToolPython)],
+        tools: &[(&ResolvedContextTool, &ResolvedContextToolPython)],
         executor_ident: &Ident,
-        ctx: &ResolvedContext,
         fields: &FieldsSpec,
     ) -> Vec<TokenStream> {
-        let mut registrations = Vec::new();
+        tools
+            .iter()
+            .map(|(tool, py)| {
+                let export_name = &py.export_name;
+                let name = &tool.name;
+                let description = tool
+                    .description
+                    .as_ref()
+                    .map(|description| quote! { .description(#description) });
+                let capabilities = (!tool.capabilities.is_empty()).then(|| {
+                    let capabilities = &tool.capabilities;
 
-        for (tool_name, py) in tools {
-            let export_name = &py.export_name;
-            let tool_caps = ctx
-                .tools
-                .get(*tool_name)
-                .map(|t| {
-                    t.capabilities
-                        .iter()
-                        .map(String::as_str)
-                        .collect::<Vec<_>>()
-                })
-                .unwrap_or_default();
-
-            let caps_call = if tool_caps.is_empty() {
-                quote! {}
-            } else {
-                quote! { .capabilities([#(#tool_caps),*]) }
-            };
-
-            let build_tool = quote! {
-                agentc_tools::python::PythonTool::builder()
-                    .executor(#executor_ident.clone())
-                    .export_name(#export_name)
-                    #caps_call
-                    .build()
-                    .await?
-            };
-
-            let enabled_path = fields.config_accessor(&[
-                "tool",
-                &if tool_name.contains(|c: char| !c.is_alphanumeric() && c != '_') {
-                    tool_name.to_case(Case::Snake)
-                } else {
-                    tool_name.to_string()
-                },
-                "enabled",
-            ]);
-
-            if let Some(enabled) = enabled_path {
-                registrations.push(quote! {
-                    if #enabled {
-                        builder = builder.with_tool(#build_tool);
-                    }
+                    quote! { .capabilities([#(#capabilities),*]) }
                 });
-            } else {
-                registrations.push(quote! {
-                    builder = builder.with_tool(#build_tool);
-                });
-            }
-        }
 
-        registrations
+                ToolEnabledGuard(tool).wrap(
+                    fields,
+                    quote! {
+                        builder = builder.with_tool(
+                            agentc_tools::python::PythonTool::builder()
+                                .executor(#executor_ident.clone())
+                                .export_name(#export_name)
+                                .name(#name)
+                                #description
+                                #capabilities
+                                .build()
+                                .await?
+                        );
+                    },
+                )
+            })
+            .collect()
     }
 
     fn is_present<B: PythonBackend>(ctx: &ResolvedContext) -> bool {
@@ -187,7 +164,7 @@ impl PythonTools {
             );
 
             registrations.push(Self::executor_binding::<B>(tools[0].1, &executor_ident));
-            registrations.extend(Self::tool_registrations(tools, &executor_ident, ctx, fields));
+            registrations.extend(Self::tool_registrations(tools, &executor_ident, fields));
         }
 
         registrations
@@ -658,6 +635,68 @@ mod tests {
 
         assert!(registrations.contains(". export_name (\"Weather\")"));
         assert!(!registrations.contains("tool_name"));
+    }
+
+    #[test]
+    fn registration_passes_the_block_name() {
+        let ctx = PythonToolsFixture::context([PythonToolsFixture::tool(
+            "get_weather",
+            "/artifacts/weather",
+            "Weather",
+            ResolvedContextToolPythonInterpreter::Embedded,
+        )]);
+        let (_, registrations) = PythonToolsFixture::generated(&ctx);
+
+        assert!(registrations.contains(". export_name (\"Weather\")"));
+        assert!(registrations.contains(". name (\"get_weather\")"));
+        assert!(!registrations.contains(". description ("));
+        assert!(!registrations.contains(". capabilities ("));
+    }
+
+    #[test]
+    fn registration_passes_the_block_description_when_set() {
+        let (name, mut tool) = PythonToolsFixture::tool(
+            "weather",
+            "/artifacts/weather",
+            "Weather",
+            ResolvedContextToolPythonInterpreter::Embedded,
+        );
+        tool.description = Some("Gets the current weather.".to_string());
+
+        let (_, registrations) =
+            PythonToolsFixture::generated(&PythonToolsFixture::context([(name, tool)]));
+
+        assert!(registrations.contains(". description (\"Gets the current weather.\")"));
+    }
+
+    #[test]
+    fn registration_passes_the_block_capabilities_when_set() {
+        let (name, mut tool) = PythonToolsFixture::tool(
+            "weather",
+            "/artifacts/weather",
+            "Weather",
+            ResolvedContextToolPythonInterpreter::Embedded,
+        );
+        tool.capabilities = vec!["network".to_string()];
+
+        let (_, registrations) =
+            PythonToolsFixture::generated(&PythonToolsFixture::context([(name, tool)]));
+
+        assert!(registrations.contains(". capabilities ([\"network\"])"));
+    }
+
+    #[test]
+    fn registration_is_guarded_by_the_generated_enabled_field() {
+        let ctx = PythonToolsFixture::context([PythonToolsFixture::tool(
+            "weather",
+            "/artifacts/weather",
+            "Weather",
+            ResolvedContextToolPythonInterpreter::Embedded,
+        )]);
+        let (_, registrations) = PythonToolsFixture::generated(&ctx);
+
+        assert!(registrations.contains("if config . tool . weather . enabled"));
+        assert!(registrations.contains("builder = builder . with_tool"));
     }
 
     #[test]

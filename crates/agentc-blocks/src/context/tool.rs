@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
+use convert_case::{Case, Casing};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -27,6 +28,16 @@ pub struct ResolvedContextTool {
 
     /// Kind-specific resolved data.
     pub kind: ResolvedContextToolKind,
+}
+
+impl ResolvedContextTool {
+    pub fn config_key(&self) -> String {
+        if self.name.contains(|c: char| !c.is_alphanumeric() && c != '_') {
+            self.name.to_case(Case::Snake)
+        } else {
+            self.name.clone()
+        }
+    }
 }
 
 /// Discriminates between tool implementation strategies.
@@ -192,4 +203,37 @@ pub enum ResolvedContextToolA2aTenant {
     Inherit,
     None,
     Fixed { id: RuntimeValue<String> },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct ConfigKeyFixture;
+
+    impl ConfigKeyFixture {
+        fn tool(name: &str) -> ResolvedContextTool {
+            ResolvedContextTool {
+                name: name.to_string(),
+                description: None,
+                enabled: RuntimeValue::constant(true),
+                capabilities: vec![],
+                config: HashMap::new(),
+                kind: ResolvedContextToolKind::Javascript(ResolvedContextToolJavascript {
+                    bundle_path: "/artifacts/pkg/dist/index.js".to_string(),
+                    export_name: "Search".to_string(),
+                }),
+            }
+        }
+    }
+
+    #[test]
+    fn config_key_keeps_a_name_of_alphanumerics_and_underscores() {
+        assert_eq!(ConfigKeyFixture::tool("getWeather_2").config_key(), "getWeather_2");
+    }
+
+    #[test]
+    fn config_key_snake_cases_a_name_with_other_characters() {
+        assert_eq!(ConfigKeyFixture::tool("web-search").config_key(), "web_search");
+    }
 }
