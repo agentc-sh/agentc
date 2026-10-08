@@ -1,0 +1,43 @@
+---
+title: Prompt templates
+description: The template language and rules shared by every prompt template, whichever graph renders it.
+---
+
+Every prompt message is a template. The graph the agent runs on decides when to render it and which
+values it supplies. Everything else on this page is the same for every graph.
+
+## Template language
+
+Templates use Jinja2 syntax as implemented by [MiniJinja](https://docs.rs/minijinja/latest/minijinja/syntax/index.html).
+
+| Syntax | Purpose |
+|--------|---------|
+| `{{ expression }}` | Inserts the value of an expression. |
+| `{% statement %}` | Runs logic such as `if` and `for`. |
+| `{# comment #}` | A comment that is not rendered. |
+| `{%-` and `-%}` | Removes the whitespace before or after a tag. |
+
+MiniJinja's built-in [tests](https://docs.rs/minijinja/latest/minijinja/tests/index.html), such as
+`defined`, and its built-in [functions](https://docs.rs/minijinja/latest/minijinja/functions/index.html),
+such as `range`, are available in every template.
+
+## Undefined values
+
+Templates are strict about undefined values. Using a variable or attribute that has no value fails
+the render, including in an `if` condition. Test for it with `is defined` before using it:
+
+```jinja
+{%- if skills is defined and skills %}
+...
+{%- endif %}
+```
+
+## Values
+
+The values a template can reference come from the graph that renders it. Each graph documents its
+own values, for example [ReAct prompt templates](/reference/graph/react/prompt-templates).
+
+## Filters
+
+A filter transforms a value before it is inserted: `{{ value | filter(arguments) }}`. Every template
+has MiniJinja's built-in filters and the filters agentc adds. See [Filters](/reference/prompt-templates/filters).

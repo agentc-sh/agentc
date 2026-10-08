@@ -4,6 +4,7 @@
     "cli",
     "manifest",
     "runtime",
+    "prompt-templates",
     "graph",
     "http-api",
     "observability"
