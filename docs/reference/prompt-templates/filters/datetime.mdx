@@ -1,0 +1,45 @@
+---
+title: Date and time filters
+description: Filters that format RFC 3339 date and time values.
+---
+
+## strftime
+
+Formats an RFC 3339 date and time string.
+
+```jinja
+{{ value | strftime(format) }}
+{{ value | strftime(format, tz=zone) }}
+```
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `value` | string | yes | An RFC 3339 date and time, for example `2026-10-06T17:00:00.123456789Z`. |
+| `format` | string | yes | A format string made of chrono's [strftime specifiers](https://docs.rs/chrono/latest/chrono/format/strftime/index.html). |
+| `tz` | string | no | An IANA time zone name, for example `America/New_York`. The value is converted to this zone before it is formatted, including daylight saving time. Without `tz`, the value is formatted in the offset it carries. |
+
+`tz` accepts a literal string or any template value.
+
+### Examples
+
+With `timestamp` set to `2026-10-06T17:00:00.123456789Z` and `user_tz` set to `Europe/Paris`:
+
+| Template | Output |
+|----------|--------|
+| `{{ timestamp \| strftime("%Y-%m-%d") }}` | `2026-10-06` |
+| `{{ timestamp \| strftime("%H:%M") }}` | `17:00` |
+| `{{ timestamp \| strftime("%A, %B %-d, %Y") }}` | `Tuesday, October 6, 2026` |
+| `{{ timestamp \| strftime("%H:%M %Z") }}` | `17:00 +00:00` |
+| `{{ timestamp \| strftime("%H:%M %Z", tz="America/New_York") }}` | `13:00 EDT` |
+| `{{ timestamp \| strftime("%H:%M", tz=user_tz) }}` | `19:00` |
+
+`%Z` prints the zone abbreviation when `tz` is set, and the offset otherwise.
+
+### Errors
+
+| Cause | The error names |
+|-------|-----------------|
+| `value` is not an RFC 3339 date and time | The value |
+| `format` contains an invalid specifier | The format string |
+| `tz` is not an IANA time zone | The time zone |
+| A keyword argument other than `tz` | The keyword argument |

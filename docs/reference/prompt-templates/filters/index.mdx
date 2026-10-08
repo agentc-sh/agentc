@@ -1,0 +1,30 @@
+---
+title: Filters
+description: The filters available in every prompt template.
+---
+
+A filter follows a value after `|`. It can take positional and keyword arguments, and filters can be
+chained:
+
+```jinja
+{{ value | filter }}
+{{ value | filter("positional", keyword="value") }}
+{{ value | first_filter | second_filter }}
+```
+
+## Built-in filters
+
+Every template has MiniJinja's [built-in filters](https://docs.rs/minijinja/latest/minijinja/filters/index.html),
+such as `upper`, `default`, and `join`.
+
+## agentc filters
+
+| Group | Filters | Purpose |
+|-------|---------|---------|
+| [Date and time](/reference/prompt-templates/filters/datetime) | `strftime` | Format RFC 3339 date and time values. |
+
+## Errors
+
+An agentc filter fails the render when it receives a value or argument it cannot use, or a keyword
+argument it does not accept. The error names the input that caused it. Each group's page lists its
+filters' errors.

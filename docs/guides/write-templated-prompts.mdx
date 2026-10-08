@@ -5,7 +5,8 @@ description: Write system prompts that adapt at runtime using Jinja2 template va
 
 The `prompt` field accepts a Jinja2 template. The graph determines when it renders the template
 and which values it supplies. This guide shows how to write templates that adapt to those
-values. For the concept, see [Agents and prompts](/concepts/agents-and-prompts).
+values. For the concept, see [Agents and prompts](/concepts/agents-and-prompts). For the template
+language and its rules, see the [Prompt templates reference](/reference/prompt-templates).
 
 ## Reference variables in the prompt
 
@@ -40,6 +41,33 @@ no skills are registered, so the rendered prompt stays clean.
 The set of variables you can reference is defined by the graph the agent runs on, because the graph
 decides what state exists during a run. For the ReAct graph see the full list, with types, in
 the [ReAct prompt templates reference](/reference/graph/react/prompt-templates).
+
+## Format values with filters
+
+A filter transforms a value before it is inserted. Write it after the value with `|`. This prompt
+formats the ReAct graph's `current_datetime` as a date, using the `strftime` filter:
+
+```hcl
+prompt = <<-EOT
+  You are a scheduling assistant.
+  Today is {{ current_datetime | strftime("%A, %B %-d, %Y") }}.
+EOT
+```
+
+It renders as `Today is Tuesday, October 6, 2026.`
+
+Format a value only as precisely as the prompt needs. Model providers cache prompts by their
+beginning, so a value that changes on every render, such as a timestamp with nanoseconds, prevents
+the provider from reusing the cached prompt. A date changes once a day, so the rendered prompt stays
+the same and stays cacheable all day.
+
+Pass `tz` to show local time:
+
+```hcl
+prompt = "The local time is {{ current_datetime | strftime(\"%H:%M %Z\", tz=\"America/New_York\") }}."
+```
+
+Every filter and its arguments are listed in the [Filters reference](/reference/prompt-templates/filters).
 
 ## Use client context
 
@@ -105,4 +133,5 @@ Here `${locals.version}` is replaced once at build time, while `{{ agent_name }}
 
 - [Pass context from the client](/guides/pass-context-from-the-client): supply context variables in a run request.
 - [Agents and prompts](/concepts/agents-and-prompts): how the prompt relates to identity, model, and capabilities.
+- [Prompt templates reference](/reference/prompt-templates): the template language, its rules, and the filters every template can use.
 - [ReAct prompt templates reference](/reference/graph/react/prompt-templates): the variables available to the ReAct graph.

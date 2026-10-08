@@ -10,6 +10,7 @@ pub mod compaction;
 pub mod counter;
 pub mod env;
 pub mod errors;
+pub mod filters;
 pub mod source;
 pub mod template;
 pub mod vars;
@@ -26,6 +27,7 @@ pub mod prelude {
     pub use crate::counter::*;
     pub use crate::env::*;
     pub use crate::errors::*;
+    pub use crate::filters::*;
     pub use crate::source::*;
     pub use crate::template::*;
     pub use crate::vars::*;

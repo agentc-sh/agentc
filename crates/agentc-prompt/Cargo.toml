@@ -12,8 +12,9 @@ tokio = { workspace = true }
 wiremock = { version = "0.6" }
 
 [features]
-default = ["tiktoken"]
+default = ["tiktoken", "datetime"]
 tiktoken = ["dep:tiktoken-rs"]
+datetime = ["dep:chrono", "dep:chrono-tz"]
 langfuse = ["dep:reqwest", "dep:moka", "dep:httpdate"]
 
 [dependencies]
@@ -25,6 +26,9 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 
 minijinja = { workspace = true }
+
+chrono = { workspace = true, optional = true }
+chrono-tz = { workspace = true, optional = true }
 
 tiktoken-rs = { version = "0.12", optional = true }
 
