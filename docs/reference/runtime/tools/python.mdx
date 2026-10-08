@@ -79,7 +79,7 @@ body, so an invalid schema fails the module import.
 <LibSignature>
 ```python
 class Tool[Args, Result, State = Any]:
-    description: ClassVar[str]
+    description: ClassVar[str | None] = None
     parameters: ClassVar[Schema]
 
     async def execute(self, input: ToolInput[Args, State], /) -> ToolOutput[Result]
@@ -89,8 +89,9 @@ class Tool[Args, Result, State = Any]:
 The base class for every tool. Export a subclass and select it with the manifest's `export` field.
 The type arguments declare the argument type, the result type and the state type, read from the
 subclass's own `Tool[...]` base. Omit the state type when its `Any` default is sufficient.
-`description` tells the model what the tool does, and `parameters` supplies the model-facing input
-schema. Both are required.
+`description` is optional and is the tool's description when the manifest's
+[`description`](/reference/manifest/tool#common-fields) is unset. `parameters` is required and
+supplies the model-facing input schema.
 
 A subclass that does not implement `execute` raises `NotImplementedError: a Tool subclass must
 implement execute`. `execute` must be `async`. A subclass that defines `__init__` must call

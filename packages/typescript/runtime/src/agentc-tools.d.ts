@@ -34,7 +34,7 @@ declare module 'agentc:tools' {
   }
 
   export abstract class Tool<Args, Result, State = unknown> {
-    static readonly description: string
+    static readonly description?: string
     static readonly parameters: Schema
     abstract execute(input: ToolInput<Args, State>): Promise<ToolOutput<Result>>
   }

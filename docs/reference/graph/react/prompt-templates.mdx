@@ -10,10 +10,32 @@ graph-dependent, so it is documented here alongside the graph that provides it. 
 
 | Variable | Type | Description |
 |----------|------|-------------|
+| `tenant_id` | string | The resolved tenant of the owner of the session the run belongs to. |
+| `session_id` | string | The session the run belongs to. |
+| `run_id` | string | The current run. |
 | `agent_name` | string | The agent's name, taken from the `agent` block label in the manifest. |
 | `skills` | array&lt;[Skill](#skill)&gt; | The skills available to the agent. |
 | `context_vars` | array&lt;[ContextVar](#contextvar)&gt; | The context variables held in the current run state, in the order they were supplied. |
+| `tools` | array&lt;[Tool](#tool)&gt; | Every tool the model can call in this run: server tools and the run's client-defined tools. |
+| `messages` | array&lt;[Message](#message)&gt; | The session's messages as they are at the moment the prompt is rendered. |
+| `state` | object | The run state's `context` object. See [state](/reference/graph/react/state). |
 | `current_datetime` | string | The UTC date and time when the model call is prepared, in RFC 3339 format, for example `2026-10-06T17:00:00.123456789Z`. |
+
+`state` is only the run state's `context` object, not the whole run state. The other run state
+fields, such as `model` and `capability_override`, are not in the prompt. A template reads what
+tools wrote to `context` through it:
+
+```hcl
+prompt = <<-EOT
+  You are a weather assistant.
+
+  {%- if state.last_city %}
+  The user last asked about {{ state.last_city }}.
+  {%- endif %}
+EOT
+```
+
+`tools` differs between runs, because client tools come with each run request.
 
 ### Skill
 
@@ -33,6 +55,87 @@ Each entry in `context_vars` describes one context variable available in the pro
 | `description` | string | The human-readable label for the value. |
 | `value` | string | The context variable's value. |
 
-Variables are injected when the prompt is rendered, so a template can use the context variables
-held in the run state. The `prompt` field itself is declared on the
-[agent](/reference/manifest/agent) block.
+### Tool
+
+Each entry in `tools` describes one tool the model can call in the run.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | The tool's name, the one the model calls it by. |
+| `description` | string | What the tool does, as the model sees it. |
+| `parameters` | object | The schema of the tool's arguments. |
+
+Guard any text that describes a tool on that tool being in `tools`, so the text renders only for
+runs that carry the tool:
+
+```hcl
+prompt = <<-EOT
+  You are a documentation assistant.
+
+  {%- if "open_page" in tools | map(attribute="name") %}
+  To take the reader to a page, call `open_page`.
+  {%- endif %}
+EOT
+```
+
+`tools | map(attribute="name")` is the list of tool names, and `in` checks that the tool is there. A
+client that does not send the tool gets a prompt without the text. Server tools are guarded the same
+way.
+
+### Message
+
+Each entry in `messages` is one message in the session. `type` decides which fields it has.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `type` | string | `system`, `user`, `assistant`, `tool` or `reasoning`. |
+| `id` | string | The message's ID. |
+| `tenant_id` | string | The tenant of the session. |
+| `session_id` | string | The session the message belongs to. |
+| `run_id` | string or null | The run that produced the message. Always set on `assistant` and `reasoning`. |
+| `checkpoint_id` | string or null | The checkpoint the message belongs to. |
+| `content` | string, array&lt;[UserContent](#usercontent)&gt; or null | `system` and `reasoning`: string. `user`: array&lt;[UserContent](#usercontent)&gt;. `assistant` and `tool`: string or null. |
+| `name` | string or null | The participant's name. Not on `reasoning`. |
+| `tool_calls` | array&lt;[ToolCall](#toolcall)&gt; | The tool calls the model made. Only on `assistant`, and absent when there are none. |
+| `tool_call_id` | string | The ID of the [ToolCall](#toolcall) this message answers. Only on `tool`. |
+| `parent_message_id` | string or null | The ID of the `assistant` message that made the call. Only on `tool`. |
+| `error` | string | The tool's error. Only on `tool`, and absent when the tool succeeded. |
+| `signature` | string or null | The provider's reasoning signature. Only on `reasoning`. |
+| `created_at` | string | When the message was created, in RFC 3339 format. |
+
+### ToolCall
+
+Each entry in a message's `tool_calls` is one call the model made.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | The call's ID. |
+| `name` | string | The name of the [Tool](#tool) called. |
+| `arguments` | any | The arguments the model passed. |
+
+### UserContent
+
+Each entry in a `user` message's `content` is one content block.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `type` | string | `text`, `image`, `audio`, `video` or `document`. |
+| `value` | string or [Media](#media) | `text`: the text. Every other type: [Media](#media). |
+
+### Media
+
+The `value` of an `image`, `audio`, `video` or `document` [UserContent](#usercontent).
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `source` | [MediaSource](#mediasource) | Where the media is. |
+| `media_type` | string | The media's MIME type. |
+
+### MediaSource
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `type` | string | `url` or `base64`. |
+| `value` | string | `url`: the URL. `base64`: the base64-encoded data. |
+
+The `prompt` field itself is declared on the [agent](/reference/manifest/agent) block.

@@ -22,7 +22,7 @@ agent "assistant" {
     You are {{ agent_name }}, a helpful assistant.
     The current date and time is {{ current_datetime }}.
 
-    {%- if skills %}
+    {%- if skills is defined and skills %}
     You have access to the following skills:
     {%- for skill in skills %}
     - {{ skill.name }}: {{ skill.description }}
@@ -32,15 +32,14 @@ agent "assistant" {
 }
 ```
 
-The `{%- if skills %}` guard keeps the block out of the prompt entirely when no skills are registered,
-so the rendered prompt stays clean.
+The `{%- if skills is defined and skills %}` guard keeps the block out of the prompt entirely when
+no skills are registered, so the rendered prompt stays clean.
 
 ## Know which variables are available
 
 The set of variables you can reference is defined by the graph the agent runs on, because the graph
-decides what state exists during a run. For the ReAct graph the variables are `agent_name`, `skills`,
-`context_vars`, and `current_datetime`. The authoritative list, with types, lives with the graph in the
-[ReAct prompt templates reference](/reference/graph/react/prompt-templates).
+decides what state exists during a run. For the ReAct graph see the full list, with types, in
+the [ReAct prompt templates reference](/reference/graph/react/prompt-templates).
 
 ## Use client context
 

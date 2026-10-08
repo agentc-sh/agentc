@@ -120,6 +120,8 @@ where
 pub struct PythonToolBuilder<B: ExecutorBackend> {
     executor: Option<Executor<B>>,
     export_name: Option<String>,
+    name: Option<String>,
+    description: Option<String>,
     capabilities: CapabilitySet,
     timeout: Duration,
 }
@@ -129,6 +131,8 @@ impl<B: ExecutorBackend> PythonToolBuilder<B> {
         Self {
             executor: None,
             export_name: None,
+            name: None,
+            description: None,
             capabilities: CapabilitySet::default(),
             timeout: Duration::from_secs(30),
         }
@@ -141,6 +145,16 @@ impl<B: ExecutorBackend> PythonToolBuilder<B> {
 
     pub fn export_name(mut self, name: impl Into<String>) -> Self {
         self.export_name = Some(name.into());
+        self
+    }
+
+    pub fn name(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+
+    pub fn description(mut self, description: impl Into<String>) -> Self {
+        self.description = Some(description.into());
         self
     }
 
@@ -183,14 +197,20 @@ impl<B: ExecutorBackend> PythonToolBuilder<B> {
                             .get::<GuestToolClass>(&export_name)?;
 
                         Ok(ToolDefinition {
-                            name: export_name,
-                            description: exported
-                                .class()
-                                .get::<String>("description")?,
+                            description: match self.description {
+                                Some(description) => description,
+                                None => exported
+                                    .class()
+                                    .get::<Option<String>>("description")?
+                                    .ok_or_else(|| {
+                                        format!("export '{export_name}' has no description")
+                                    })?,
+                            },
                             parameters: exported
                                 .class()
                                 .get::<Instance<_, Schema>>("parameters")?
                                 .borrow_with(|schema| schema.document().clone())?,
+                            name: self.name.unwrap_or(export_name),
                         })
                     })
                 }
@@ -396,6 +416,21 @@ class Untyped(Tool[EmptyArgs, None]):
         return ToolOutput(None)
 
 
+class Undescribed(Tool[EmptyArgs, None]):
+    parameters = Schema({"type": "object"})
+
+    async def execute(self, input: ToolInput[EmptyArgs]) -> ToolOutput[None]:
+        return ToolOutput(None)
+
+
+class NoneDescribed(Tool[EmptyArgs, None]):
+    description = None
+    parameters = Schema({"type": "object"})
+
+    async def execute(self, input: ToolInput[EmptyArgs]) -> ToolOutput[None]:
+        return ToolOutput(None)
+
+
 class Unrelated:
     async def execute(self, input):
         return ToolOutput(None)
@@ -540,6 +575,105 @@ def call_retained():
         assert_eq!(definition.name, "Direct");
         assert_eq!(definition.description, "returns a direct result");
         assert_eq!(definition.parameters, json!({"type": "object"}));
+
+        executor.shutdown().await.unwrap();
+    }
+
+    async fn name_and_description_override_the_export_definition<B>()
+    where
+        B: ExecutorBackend + Send + Sync,
+    {
+        let executor = TestHarness::executor::<B>(1).await;
+        let tool = PythonTool::<B>::builder()
+            .executor(executor.clone())
+            .export_name("Direct")
+            .name("direct_tool")
+            .description("doubles a value")
+            .build()
+            .await
+            .unwrap();
+        let definition = Tool::<TestState>::definition(&tool);
+
+        assert_eq!(definition.name, "direct_tool");
+        assert_eq!(definition.description, "doubles a value");
+        assert_eq!(definition.parameters, json!({"type": "object"}));
+
+        executor.shutdown().await.unwrap();
+    }
+
+    async fn name_without_description_keeps_the_export_description<B>()
+    where
+        B: ExecutorBackend + Send + Sync,
+    {
+        let executor = TestHarness::executor::<B>(1).await;
+        let tool = PythonTool::<B>::builder()
+            .executor(executor.clone())
+            .export_name("Direct")
+            .name("direct_tool")
+            .build()
+            .await
+            .unwrap();
+        let definition = Tool::<TestState>::definition(&tool);
+
+        assert_eq!(definition.name, "direct_tool");
+        assert_eq!(definition.description, "returns a direct result");
+
+        executor.shutdown().await.unwrap();
+    }
+
+    async fn builder_description_completes_an_undescribed_export<B>()
+    where
+        B: ExecutorBackend + Send + Sync,
+    {
+        let executor = TestHarness::executor::<B>(1).await;
+
+        for export in ["Undescribed", "NoneDescribed"] {
+            assert_eq!(
+                Tool::<TestState>::definition(
+                    &PythonTool::<B>::builder()
+                        .executor(executor.clone())
+                        .export_name(export)
+                        .description("described by the manifest")
+                        .build()
+                        .await
+                        .unwrap(),
+                )
+                .description,
+                "described by the manifest",
+            );
+        }
+
+        executor.shutdown().await.unwrap();
+    }
+
+    async fn build_rejects_an_export_without_a_description<B>()
+    where
+        B: ExecutorBackend + Send + Sync,
+    {
+        let executor = TestHarness::executor::<B>(1).await;
+
+        for export in ["Undescribed", "NoneDescribed"] {
+            let error = match PythonTool::<B>::builder()
+                .executor(executor.clone())
+                .export_name(export)
+                .build()
+                .await
+            {
+                Ok(_) => panic!("an export without a description builds"),
+                Err(error) => error,
+            };
+
+            assert!(
+                error
+                    .to_string()
+                    .contains("has no description"),
+                "the message must name the failure; got: {error}",
+            );
+            assert!(
+                error.to_string().contains(export),
+                "the message must name the export; got: {error}",
+            );
+        }
 
         executor.shutdown().await.unwrap();
     }
@@ -906,6 +1040,10 @@ def call_retained():
     parameterized!(
         shared_executor_dispatches_exported_tools,
         definition_reports_the_exported_class,
+        name_and_description_override_the_export_definition,
+        name_without_description_keeps_the_export_description,
+        builder_description_completes_an_undescribed_export,
+        build_rejects_an_export_without_a_description,
         builder_rejects_unknown_export,
         build_rejects_non_tool_export,
         build_rejects_parameters_that_are_not_a_schema,

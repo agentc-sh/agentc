@@ -11,7 +11,7 @@ use crate::{
     config::fields::FieldsSpec,
     context::{ResolvedContext, ResolvedContextToolBashEnv, ResolvedContextToolKind},
     contributions::import::ImportContribution,
-    graph::codegen::tools::ToolCodeGen,
+    graph::codegen::tools::{ToolCodeGen, enabled::ToolEnabledGuard},
 };
 
 /// All Bash tools in the context.
@@ -43,7 +43,7 @@ impl ToolCodeGen for BashTools<'_> {
             .then_some("bash")
     }
 
-    fn registrations(&self, _fields: &FieldsSpec) -> Result<Vec<TokenStream>, GeneratorError> {
+    fn registrations(&self, fields: &FieldsSpec) -> Result<Vec<TokenStream>, GeneratorError> {
         let mut registrations = Vec::new();
 
         for tool in self.0.tools.values() {
@@ -78,24 +78,41 @@ impl ToolCodeGen for BashTools<'_> {
                 .shared
                 .then(|| quote! { .shared() });
 
-            registrations.push(quote! {
-                builder = builder.with_typed_tool(
-                    BashTool::builder(fs.clone(), http.clone())
-                        .command_policy(#command_policy)
-                        .cwd(#cwd)
-                        .env_policy(#env_policy)
-                        .limits(ExecLimits {
-                            max_execution_time: ::std::time::Duration::from_secs(
-                                #max_execution_time_secs
-                            ),
-                            max_output_size: #max_output_size,
-                            max_command_count: #max_command_count,
-                            max_loop_iterations: #max_loop_iterations,
-                        })
-                        #shared
-                        .build()
-                );
+            let name = &tool.name;
+            let description = tool
+                .description
+                .as_ref()
+                .map(|description| quote! { .description(#description) });
+            let capabilities = (!tool.capabilities.is_empty()).then(|| {
+                let capabilities = &tool.capabilities;
+
+                quote! { .capabilities([#(#capabilities),*]) }
             });
+
+            registrations.push(ToolEnabledGuard(tool).wrap(
+                fields,
+                quote! {
+                    builder = builder.with_typed_tool(
+                        BashTool::builder(fs.clone(), http.clone())
+                            .command_policy(#command_policy)
+                            .cwd(#cwd)
+                            .env_policy(#env_policy)
+                            .limits(ExecLimits {
+                                max_execution_time: ::std::time::Duration::from_secs(
+                                    #max_execution_time_secs
+                                ),
+                                max_output_size: #max_output_size,
+                                max_command_count: #max_command_count,
+                                max_loop_iterations: #max_loop_iterations,
+                            })
+                            #shared
+                            .name(#name)
+                            #description
+                            #capabilities
+                            .build()
+                    );
+                },
+            ));
         }
 
         Ok(registrations)
@@ -207,6 +224,40 @@ mod tests {
         assert!(!registration.contains("network ("));
         assert!(!registration.contains("allowed_url_prefixes"));
         assert!(!registration.contains("allowed_methods"));
+    }
+
+    #[test]
+    fn registration_passes_the_block_name() {
+        let registration = BashToolsFixture::registrations(&BashToolsFixture::context());
+
+        assert!(registration.contains(". name (\"shell\")"));
+        assert!(!registration.contains(". description ("));
+        assert!(!registration.contains(". capabilities ("));
+    }
+
+    #[test]
+    fn registration_passes_the_block_description_and_capabilities_when_set() {
+        let mut context = BashToolsFixture::context();
+        let tool = context
+            .tools
+            .get_mut("shell")
+            .expect("shell tool should exist");
+
+        tool.description = Some("Runs workspace commands.".to_string());
+        tool.capabilities = vec!["network".to_string()];
+
+        let registration = BashToolsFixture::registrations(&context);
+
+        assert!(registration.contains(". description (\"Runs workspace commands.\")"));
+        assert!(registration.contains(". capabilities ([\"network\"])"));
+    }
+
+    #[test]
+    fn registration_is_guarded_by_the_generated_enabled_field() {
+        let registration = BashToolsFixture::registrations(&BashToolsFixture::context());
+
+        assert!(registration.contains("if config . tool . shell . enabled"));
+        assert!(registration.contains("builder = builder . with_typed_tool"));
     }
 
     #[test]

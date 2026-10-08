@@ -17,12 +17,13 @@ tool "adder" {
 
 ## Common fields
 
-These fields apply to all tool kinds.
+These fields apply to all tool kinds. For `javascript`, `python` and `bash` tools, the block label
+is the tool's name, the name the model calls it by.
 
 | Field | Type | Required | runtime() | Default | Description |
 |-------|------|----------|-----------|---------|-------------|
 | `kind` | `javascript` \| `python` \| `bash` \| `mcp` \| `a2a` | yes | no | … | Execution or connection mechanism used for the tool. |
-| `description` | string | no | no | unset | Human-readable description of what the tool does. |
+| `description` | string | no | no | unset | What the tool does, as the model reads it. Unset, a `javascript` or `python` tool uses its class's static `description`, and a `bash` tool uses a built-in description. A `javascript` or `python` tool fails to load when neither sets one. |
 | `capabilities` | array&lt;string&gt; | no | no | `[]` | Capability tags required to invoke this tool. See [Tools and capabilities](/concepts/tools-and-capabilities). |
 | `enabled` | boolean | no | yes | `true` | Whether the tool is registered at startup. |
 | `config` | map&lt;string, string&gt; | no | yes | `{}` | Named string values made available to the tool at runtime, each of which may be a constant or a `runtime()` expression. |
@@ -33,8 +34,7 @@ A JavaScript tool is a TypeScript or JavaScript package bundled by `esbuild` at 
 executed in the runtime's embedded engine. See [runtime libraries](/reference/runtime) for the
 environment that engine provides. The bundle is embedded in the binary; no Node.js installation is
 required at runtime. The selected export must be a class extending `Tool` from `agentc:tools`.
-Its static `description` and `parameters` supply the tool definition, and `parameters` must be a
-`Schema` instance.
+Its static `parameters` must be a `Schema` instance.
 
 ```hcl
 tool "adder" {
@@ -52,7 +52,7 @@ tool "adder" {
 | Field | Type | Required | runtime() | Default | Description |
 |-------|------|----------|-----------|---------|-------------|
 | `source` | string | yes | no | … | Path to the tool's package directory, relative to the manifest. Must contain a `package.json`. |
-| `export` | string | no | no | tool block name | Name of the exported `Tool` subclass. Becomes the registered tool name. |
+| `export` | string | no | no | tool block name | Name of the exported `Tool` subclass. |
 
 See [Write a tool](/guides/write-a-tool) for how to write the tool source.
 
@@ -76,7 +76,7 @@ tool "weather" {
 | Field | Type | Required | runtime() | Default | Description |
 |-------|------|----------|-----------|---------|-------------|
 | `source` | string | yes | no | … | Path to the tool's directory, relative to the manifest. Must contain a `pyproject.toml`. |
-| `export` | string | no | no | tool block name | Name of the exported `Tool` subclass. Becomes the registered tool name. |
+| `export` | string | no | no | tool block name | Name of the exported `Tool` subclass. |
 | `interpreter` | `embedded` \| `static` | no | no | `"embedded"` | Python runtime backend. `"embedded"` uses RustPython, supports pure-Python packages, and produces a self-contained binary. `"static"` uses CPython 3.14 and supports packages with C extensions, but requires a compatible shared CPython installation and `libpython` available at runtime. |
 
 See [Write a tool](/guides/write-a-tool) for how to write the tool source.
