@@ -31,23 +31,21 @@ impl DateTimeFilters {
                 .with_source(e)
             })?;
 
-        Ok(
-            match tz {
-                Some(tz) => datetime
-                    .with_timezone(&tz.parse::<Tz>().map_err(|e| {
-                        Error::new(
-                            ErrorKind::InvalidOperation,
-                            format!("'{tz}' is not an IANA time zone"),
-                        )
-                        .with_source(e)
-                    })?)
-                    .format_with_items(items.iter())
-                    .to_string(),
-                None => datetime
-                    .format_with_items(items.iter())
-                    .to_string(),
-            }
-        )
+        Ok(match tz {
+            Some(tz) => datetime
+                .with_timezone(&tz.parse::<Tz>().map_err(|e| {
+                    Error::new(
+                        ErrorKind::InvalidOperation,
+                        format!("'{tz}' is not an IANA time zone"),
+                    )
+                    .with_source(e)
+                })?)
+                .format_with_items(items.iter())
+                .to_string(),
+            None => datetime
+                .format_with_items(items.iter())
+                .to_string(),
+        })
     }
 }
 
@@ -76,10 +74,7 @@ mod tests {
 
     #[test]
     fn formats_time_only() {
-        assert_eq!(
-            DateTimeFilters::strftime(VALUE, "%H:%M", kwargs(&[])).unwrap(),
-            "17:00",
-        );
+        assert_eq!(DateTimeFilters::strftime(VALUE, "%H:%M", kwargs(&[])).unwrap(), "17:00",);
     }
 
     #[test]
@@ -93,12 +88,8 @@ mod tests {
     #[test]
     fn converts_to_daylight_saving_time_in_tz() {
         assert_eq!(
-            DateTimeFilters::strftime(
-                VALUE,
-                "%H:%M %Z",
-                kwargs(&[("tz", "America/New_York")]),
-            )
-            .unwrap(),
+            DateTimeFilters::strftime(VALUE, "%H:%M %Z", kwargs(&[("tz", "America/New_York")]),)
+                .unwrap(),
             "13:00 EDT",
         );
     }
@@ -129,30 +120,31 @@ mod tests {
         let error = DateTimeFilters::strftime("yesterday", "%Y", kwargs(&[])).unwrap_err();
 
         assert_eq!(error.kind(), ErrorKind::InvalidOperation);
-        assert!(error.to_string().contains("'yesterday'"));
+        assert!(
+            error
+                .to_string()
+                .contains("'yesterday'")
+        );
     }
 
     #[test]
     fn rejects_unknown_tz_naming_it() {
-        let error = DateTimeFilters::strftime(
-            VALUE,
-            "%H:%M",
-            kwargs(&[("tz", "Mars/Olympus_Mons")]),
-        )
-        .unwrap_err();
+        let error =
+            DateTimeFilters::strftime(VALUE, "%H:%M", kwargs(&[("tz", "Mars/Olympus_Mons")]))
+                .unwrap_err();
 
         assert_eq!(error.kind(), ErrorKind::InvalidOperation);
-        assert!(error.to_string().contains("'Mars/Olympus_Mons'"));
+        assert!(
+            error
+                .to_string()
+                .contains("'Mars/Olympus_Mons'")
+        );
     }
 
     #[test]
     fn rejects_unexpected_keyword_argument() {
-        let error = DateTimeFilters::strftime(
-            VALUE,
-            "%H:%M",
-            kwargs(&[("zone", "UTC")]),
-        )
-        .unwrap_err();
+        let error =
+            DateTimeFilters::strftime(VALUE, "%H:%M", kwargs(&[("zone", "UTC")])).unwrap_err();
 
         assert_eq!(error.kind(), ErrorKind::TooManyArguments);
     }
