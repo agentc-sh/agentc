@@ -395,12 +395,8 @@ mod tests {
 
     #[test]
     fn registration_passes_the_block_description_when_set() {
-        let (name, mut tool) = JavascriptToolsFixture::tool(
-            "search",
-            "/artifacts/pkg/dist/index.js",
-            "Search",
-            [],
-        );
+        let (name, mut tool) =
+            JavascriptToolsFixture::tool("search", "/artifacts/pkg/dist/index.js", "Search", []);
         tool.description = Some("Searches the documentation.".to_string());
 
         let registrations =

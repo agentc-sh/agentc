@@ -32,7 +32,10 @@ pub struct ResolvedContextTool {
 
 impl ResolvedContextTool {
     pub fn config_key(&self) -> String {
-        if self.name.contains(|c: char| !c.is_alphanumeric() && c != '_') {
+        if self
+            .name
+            .contains(|c: char| !c.is_alphanumeric() && c != '_')
+        {
             self.name.to_case(Case::Snake)
         } else {
             self.name.clone()
