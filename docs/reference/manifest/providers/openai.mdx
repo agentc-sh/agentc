@@ -3,19 +3,20 @@ title: OpenAI
 description: Configuration for the OpenAI model provider.
 ---
 
-The `openai` sub-block configures the OpenAI cloud provider. It also works with any
+A `provider` block with `kind = "openai"` configures the OpenAI cloud provider. It also works with any
 OpenAI-compatible endpoint, such as Azure OpenAI or a local proxy, by setting `config.base_url`.
 
 ## Fields
 
 | Field | Type | Required | runtime() | Default | Description |
 |-------|------|----------|-----------|---------|-------------|
+| `kind` | `openai` | yes | no | … | Provider kind. |
 | `models` | array&lt;string \| [ModelEntry](#modelentry)&gt; | no | no | unset | Models permitted for this provider, with optional model-specific inference settings. |
 | `config` | [ProviderConfig](#providerconfig) | no | | unset | API credentials and endpoint settings for this provider. |
 | `params` | [InferenceParams](#inferenceparams) | no | | unset | Default inference settings for requests to this provider. |
 
-The `config` block is optional. When omitted, the OpenAI SDK reads credentials from the
-`OPENAI_API_KEY` environment variable using its standard resolution logic.
+When `config.api_key` is unset, the key is read from the `OPENAI_API_KEY` environment variable. The
+agent fails to start when neither is set.
 
 ## ModelEntry
 
@@ -51,29 +52,28 @@ are optional and support `runtime()`.
 ## Example
 
 ```hcl title="agent.acl"
-providers {
-  openai {
-    models = [
-      "gpt-4o-mini",
-      {
-        name = "gpt-4o"
-        params {
-          max_tokens  = 8192
-          temperature = 0.3
-        }
+provider "openai" {
+  kind = "openai"
+  models = [
+    "gpt-4o-mini",
+    {
+      name = "gpt-4o"
+      params {
+        max_tokens  = 8192
+        temperature = 0.3
       }
-    ]
-
-    config {
-      api_key  = secret(runtime("OPENAI_API_KEY"))
-      base_url = runtime("OPENAI_BASE_URL", "https://api.openai.com/v1")
     }
+  ]
 
-    params {
-      max_tokens        = 2048
-      temperature       = 0.5
-      frequency_penalty = 0.1
-    }
+  config {
+    api_key  = secret(runtime("OPENAI_API_KEY"))
+    base_url = runtime("OPENAI_BASE_URL", "https://api.openai.com/v1")
+  }
+
+  params {
+    max_tokens        = 2048
+    temperature       = 0.5
+    frequency_penalty = 0.1
   }
 }
 ```
