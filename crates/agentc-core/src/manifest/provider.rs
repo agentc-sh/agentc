@@ -2,36 +2,137 @@
 //
 // SPDX-License-Identifier: MIT
 
+pub mod traits;
+
 use sanitizer::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use validator::Validate;
 
-use agentc_blocks::types::RuntimeValue;
+use agentc_blocks::{
+    context::{
+        ResolvedContextProvider,
+        ResolvedContextProviderAnthropic,
+        ResolvedContextProviderGemini,
+        ResolvedContextProviderHuggingFace,
+        ResolvedContextProviderKind,
+        ResolvedContextProviderModel,
+        ResolvedContextProviderOllama,
+        ResolvedContextProviderOpenAi,
+        ResolvedContextProviderOpenRouter,
+        ResolvedContextProviderParams,
+        ResolvedContextProviderXai,
+    },
+    types::RuntimeValue,
+};
 
-#[derive(Debug, Clone, Serialize, Deserialize, Validate, Sanitizer)]
-pub struct ManifestProvider {
-    #[serde(default)]
-    #[validate(nested)]
-    pub anthropic: Option<ManifestProviderAnthropic>,
-    #[serde(default)]
-    #[validate(nested)]
-    pub openai: Option<ManifestProviderOpenAi>,
-    #[serde(default)]
-    #[validate(nested)]
-    pub ollama: Option<ManifestProviderOllama>,
-    #[serde(default)]
-    #[validate(nested)]
-    pub openrouter: Option<ManifestProviderOpenRouter>,
-    #[serde(default)]
-    #[validate(nested)]
-    pub xai: Option<ManifestProviderXai>,
-    #[serde(default)]
-    #[validate(nested)]
-    pub gemini: Option<ManifestProviderGemini>,
-    #[serde(default)]
-    #[validate(nested)]
-    pub huggingface: Option<ManifestProviderHuggingFace>,
+use crate::manifest::{
+    errors::ManifestError,
+    interpolate::Interpolate,
+    provider::traits::{ManifestProviderModel, ResolveProviderKind},
+};
+
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
+pub struct ManifestProviderDefinition<M, C> {
+    pub models: Option<Vec<M>>,
+    pub config: Option<C>,
+    pub params: Option<ManifestProviderParams>,
+}
+
+impl<M, C> Sanitizer for ManifestProviderDefinition<M, C> {
+    fn sanitize(&mut self) {}
+}
+
+impl<M, C> ManifestProviderDefinition<M, C>
+where
+    M: ManifestProviderModel,
+    Self: ResolveProviderKind,
+{
+    pub fn resolve(
+        &self,
+        name: &str,
+        locals: &Value,
+    ) -> Result<ResolvedContextProvider, ManifestError> {
+        Ok(
+            ResolvedContextProvider {
+                name: name.to_string(),
+                models: self
+                    .models
+                    .as_ref()
+                    .map(|models| {
+                        models
+                            .iter()
+                            .map(|model| {
+                                Ok(
+                                    ResolvedContextProviderModel {
+                                        name: model
+                                            .name()
+                                            .to_string()
+                                            .interpolate(locals)?,
+                                        params: model
+                                            .params()
+                                            .map(|params| params.resolve(locals))
+                                            .transpose()?,
+                                    }
+                                )
+                            })
+                            .collect::<Result<_, ManifestError>>()
+                    })
+                    .transpose()?,
+                params: self
+                    .params
+                    .as_ref()
+                    .map(|params| params.resolve(locals))
+                    .transpose()?,
+                kind: self.resolve_kind(locals)?,
+            }
+        )
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Sanitizer)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum ManifestProvider {
+    Anthropic(
+        ManifestProviderDefinition<ManifestProviderAnthropicModel, ManifestProviderAnthropicConfig>,
+    ),
+    #[serde(rename = "openai")]
+    OpenAi(ManifestProviderDefinition<ManifestProviderOpenAiModel, ManifestProviderOpenAiConfig>),
+    Ollama(ManifestProviderDefinition<ManifestProviderOllamaModel, ManifestProviderOllamaConfig>),
+    #[serde(rename = "openrouter")]
+    OpenRouter(
+        ManifestProviderDefinition<
+            ManifestProviderOpenRouterModel,
+            ManifestProviderOpenRouterConfig,
+        >,
+    ),
+    Xai(ManifestProviderDefinition<ManifestProviderXaiModel, ManifestProviderXaiConfig>),
+    Gemini(ManifestProviderDefinition<ManifestProviderGeminiModel, ManifestProviderGeminiConfig>),
+    #[serde(rename = "huggingface")]
+    HuggingFace(
+        ManifestProviderDefinition<
+            ManifestProviderHuggingFaceModel,
+            ManifestProviderHuggingFaceConfig,
+        >,
+    ),
+}
+
+impl ManifestProvider {
+    pub fn resolve(
+        &self,
+        name: &str,
+        locals: &Value,
+    ) -> Result<ResolvedContextProvider, ManifestError> {
+        match self {
+            Self::Anthropic(definition) => definition.resolve(name, locals),
+            Self::OpenAi(definition) => definition.resolve(name, locals),
+            Self::Ollama(definition) => definition.resolve(name, locals),
+            Self::OpenRouter(definition) => definition.resolve(name, locals),
+            Self::Xai(definition) => definition.resolve(name, locals),
+            Self::Gemini(definition) => definition.resolve(name, locals),
+            Self::HuggingFace(definition) => definition.resolve(name, locals),
+        }
+    }
 }
 
 /// Common inference parameters shared across all providers. All fields are optional
@@ -59,14 +160,28 @@ pub struct ManifestProviderParams {
     pub provider_params: Option<RuntimeValue<Value>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Validate, Sanitizer)]
-pub struct ManifestProviderAnthropic {
-    #[serde(default)]
-    pub models: Option<Vec<ManifestProviderAnthropicModel>>,
-    #[serde(default)]
-    pub config: Option<ManifestProviderAnthropicConfig>,
-    #[serde(default)]
-    pub params: Option<ManifestProviderParams>,
+impl ManifestProviderParams {
+    pub fn resolve(&self, locals: &Value) -> Result<ResolvedContextProviderParams, ManifestError> {
+        Ok(
+            ResolvedContextProviderParams {
+                max_tokens: self.max_tokens.clone(),
+                temperature: self.temperature.clone(),
+                top_p: self.top_p.clone(),
+                top_k: self.top_k.clone(),
+                stop_sequences: self
+                    .stop_sequences
+                    .clone()
+                    .interpolate(locals)?,
+                frequency_penalty: self.frequency_penalty.clone(),
+                presence_penalty: self.presence_penalty.clone(),
+                seed: self.seed.clone(),
+                provider_params: self
+                    .provider_params
+                    .clone()
+                    .interpolate(locals)?,
+            }
+        )
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -92,14 +207,41 @@ pub struct ManifestProviderAnthropicConfig {
     pub base_url: Option<RuntimeValue<String>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Validate, Sanitizer)]
-pub struct ManifestProviderOpenAi {
-    #[serde(default)]
-    pub models: Option<Vec<ManifestProviderOpenAiModel>>,
-    #[serde(default)]
-    pub config: Option<ManifestProviderOpenAiConfig>,
-    #[serde(default)]
-    pub params: Option<ManifestProviderParams>,
+impl ManifestProviderModel for ManifestProviderAnthropicModel {
+    fn name(&self) -> &str {
+        match self {
+            Self::Name(name) => name,
+            Self::Config(config) => &config.name,
+        }
+    }
+
+    fn params(&self) -> Option<&ManifestProviderParams> {
+        match self {
+            Self::Name(_) => None,
+            Self::Config(config) => config.params.as_ref(),
+        }
+    }
+}
+
+impl ResolveProviderKind
+    for ManifestProviderDefinition<ManifestProviderAnthropicModel, ManifestProviderAnthropicConfig>
+{
+    fn resolve_kind(&self, locals: &Value) -> Result<ResolvedContextProviderKind, ManifestError> {
+        Ok(
+            ResolvedContextProviderKind::Anthropic(ResolvedContextProviderAnthropic {
+                api_key: self
+                    .config
+                    .as_ref()
+                    .and_then(|config| config.api_key.clone())
+                    .interpolate(locals)?,
+                base_url: self
+                    .config
+                    .as_ref()
+                    .and_then(|config| config.base_url.clone())
+                    .interpolate(locals)?,
+            })
+        )
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -125,14 +267,41 @@ pub struct ManifestProviderOpenAiConfig {
     pub base_url: Option<RuntimeValue<String>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Validate, Sanitizer)]
-pub struct ManifestProviderOllama {
-    #[serde(default)]
-    pub models: Option<Vec<ManifestProviderOllamaModel>>,
-    #[serde(default)]
-    pub config: Option<ManifestProviderOllamaConfig>,
-    #[serde(default)]
-    pub params: Option<ManifestProviderParams>,
+impl ManifestProviderModel for ManifestProviderOpenAiModel {
+    fn name(&self) -> &str {
+        match self {
+            Self::Name(name) => name,
+            Self::Config(config) => &config.name,
+        }
+    }
+
+    fn params(&self) -> Option<&ManifestProviderParams> {
+        match self {
+            Self::Name(_) => None,
+            Self::Config(config) => config.params.as_ref(),
+        }
+    }
+}
+
+impl ResolveProviderKind
+    for ManifestProviderDefinition<ManifestProviderOpenAiModel, ManifestProviderOpenAiConfig>
+{
+    fn resolve_kind(&self, locals: &Value) -> Result<ResolvedContextProviderKind, ManifestError> {
+        Ok(
+            ResolvedContextProviderKind::OpenAi(ResolvedContextProviderOpenAi {
+                api_key: self
+                    .config
+                    .as_ref()
+                    .and_then(|config| config.api_key.clone())
+                    .interpolate(locals)?,
+                base_url: self
+                    .config
+                    .as_ref()
+                    .and_then(|config| config.base_url.clone())
+                    .interpolate(locals)?,
+            })
+        )
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -156,14 +325,36 @@ pub struct ManifestProviderOllamaConfig {
     pub base_url: Option<RuntimeValue<String>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Validate, Sanitizer)]
-pub struct ManifestProviderOpenRouter {
-    #[serde(default)]
-    pub models: Option<Vec<ManifestProviderOpenRouterModel>>,
-    #[serde(default)]
-    pub config: Option<ManifestProviderOpenRouterConfig>,
-    #[serde(default)]
-    pub params: Option<ManifestProviderParams>,
+impl ManifestProviderModel for ManifestProviderOllamaModel {
+    fn name(&self) -> &str {
+        match self {
+            Self::Name(name) => name,
+            Self::Config(config) => &config.name,
+        }
+    }
+
+    fn params(&self) -> Option<&ManifestProviderParams> {
+        match self {
+            Self::Name(_) => None,
+            Self::Config(config) => config.params.as_ref(),
+        }
+    }
+}
+
+impl ResolveProviderKind
+    for ManifestProviderDefinition<ManifestProviderOllamaModel, ManifestProviderOllamaConfig>
+{
+    fn resolve_kind(&self, locals: &Value) -> Result<ResolvedContextProviderKind, ManifestError> {
+        Ok(
+            ResolvedContextProviderKind::Ollama(ResolvedContextProviderOllama {
+                base_url: self
+                    .config
+                    .as_ref()
+                    .and_then(|config| config.base_url.clone())
+                    .interpolate(locals)?,
+            })
+        )
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -187,14 +378,39 @@ pub struct ManifestProviderOpenRouterConfig {
     pub api_key: Option<RuntimeValue<String>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Validate, Sanitizer)]
-pub struct ManifestProviderXai {
-    #[serde(default)]
-    pub models: Option<Vec<ManifestProviderXaiModel>>,
-    #[serde(default)]
-    pub config: Option<ManifestProviderXaiConfig>,
-    #[serde(default)]
-    pub params: Option<ManifestProviderParams>,
+impl ManifestProviderModel for ManifestProviderOpenRouterModel {
+    fn name(&self) -> &str {
+        match self {
+            Self::Name(name) => name,
+            Self::Config(config) => &config.name,
+        }
+    }
+
+    fn params(&self) -> Option<&ManifestProviderParams> {
+        match self {
+            Self::Name(_) => None,
+            Self::Config(config) => config.params.as_ref(),
+        }
+    }
+}
+
+impl ResolveProviderKind
+    for ManifestProviderDefinition<
+        ManifestProviderOpenRouterModel,
+        ManifestProviderOpenRouterConfig,
+    >
+{
+    fn resolve_kind(&self, locals: &Value) -> Result<ResolvedContextProviderKind, ManifestError> {
+        Ok(
+            ResolvedContextProviderKind::OpenRouter(ResolvedContextProviderOpenRouter {
+                api_key: self
+                    .config
+                    .as_ref()
+                    .and_then(|config| config.api_key.clone())
+                    .interpolate(locals)?,
+            })
+        )
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -218,14 +434,36 @@ pub struct ManifestProviderXaiConfig {
     pub api_key: Option<RuntimeValue<String>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Validate, Sanitizer)]
-pub struct ManifestProviderGemini {
-    #[serde(default)]
-    pub models: Option<Vec<ManifestProviderGeminiModel>>,
-    #[serde(default)]
-    pub config: Option<ManifestProviderGeminiConfig>,
-    #[serde(default)]
-    pub params: Option<ManifestProviderParams>,
+impl ManifestProviderModel for ManifestProviderXaiModel {
+    fn name(&self) -> &str {
+        match self {
+            Self::Name(name) => name,
+            Self::Config(config) => &config.name,
+        }
+    }
+
+    fn params(&self) -> Option<&ManifestProviderParams> {
+        match self {
+            Self::Name(_) => None,
+            Self::Config(config) => config.params.as_ref(),
+        }
+    }
+}
+
+impl ResolveProviderKind
+    for ManifestProviderDefinition<ManifestProviderXaiModel, ManifestProviderXaiConfig>
+{
+    fn resolve_kind(&self, locals: &Value) -> Result<ResolvedContextProviderKind, ManifestError> {
+        Ok(
+            ResolvedContextProviderKind::Xai(ResolvedContextProviderXai {
+                api_key: self
+                    .config
+                    .as_ref()
+                    .and_then(|config| config.api_key.clone())
+                    .interpolate(locals)?,
+            })
+        )
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -249,14 +487,36 @@ pub struct ManifestProviderGeminiConfig {
     pub api_key: Option<RuntimeValue<String>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Validate, Sanitizer)]
-pub struct ManifestProviderHuggingFace {
-    #[serde(default)]
-    pub models: Option<Vec<ManifestProviderHuggingFaceModel>>,
-    #[serde(default)]
-    pub config: Option<ManifestProviderHuggingFaceConfig>,
-    #[serde(default)]
-    pub params: Option<ManifestProviderParams>,
+impl ManifestProviderModel for ManifestProviderGeminiModel {
+    fn name(&self) -> &str {
+        match self {
+            Self::Name(name) => name,
+            Self::Config(config) => &config.name,
+        }
+    }
+
+    fn params(&self) -> Option<&ManifestProviderParams> {
+        match self {
+            Self::Name(_) => None,
+            Self::Config(config) => config.params.as_ref(),
+        }
+    }
+}
+
+impl ResolveProviderKind
+    for ManifestProviderDefinition<ManifestProviderGeminiModel, ManifestProviderGeminiConfig>
+{
+    fn resolve_kind(&self, locals: &Value) -> Result<ResolvedContextProviderKind, ManifestError> {
+        Ok(
+            ResolvedContextProviderKind::Gemini(ResolvedContextProviderGemini {
+                api_key: self
+                    .config
+                    .as_ref()
+                    .and_then(|config| config.api_key.clone())
+                    .interpolate(locals)?,
+            })
+        )
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -282,6 +542,46 @@ pub struct ManifestProviderHuggingFaceConfig {
     pub base_url: Option<RuntimeValue<String>>,
 }
 
+impl ManifestProviderModel for ManifestProviderHuggingFaceModel {
+    fn name(&self) -> &str {
+        match self {
+            Self::Name(name) => name,
+            Self::Config(config) => &config.name,
+        }
+    }
+
+    fn params(&self) -> Option<&ManifestProviderParams> {
+        match self {
+            Self::Name(_) => None,
+            Self::Config(config) => config.params.as_ref(),
+        }
+    }
+}
+
+impl ResolveProviderKind
+    for ManifestProviderDefinition<
+        ManifestProviderHuggingFaceModel,
+        ManifestProviderHuggingFaceConfig,
+    >
+{
+    fn resolve_kind(&self, locals: &Value) -> Result<ResolvedContextProviderKind, ManifestError> {
+        Ok(
+            ResolvedContextProviderKind::HuggingFace(ResolvedContextProviderHuggingFace {
+                api_key: self
+                    .config
+                    .as_ref()
+                    .and_then(|config| config.api_key.clone())
+                    .interpolate(locals)?,
+                base_url: self
+                    .config
+                    .as_ref()
+                    .and_then(|config| config.base_url.clone())
+                    .interpolate(locals)?,
+            })
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -289,26 +589,26 @@ mod tests {
 
     #[test]
     fn parses_huggingface_provider_configuration() {
-        let provider = SpecFormat::hcl()
+        let ManifestProvider::HuggingFace(huggingface) = SpecFormat::hcl()
             .deserialize_string::<ManifestProvider>(
                 r#"
-huggingface {
-  models = ["google/gemma-2-2b-it"]
+kind   = "huggingface"
+models = ["google/gemma-2-2b-it"]
 
-  config {
-    api_key  = "test-key"
-    base_url = "https://router.example.com"
-  }
+config {
+  api_key  = "test-key"
+  base_url = "https://router.example.com"
+}
 
-  params {
-    temperature = 0.4
-  }
+params {
+  temperature = 0.4
 }
 "#,
             )
-            .unwrap();
-
-        let huggingface = provider.huggingface.unwrap();
+            .unwrap()
+        else {
+            panic!("provider should be HuggingFace");
+        };
         assert!(matches!(
             huggingface.models.as_deref(),
             Some([ManifestProviderHuggingFaceModel::Name(name)])

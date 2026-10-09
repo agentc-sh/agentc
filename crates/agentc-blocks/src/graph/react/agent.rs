@@ -226,7 +226,8 @@ impl CodeGen<ResolvedContext> for AgentCodeGen {
             ) -> Result<Agent<ReActNode, Event, Message>> {
                 let model_registry = ModelRegistry::builder()
                     #(#model_registrations)*
-                    .build();
+                    .build()
+                    .await?;
 
                 let mut builder = Agent::builder()
                     .with_graph(
@@ -347,7 +348,7 @@ mod tests {
                 "slug": "assistant",
                 "agent_name": "assistant",
                 "runtime": { "default_tenant_id": "default" },
-                "providers": [],
+                "providers": {},
                 "agent": {
                     "version": "0.1.0",
                     "description": null,

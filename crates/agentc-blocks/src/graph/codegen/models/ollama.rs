@@ -5,91 +5,40 @@
 use proc_macro2::TokenStream;
 use quote::quote;
 
-use agentc_compiler::generator::blocks::codegen::ToIdent;
-
 use crate::{
     config::fields::FieldsSpec,
     context::ResolvedContextProviderOllama,
-    graph::codegen::models::{ModelCodeGen, params::InferenceParamsFields},
+    graph::codegen::models::ProviderKindCodeGen,
 };
 
-impl ModelCodeGen for ResolvedContextProviderOllama {
+impl ProviderKindCodeGen for ResolvedContextProviderOllama {
+    fn kind(&self) -> &'static str {
+        "ollama"
+    }
+
     fn imports(&self) -> TokenStream {
         quote! {
             use agentc_model::providers::ollama::{OllamaConfig, OllamaFactory};
         }
     }
 
-    fn registration(&self, fields: &FieldsSpec) -> TokenStream {
+    fn factory(&self) -> TokenStream {
+        quote! { OllamaFactory }
+    }
+
+    fn config(&self, fields: &FieldsSpec, provider: &str) -> TokenStream {
         let base_url = self
-            .config
+            .base_url
             .as_ref()
-            .and_then(|c| c.base_url.as_ref())
-            .and_then(|_| fields.config_accessor(&["provider", "ollama", "base_url"]))
+            .and_then(|_| fields.config_accessor(&["provider", provider, "base_url"]))
             .map(|path| quote! { Some(#path.clone()) })
             .unwrap_or(quote! { None });
 
-        let constraints = self.models.as_ref().map(|models| {
-            let names = models
-                .iter()
-                .map(|m| m.name.as_str())
-                .collect::<Vec<_>>();
-            quote! {
-                .with_constraints(OllamaFactory::provider(), [#(#names),*])
-            }
-        });
-
-        let provider_params = InferenceParamsFields::build(fields, "ollama", "params");
-        let with_provider_params = if provider_params.is_empty() {
-            quote! {}
-        } else {
-            quote! {
-                .with_provider_params(
-                    OllamaFactory::provider(),
-                    agentc_model::types::inference::InferenceParams {
-                        #(#provider_params)*
-                        ..Default::default()
-                    },
-                )
-            }
-        };
-
-        let with_model_params = self
-            .models
-            .iter()
-            .flatten()
-            .filter_map(|model| {
-                let model_params =
-                    InferenceParamsFields::build(fields, "ollama", model.name.to_ident().as_str());
-
-                if model_params.is_empty() {
-                    return None;
-                }
-
-                let name = &model.name;
-
-                Some(quote! {
-                    .with_model_params(
-                        OllamaFactory::provider(),
-                        #name,
-                        agentc_model::types::inference::InferenceParams {
-                            #(#model_params)*
-                            ..Default::default()
-                        },
-                    )
-                })
-            })
-            .collect::<Vec<_>>();
-
         quote! {
-            .with_factory(OllamaFactory)
-            .with_config(OllamaFactory::provider(), OllamaConfig {
+            OllamaConfig {
                 base_url: #base_url,
                 ..Default::default()
-            })?
-            #constraints
-            #with_provider_params
-            #(#with_model_params)*
+            }
         }
     }
 }
@@ -99,8 +48,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn imports_and_registration_reference_the_ollama_factory() {
-        let provider = ResolvedContextProviderOllama { config: None, params: None, models: None };
+    fn imports_and_config_reference_the_ollama_factory() {
+        let provider = ResolvedContextProviderOllama { base_url: None };
 
         assert!(
             provider
@@ -108,12 +57,12 @@ mod tests {
                 .to_string()
                 .contains("OllamaFactory")
         );
+        assert_eq!(provider.factory().to_string(), "OllamaFactory");
 
         let rendered = provider
-            .registration(&FieldsSpec::new(vec![]))
+            .config(&FieldsSpec::new(vec![]), "ollama")
             .to_string()
             .replace(' ', "");
-        assert!(rendered.contains("with_factory(OllamaFactory)"));
         assert!(rendered.contains("OllamaConfig{"));
     }
 }

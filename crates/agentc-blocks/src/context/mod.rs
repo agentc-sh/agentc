@@ -34,7 +34,7 @@ pub struct ResolvedContext {
     /// The runtime configuration for information not specific to any components.
     pub runtime: ResolvedContextRuntime,
     /// The resolved providers configuration.
-    pub providers: Vec<ResolvedContextProvider>,
+    pub providers: HashMap<String, ResolvedContextProvider>,
     /// The resolved agent context.
     pub agent: ResolvedContextAgent,
     /// Resolved custom block contexts, keyed by block label.
@@ -80,7 +80,7 @@ mod tests {
             "slug": "assistant",
             "agent_name": "assistant",
             "runtime": { "default_tenant_id": "default" },
-            "providers": [],
+            "providers": {},
             "agent": {
                 "version": "0.1.0",
                 "description": null,

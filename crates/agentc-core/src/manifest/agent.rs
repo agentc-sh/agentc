@@ -135,7 +135,9 @@ build {{
   archetype = "standalone"
 }}
 
-providers {{}}
+provider "anthropic" {{
+  kind = "anthropic"
+}}
 
 agent "assistant" {{
   graph {{

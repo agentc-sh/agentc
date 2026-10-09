@@ -4,23 +4,15 @@
 
 use crate::{
     config::fields::spec::{FieldsSpec, IntoFieldSpecs},
-    context::{ResolvedContext, ResolvedContextProvider},
+    context::ResolvedContext,
 };
 
 impl IntoFieldSpecs for ResolvedContext {
     fn extend_fields(&self, fields: &mut FieldsSpec) {
         fields.extend_from(&self.runtime);
 
-        for provider in &self.providers {
-            match provider {
-                ResolvedContextProvider::Anthropic(p) => fields.extend_from(p),
-                ResolvedContextProvider::OpenAi(p) => fields.extend_from(p),
-                ResolvedContextProvider::Ollama(p) => fields.extend_from(p),
-                ResolvedContextProvider::OpenRouter(p) => fields.extend_from(p),
-                ResolvedContextProvider::Xai(p) => fields.extend_from(p),
-                ResolvedContextProvider::Gemini(p) => fields.extend_from(p),
-                ResolvedContextProvider::HuggingFace(p) => fields.extend_from(p),
-            }
+        for provider in self.providers.values() {
+            fields.extend_from(provider);
         }
 
         fields.extend_from(&self.agent);
