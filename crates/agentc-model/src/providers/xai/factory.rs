@@ -2,31 +2,32 @@
 //
 // SPDX-License-Identifier: MIT
 
+use async_trait::async_trait;
+
 use crate::{
     errors::ModelError,
-    providers::xai::{client::XaiClient, config::XaiConfig, constants::PROVIDER},
+    providers::xai::{client::XaiClient, config::XaiConfig, constants::KIND},
     traits::ClientFactory,
-    types::identity::ProviderId,
+    types::identity::{ProviderId, ProviderKind},
 };
 
 /// Factory for constructing [`XaiClient`] instances from [`XaiConfig`].
 pub struct XaiFactory;
 
-impl XaiFactory {
-    pub fn provider() -> ProviderId {
-        PROVIDER.into()
-    }
-}
-
+#[async_trait]
 impl ClientFactory for XaiFactory {
     type Config = XaiConfig;
     type Client = XaiClient;
 
-    fn provider(&self) -> ProviderId {
-        Self::provider()
+    fn kind() -> ProviderKind {
+        KIND
     }
 
-    fn build(&self, config: XaiConfig) -> Result<XaiClient, ModelError> {
-        config.build_client()
+    async fn build(
+        &self,
+        provider: ProviderId,
+        config: XaiConfig,
+    ) -> Result<XaiClient, ModelError> {
+        config.build_client(provider)
     }
 }

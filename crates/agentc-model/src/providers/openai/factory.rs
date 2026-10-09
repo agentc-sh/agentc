@@ -2,11 +2,13 @@
 //
 // SPDX-License-Identifier: MIT
 
+use async_trait::async_trait;
+
 use crate::{
     errors::ModelError,
-    providers::openai::{client::OpenAiClient, config::OpenAiConfig, constants::PROVIDER},
+    providers::openai::{client::OpenAiClient, config::OpenAiConfig, constants::KIND},
     traits::ClientFactory,
-    types::identity::ProviderId,
+    types::identity::{ProviderId, ProviderKind},
 };
 
 /// Factory for constructing [`OpenAiClient`] instances from
@@ -15,21 +17,20 @@ use crate::{
 /// provider dispatch.
 pub struct OpenAiFactory;
 
-impl OpenAiFactory {
-    pub fn provider() -> ProviderId {
-        PROVIDER.into()
-    }
-}
-
+#[async_trait]
 impl ClientFactory for OpenAiFactory {
     type Config = OpenAiConfig;
     type Client = OpenAiClient;
 
-    fn provider(&self) -> ProviderId {
-        Self::provider()
+    fn kind() -> ProviderKind {
+        KIND
     }
 
-    fn build(&self, config: OpenAiConfig) -> Result<OpenAiClient, ModelError> {
-        config.build_client()
+    async fn build(
+        &self,
+        provider: ProviderId,
+        config: OpenAiConfig,
+    ) -> Result<OpenAiClient, ModelError> {
+        config.build_client(provider)
     }
 }

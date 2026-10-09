@@ -5,7 +5,8 @@
 use rig_core::providers::xai;
 
 use crate::{
-    providers::xai::{constants::PROVIDER, model::XaiModel},
+    errors::ModelError,
+    providers::xai::model::XaiModel,
     traits::CompletionClient,
     types::{
         identity::{ModelId, ProviderId},
@@ -15,12 +16,13 @@ use crate::{
 
 #[derive(Clone)]
 pub struct XaiClient {
+    provider: ProviderId,
     inner: xai::Client,
 }
 
 impl XaiClient {
-    pub fn new(client: xai::Client) -> Self {
-        Self { inner: client }
+    pub fn new(provider: ProviderId, client: xai::Client) -> Self {
+        Self { provider, inner: client }
     }
 }
 
@@ -28,10 +30,10 @@ impl CompletionClient for XaiClient {
     type Model = XaiModel;
 
     fn provider(&self) -> ProviderId {
-        PROVIDER.into()
+        self.provider.clone()
     }
 
-    fn model(&self, model: ModelId, params: InferenceParams) -> XaiModel {
-        XaiModel::new(self.inner.clone(), model, params)
+    fn model(&self, model: ModelId, params: InferenceParams) -> Result<XaiModel, ModelError> {
+        Ok(XaiModel::new(self.provider.clone(), self.inner.clone(), model, params))
     }
 }

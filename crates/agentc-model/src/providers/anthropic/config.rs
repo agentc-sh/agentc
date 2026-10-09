@@ -6,7 +6,11 @@ use rig_core::providers::anthropic;
 use serde::{Deserialize, Serialize};
 use std::env;
 
-use crate::{errors::ModelError, providers::anthropic::client::AnthropicClient};
+use crate::{
+    errors::ModelError,
+    providers::anthropic::{client::AnthropicClient, constants::API_KEY_ENV},
+    types::identity::ProviderId,
+};
 
 /// Configuration for constructing an [`AnthropicClient`](crate::providers::anthropic::AnthropicClient).
 ///
@@ -34,16 +38,29 @@ impl AnthropicConfig {
     }
 
     /// Construct an [`AnthropicClient`] from this config.
-    pub fn build_client(&self) -> Result<AnthropicClient, ModelError> {
-        Ok(AnthropicClient::new(
-            anthropic::Client::builder()
-                .api_key(match &self.api_key {
-                    Some(key) => key.clone(),
-                    None => env::var("ANTHROPIC_API_KEY")
-                        .expect("ANTHROPIC_API_KEY environment variable must be set if api_key is not provided"),
-                })
-                .build()
-                .map_err(|e| ModelError::configuration(e.to_string()))?
-        ))
+    pub fn build_client(&self, provider: ProviderId) -> Result<AnthropicClient, ModelError> {
+        let mut builder = anthropic::Client::builder().api_key(
+            match &self.api_key {
+                Some(key) => key.clone(),
+                None => env::var(API_KEY_ENV).map_err(|_| {
+                    ModelError::configuration(format!(
+                        "provider '{provider}' has no api_key and {API_KEY_ENV} is not set"
+                    ))
+                })?,
+            },
+        );
+
+        if let Some(url) = &self.base_url {
+            builder = builder.base_url(url);
+        }
+
+        Ok(
+            AnthropicClient::new(
+                provider,
+                builder
+                    .build()
+                    .map_err(|e| ModelError::configuration(e.to_string()))?,
+            )
+        )
     }
 }

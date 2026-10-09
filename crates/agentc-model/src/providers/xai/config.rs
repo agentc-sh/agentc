@@ -6,7 +6,11 @@ use rig_core::providers::xai;
 use serde::{Deserialize, Serialize};
 use std::env;
 
-use crate::{errors::ModelError, providers::xai::client::XaiClient};
+use crate::{
+    errors::ModelError,
+    providers::xai::{client::XaiClient, constants::API_KEY_ENV},
+    types::identity::ProviderId,
+};
 
 /// Configuration for constructing an [`XaiClient`].
 ///
@@ -17,17 +21,23 @@ pub struct XaiConfig {
 }
 
 impl XaiConfig {
-    pub fn build_client(&self) -> Result<XaiClient, ModelError> {
-        Ok(XaiClient::new(
-            xai::Client::new(
-                match &self.api_key {
-                    Some(key) => key.clone(),
-                    None => env::var("XAI_API_KEY")
-                        .expect("XAI_API_KEY must be set if api_key is not provided"),
-                }
-                .as_str(),
+    pub fn build_client(&self, provider: ProviderId) -> Result<XaiClient, ModelError> {
+        Ok(
+            XaiClient::new(
+                provider.clone(),
+                xai::Client::new(
+                    match &self.api_key {
+                        Some(key) => key.clone(),
+                        None => env::var(API_KEY_ENV).map_err(|_| {
+                            ModelError::configuration(format!(
+                                "provider '{provider}' has no api_key and {API_KEY_ENV} is not set"
+                            ))
+                        })?,
+                    }
+                    .as_str(),
+                )
+                .map_err(|e| ModelError::configuration(e.to_string()))?,
             )
-            .map_err(|e| ModelError::configuration(e.to_string()))?,
-        ))
+        )
     }
 }

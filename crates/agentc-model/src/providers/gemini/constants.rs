@@ -4,11 +4,13 @@
 
 use std::fmt::{Display, Formatter, Result as FmtResult};
 
-use crate::types::identity::{ModelId, StaticProviderId};
+use crate::types::identity::{ModelId, ProviderKind};
 
-pub const PROVIDER: StaticProviderId = StaticProviderId::new("gemini");
+pub const KIND: ProviderKind = ProviderKind::new("gemini");
 
 pub const OTEL_PROVIDER_NAME: &str = "gcp.gemini";
+
+pub const API_KEY_ENV: &str = "GEMINI_API_KEY";
 
 pub enum Model {
     Gemini25Flash,

@@ -2,8 +2,10 @@
 //
 // SPDX-License-Identifier: MIT
 
-use crate::types::identity::StaticProviderId;
+use crate::types::identity::ProviderKind;
 
-pub const PROVIDER: StaticProviderId = StaticProviderId::new("openrouter");
+pub const KIND: ProviderKind = ProviderKind::new("openrouter");
 
-pub const OTEL_PROVIDER_NAME: &str = PROVIDER.as_str();
+pub const OTEL_PROVIDER_NAME: &str = KIND.as_str();
+
+pub const API_KEY_ENV: &str = "OPENROUTER_API_KEY";

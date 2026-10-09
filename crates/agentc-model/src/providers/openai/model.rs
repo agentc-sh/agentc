@@ -12,10 +12,7 @@ use serde_json::json;
 
 use crate::{
     errors::{IntoModelError, ModelError},
-    providers::{
-        openai::constants::{OTEL_PROVIDER_NAME, PROVIDER},
-        rig::events::CompletionStreamMetadata,
-    },
+    providers::{openai::constants::OTEL_PROVIDER_NAME, rig::events::CompletionStreamMetadata},
     stream::ChatCompletionStream,
     traits::CompletionModel,
     types::{
@@ -30,6 +27,7 @@ impl CompletionStreamMetadata for openai::completion::streaming::StreamingComple
 /// A specific OpenAI model instance. Obtained from
 /// [`OpenAiClient::model`](crate::providers::openai::OpenAiClient::model).
 pub struct OpenAiModel {
+    provider: ProviderId,
     model: openai::completion::CompletionModel,
     model_id: ModelId,
     inference_params: InferenceParams,
@@ -37,11 +35,13 @@ pub struct OpenAiModel {
 
 impl OpenAiModel {
     pub fn new(
+        provider: ProviderId,
         client: openai::CompletionsClient,
         model_id: ModelId,
         inference_params: InferenceParams,
     ) -> Self {
         Self {
+            provider,
             model: client.completion_model(model_id.as_str()),
             model_id,
             inference_params,
@@ -52,7 +52,7 @@ impl OpenAiModel {
 #[async_trait]
 impl CompletionModel for OpenAiModel {
     fn provider(&self) -> ProviderId {
-        PROVIDER.into()
+        self.provider.clone()
     }
 
     fn otel_provider_name(&self) -> &'static str {
@@ -133,6 +133,8 @@ impl CompletionModel for OpenAiModel {
             builder = builder.additional_params(additional);
         }
 
+        let provider = self.provider.clone();
+
         ChatCompletionStream::establish(
             builder
                 .messages(
@@ -142,11 +144,15 @@ impl CompletionModel for OpenAiModel {
                 )
                 .stream()
                 .await
-                .map_err(|e| e.into_model_error(PROVIDER))?
-                .filter_map(|event| async move {
-                    match event {
-                        Ok(e) => Some(Ok(e.try_into().ok()?)),
-                        Err(e) => Some(Err(e.into_model_error(PROVIDER))),
+                .map_err(|e| e.into_model_error(self.provider.clone()))?
+                .filter_map(move |event| {
+                    let provider = provider.clone();
+
+                    async move {
+                        match event {
+                            Ok(e) => Some(Ok(e.try_into().ok()?)),
+                            Err(e) => Some(Err(e.into_model_error(provider))),
+                        }
                     }
                 }),
         )

@@ -344,7 +344,7 @@ impl ReActNode {
                     .into_iter()
                     .map(|td| td.to_model_type()),
             )
-            .maybe_provider_params(override_params.and_then(|p| p.provider_params))
+            .maybe_inference_params(override_params)
             .send()
             .await
             .map_err(GraphError::execution_error)?;
@@ -764,7 +764,7 @@ mod tests {
         stream::ChatCompletionStream,
         traits::{ClientFactory, CompletionClient},
         types::{
-            identity::{ModelId, ProviderId},
+            identity::{ModelId, ProviderId, ProviderKind},
             inference::InferenceParams,
             request::CompletionRequest,
             stream::{CompletionStreamEvent, CompletionStreamFinal},
@@ -949,8 +949,8 @@ mod tests {
         type Config = Value;
         type Client = ScriptedProvider;
 
-        fn provider(&self) -> ProviderId {
-            "stub".into()
+        fn kind(&self) -> ProviderKind {
+            ProviderKind::new("stub")
         }
 
         fn build(&self, _config: Self::Config) -> Result<Self::Client, ModelError> {
