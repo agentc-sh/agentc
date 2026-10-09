@@ -6,8 +6,7 @@ use proc_macro2::TokenStream;
 use quote::quote;
 
 use crate::{
-    config::fields::FieldsSpec,
-    context::ResolvedContextProviderOllama,
+    config::fields::FieldsSpec, context::ResolvedContextProviderOllama,
     graph::codegen::models::ProviderKindCodeGen,
 };
 

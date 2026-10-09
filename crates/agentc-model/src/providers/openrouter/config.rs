@@ -22,22 +22,20 @@ pub struct OpenRouterConfig {
 
 impl OpenRouterConfig {
     pub fn build_client(&self, provider: ProviderId) -> Result<OpenRouterClient, ModelError> {
-        Ok(
-            OpenRouterClient::new(
-                provider.clone(),
-                openrouter::Client::new(
-                    match &self.api_key {
-                        Some(key) => key.clone(),
-                        None => env::var(API_KEY_ENV).map_err(|_| {
-                            ModelError::configuration(format!(
-                                "provider '{provider}' has no api_key and {API_KEY_ENV} is not set"
-                            ))
-                        })?,
-                    }
-                    .as_str(),
-                )
-                .map_err(|e| ModelError::configuration(e.to_string()))?,
+        Ok(OpenRouterClient::new(
+            provider.clone(),
+            openrouter::Client::new(
+                match &self.api_key {
+                    Some(key) => key.clone(),
+                    None => env::var(API_KEY_ENV).map_err(|_| {
+                        ModelError::configuration(format!(
+                            "provider '{provider}' has no api_key and {API_KEY_ENV} is not set"
+                        ))
+                    })?,
+                }
+                .as_str(),
             )
-        )
+            .map_err(|e| ModelError::configuration(e.to_string()))?,
+        ))
     }
 }

@@ -38,28 +38,24 @@ impl HuggingFaceConfig {
 
     /// Construct a [`HuggingFaceClient`] from this config.
     pub fn build_client(&self, provider: ProviderId) -> Result<HuggingFaceClient, ModelError> {
-        let mut builder = huggingface::Client::builder().api_key(
-            match &self.api_key {
-                Some(key) => key.clone(),
-                None => env::var(API_KEY_ENV).map_err(|_| {
-                    ModelError::configuration(format!(
-                        "provider '{provider}' has no api_key and {API_KEY_ENV} is not set"
-                    ))
-                })?,
-            },
-        );
+        let mut builder = huggingface::Client::builder().api_key(match &self.api_key {
+            Some(key) => key.clone(),
+            None => env::var(API_KEY_ENV).map_err(|_| {
+                ModelError::configuration(format!(
+                    "provider '{provider}' has no api_key and {API_KEY_ENV} is not set"
+                ))
+            })?,
+        });
 
         if let Some(url) = &self.base_url {
             builder = builder.base_url(url);
         }
 
-        Ok(
-            HuggingFaceClient::new(
-                provider,
-                builder
-                    .build()
-                    .map_err(|e| ModelError::configuration(e.to_string()))?,
-            )
-        )
+        Ok(HuggingFaceClient::new(
+            provider,
+            builder
+                .build()
+                .map_err(|e| ModelError::configuration(e.to_string()))?,
+        ))
     }
 }

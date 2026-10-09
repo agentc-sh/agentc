@@ -39,28 +39,24 @@ impl OpenAiConfig {
 
     /// Construct an [`OpenAiClient`] from this config.
     pub fn build_client(&self, provider: ProviderId) -> Result<OpenAiClient, ModelError> {
-        let mut builder = openai::CompletionsClient::builder().api_key(
-            match &self.api_key {
-                Some(key) => key.clone(),
-                None => env::var(API_KEY_ENV).map_err(|_| {
-                    ModelError::configuration(format!(
-                        "provider '{provider}' has no api_key and {API_KEY_ENV} is not set"
-                    ))
-                })?,
-            },
-        );
+        let mut builder = openai::CompletionsClient::builder().api_key(match &self.api_key {
+            Some(key) => key.clone(),
+            None => env::var(API_KEY_ENV).map_err(|_| {
+                ModelError::configuration(format!(
+                    "provider '{provider}' has no api_key and {API_KEY_ENV} is not set"
+                ))
+            })?,
+        });
 
         if let Some(url) = &self.base_url {
             builder = builder.base_url(url);
         }
 
-        Ok(
-            OpenAiClient::new(
-                provider,
-                builder
-                    .build()
-                    .map_err(|e| ModelError::configuration(e.to_string()))?,
-            )
-        )
+        Ok(OpenAiClient::new(
+            provider,
+            builder
+                .build()
+                .map_err(|e| ModelError::configuration(e.to_string()))?,
+        ))
     }
 }

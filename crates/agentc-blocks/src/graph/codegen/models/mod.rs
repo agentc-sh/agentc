@@ -95,9 +95,7 @@ impl ModelCodeGen for ResolvedContextProvider {
         let name = &self.name;
         let key = self.config_key();
         let factory = self.kind.factory();
-        let config = self
-            .kind
-            .config(fields, key.as_str());
+        let config = self.kind.config(fields, key.as_str());
 
         let constraints = self.models.as_ref().map(|models| {
             let names = models

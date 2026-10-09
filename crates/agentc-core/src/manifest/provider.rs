@@ -11,16 +11,10 @@ use validator::Validate;
 
 use agentc_blocks::{
     context::{
-        ResolvedContextProvider,
-        ResolvedContextProviderAnthropic,
-        ResolvedContextProviderGemini,
-        ResolvedContextProviderHuggingFace,
-        ResolvedContextProviderKind,
-        ResolvedContextProviderModel,
-        ResolvedContextProviderOllama,
-        ResolvedContextProviderOpenAi,
-        ResolvedContextProviderOpenRouter,
-        ResolvedContextProviderParams,
+        ResolvedContextProvider, ResolvedContextProviderAnthropic, ResolvedContextProviderGemini,
+        ResolvedContextProviderHuggingFace, ResolvedContextProviderKind,
+        ResolvedContextProviderModel, ResolvedContextProviderOllama, ResolvedContextProviderOpenAi,
+        ResolvedContextProviderOpenRouter, ResolvedContextProviderParams,
         ResolvedContextProviderXai,
     },
     types::RuntimeValue,
@@ -53,40 +47,36 @@ where
         name: &str,
         locals: &Value,
     ) -> Result<ResolvedContextProvider, ManifestError> {
-        Ok(
-            ResolvedContextProvider {
-                name: name.to_string(),
-                models: self
-                    .models
-                    .as_ref()
-                    .map(|models| {
-                        models
-                            .iter()
-                            .map(|model| {
-                                Ok(
-                                    ResolvedContextProviderModel {
-                                        name: model
-                                            .name()
-                                            .to_string()
-                                            .interpolate(locals)?,
-                                        params: model
-                                            .params()
-                                            .map(|params| params.resolve(locals))
-                                            .transpose()?,
-                                    }
-                                )
+        Ok(ResolvedContextProvider {
+            name: name.to_string(),
+            models: self
+                .models
+                .as_ref()
+                .map(|models| {
+                    models
+                        .iter()
+                        .map(|model| {
+                            Ok(ResolvedContextProviderModel {
+                                name: model
+                                    .name()
+                                    .to_string()
+                                    .interpolate(locals)?,
+                                params: model
+                                    .params()
+                                    .map(|params| params.resolve(locals))
+                                    .transpose()?,
                             })
-                            .collect::<Result<_, ManifestError>>()
-                    })
-                    .transpose()?,
-                params: self
-                    .params
-                    .as_ref()
-                    .map(|params| params.resolve(locals))
-                    .transpose()?,
-                kind: self.resolve_kind(locals)?,
-            }
-        )
+                        })
+                        .collect::<Result<_, ManifestError>>()
+                })
+                .transpose()?,
+            params: self
+                .params
+                .as_ref()
+                .map(|params| params.resolve(locals))
+                .transpose()?,
+            kind: self.resolve_kind(locals)?,
+        })
     }
 }
 
@@ -162,25 +152,23 @@ pub struct ManifestProviderParams {
 
 impl ManifestProviderParams {
     pub fn resolve(&self, locals: &Value) -> Result<ResolvedContextProviderParams, ManifestError> {
-        Ok(
-            ResolvedContextProviderParams {
-                max_tokens: self.max_tokens.clone(),
-                temperature: self.temperature.clone(),
-                top_p: self.top_p.clone(),
-                top_k: self.top_k.clone(),
-                stop_sequences: self
-                    .stop_sequences
-                    .clone()
-                    .interpolate(locals)?,
-                frequency_penalty: self.frequency_penalty.clone(),
-                presence_penalty: self.presence_penalty.clone(),
-                seed: self.seed.clone(),
-                provider_params: self
-                    .provider_params
-                    .clone()
-                    .interpolate(locals)?,
-            }
-        )
+        Ok(ResolvedContextProviderParams {
+            max_tokens: self.max_tokens.clone(),
+            temperature: self.temperature.clone(),
+            top_p: self.top_p.clone(),
+            top_k: self.top_k.clone(),
+            stop_sequences: self
+                .stop_sequences
+                .clone()
+                .interpolate(locals)?,
+            frequency_penalty: self.frequency_penalty.clone(),
+            presence_penalty: self.presence_penalty.clone(),
+            seed: self.seed.clone(),
+            provider_params: self
+                .provider_params
+                .clone()
+                .interpolate(locals)?,
+        })
     }
 }
 
@@ -227,20 +215,18 @@ impl ResolveProviderKind
     for ManifestProviderDefinition<ManifestProviderAnthropicModel, ManifestProviderAnthropicConfig>
 {
     fn resolve_kind(&self, locals: &Value) -> Result<ResolvedContextProviderKind, ManifestError> {
-        Ok(
-            ResolvedContextProviderKind::Anthropic(ResolvedContextProviderAnthropic {
-                api_key: self
-                    .config
-                    .as_ref()
-                    .and_then(|config| config.api_key.clone())
-                    .interpolate(locals)?,
-                base_url: self
-                    .config
-                    .as_ref()
-                    .and_then(|config| config.base_url.clone())
-                    .interpolate(locals)?,
-            })
-        )
+        Ok(ResolvedContextProviderKind::Anthropic(ResolvedContextProviderAnthropic {
+            api_key: self
+                .config
+                .as_ref()
+                .and_then(|config| config.api_key.clone())
+                .interpolate(locals)?,
+            base_url: self
+                .config
+                .as_ref()
+                .and_then(|config| config.base_url.clone())
+                .interpolate(locals)?,
+        }))
     }
 }
 
@@ -287,20 +273,18 @@ impl ResolveProviderKind
     for ManifestProviderDefinition<ManifestProviderOpenAiModel, ManifestProviderOpenAiConfig>
 {
     fn resolve_kind(&self, locals: &Value) -> Result<ResolvedContextProviderKind, ManifestError> {
-        Ok(
-            ResolvedContextProviderKind::OpenAi(ResolvedContextProviderOpenAi {
-                api_key: self
-                    .config
-                    .as_ref()
-                    .and_then(|config| config.api_key.clone())
-                    .interpolate(locals)?,
-                base_url: self
-                    .config
-                    .as_ref()
-                    .and_then(|config| config.base_url.clone())
-                    .interpolate(locals)?,
-            })
-        )
+        Ok(ResolvedContextProviderKind::OpenAi(ResolvedContextProviderOpenAi {
+            api_key: self
+                .config
+                .as_ref()
+                .and_then(|config| config.api_key.clone())
+                .interpolate(locals)?,
+            base_url: self
+                .config
+                .as_ref()
+                .and_then(|config| config.base_url.clone())
+                .interpolate(locals)?,
+        }))
     }
 }
 
@@ -345,15 +329,13 @@ impl ResolveProviderKind
     for ManifestProviderDefinition<ManifestProviderOllamaModel, ManifestProviderOllamaConfig>
 {
     fn resolve_kind(&self, locals: &Value) -> Result<ResolvedContextProviderKind, ManifestError> {
-        Ok(
-            ResolvedContextProviderKind::Ollama(ResolvedContextProviderOllama {
-                base_url: self
-                    .config
-                    .as_ref()
-                    .and_then(|config| config.base_url.clone())
-                    .interpolate(locals)?,
-            })
-        )
+        Ok(ResolvedContextProviderKind::Ollama(ResolvedContextProviderOllama {
+            base_url: self
+                .config
+                .as_ref()
+                .and_then(|config| config.base_url.clone())
+                .interpolate(locals)?,
+        }))
     }
 }
 
@@ -401,15 +383,13 @@ impl ResolveProviderKind
     >
 {
     fn resolve_kind(&self, locals: &Value) -> Result<ResolvedContextProviderKind, ManifestError> {
-        Ok(
-            ResolvedContextProviderKind::OpenRouter(ResolvedContextProviderOpenRouter {
-                api_key: self
-                    .config
-                    .as_ref()
-                    .and_then(|config| config.api_key.clone())
-                    .interpolate(locals)?,
-            })
-        )
+        Ok(ResolvedContextProviderKind::OpenRouter(ResolvedContextProviderOpenRouter {
+            api_key: self
+                .config
+                .as_ref()
+                .and_then(|config| config.api_key.clone())
+                .interpolate(locals)?,
+        }))
     }
 }
 
@@ -454,15 +434,13 @@ impl ResolveProviderKind
     for ManifestProviderDefinition<ManifestProviderXaiModel, ManifestProviderXaiConfig>
 {
     fn resolve_kind(&self, locals: &Value) -> Result<ResolvedContextProviderKind, ManifestError> {
-        Ok(
-            ResolvedContextProviderKind::Xai(ResolvedContextProviderXai {
-                api_key: self
-                    .config
-                    .as_ref()
-                    .and_then(|config| config.api_key.clone())
-                    .interpolate(locals)?,
-            })
-        )
+        Ok(ResolvedContextProviderKind::Xai(ResolvedContextProviderXai {
+            api_key: self
+                .config
+                .as_ref()
+                .and_then(|config| config.api_key.clone())
+                .interpolate(locals)?,
+        }))
     }
 }
 
@@ -507,15 +485,13 @@ impl ResolveProviderKind
     for ManifestProviderDefinition<ManifestProviderGeminiModel, ManifestProviderGeminiConfig>
 {
     fn resolve_kind(&self, locals: &Value) -> Result<ResolvedContextProviderKind, ManifestError> {
-        Ok(
-            ResolvedContextProviderKind::Gemini(ResolvedContextProviderGemini {
-                api_key: self
-                    .config
-                    .as_ref()
-                    .and_then(|config| config.api_key.clone())
-                    .interpolate(locals)?,
-            })
-        )
+        Ok(ResolvedContextProviderKind::Gemini(ResolvedContextProviderGemini {
+            api_key: self
+                .config
+                .as_ref()
+                .and_then(|config| config.api_key.clone())
+                .interpolate(locals)?,
+        }))
     }
 }
 
@@ -565,20 +541,18 @@ impl ResolveProviderKind
     >
 {
     fn resolve_kind(&self, locals: &Value) -> Result<ResolvedContextProviderKind, ManifestError> {
-        Ok(
-            ResolvedContextProviderKind::HuggingFace(ResolvedContextProviderHuggingFace {
-                api_key: self
-                    .config
-                    .as_ref()
-                    .and_then(|config| config.api_key.clone())
-                    .interpolate(locals)?,
-                base_url: self
-                    .config
-                    .as_ref()
-                    .and_then(|config| config.base_url.clone())
-                    .interpolate(locals)?,
-            })
-        )
+        Ok(ResolvedContextProviderKind::HuggingFace(ResolvedContextProviderHuggingFace {
+            api_key: self
+                .config
+                .as_ref()
+                .and_then(|config| config.api_key.clone())
+                .interpolate(locals)?,
+            base_url: self
+                .config
+                .as_ref()
+                .and_then(|config| config.base_url.clone())
+                .interpolate(locals)?,
+        }))
     }
 }
 

@@ -22,22 +22,20 @@ pub struct GeminiConfig {
 
 impl GeminiConfig {
     pub fn build_client(&self, provider: ProviderId) -> Result<GeminiClient, ModelError> {
-        Ok(
-            GeminiClient::new(
-                provider.clone(),
-                gemini::Client::new(
-                    match &self.api_key {
-                        Some(key) => key.clone(),
-                        None => env::var(API_KEY_ENV).map_err(|_| {
-                            ModelError::configuration(format!(
-                                "provider '{provider}' has no api_key and {API_KEY_ENV} is not set"
-                            ))
-                        })?,
-                    }
-                    .as_str(),
-                )
-                .map_err(|e| ModelError::configuration(e.to_string()))?,
+        Ok(GeminiClient::new(
+            provider.clone(),
+            gemini::Client::new(
+                match &self.api_key {
+                    Some(key) => key.clone(),
+                    None => env::var(API_KEY_ENV).map_err(|_| {
+                        ModelError::configuration(format!(
+                            "provider '{provider}' has no api_key and {API_KEY_ENV} is not set"
+                        ))
+                    })?,
+                }
+                .as_str(),
             )
-        )
+            .map_err(|e| ModelError::configuration(e.to_string()))?,
+        ))
     }
 }

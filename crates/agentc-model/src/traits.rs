@@ -134,12 +134,9 @@ impl<F: ClientFactory> ErasedClientFactory for F {
         provider: ProviderId,
         config: Value,
     ) -> Result<Arc<dyn ErasedCompletionClient>, ModelError> {
-        self.build(
-            provider,
-            from_value::<F::Config>(config).map_err(ModelError::Serialization)?,
-        )
-        .await
-        .map(|client| Arc::new(client) as Arc<dyn ErasedCompletionClient>)
+        self.build(provider, from_value::<F::Config>(config).map_err(ModelError::Serialization)?)
+            .await
+            .map(|client| Arc::new(client) as Arc<dyn ErasedCompletionClient>)
     }
 }
 

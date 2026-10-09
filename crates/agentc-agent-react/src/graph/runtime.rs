@@ -970,12 +970,7 @@ mod tests {
             provider: ProviderId,
             _config: Self::Config,
         ) -> Result<Self::Client, ModelError> {
-            Ok(
-                ScriptedClient {
-                    provider,
-                    script: self.0.clone(),
-                }
-            )
+            Ok(ScriptedClient { provider, script: self.0.clone() })
         }
     }
 
@@ -991,14 +986,12 @@ mod tests {
             model: ModelId,
             params: InferenceParams,
         ) -> Result<Self::Model, ModelError> {
-            Ok(
-                ScriptedModel {
-                    provider: self.provider.clone(),
-                    model_id: model,
-                    params,
-                    script: self.script.clone(),
-                }
-            )
+            Ok(ScriptedModel {
+                provider: self.provider.clone(),
+                model_id: model,
+                params,
+                script: self.script.clone(),
+            })
         }
     }
 
@@ -1272,18 +1265,15 @@ mod tests {
 
         let _ = CallModelHarness::call(
             model.clone(),
-            Some(
-                ReActModelConfig::new()
-                    .with_override(ModelConfigOverride {
-                        provider: None,
-                        model: None,
-                        inference_params: Some(InferenceParams {
-                            temperature: Some(0.3),
-                            max_tokens: Some(512),
-                            ..Default::default()
-                        }),
-                    }),
-            ),
+            Some(ReActModelConfig::new().with_override(ModelConfigOverride {
+                provider: None,
+                model: None,
+                inference_params: Some(InferenceParams {
+                    temperature: Some(0.3),
+                    max_tokens: Some(512),
+                    ..Default::default()
+                }),
+            })),
             ReActGraphConfig::default(),
         )
         .await;

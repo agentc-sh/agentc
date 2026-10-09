@@ -38,14 +38,12 @@ impl RegisteredProvider {
 
         self.client.model_erased(
             model.clone(),
-            self.params
-                .clone()
-                .merge(
-                    self.model_params
-                        .get(&model)
-                        .cloned()
-                        .unwrap_or_default(),
-                ),
+            self.params.clone().merge(
+                self.model_params
+                    .get(&model)
+                    .cloned()
+                    .unwrap_or_default(),
+            ),
         )
     }
 }
@@ -59,9 +57,7 @@ pub struct ModelRegistry {
 impl ModelRegistry {
     /// Create a new, empty [`ModelRegistry`](crate::registry::ModelRegistry).
     pub fn new() -> Self {
-        Self {
-            providers: HashMap::new(),
-        }
+        Self { providers: HashMap::new() }
     }
 
     /// Get a builder for creating a new [`ModelRegistry`](crate::registry::ModelRegistry) with registered providers and configs.

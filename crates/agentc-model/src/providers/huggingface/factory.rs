@@ -6,7 +6,9 @@ use async_trait::async_trait;
 
 use crate::{
     errors::ModelError,
-    providers::huggingface::{client::HuggingFaceClient, config::HuggingFaceConfig, constants::KIND},
+    providers::huggingface::{
+        client::HuggingFaceClient, config::HuggingFaceConfig, constants::KIND,
+    },
     traits::ClientFactory,
     types::identity::{ProviderId, ProviderKind},
 };
