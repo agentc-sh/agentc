@@ -5,7 +5,7 @@ description: The agent.acl manifest and the top-level blocks that make up an age
 
 An agent is defined by a single `agent.acl` manifest. The manifest is a set of top-level blocks whose
 order does not matter: `build` selects the output shape, `filesystem` and `network` decide what the
-agent's components can reach, `providers` declares the models, `agent` defines the agent itself,
+agent's components can reach, `provider` declares the model providers, `agent` defines the agent itself,
 `tool` and `skill` extend what it can do, `http_server` exposes it over the network, and `locals`
 factors out repeated values. Each block has its own reference page linked below.
 
@@ -44,13 +44,12 @@ network {
   }
 }
 
-providers {
-  anthropic {
-    models = ["claude-haiku-4-5"]
+provider "anthropic" {
+  kind   = "anthropic"
+  models = ["claude-haiku-4-5"]
 
-    config {
-      api_key = secret(runtime("ANTHROPIC_API_KEY"))
-    }
+  config {
+    api_key = secret(runtime("ANTHROPIC_API_KEY"))
   }
 }
 
@@ -127,7 +126,7 @@ including the `content` of an individual prompt message.
 | [runtime](/reference/manifest/runtime) | Runtime settings such as the default tenant and storage. |
 | [filesystem](/reference/manifest/filesystem) | The virtual filesystem the agent's components see. |
 | [network](/reference/manifest/network) | The egress policy and limits for outbound requests. |
-| [providers](/reference/manifest/providers) | Model providers and their connection and inference configuration. |
+| [provider](/reference/manifest/providers) | A model provider, how to connect to it, and its models and inference defaults. |
 | [agent](/reference/manifest/agent) | The agent's identity, graph, model, prompt, and capabilities. |
 | [graph](/reference/manifest/graph) | The graph selection inside the agent. |
 | [tool](/reference/manifest/tool) | A tool the agent can call, including local tools, MCP servers, and A2A delegation targets. |

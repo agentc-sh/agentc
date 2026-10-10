@@ -5,7 +5,8 @@
 use rig_core::providers::anthropic;
 
 use crate::{
-    providers::anthropic::{constants::PROVIDER, model::AnthropicModel},
+    errors::ModelError,
+    providers::anthropic::model::AnthropicModel,
     traits::CompletionClient,
     types::{
         identity::{ModelId, ProviderId},
@@ -15,12 +16,13 @@ use crate::{
 
 #[derive(Clone)]
 pub struct AnthropicClient {
+    provider: ProviderId,
     inner: anthropic::Client,
 }
 
 impl AnthropicClient {
-    pub fn new(client: anthropic::Client) -> Self {
-        Self { inner: client }
+    pub fn new(provider: ProviderId, client: anthropic::Client) -> Self {
+        Self { provider, inner: client }
     }
 }
 
@@ -28,10 +30,10 @@ impl CompletionClient for AnthropicClient {
     type Model = AnthropicModel;
 
     fn provider(&self) -> ProviderId {
-        PROVIDER.into()
+        self.provider.clone()
     }
 
-    fn model(&self, model: ModelId, params: InferenceParams) -> AnthropicModel {
-        AnthropicModel::new(self.inner.clone(), model, params)
+    fn model(&self, model: ModelId, params: InferenceParams) -> Result<AnthropicModel, ModelError> {
+        Ok(AnthropicModel::new(self.provider.clone(), self.inner.clone(), model, params))
     }
 }

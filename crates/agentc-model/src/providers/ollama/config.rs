@@ -5,7 +5,9 @@
 use rig_core::providers::ollama;
 use serde::{Deserialize, Serialize};
 
-use crate::{errors::ModelError, providers::ollama::client::OllamaClient};
+use crate::{
+    errors::ModelError, providers::ollama::client::OllamaClient, types::identity::ProviderId,
+};
 
 /// Configuration for constructing an [`OllamaClient`](crate::providers::ollama::OllamaClient).
 ///
@@ -27,7 +29,7 @@ impl OllamaConfig {
     }
 
     /// Construct an [`OllamaClient`] from this config.
-    pub fn build_client(&self) -> Result<OllamaClient, ModelError> {
+    pub fn build_client(&self, provider: ProviderId) -> Result<OllamaClient, ModelError> {
         let mut builder = ollama::Client::builder().api_key(rig_core::client::Nothing);
 
         if let Some(url) = &self.base_url {
@@ -38,6 +40,6 @@ impl OllamaConfig {
             .build()
             .map_err(|e| ModelError::configuration(e.to_string()))?;
 
-        Ok(OllamaClient::new(inner))
+        Ok(OllamaClient::new(provider, inner))
     }
 }

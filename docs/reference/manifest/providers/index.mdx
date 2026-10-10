@@ -1,19 +1,20 @@
 ---
-title: providers
-description: The providers block declares model providers and their configuration.
+title: provider
+description: The provider block declares a model provider and how to connect to it.
 ---
 
-The `providers` block declares which model providers the agent may use and how to connect to them.
-The value of `agent.model.provider` must match one of the sub-block names declared here.
+The `provider` block declares a model provider the agent may use and how to connect to it. A manifest
+can contain any number of `provider` blocks, including several of the same kind. The value of
+`agent.model.provider` must be the label of one of them. The `kind` field determines the provider type
+and which fields the block accepts.
 
 ```hcl title="agent.acl"
-providers {
-  anthropic {
-    models = ["claude-haiku-4-5"]
+provider "anthropic" {
+  kind   = "anthropic"
+  models = ["claude-haiku-4-5"]
 
-    config {
-      api_key = secret(runtime("ANTHROPIC_API_KEY"))
-    }
+  config {
+    api_key = secret(runtime("ANTHROPIC_API_KEY"))
   }
 }
 
@@ -29,10 +30,20 @@ agent "assistant" {
 }
 ```
 
+## Labels
+
+The block label names the provider within the manifest. `agent.model.provider` refers to a provider by
+its label, and errors raised by a provider name its label. A label is chosen freely and may equal a
+kind name.
+
 ## Shared structure
 
-All provider sub-blocks follow the same general shape. The details of which fields are available
-inside `config` differ per provider and are documented on each provider's reference page.
+All `provider` blocks follow the same general shape. Which model entries `models` takes, which fields
+`config` accepts, and which inference parameters take effect differ per kind and are documented on each
+kind's reference page.
+
+**`kind`** is required and selects the provider type. It is always build-time and cannot be wrapped in
+`runtime()`.
 
 **`models`** is an optional list of model entries. When present it acts as an allowlist: only the
 named models may be used in `agent.model.name` when this provider is selected. When absent, any
@@ -52,14 +63,13 @@ models = [
 ]
 ```
 
-**`config`** is an optional block containing connection settings such as API keys and base URLs. When
-omitted entirely, the provider falls back to its SDK defaults, typically by reading well-known
-environment variables. See each provider's page for the specific fallback behavior.
+**`config`** is an optional block containing connection settings such as API keys and base URLs. Its
+fields, and what each falls back to when unset, are documented on each kind's page.
 
 **`params`** is an optional block that sets inference parameter defaults for every model request made
 through this provider. These defaults are baked into every model instance at startup. Individual
 model entries in the `models` list can override specific fields by declaring their own `params`
-block; model-level values take precedence over provider-level values.
+block. Model-level values take precedence over provider-level values.
 
 ```hcl
 params {
@@ -76,10 +86,31 @@ the manifest.
 prevents it from appearing in build artifacts and in the output of `agentc inspect`. API keys should
 always be written as `secret(runtime("ENV_VAR_NAME"))`.
 
-## Supported providers
+## Field paths
 
-| Provider | Description | Reference |
-|----------|-------------|-----------|
+Each value set in a `provider` block has a config path under the block's label, and can be set at
+startup through the `AGENT__` environment variable of the same path, as described in
+[Deploy standalone](/guides/deploy-standalone#configure-with-environment-variables).
+
+| Value | Config path | Environment variable |
+|-------|-------------|----------------------|
+| `config.<field>` | `provider.<label>.<field>` | `AGENT__PROVIDER__<LABEL>__<FIELD>` |
+| `params.<field>` | `provider.<label>.params.<field>` | `AGENT__PROVIDER__<LABEL>__PARAMS__<FIELD>` |
+| `params.<field>` of a `models` entry | `provider.<label>.<model>.<field>` | `AGENT__PROVIDER__<LABEL>__<MODEL>__<FIELD>` |
+
+A label containing characters other than letters, digits, and underscores is converted to snake case,
+so the label `my-cloud` has the path `provider.my_cloud`. In `<model>`, every character of the model
+name other than a letter or digit becomes `_`, so `claude-opus-4-7` becomes `claude_opus_4_7`.
+
+```bash
+export AGENT__PROVIDER__ANTHROPIC__API_KEY=your_key_here
+export AGENT__PROVIDER__ANTHROPIC__PARAMS__TEMPERATURE=0.2
+```
+
+## Kinds
+
+| Kind | Description | Reference |
+|------|-------------|-----------|
 | `anthropic` | Anthropic cloud API. Supports Claude models. | [anthropic](/reference/manifest/providers/anthropic) |
 | `openai` | OpenAI cloud API and compatible endpoints. | [openai](/reference/manifest/providers/openai) |
 | `ollama` | Local Ollama runtime. No API key required. | [ollama](/reference/manifest/providers/ollama) |

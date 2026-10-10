@@ -3,19 +3,20 @@ title: Gemini
 description: Configuration for the Gemini model provider.
 ---
 
-The `gemini` sub-block configures the [Google Gemini](https://ai.google.dev) provider, which
-serves the Gemini family of models via the GenerateContent API.
+A `provider` block with `kind = "gemini"` configures the [Google Gemini](https://ai.google.dev)
+provider, which serves the Gemini family of models via the GenerateContent API.
 
 ## Fields
 
 | Field | Type | Required | runtime() | Default | Description |
 |-------|------|----------|-----------|---------|-------------|
+| `kind` | `gemini` | yes | no | … | Provider kind. |
 | `models` | array&lt;string \| [ModelEntry](#modelentry)&gt; | no | no | unset | Models permitted for this provider, with optional model-specific inference settings. |
 | `config` | [ProviderConfig](#providerconfig) | no | | unset | API key used to connect to this provider. |
 | `params` | [InferenceParams](#inferenceparams) | no | | unset | Default inference settings for requests to this provider. |
 
-The `config` block is optional. When omitted, the client reads credentials from the
-`GEMINI_API_KEY` environment variable.
+When `config.api_key` is unset, the key is read from the `GEMINI_API_KEY` environment variable. The
+agent fails to start when neither is set.
 
 ## ModelEntry
 
@@ -63,27 +64,26 @@ are optional and support `runtime()`.
 ## Example
 
 ```hcl title="agent.acl"
-providers {
-  gemini {
-    models = [
-      "gemini-2.5-flash",
-      {
-        name = "gemini-2.5-pro"
-        params {
-          max_tokens  = 16384
-          temperature = 0.4
-        }
+provider "gemini" {
+  kind = "gemini"
+  models = [
+    "gemini-2.5-flash",
+    {
+      name = "gemini-2.5-pro"
+      params {
+        max_tokens  = 16384
+        temperature = 0.4
       }
-    ]
-
-    config {
-      api_key = secret(runtime("GEMINI_API_KEY"))
     }
+  ]
 
-    params {
-      max_tokens  = 4096
-      temperature = 0.5
-    }
+  config {
+    api_key = secret(runtime("GEMINI_API_KEY"))
+  }
+
+  params {
+    max_tokens  = 4096
+    temperature = 0.5
   }
 }
 

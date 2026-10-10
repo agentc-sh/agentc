@@ -21,12 +21,12 @@ build {
   archetype = "standalone"
 }
 
-providers {
-  anthropic {
-    models = ["claude-haiku-4-5"]
-    config {
-      api_key = secret(runtime("ANTHROPIC_API_KEY"))
-    }
+provider "anthropic" {
+  kind   = "anthropic"
+  models = ["claude-haiku-4-5"]
+
+  config {
+    api_key = secret(runtime("ANTHROPIC_API_KEY"))
   }
 }
 
@@ -44,9 +44,10 @@ agent "assistant" {
 }
 ```
 
-The `build` block selects the `standalone` archetype, which produces a single binary. The `providers`
-block declares Anthropic and reads its API key from the environment at startup. The `agent` block runs
-on the ReAct graph and points its model at the provider. This already compiles and answers questions.
+The `build` block selects the `standalone` archetype, which produces a single binary. The `provider`
+block declares an Anthropic provider labeled `anthropic` and reads its API key from the environment
+at startup. The `agent` block runs on the ReAct graph and points its model at the provider. This
+already compiles and answers questions.
 
 ## Shape the system prompt
 

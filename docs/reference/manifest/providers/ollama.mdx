@@ -3,19 +3,20 @@ title: Ollama
 description: Configuration for the Ollama model provider.
 ---
 
-The `ollama` sub-block configures a local [Ollama](https://ollama.com) runtime. Ollama runs
-entirely on the local machine and does not require an API key.
+A `provider` block with `kind = "ollama"` configures a local [Ollama](https://ollama.com) runtime.
+Ollama runs entirely on the local machine and does not require an API key.
 
 ## Fields
 
 | Field | Type | Required | runtime() | Default | Description |
 |-------|------|----------|-----------|---------|-------------|
+| `kind` | `ollama` | yes | no | … | Provider kind. |
 | `models` | array&lt;string \| [ModelEntry](#modelentry)&gt; | no | no | unset | Models permitted for this provider, with optional model-specific inference settings. |
 | `config` | [ProviderConfig](#providerconfig) | no | | unset | Base URL of the Ollama server. |
 | `params` | [InferenceParams](#inferenceparams) | no | | unset | Default inference settings for requests to this provider. |
 
-The `config` block is optional. When omitted, the client connects to `http://localhost:11434`, which
-is the default address of a locally running Ollama instance.
+When `config.base_url` is unset, the client connects to `http://localhost:11434`, which is the default
+address of a locally running Ollama instance.
 
 ## ModelEntry
 
@@ -50,27 +51,26 @@ are optional and support `runtime()`.
 ## Example
 
 ```hcl title="agent.acl"
-providers {
-  ollama {
-    models = [
-      "llama3.2",
-      {
-        name = "mistral"
-        params {
-          temperature = 0.9
-          seed        = 42
-        }
+provider "ollama" {
+  kind = "ollama"
+  models = [
+    "llama3.2",
+    {
+      name = "mistral"
+      params {
+        temperature = 0.9
+        seed        = 42
       }
-    ]
-
-    config {
-      base_url = runtime("OLLAMA_BASE_URL", "http://localhost:11434")
     }
+  ]
 
-    params {
-      max_tokens  = 2048
-      temperature = 0.6
-    }
+  config {
+    base_url = runtime("OLLAMA_BASE_URL", "http://localhost:11434")
+  }
+
+  params {
+    max_tokens  = 2048
+    temperature = 0.6
   }
 }
 ```

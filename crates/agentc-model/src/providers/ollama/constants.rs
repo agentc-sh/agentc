@@ -4,11 +4,11 @@
 
 use std::fmt::{Display, Formatter, Result as FmtResult};
 
-use crate::types::identity::{ModelId, StaticProviderId};
+use crate::types::identity::{ModelId, ProviderKind};
 
-pub const PROVIDER: StaticProviderId = StaticProviderId::new("ollama");
+pub const KIND: ProviderKind = ProviderKind::new("ollama");
 
-pub const OTEL_PROVIDER_NAME: &str = PROVIDER.as_str();
+pub const OTEL_PROVIDER_NAME: &str = KIND.as_str();
 
 /// Well-known models available through Ollama. Variants map to the canonical
 /// model name string used in Ollama's API. Any model served by Ollama can also

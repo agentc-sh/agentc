@@ -10,7 +10,7 @@ use crate::types::capability::{CapabilityPolicy, CapabilitySet};
 pub struct AgentIdentity {
     /// The name of the agent.
     pub name: String,
-    /// The default provider to use for this agent if not specified in the input.
+    /// The default provider instance label to use for this agent if not specified in the input.
     pub provider: String,
     /// The default model to use for this agent if not specified in the input.
     pub model: String,

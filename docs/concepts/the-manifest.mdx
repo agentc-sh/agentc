@@ -25,12 +25,12 @@ locals {
   version = "1.0.0"
 }
 
-providers {
-  anthropic {
-    models = ["claude-haiku-4-5"]
-    config {
-      api_key = secret(runtime("ANTHROPIC_API_KEY"))
-    }
+provider "anthropic" {
+  kind   = "anthropic"
+  models = ["claude-haiku-4-5"]
+
+  config {
+    api_key = secret(runtime("ANTHROPIC_API_KEY"))
   }
 }
 
@@ -134,7 +134,7 @@ The `prompt` field additionally supports Jinja2 template syntax for dynamic rend
 ## Which fields accept runtime()
 
 Structural fields that define the shape of the build, such as `archetype`, the agent `graph` type,
-`kind` on tool blocks, and provider names, are always build-time. The compiler needs these values
+and `kind` on tool and provider blocks, are always build-time. The compiler needs these values
 during code generation and they cannot vary at runtime.
 
 Most configurable fields accept `runtime()`. These include hosts, ports, API keys, feature flags,

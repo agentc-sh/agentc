@@ -4,11 +4,11 @@
 
 use std::fmt::{Display, Formatter, Result as FmtResult};
 
-/// Identity for a provider with a static lifetime.
+/// Identity for a provider kind.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct StaticProviderId(&'static str);
+pub struct ProviderKind(&'static str);
 
-impl StaticProviderId {
+impl ProviderKind {
     pub const fn new(value: &'static str) -> Self {
         Self(value)
     }
@@ -16,31 +16,15 @@ impl StaticProviderId {
     pub const fn as_str(&self) -> &'static str {
         self.0
     }
-
-    pub fn into_str(self) -> String {
-        self.0.to_string()
-    }
 }
 
-impl Display for StaticProviderId {
+impl Display for ProviderKind {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         self.as_str().fmt(f)
     }
 }
 
-impl From<StaticProviderId> for ProviderId {
-    fn from(s: StaticProviderId) -> Self {
-        Self(s.into_str())
-    }
-}
-
-impl From<StaticProviderId> for String {
-    fn from(s: StaticProviderId) -> Self {
-        s.into_str()
-    }
-}
-
-/// Identity for a provider.
+/// Identity for a provider instance.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ProviderId(String);
 

@@ -344,7 +344,7 @@ impl ReActNode {
                     .into_iter()
                     .map(|td| td.to_model_type()),
             )
-            .maybe_provider_params(override_params.and_then(|p| p.provider_params))
+            .maybe_inference_params(override_params)
             .send()
             .await
             .map_err(GraphError::execution_error)?;
@@ -764,7 +764,7 @@ mod tests {
         stream::ChatCompletionStream,
         traits::{ClientFactory, CompletionClient},
         types::{
-            identity::{ModelId, ProviderId},
+            identity::{ModelId, ProviderId, ProviderKind},
             inference::InferenceParams,
             request::CompletionRequest,
             stream::{CompletionStreamEvent, CompletionStreamFinal},
@@ -785,7 +785,10 @@ mod tests {
         checkpoint::handle::SqlReActCheckpointStoreHandle,
         graph::state::ReActStateInput,
         migrations::all as react_migrations,
-        types::{message::MessageRole, model::ModelConfigRetry},
+        types::{
+            message::MessageRole,
+            model::{ModelConfigOverride, ModelConfigRetry},
+        },
     };
 
     struct StubModel {
@@ -794,6 +797,7 @@ mod tests {
         calls: AtomicU32,
         delay: Duration,
         fail: bool,
+        last_request: Mutex<Option<CompletionRequest>>,
     }
 
     impl StubModel {
@@ -804,6 +808,7 @@ mod tests {
                 calls: AtomicU32::new(0),
                 delay,
                 fail,
+                last_request: Mutex::new(None),
             }
         }
     }
@@ -828,10 +833,11 @@ mod tests {
 
         async fn send(
             &self,
-            _request: CompletionRequest,
+            request: CompletionRequest,
         ) -> Result<ChatCompletionStream, ModelError> {
             self.calls
                 .fetch_add(1, Ordering::SeqCst);
+            *self.last_request.lock().unwrap() = Some(request);
             sleep(self.delay).await;
 
             if self.fail {
@@ -945,36 +951,52 @@ mod tests {
     #[derive(Clone)]
     struct ScriptedProvider(Arc<Script>);
 
+    struct ScriptedClient {
+        provider: ProviderId,
+        script: Arc<Script>,
+    }
+
+    #[async_trait]
     impl ClientFactory for ScriptedProvider {
         type Config = Value;
-        type Client = ScriptedProvider;
+        type Client = ScriptedClient;
 
-        fn provider(&self) -> ProviderId {
-            "stub".into()
+        fn kind() -> ProviderKind {
+            ProviderKind::new("stub")
         }
 
-        fn build(&self, _config: Self::Config) -> Result<Self::Client, ModelError> {
-            Ok(self.clone())
+        async fn build(
+            &self,
+            provider: ProviderId,
+            _config: Self::Config,
+        ) -> Result<Self::Client, ModelError> {
+            Ok(ScriptedClient { provider, script: self.0.clone() })
         }
     }
 
-    impl CompletionClient for ScriptedProvider {
+    impl CompletionClient for ScriptedClient {
         type Model = ScriptedModel;
 
         fn provider(&self) -> ProviderId {
-            "stub".into()
+            self.provider.clone()
         }
 
-        fn model(&self, model: ModelId, params: InferenceParams) -> Self::Model {
-            ScriptedModel {
+        fn model(
+            &self,
+            model: ModelId,
+            params: InferenceParams,
+        ) -> Result<Self::Model, ModelError> {
+            Ok(ScriptedModel {
+                provider: self.provider.clone(),
                 model_id: model,
                 params,
-                script: self.0.clone(),
-            }
+                script: self.script.clone(),
+            })
         }
     }
 
     struct ScriptedModel {
+        provider: ProviderId,
         model_id: ModelId,
         params: InferenceParams,
         script: Arc<Script>,
@@ -983,7 +1005,7 @@ mod tests {
     #[async_trait]
     impl CompletionModel for ScriptedModel {
         fn provider(&self) -> ProviderId {
-            "stub".into()
+            self.provider.clone()
         }
 
         fn otel_provider_name(&self) -> &'static str {
@@ -1067,9 +1089,11 @@ mod tests {
                     .build(),
                 model_registry: ModelRegistry::builder()
                     .with_factory(ScriptedProvider(script.clone()))
-                    .with_config("stub", json!({}))
+                    .with_provider::<ScriptedProvider>("stub", json!({}))
                     .unwrap()
-                    .build(),
+                    .build()
+                    .await
+                    .unwrap(),
                 tool_registry: ToolRegistry::builder()
                     .with_typed_tool::<ReActState, _>(FnTool::new(
                         "server_echo",
@@ -1233,6 +1257,36 @@ mod tests {
 
         assert!(result.is_err());
         assert_eq!(model.calls.load(Ordering::SeqCst), 2);
+    }
+
+    #[tokio::test]
+    async fn override_inference_params_reach_request() {
+        let model = Arc::new(StubModel::new(Duration::ZERO, false));
+
+        let _ = CallModelHarness::call(
+            model.clone(),
+            Some(ReActModelConfig::new().with_override(ModelConfigOverride {
+                provider: None,
+                model: None,
+                inference_params: Some(InferenceParams {
+                    temperature: Some(0.3),
+                    max_tokens: Some(512),
+                    ..Default::default()
+                }),
+            })),
+            ReActGraphConfig::default(),
+        )
+        .await;
+
+        let request = model
+            .last_request
+            .lock()
+            .unwrap()
+            .take()
+            .expect("model was not called");
+
+        assert_eq!(request.temperature, Some(0.3));
+        assert_eq!(request.max_tokens, Some(512));
     }
 
     #[tokio::test]

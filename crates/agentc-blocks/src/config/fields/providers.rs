@@ -7,10 +7,11 @@ use agentc_compiler::generator::blocks::codegen::ToIdent;
 use crate::{
     config::fields::spec::{FieldsSpec, IntoFieldSpecs},
     context::{
-        ResolvedContextProviderAnthropic, ResolvedContextProviderGemini,
-        ResolvedContextProviderHuggingFace, ResolvedContextProviderOllama,
-        ResolvedContextProviderOpenAi, ResolvedContextProviderOpenRouter,
-        ResolvedContextProviderParams, ResolvedContextProviderXai,
+        ResolvedContextProvider, ResolvedContextProviderAnthropic, ResolvedContextProviderGemini,
+        ResolvedContextProviderHuggingFace, ResolvedContextProviderKind,
+        ResolvedContextProviderOllama, ResolvedContextProviderOpenAi,
+        ResolvedContextProviderOpenRouter, ResolvedContextProviderParams,
+        ResolvedContextProviderXai,
     },
 };
 
@@ -21,6 +22,10 @@ use crate::{
 /// focused on their own config shape.
 trait ExtendParamFields {
     fn extend_param_fields(&self, fields: &mut FieldsSpec, provider: &str, slug: &str);
+}
+
+trait ExtendProviderFields {
+    fn extend_provider_fields(&self, fields: &mut FieldsSpec, provider: &str);
 }
 
 impl ExtendParamFields for ResolvedContextProviderParams {
@@ -55,173 +60,100 @@ impl ExtendParamFields for ResolvedContextProviderParams {
     }
 }
 
-impl IntoFieldSpecs for ResolvedContextProviderAnthropic {
+impl IntoFieldSpecs for ResolvedContextProvider {
     fn extend_fields(&self, fields: &mut FieldsSpec) {
-        if let Some(config) = &self.config {
-            if let Some(v) = &config.api_key {
-                fields.push(&["provider", "anthropic", "api_key"], v);
-            }
-            if let Some(v) = &config.base_url {
-                fields.push(&["provider", "anthropic", "base_url"], v);
-            }
-        }
+        let key = self.config_key();
+
+        self.kind
+            .extend_provider_fields(fields, key.as_str());
 
         if let Some(params) = &self.params {
-            params.extend_param_fields(fields, "anthropic", "params");
+            params.extend_param_fields(fields, key.as_str(), "params");
         }
 
-        if let Some(models) = &self.models {
-            for model in models {
-                if let Some(params) = &model.params {
-                    params.extend_param_fields(fields, "anthropic", model.name.to_ident().as_str());
-                }
+        for model in self.models.iter().flatten() {
+            if let Some(params) = &model.params {
+                params.extend_param_fields(fields, key.as_str(), model.name.to_ident().as_str());
             }
         }
     }
 }
 
-impl IntoFieldSpecs for ResolvedContextProviderOpenAi {
-    fn extend_fields(&self, fields: &mut FieldsSpec) {
-        if let Some(config) = &self.config {
-            if let Some(v) = &config.api_key {
-                fields.push(&["provider", "openai", "api_key"], v);
-            }
-            if let Some(v) = &config.base_url {
-                fields.push(&["provider", "openai", "base_url"], v);
-            }
-        }
-
-        if let Some(params) = &self.params {
-            params.extend_param_fields(fields, "openai", "params");
-        }
-
-        if let Some(models) = &self.models {
-            for model in models {
-                if let Some(params) = &model.params {
-                    params.extend_param_fields(fields, "openai", model.name.to_ident().as_str());
-                }
-            }
+impl ExtendProviderFields for ResolvedContextProviderKind {
+    fn extend_provider_fields(&self, fields: &mut FieldsSpec, provider: &str) {
+        match self {
+            Self::Anthropic(kind) => kind.extend_provider_fields(fields, provider),
+            Self::OpenAi(kind) => kind.extend_provider_fields(fields, provider),
+            Self::Ollama(kind) => kind.extend_provider_fields(fields, provider),
+            Self::OpenRouter(kind) => kind.extend_provider_fields(fields, provider),
+            Self::Xai(kind) => kind.extend_provider_fields(fields, provider),
+            Self::Gemini(kind) => kind.extend_provider_fields(fields, provider),
+            Self::HuggingFace(kind) => kind.extend_provider_fields(fields, provider),
         }
     }
 }
 
-impl IntoFieldSpecs for ResolvedContextProviderOllama {
-    fn extend_fields(&self, fields: &mut FieldsSpec) {
-        if let Some(config) = &self.config
-            && let Some(v) = &config.base_url
-        {
-            fields.push(&["provider", "ollama", "base_url"], v);
+impl ExtendProviderFields for ResolvedContextProviderAnthropic {
+    fn extend_provider_fields(&self, fields: &mut FieldsSpec, provider: &str) {
+        if let Some(v) = &self.api_key {
+            fields.push(&["provider", provider, "api_key"], v);
         }
-
-        if let Some(params) = &self.params {
-            params.extend_param_fields(fields, "ollama", "params");
-        }
-
-        if let Some(models) = &self.models {
-            for model in models {
-                if let Some(params) = &model.params {
-                    params.extend_param_fields(fields, "ollama", model.name.to_ident().as_str());
-                }
-            }
+        if let Some(v) = &self.base_url {
+            fields.push(&["provider", provider, "base_url"], v);
         }
     }
 }
 
-impl IntoFieldSpecs for ResolvedContextProviderOpenRouter {
-    fn extend_fields(&self, fields: &mut FieldsSpec) {
-        if let Some(config) = &self.config {
-            if let Some(v) = &config.api_key {
-                fields.push(&["provider", "openrouter", "api_key"], v);
-            }
+impl ExtendProviderFields for ResolvedContextProviderOpenAi {
+    fn extend_provider_fields(&self, fields: &mut FieldsSpec, provider: &str) {
+        if let Some(v) = &self.api_key {
+            fields.push(&["provider", provider, "api_key"], v);
         }
-
-        if let Some(params) = &self.params {
-            params.extend_param_fields(fields, "openrouter", "params");
-        }
-
-        if let Some(models) = &self.models {
-            for model in models {
-                if let Some(params) = &model.params {
-                    params.extend_param_fields(
-                        fields,
-                        "openrouter",
-                        model.name.to_ident().as_str(),
-                    );
-                }
-            }
+        if let Some(v) = &self.base_url {
+            fields.push(&["provider", provider, "base_url"], v);
         }
     }
 }
 
-impl IntoFieldSpecs for ResolvedContextProviderXai {
-    fn extend_fields(&self, fields: &mut FieldsSpec) {
-        if let Some(config) = &self.config {
-            if let Some(v) = &config.api_key {
-                fields.push(&["provider", "xai", "api_key"], v);
-            }
-        }
-
-        if let Some(params) = &self.params {
-            params.extend_param_fields(fields, "xai", "params");
-        }
-
-        if let Some(models) = &self.models {
-            for model in models {
-                if let Some(params) = &model.params {
-                    params.extend_param_fields(fields, "xai", model.name.to_ident().as_str());
-                }
-            }
+impl ExtendProviderFields for ResolvedContextProviderOllama {
+    fn extend_provider_fields(&self, fields: &mut FieldsSpec, provider: &str) {
+        if let Some(v) = &self.base_url {
+            fields.push(&["provider", provider, "base_url"], v);
         }
     }
 }
 
-impl IntoFieldSpecs for ResolvedContextProviderGemini {
-    fn extend_fields(&self, fields: &mut FieldsSpec) {
-        if let Some(config) = &self.config {
-            if let Some(v) = &config.api_key {
-                fields.push(&["provider", "gemini", "api_key"], v);
-            }
-        }
-
-        if let Some(params) = &self.params {
-            params.extend_param_fields(fields, "gemini", "params");
-        }
-
-        if let Some(models) = &self.models {
-            for model in models {
-                if let Some(params) = &model.params {
-                    params.extend_param_fields(fields, "gemini", model.name.to_ident().as_str());
-                }
-            }
+impl ExtendProviderFields for ResolvedContextProviderOpenRouter {
+    fn extend_provider_fields(&self, fields: &mut FieldsSpec, provider: &str) {
+        if let Some(v) = &self.api_key {
+            fields.push(&["provider", provider, "api_key"], v);
         }
     }
 }
 
-impl IntoFieldSpecs for ResolvedContextProviderHuggingFace {
-    fn extend_fields(&self, fields: &mut FieldsSpec) {
-        if let Some(config) = &self.config {
-            if let Some(v) = &config.api_key {
-                fields.push(&["provider", "huggingface", "api_key"], v);
-            }
-            if let Some(v) = &config.base_url {
-                fields.push(&["provider", "huggingface", "base_url"], v);
-            }
+impl ExtendProviderFields for ResolvedContextProviderXai {
+    fn extend_provider_fields(&self, fields: &mut FieldsSpec, provider: &str) {
+        if let Some(v) = &self.api_key {
+            fields.push(&["provider", provider, "api_key"], v);
         }
+    }
+}
 
-        if let Some(params) = &self.params {
-            params.extend_param_fields(fields, "huggingface", "params");
+impl ExtendProviderFields for ResolvedContextProviderGemini {
+    fn extend_provider_fields(&self, fields: &mut FieldsSpec, provider: &str) {
+        if let Some(v) = &self.api_key {
+            fields.push(&["provider", provider, "api_key"], v);
         }
+    }
+}
 
-        if let Some(models) = &self.models {
-            for model in models {
-                if let Some(params) = &model.params {
-                    params.extend_param_fields(
-                        fields,
-                        "huggingface",
-                        model.name.to_ident().as_str(),
-                    );
-                }
-            }
+impl ExtendProviderFields for ResolvedContextProviderHuggingFace {
+    fn extend_provider_fields(&self, fields: &mut FieldsSpec, provider: &str) {
+        if let Some(v) = &self.api_key {
+            fields.push(&["provider", provider, "api_key"], v);
+        }
+        if let Some(v) = &self.base_url {
+            fields.push(&["provider", provider, "base_url"], v);
         }
     }
 }
@@ -229,15 +161,7 @@ impl IntoFieldSpecs for ResolvedContextProviderHuggingFace {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        context::{
-            ResolvedContextProviderAnthropicConfig, ResolvedContextProviderAnthropicModel,
-            ResolvedContextProviderHuggingFace, ResolvedContextProviderHuggingFaceConfig,
-            ResolvedContextProviderHuggingFaceModel, ResolvedContextProviderOllamaConfig,
-            ResolvedContextProviderXaiConfig,
-        },
-        types::RuntimeValue,
-    };
+    use crate::{context::ResolvedContextProviderModel, types::RuntimeValue};
 
     fn empty_params() -> ResolvedContextProviderParams {
         ResolvedContextProviderParams {
@@ -255,22 +179,23 @@ mod tests {
 
     #[test]
     fn anthropic_registers_config_provider_params_and_model_params() {
-        let provider = ResolvedContextProviderAnthropic {
-            config: Some(ResolvedContextProviderAnthropicConfig {
-                api_key: Some(RuntimeValue::secret_runtime("ANTHROPIC_KEY")),
-                base_url: Some(RuntimeValue::constant("https://api".to_string())),
-            }),
-            params: Some(ResolvedContextProviderParams {
-                max_tokens: Some(RuntimeValue::constant(1024u64)),
-                ..empty_params()
-            }),
-            models: Some(vec![ResolvedContextProviderAnthropicModel {
+        let provider = ResolvedContextProvider {
+            name: "anthropic".to_string(),
+            models: Some(vec![ResolvedContextProviderModel {
                 name: "claude-3.5".to_string(),
                 params: Some(ResolvedContextProviderParams {
                     temperature: Some(RuntimeValue::constant(0.7f64)),
                     ..empty_params()
                 }),
             }]),
+            params: Some(ResolvedContextProviderParams {
+                max_tokens: Some(RuntimeValue::constant(1024u64)),
+                ..empty_params()
+            }),
+            kind: ResolvedContextProviderKind::Anthropic(ResolvedContextProviderAnthropic {
+                api_key: Some(RuntimeValue::secret_runtime("ANTHROPIC_KEY")),
+                base_url: Some(RuntimeValue::constant("https://api".to_string())),
+            }),
         };
 
         let fields = FieldsSpec::collect_from(&provider);
@@ -300,12 +225,13 @@ mod tests {
 
     #[test]
     fn ollama_registers_only_base_url_from_config() {
-        let provider = ResolvedContextProviderOllama {
-            config: Some(ResolvedContextProviderOllamaConfig {
+        let provider = ResolvedContextProvider {
+            name: "ollama".to_string(),
+            models: None,
+            params: None,
+            kind: ResolvedContextProviderKind::Ollama(ResolvedContextProviderOllama {
                 base_url: Some(RuntimeValue::constant("http://localhost:11434".to_string())),
             }),
-            params: None,
-            models: None,
         };
 
         let fields = FieldsSpec::collect_from(&provider);
@@ -324,12 +250,13 @@ mod tests {
 
     #[test]
     fn xai_registers_api_key_but_has_no_base_url() {
-        let provider = ResolvedContextProviderXai {
-            config: Some(ResolvedContextProviderXaiConfig {
+        let provider = ResolvedContextProvider {
+            name: "xai".to_string(),
+            models: None,
+            params: None,
+            kind: ResolvedContextProviderKind::Xai(ResolvedContextProviderXai {
                 api_key: Some(RuntimeValue::secret_runtime("XAI_KEY")),
             }),
-            params: None,
-            models: None,
         };
 
         let fields = FieldsSpec::collect_from(&provider);
@@ -348,22 +275,23 @@ mod tests {
 
     #[test]
     fn huggingface_registers_config_provider_params_and_model_params() {
-        let provider = ResolvedContextProviderHuggingFace {
-            config: Some(ResolvedContextProviderHuggingFaceConfig {
-                api_key: Some(RuntimeValue::secret_runtime("HUGGINGFACE_KEY")),
-                base_url: Some(RuntimeValue::constant("https://router.example.com".to_string())),
-            }),
-            params: Some(ResolvedContextProviderParams {
-                temperature: Some(RuntimeValue::constant(0.4f64)),
-                ..empty_params()
-            }),
-            models: Some(vec![ResolvedContextProviderHuggingFaceModel {
+        let provider = ResolvedContextProvider {
+            name: "huggingface".to_string(),
+            models: Some(vec![ResolvedContextProviderModel {
                 name: "google/gemma-2-2b-it".to_string(),
                 params: Some(ResolvedContextProviderParams {
                     max_tokens: Some(RuntimeValue::constant(1024u64)),
                     ..empty_params()
                 }),
             }]),
+            params: Some(ResolvedContextProviderParams {
+                temperature: Some(RuntimeValue::constant(0.4f64)),
+                ..empty_params()
+            }),
+            kind: ResolvedContextProviderKind::HuggingFace(ResolvedContextProviderHuggingFace {
+                api_key: Some(RuntimeValue::secret_runtime("HUGGINGFACE_KEY")),
+                base_url: Some(RuntimeValue::constant("https://router.example.com".to_string())),
+            }),
         };
 
         let fields = FieldsSpec::collect_from(&provider);
@@ -392,6 +320,40 @@ mod tests {
                     "max_tokens",
                 ])
                 .is_some()
+        );
+    }
+
+    #[test]
+    fn provider_fields_are_keyed_by_the_provider_label() {
+        let provider = ResolvedContextProvider {
+            name: "cloud".to_string(),
+            models: None,
+            params: Some(ResolvedContextProviderParams {
+                temperature: Some(RuntimeValue::constant(0.2f64)),
+                ..empty_params()
+            }),
+            kind: ResolvedContextProviderKind::OpenAi(ResolvedContextProviderOpenAi {
+                api_key: Some(RuntimeValue::secret_runtime("OPENAI_KEY")),
+                base_url: None,
+            }),
+        };
+
+        let fields = FieldsSpec::collect_from(&provider);
+
+        assert!(
+            fields
+                .get(&["provider", "cloud", "api_key"])
+                .is_some()
+        );
+        assert!(
+            fields
+                .get(&["provider", "cloud", "params", "temperature"])
+                .is_some()
+        );
+        assert!(
+            fields
+                .get(&["provider", "openai", "api_key"])
+                .is_none()
         );
     }
 }

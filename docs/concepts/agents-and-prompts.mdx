@@ -57,8 +57,8 @@ described in the [Prompt templates reference](/reference/prompt-templates).
 
 ## The model
 
-The agent selects a model by naming a provider and a model identifier. The provider must be one
-declared in the `providers` block, which is also where inference parameters such as temperature and
+The agent selects a model by naming a provider and a model identifier. The provider is the
+label of a `provider` block, which is also where inference parameters such as temperature and
 token limits live. Separating the provider configuration from the agent's model selection means the
 same agent can point at different models by changing one field. See
 [Configure a model provider](/guides/configure-a-model-provider).

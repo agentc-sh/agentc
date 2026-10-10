@@ -5,7 +5,8 @@
 use rig_core::providers::gemini;
 
 use crate::{
-    providers::gemini::{constants::PROVIDER, model::GeminiModel},
+    errors::ModelError,
+    providers::gemini::model::GeminiModel,
     traits::CompletionClient,
     types::{
         identity::{ModelId, ProviderId},
@@ -15,12 +16,13 @@ use crate::{
 
 #[derive(Clone)]
 pub struct GeminiClient {
+    provider: ProviderId,
     inner: gemini::Client,
 }
 
 impl GeminiClient {
-    pub fn new(client: gemini::Client) -> Self {
-        Self { inner: client }
+    pub fn new(provider: ProviderId, client: gemini::Client) -> Self {
+        Self { provider, inner: client }
     }
 }
 
@@ -28,10 +30,10 @@ impl CompletionClient for GeminiClient {
     type Model = GeminiModel;
 
     fn provider(&self) -> ProviderId {
-        PROVIDER.into()
+        self.provider.clone()
     }
 
-    fn model(&self, model: ModelId, params: InferenceParams) -> GeminiModel {
-        GeminiModel::new(self.inner.clone(), model, params)
+    fn model(&self, model: ModelId, params: InferenceParams) -> Result<GeminiModel, ModelError> {
+        Ok(GeminiModel::new(self.provider.clone(), self.inner.clone(), model, params))
     }
 }

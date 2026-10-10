@@ -3,12 +3,12 @@ title: OpenRouter
 description: Configuration for the OpenRouter model provider.
 ---
 
-The `openrouter` sub-block configures the [OpenRouter](https://openrouter.ai) provider, which
-proxies hundreds of models from many providers through a single unified API. This is useful when
-you want to switch between models from different providers without managing multiple API keys or
-changing your agent configuration.
+A `provider` block with `kind = "openrouter"` configures the [OpenRouter](https://openrouter.ai)
+provider, which proxies hundreds of models from many providers through a single unified API. This is
+useful when you want to switch between models from different providers without managing multiple API
+keys or changing your agent configuration.
 
-Unlike the `openai` provider, OpenRouter does not have a fixed model catalogue. The `models` list
+Unlike the `openai` kind, OpenRouter does not have a fixed model catalogue. The `models` list
 accepts any model identifier that OpenRouter supports, in the form `provider/model-name`, such as
 `openai/gpt-4o` or `anthropic/claude-3.5-sonnet`.
 
@@ -16,12 +16,13 @@ accepts any model identifier that OpenRouter supports, in the form `provider/mod
 
 | Field | Type | Required | runtime() | Default | Description |
 |-------|------|----------|-----------|---------|-------------|
+| `kind` | `openrouter` | yes | no | … | Provider kind. |
 | `models` | array&lt;string \| [ModelEntry](#modelentry)&gt; | no | no | unset | Models permitted for this provider, with optional model-specific inference settings. |
 | `config` | [ProviderConfig](#providerconfig) | no | | unset | API key used to connect to this provider. |
 | `params` | [InferenceParams](#inferenceparams) | no | | unset | Default inference settings for requests to this provider. |
 
-The `config` block is optional. When omitted, the client reads credentials from the
-`OPENROUTER_API_KEY` environment variable.
+When `config.api_key` is unset, the key is read from the `OPENROUTER_API_KEY` environment variable.
+The agent fails to start when neither is set.
 
 ## ModelEntry
 
@@ -60,27 +61,26 @@ are optional and support `runtime()`.
 ## Example
 
 ```hcl title="agent.acl"
-providers {
-  openrouter {
-    models = [
-      "openai/gpt-4o-mini",
-      {
-        name = "anthropic/claude-3.5-sonnet"
-        params {
-          max_tokens  = 8192
-          temperature = 0.7
-        }
+provider "openrouter" {
+  kind = "openrouter"
+  models = [
+    "openai/gpt-4o-mini",
+    {
+      name = "anthropic/claude-3.5-sonnet"
+      params {
+        max_tokens  = 8192
+        temperature = 0.7
       }
-    ]
-
-    config {
-      api_key = secret(runtime("OPENROUTER_API_KEY"))
     }
+  ]
 
-    params {
-      max_tokens  = 2048
-      temperature = 0.5
-    }
+  config {
+    api_key = secret(runtime("OPENROUTER_API_KEY"))
+  }
+
+  params {
+    max_tokens  = 2048
+    temperature = 0.5
   }
 }
 

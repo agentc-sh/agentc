@@ -2,11 +2,13 @@
 //
 // SPDX-License-Identifier: MIT
 
+use async_trait::async_trait;
+
 use crate::{
     errors::ModelError,
-    providers::anthropic::{client::AnthropicClient, config::AnthropicConfig, constants::PROVIDER},
+    providers::anthropic::{client::AnthropicClient, config::AnthropicConfig, constants::KIND},
     traits::ClientFactory,
-    types::identity::ProviderId,
+    types::identity::{ProviderId, ProviderKind},
 };
 
 /// Factory for constructing [`AnthropicClient`] instances from
@@ -15,21 +17,20 @@ use crate::{
 /// provider dispatch.
 pub struct AnthropicFactory;
 
-impl AnthropicFactory {
-    pub fn provider() -> ProviderId {
-        PROVIDER.into()
-    }
-}
-
+#[async_trait]
 impl ClientFactory for AnthropicFactory {
     type Config = AnthropicConfig;
     type Client = AnthropicClient;
 
-    fn provider(&self) -> ProviderId {
-        Self::provider()
+    fn kind() -> ProviderKind {
+        KIND
     }
 
-    fn build(&self, config: AnthropicConfig) -> Result<AnthropicClient, ModelError> {
-        config.build_client()
+    async fn build(
+        &self,
+        provider: ProviderId,
+        config: AnthropicConfig,
+    ) -> Result<AnthropicClient, ModelError> {
+        config.build_client(provider)
     }
 }

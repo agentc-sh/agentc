@@ -5,7 +5,8 @@
 use rig_core::providers::openai;
 
 use crate::{
-    providers::openai::{constants::PROVIDER, model::OpenAiModel},
+    errors::ModelError,
+    providers::openai::model::OpenAiModel,
     traits::CompletionClient,
     types::{
         identity::{ModelId, ProviderId},
@@ -15,12 +16,13 @@ use crate::{
 
 #[derive(Clone)]
 pub struct OpenAiClient {
+    provider: ProviderId,
     inner: openai::CompletionsClient,
 }
 
 impl OpenAiClient {
-    pub fn new(client: openai::CompletionsClient) -> Self {
-        Self { inner: client }
+    pub fn new(provider: ProviderId, client: openai::CompletionsClient) -> Self {
+        Self { provider, inner: client }
     }
 }
 
@@ -28,10 +30,10 @@ impl CompletionClient for OpenAiClient {
     type Model = OpenAiModel;
 
     fn provider(&self) -> ProviderId {
-        PROVIDER.into()
+        self.provider.clone()
     }
 
-    fn model(&self, model: ModelId, params: InferenceParams) -> OpenAiModel {
-        OpenAiModel::new(self.inner.clone(), model, params)
+    fn model(&self, model: ModelId, params: InferenceParams) -> Result<OpenAiModel, ModelError> {
+        Ok(OpenAiModel::new(self.provider.clone(), self.inner.clone(), model, params))
     }
 }

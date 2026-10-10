@@ -57,12 +57,12 @@ build {
   archetype = "standalone"
 }
 
-providers {
-  anthropic {
-    models = ["claude-haiku-4-5"]
-    config {
-      api_key = secret(runtime("ANTHROPIC_API_KEY"))
-    }
+provider "anthropic" {
+  kind   = "anthropic"
+  models = ["claude-haiku-4-5"]
+
+  config {
+    api_key = secret(runtime("ANTHROPIC_API_KEY"))
   }
 }
 

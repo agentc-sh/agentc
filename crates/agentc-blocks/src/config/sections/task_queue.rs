@@ -111,7 +111,7 @@ mod tests {
                 "slug": "assistant",
                 "agent_name": "assistant",
                 "runtime": { "default_tenant_id": "default" },
-                "providers": [],
+                "providers": {},
                 "agent": {
                     "version": "0.1.0",
                     "description": null,

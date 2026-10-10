@@ -2,8 +2,10 @@
 //
 // SPDX-License-Identifier: MIT
 
-use crate::types::identity::StaticProviderId;
+use crate::types::identity::ProviderKind;
 
-pub const PROVIDER: StaticProviderId = StaticProviderId::new("huggingface");
+pub const KIND: ProviderKind = ProviderKind::new("huggingface");
 
-pub const OTEL_PROVIDER_NAME: &str = PROVIDER.as_str();
+pub const OTEL_PROVIDER_NAME: &str = KIND.as_str();
+
+pub const API_KEY_ENV: &str = "HUGGINGFACE_API_KEY";
