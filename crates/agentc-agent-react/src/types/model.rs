@@ -66,7 +66,7 @@ impl Default for ModelConfig {
 /// Request-time model selection and inference parameter overrides.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ModelConfigOverride {
-    /// Override the provider (e.g. `"openai"`, `"anthropic"`).
+    /// Override the provider instance label (e.g. `"cloud"`, `"local"`).
     pub provider: Option<String>,
     /// Override the model name (e.g. `"gpt-4o"`, `"claude-sonnet-4-6"`).
     pub model: Option<String>,

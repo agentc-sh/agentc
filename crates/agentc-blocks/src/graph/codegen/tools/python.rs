@@ -389,7 +389,7 @@ mod tests {
                 runtime: ResolvedContextRuntime {
                     default_tenant_id: RuntimeValue::constant("default".to_string()),
                 },
-                providers: vec![],
+                providers: HashMap::new(),
                 agent: ResolvedContextAgent {
                     version: "0.1.0".to_string(),
                     description: None,

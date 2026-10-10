@@ -3,19 +3,20 @@ title: xAI
 description: Configuration for the xAI model provider.
 ---
 
-The `xai` sub-block configures the [xAI](https://x.ai) cloud provider, which serves the Grok
-family of models.
+A `provider` block with `kind = "xai"` configures the [xAI](https://x.ai) cloud provider, which serves
+the Grok family of models.
 
 ## Fields
 
 | Field | Type | Required | runtime() | Default | Description |
 |-------|------|----------|-----------|---------|-------------|
+| `kind` | `xai` | yes | no | … | Provider kind. |
 | `models` | array&lt;string \| [ModelEntry](#modelentry)&gt; | no | no | unset | Models permitted for this provider, with optional model-specific inference settings. |
 | `config` | [ProviderConfig](#providerconfig) | no | | unset | API key used to connect to this provider. |
 | `params` | [InferenceParams](#inferenceparams) | no | | unset | Default inference settings for requests to this provider. |
 
-The `config` block is optional. When omitted, the client reads credentials from the
-`XAI_API_KEY` environment variable.
+When `config.api_key` is unset, the key is read from the `XAI_API_KEY` environment variable. The agent
+fails to start when neither is set.
 
 ## ModelEntry
 
@@ -64,27 +65,26 @@ are optional and support `runtime()`.
 ## Example
 
 ```hcl title="agent.acl"
-providers {
-  xai {
-    models = [
-      "grok-3-mini",
-      {
-        name = "grok-4"
-        params {
-          max_tokens  = 16384
-          temperature = 0.6
-        }
+provider "xai" {
+  kind = "xai"
+  models = [
+    "grok-3-mini",
+    {
+      name = "grok-4"
+      params {
+        max_tokens  = 16384
+        temperature = 0.6
       }
-    ]
-
-    config {
-      api_key = secret(runtime("XAI_API_KEY"))
     }
+  ]
 
-    params {
-      max_tokens  = 4096
-      temperature = 0.5
-    }
+  config {
+    api_key = secret(runtime("XAI_API_KEY"))
+  }
+
+  params {
+    max_tokens  = 4096
+    temperature = 0.5
   }
 }
 

@@ -3,20 +3,22 @@ title: Hugging Face
 description: Configuration for the Hugging Face model provider.
 ---
 
-The `huggingface` sub-block configures the [Hugging Face](https://huggingface.co) provider and its
-router for chat completion models. Model names use the identifiers accepted by Hugging Face, such
-as `google/gemma-2-2b-it` or `meta-llama/Meta-Llama-3.1-8B-Instruct`.
+A `provider` block with `kind = "huggingface"` configures the [Hugging Face](https://huggingface.co)
+provider and its router for chat completion models. Model names use the identifiers accepted by
+Hugging Face, such as `google/gemma-2-2b-it` or `meta-llama/Meta-Llama-3.1-8B-Instruct`.
 
 ## Fields
 
 | Field | Type | Required | runtime() | Default | Description |
 |-------|------|----------|-----------|---------|-------------|
+| `kind` | `huggingface` | yes | no | … | Provider kind. |
 | `models` | array&lt;string \| [ModelEntry](#modelentry)&gt; | no | no | unset | Models permitted for this provider, with optional model-specific inference settings. |
 | `config` | [ProviderConfig](#providerconfig) | no | | unset | API credentials and endpoint settings for this provider. |
 | `params` | [InferenceParams](#inferenceparams) | no | | unset | Default inference settings for requests to this provider. |
 
-The `config` block is optional. When omitted, the client reads credentials from the
-`HUGGINGFACE_API_KEY` environment variable and uses the default Hugging Face router endpoint.
+When `config.api_key` is unset, the key is read from the `HUGGINGFACE_API_KEY` environment variable.
+The agent fails to start when neither is set. When `config.base_url` is unset, the default Hugging
+Face router endpoint is used.
 
 ## ModelEntry
 
@@ -52,28 +54,27 @@ are optional and support `runtime()`.
 ## Example
 
 ```hcl title="agent.acl"
-providers {
-  huggingface {
-    models = [
-      "google/gemma-2-2b-it",
-      {
-        name = "meta-llama/Meta-Llama-3.1-8B-Instruct"
-        params {
-          max_tokens  = 8192
-          temperature = 0.7
-        }
+provider "huggingface" {
+  kind = "huggingface"
+  models = [
+    "google/gemma-2-2b-it",
+    {
+      name = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+      params {
+        max_tokens  = 8192
+        temperature = 0.7
       }
-    ]
-
-    config {
-      api_key  = secret(runtime("HUGGINGFACE_API_KEY"))
-      base_url = runtime("HUGGINGFACE_BASE_URL", "https://router.huggingface.co")
     }
+  ]
 
-    params {
-      max_tokens  = 4096
-      temperature = 0.5
-    }
+  config {
+    api_key  = secret(runtime("HUGGINGFACE_API_KEY"))
+    base_url = runtime("HUGGINGFACE_BASE_URL", "https://router.huggingface.co")
+  }
+
+  params {
+    max_tokens  = 4096
+    temperature = 0.5
   }
 }
 

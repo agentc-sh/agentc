@@ -5,94 +5,39 @@
 use proc_macro2::TokenStream;
 use quote::quote;
 
-use agentc_compiler::generator::blocks::codegen::ToIdent;
-
 use crate::{
-    config::fields::FieldsSpec,
-    context::ResolvedContextProviderOpenRouter,
-    graph::codegen::models::{ModelCodeGen, params::InferenceParamsFields},
+    config::fields::FieldsSpec, context::ResolvedContextProviderOpenRouter,
+    graph::codegen::models::ProviderKindCodeGen,
 };
 
-impl ModelCodeGen for ResolvedContextProviderOpenRouter {
+impl ProviderKindCodeGen for ResolvedContextProviderOpenRouter {
+    fn kind(&self) -> &'static str {
+        "openrouter"
+    }
+
     fn imports(&self) -> TokenStream {
         quote! {
             use agentc_model::providers::openrouter::{OpenRouterConfig, OpenRouterFactory};
         }
     }
 
-    fn registration(&self, fields: &FieldsSpec) -> TokenStream {
+    fn factory(&self) -> TokenStream {
+        quote! { OpenRouterFactory }
+    }
+
+    fn config(&self, fields: &FieldsSpec, provider: &str) -> TokenStream {
         let api_key = self
-            .config
+            .api_key
             .as_ref()
-            .and_then(|c| c.api_key.as_ref())
-            .and_then(|_| fields.config_accessor(&["provider", "openrouter", "api_key"]))
+            .and_then(|_| fields.config_accessor(&["provider", provider, "api_key"]))
             .map(|path| quote! { Some(#path.clone().into_inner()) })
             .unwrap_or(quote! { None });
 
-        let constraints = self.models.as_ref().map(|models| {
-            let names = models
-                .iter()
-                .map(|m| m.name.as_str())
-                .collect::<Vec<_>>();
-            quote! {
-                .with_constraints(OpenRouterFactory::provider(), [#(#names),*])
-            }
-        });
-
-        let provider_params = InferenceParamsFields::build(fields, "openrouter", "params");
-        let with_provider_params = if provider_params.is_empty() {
-            quote! {}
-        } else {
-            quote! {
-                .with_provider_params(
-                    OpenRouterFactory::provider(),
-                    agentc_model::types::inference::InferenceParams {
-                        #(#provider_params)*
-                        ..Default::default()
-                    },
-                )
-            }
-        };
-
-        let with_model_params = self
-            .models
-            .iter()
-            .flatten()
-            .filter_map(|model| {
-                let model_params = InferenceParamsFields::build(
-                    fields,
-                    "openrouter",
-                    model.name.to_ident().as_str(),
-                );
-
-                if model_params.is_empty() {
-                    return None;
-                }
-
-                let name = &model.name;
-
-                Some(quote! {
-                    .with_model_params(
-                        OpenRouterFactory::provider(),
-                        #name,
-                        agentc_model::types::inference::InferenceParams {
-                            #(#model_params)*
-                            ..Default::default()
-                        },
-                    )
-                })
-            })
-            .collect::<Vec<_>>();
-
         quote! {
-            .with_factory(OpenRouterFactory)
-            .with_config(OpenRouterFactory::provider(), OpenRouterConfig {
+            OpenRouterConfig {
                 api_key: #api_key,
                 ..Default::default()
-            })?
-            #constraints
-            #with_provider_params
-            #(#with_model_params)*
+            }
         }
     }
 }
@@ -102,9 +47,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn imports_and_registration_reference_the_openrouter_factory() {
-        let provider =
-            ResolvedContextProviderOpenRouter { config: None, params: None, models: None };
+    fn imports_and_config_reference_the_openrouter_factory() {
+        let provider = ResolvedContextProviderOpenRouter { api_key: None };
 
         assert!(
             provider
@@ -112,12 +56,12 @@ mod tests {
                 .to_string()
                 .contains("OpenRouterFactory")
         );
+        assert_eq!(provider.factory().to_string(), "OpenRouterFactory");
 
         let rendered = provider
-            .registration(&FieldsSpec::new(vec![]))
+            .config(&FieldsSpec::new(vec![]), "openrouter")
             .to_string()
             .replace(' ', "");
-        assert!(rendered.contains("with_factory(OpenRouterFactory)"));
         assert!(rendered.contains("OpenRouterConfig{"));
     }
 }

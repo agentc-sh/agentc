@@ -6,7 +6,11 @@ use rig_core::providers::openai;
 use serde::{Deserialize, Serialize};
 use std::env;
 
-use crate::{errors::ModelError, providers::openai::client::OpenAiClient};
+use crate::{
+    errors::ModelError,
+    providers::openai::{client::OpenAiClient, constants::API_KEY_ENV},
+    types::identity::ProviderId,
+};
 
 /// Configuration for constructing an [`OpenAiClient`](crate::providers::openai::OpenAiClient).
 ///
@@ -34,16 +38,25 @@ impl OpenAiConfig {
     }
 
     /// Construct an [`OpenAiClient`] from this config.
-    pub fn build_client(&self) -> Result<OpenAiClient, ModelError> {
+    pub fn build_client(&self, provider: ProviderId) -> Result<OpenAiClient, ModelError> {
+        let mut builder = openai::CompletionsClient::builder().api_key(match &self.api_key {
+            Some(key) => key.clone(),
+            None => env::var(API_KEY_ENV).map_err(|_| {
+                ModelError::configuration(format!(
+                    "provider '{provider}' has no api_key and {API_KEY_ENV} is not set"
+                ))
+            })?,
+        });
+
+        if let Some(url) = &self.base_url {
+            builder = builder.base_url(url);
+        }
+
         Ok(OpenAiClient::new(
-            openai::CompletionsClient::builder()
-                .api_key(match &self.api_key {
-                    Some(key) => key.clone(),
-                    None => env::var("OPENAI_API_KEY")
-                        .expect("OPENAI_API_KEY environment variable must be set if api_key is not provided"),
-                })
+            provider,
+            builder
                 .build()
-                .map_err(|e| ModelError::configuration(e.to_string()))?
+                .map_err(|e| ModelError::configuration(e.to_string()))?,
         ))
     }
 }

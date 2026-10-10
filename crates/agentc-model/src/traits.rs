@@ -12,7 +12,7 @@ use crate::{
     middleware::{CompletionMiddleware, Intercepted},
     stream::ChatCompletionStream,
     types::{
-        identity::{ModelId, ProviderId},
+        identity::{ModelId, ProviderId, ProviderKind},
         inference::InferenceParams,
         message::ChatMessage,
         request::CompletionRequest,
@@ -23,7 +23,7 @@ use crate::{
 /// A model instance representing a specific model from a provider, capable of streaming completions.
 #[async_trait]
 pub trait CompletionModel: Send + Sync {
-    /// The provider this model belongs to.
+    /// The provider instance this model belongs to.
     fn provider(&self) -> ProviderId;
     /// The OTel `gen_ai.provider.name` value for this provider.
     fn otel_provider_name(&self) -> &'static str;
@@ -65,20 +65,24 @@ pub trait CompletionClient: Send + Sync {
     /// The concrete model type this client produces.
     type Model: CompletionModel + 'static;
 
-    /// The provider this client belongs to.
+    /// The provider instance this client belongs to.
     fn provider(&self) -> ProviderId;
 
     /// Create a model instance for the given model name, with the given inference parameter
     /// defaults. These defaults are baked into the model instance and applied on every request
     /// unless overridden at request time.
-    fn model(&self, model: ModelId, params: InferenceParams) -> Self::Model;
+    fn model(&self, model: ModelId, params: InferenceParams) -> Result<Self::Model, ModelError>;
 }
 
 /// An erased version of [`CompletionClient`](crate::traits::CompletionClient) that can be used for dynamic dispatch.
 pub trait ErasedCompletionClient: Send + Sync {
     fn provider(&self) -> ProviderId;
 
-    fn model_erased(&self, model: ModelId, params: InferenceParams) -> Arc<dyn CompletionModel>;
+    fn model_erased(
+        &self,
+        model: ModelId,
+        params: InferenceParams,
+    ) -> Result<Arc<dyn CompletionModel>, ModelError>;
 }
 
 impl<C: CompletionClient> ErasedCompletionClient for C {
@@ -86,37 +90,52 @@ impl<C: CompletionClient> ErasedCompletionClient for C {
         self.provider()
     }
 
-    fn model_erased(&self, model: ModelId, params: InferenceParams) -> Arc<dyn CompletionModel> {
-        Arc::new(self.model(model, params))
+    fn model_erased(
+        &self,
+        model: ModelId,
+        params: InferenceParams,
+    ) -> Result<Arc<dyn CompletionModel>, ModelError> {
+        self.model(model, params)
+            .map(|model| Arc::new(model) as Arc<dyn CompletionModel>)
     }
 }
 
 /// Factory for constructing clients from typed configuration.
+#[async_trait]
 pub trait ClientFactory: Send + Sync {
-    type Config: DeserializeOwned;
+    type Config: DeserializeOwned + Send;
     type Client: CompletionClient + 'static;
 
-    /// The provider this factory constructs clients for.
-    fn provider(&self) -> ProviderId;
+    /// The provider kind this factory constructs clients for.
+    fn kind() -> ProviderKind;
 
     /// Build a concrete client from typed config.
-    fn build(&self, config: Self::Config) -> Result<Self::Client, ModelError>;
+    async fn build(
+        &self,
+        provider: ProviderId,
+        config: Self::Config,
+    ) -> Result<Self::Client, ModelError>;
 }
 
 /// An erased version of [`ClientFactory`](crate::traits::ClientFactory) that can be used for dynamic dispatch.
+#[async_trait]
 pub trait ErasedClientFactory: Send + Sync {
-    fn provider(&self) -> ProviderId;
-
-    fn build_erased(&self, config: Value) -> Result<Arc<dyn ErasedCompletionClient>, ModelError>;
+    async fn build_erased(
+        &self,
+        provider: ProviderId,
+        config: Value,
+    ) -> Result<Arc<dyn ErasedCompletionClient>, ModelError>;
 }
 
+#[async_trait]
 impl<F: ClientFactory> ErasedClientFactory for F {
-    fn provider(&self) -> ProviderId {
-        self.provider()
-    }
-
-    fn build_erased(&self, config: Value) -> Result<Arc<dyn ErasedCompletionClient>, ModelError> {
-        self.build(from_value::<F::Config>(config).map_err(ModelError::Serialization)?)
+    async fn build_erased(
+        &self,
+        provider: ProviderId,
+        config: Value,
+    ) -> Result<Arc<dyn ErasedCompletionClient>, ModelError> {
+        self.build(provider, from_value::<F::Config>(config).map_err(ModelError::Serialization)?)
+            .await
             .map(|client| Arc::new(client) as Arc<dyn ErasedCompletionClient>)
     }
 }
@@ -291,6 +310,18 @@ impl<'a> CompletionRequestBuilder<'a> {
     pub fn maybe_provider_params(mut self, params: Option<impl Serialize>) -> Self {
         if let Some(params) = params {
             self.request.provider_params = to_value(params).ok();
+        }
+        self
+    }
+
+    pub fn inference_params(mut self, params: InferenceParams) -> Self {
+        self.request.merge_overrides(params);
+        self
+    }
+
+    pub fn maybe_inference_params(mut self, params: Option<InferenceParams>) -> Self {
+        if let Some(params) = params {
+            self.request.merge_overrides(params);
         }
         self
     }

@@ -3,18 +3,20 @@ title: Anthropic
 description: Configuration for the Anthropic model provider.
 ---
 
-The `anthropic` sub-block configures the Anthropic cloud provider, which serves Claude models.
+A `provider` block with `kind = "anthropic"` configures the Anthropic cloud provider, which serves
+Claude models.
 
 ## Fields
 
 | Field | Type | Required | runtime() | Default | Description |
 |-------|------|----------|-----------|---------|-------------|
+| `kind` | `anthropic` | yes | no | … | Provider kind. |
 | `models` | array&lt;string \| [ModelEntry](#modelentry)&gt; | no | no | unset | Models permitted for this provider, with optional model-specific inference settings. |
 | `config` | [ProviderConfig](#providerconfig) | no | | unset | API credentials and endpoint settings for this provider. |
 | `params` | [InferenceParams](#inferenceparams) | no | | unset | Default inference settings for requests to this provider. |
 
-The `config` block is optional. When omitted, the Anthropic SDK reads credentials from the
-`ANTHROPIC_API_KEY` environment variable using its standard resolution logic.
+When `config.api_key` is unset, the key is read from the `ANTHROPIC_API_KEY` environment variable.
+The agent fails to start when neither is set.
 
 ## ModelEntry
 
@@ -47,34 +49,30 @@ are optional and support `runtime()`.
 | `seed` | integer | no | yes | unset | Seed for deterministic sampling. |
 | `provider_params` | object | no | yes | unset | Additional provider-specific inference options, such as extended thinking, sent directly to the API. |
 
-For provider-specific options not covered by these fields, such as extended thinking, use the
-`provider_params` field of the model override at request time.
-
 ## Example
 
 ```hcl title="agent.acl"
-providers {
-  anthropic {
-    models = [
-      "claude-haiku-4-5",
-      {
-        name = "claude-opus-4-7"
-        params {
-          max_tokens  = 16000
-          temperature = 0.8
-        }
+provider "anthropic" {
+  kind = "anthropic"
+  models = [
+    "claude-haiku-4-5",
+    {
+      name = "claude-opus-4-7"
+      params {
+        max_tokens  = 16000
+        temperature = 0.8
       }
-    ]
-
-    config {
-      api_key  = secret(runtime("ANTHROPIC_API_KEY"))
-      base_url = runtime("ANTHROPIC_BASE_URL", "https://api.anthropic.com")
     }
+  ]
 
-    params {
-      max_tokens  = 4096
-      temperature = 0.5
-    }
+  config {
+    api_key  = secret(runtime("ANTHROPIC_API_KEY"))
+    base_url = runtime("ANTHROPIC_BASE_URL", "https://api.anthropic.com")
+  }
+
+  params {
+    max_tokens  = 4096
+    temperature = 0.5
   }
 }
 ```

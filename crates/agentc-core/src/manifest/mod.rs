@@ -52,7 +52,8 @@ pub struct Manifest {
     #[serde(default)]
     pub runtime: ManifestRuntime,
     /// Provider-specific configuration that can be referenced in agent definitions.
-    pub providers: ManifestProvider,
+    #[serde(default)]
+    pub provider: HashMap<String, ManifestProvider>,
     /// Agent definition. Exactly one entry is expected here,
     /// but may support multiple agents in the future.
     #[serde(default)]
@@ -130,430 +131,6 @@ impl Manifest {
         })
     }
 
-    fn resolve_provider_params(
-        params: ManifestProviderParams,
-        locals: &Value,
-    ) -> Result<ResolvedContextProviderParams, ManifestError> {
-        Ok(ResolvedContextProviderParams {
-            max_tokens: params.max_tokens,
-            temperature: params.temperature,
-            top_p: params.top_p,
-            top_k: params.top_k,
-            stop_sequences: params
-                .stop_sequences
-                .interpolate(locals)?,
-            frequency_penalty: params.frequency_penalty,
-            presence_penalty: params.presence_penalty,
-            seed: params.seed,
-            provider_params: params
-                .provider_params
-                .interpolate(locals)?,
-        })
-    }
-
-    fn resolve_providers(
-        &self,
-        locals: &Value,
-    ) -> Result<Vec<ResolvedContextProvider>, ManifestError> {
-        let mut providers = Vec::new();
-
-        if let Some(anthropic) = &self.providers.anthropic {
-            providers.push(ResolvedContextProvider::Anthropic(ResolvedContextProviderAnthropic {
-                models: anthropic
-                    .models
-                    .as_ref()
-                    .map(|models| {
-                        models
-                            .iter()
-                            .map(|model| match model {
-                                ManifestProviderAnthropicModel::Name(name) => {
-                                    Ok(ResolvedContextProviderAnthropicModel {
-                                        name: name.clone().interpolate(locals)?,
-                                        params: None,
-                                    })
-                                }
-                                ManifestProviderAnthropicModel::Config(config) => {
-                                    Ok(ResolvedContextProviderAnthropicModel {
-                                        name: config
-                                            .name
-                                            .clone()
-                                            .interpolate(locals)?,
-                                        params: config
-                                            .params
-                                            .clone()
-                                            .map(|params| {
-                                                Self::resolve_provider_params(params, locals)
-                                            })
-                                            .transpose()?,
-                                    })
-                                }
-                            })
-                            .collect::<Result<Vec<_>, ManifestError>>()
-                    })
-                    .transpose()?,
-                config: anthropic
-                    .config
-                    .as_ref()
-                    .map(|config| {
-                        Ok::<_, ManifestError>(ResolvedContextProviderAnthropicConfig {
-                            api_key: config
-                                .api_key
-                                .clone()
-                                .interpolate(locals)?,
-                            base_url: config
-                                .base_url
-                                .clone()
-                                .interpolate(locals)?,
-                        })
-                    })
-                    .transpose()?,
-                params: anthropic
-                    .params
-                    .clone()
-                    .map(|params| Self::resolve_provider_params(params, locals))
-                    .transpose()?,
-            }));
-        }
-
-        if let Some(openai) = &self.providers.openai {
-            providers.push(ResolvedContextProvider::OpenAi(ResolvedContextProviderOpenAi {
-                models: openai
-                    .models
-                    .as_ref()
-                    .map(|models| {
-                        models
-                            .iter()
-                            .map(|model| match model {
-                                ManifestProviderOpenAiModel::Name(name) => {
-                                    Ok(ResolvedContextProviderOpenAiModel {
-                                        name: name.clone().interpolate(locals)?,
-                                        params: None,
-                                    })
-                                }
-                                ManifestProviderOpenAiModel::Config(config) => {
-                                    Ok(ResolvedContextProviderOpenAiModel {
-                                        name: config
-                                            .name
-                                            .clone()
-                                            .interpolate(locals)?,
-                                        params: config
-                                            .params
-                                            .clone()
-                                            .map(|params| {
-                                                Self::resolve_provider_params(params, locals)
-                                            })
-                                            .transpose()?,
-                                    })
-                                }
-                            })
-                            .collect::<Result<Vec<_>, ManifestError>>()
-                    })
-                    .transpose()?,
-                config: openai
-                    .config
-                    .as_ref()
-                    .map(|config| {
-                        Ok::<_, ManifestError>(ResolvedContextProviderOpenAiConfig {
-                            api_key: config
-                                .api_key
-                                .clone()
-                                .interpolate(locals)?,
-                            base_url: config
-                                .base_url
-                                .clone()
-                                .interpolate(locals)?,
-                        })
-                    })
-                    .transpose()?,
-                params: openai
-                    .params
-                    .clone()
-                    .map(|params| Self::resolve_provider_params(params, locals))
-                    .transpose()?,
-            }));
-        }
-
-        if let Some(ollama) = &self.providers.ollama {
-            providers.push(ResolvedContextProvider::Ollama(ResolvedContextProviderOllama {
-                models: ollama
-                    .models
-                    .as_ref()
-                    .map(|models| {
-                        models
-                            .iter()
-                            .map(|model| match model {
-                                ManifestProviderOllamaModel::Name(name) => {
-                                    Ok(ResolvedContextProviderOllamaModel {
-                                        name: name.clone().interpolate(locals)?,
-                                        params: None,
-                                    })
-                                }
-                                ManifestProviderOllamaModel::Config(config) => {
-                                    Ok(ResolvedContextProviderOllamaModel {
-                                        name: config
-                                            .name
-                                            .clone()
-                                            .interpolate(locals)?,
-                                        params: config
-                                            .params
-                                            .clone()
-                                            .map(|params| {
-                                                Self::resolve_provider_params(params, locals)
-                                            })
-                                            .transpose()?,
-                                    })
-                                }
-                            })
-                            .collect::<Result<Vec<_>, ManifestError>>()
-                    })
-                    .transpose()?,
-                config: ollama
-                    .config
-                    .as_ref()
-                    .map(|config| {
-                        Ok::<_, ManifestError>(ResolvedContextProviderOllamaConfig {
-                            base_url: config
-                                .base_url
-                                .clone()
-                                .interpolate(locals)?,
-                        })
-                    })
-                    .transpose()?,
-                params: ollama
-                    .params
-                    .clone()
-                    .map(|params| Self::resolve_provider_params(params, locals))
-                    .transpose()?,
-            }));
-        }
-
-        if let Some(openrouter) = &self.providers.openrouter {
-            providers.push(ResolvedContextProvider::OpenRouter(
-                ResolvedContextProviderOpenRouter {
-                    models: openrouter
-                        .models
-                        .as_ref()
-                        .map(|models| {
-                            models
-                                .iter()
-                                .map(|model| match model {
-                                    ManifestProviderOpenRouterModel::Name(name) => {
-                                        Ok(ResolvedContextProviderOpenRouterModel {
-                                            name: name.clone().interpolate(locals)?,
-                                            params: None,
-                                        })
-                                    }
-                                    ManifestProviderOpenRouterModel::Config(config) => {
-                                        Ok(ResolvedContextProviderOpenRouterModel {
-                                            name: config
-                                                .name
-                                                .clone()
-                                                .interpolate(locals)?,
-                                            params: config
-                                                .params
-                                                .clone()
-                                                .map(|params| {
-                                                    Self::resolve_provider_params(params, locals)
-                                                })
-                                                .transpose()?,
-                                        })
-                                    }
-                                })
-                                .collect::<Result<Vec<_>, ManifestError>>()
-                        })
-                        .transpose()?,
-                    config: openrouter
-                        .config
-                        .as_ref()
-                        .map(|config| {
-                            Ok::<_, ManifestError>(ResolvedContextProviderOpenRouterConfig {
-                                api_key: config
-                                    .api_key
-                                    .clone()
-                                    .interpolate(locals)?,
-                            })
-                        })
-                        .transpose()?,
-                    params: openrouter
-                        .params
-                        .clone()
-                        .map(|params| Self::resolve_provider_params(params, locals))
-                        .transpose()?,
-                },
-            ));
-        }
-
-        if let Some(xai) = &self.providers.xai {
-            providers.push(ResolvedContextProvider::Xai(ResolvedContextProviderXai {
-                models: xai
-                    .models
-                    .as_ref()
-                    .map(|models| {
-                        models
-                            .iter()
-                            .map(|model| match model {
-                                ManifestProviderXaiModel::Name(name) => {
-                                    Ok(ResolvedContextProviderXaiModel {
-                                        name: name.clone().interpolate(locals)?,
-                                        params: None,
-                                    })
-                                }
-                                ManifestProviderXaiModel::Config(config) => {
-                                    Ok(ResolvedContextProviderXaiModel {
-                                        name: config
-                                            .name
-                                            .clone()
-                                            .interpolate(locals)?,
-                                        params: config
-                                            .params
-                                            .clone()
-                                            .map(|params| {
-                                                Self::resolve_provider_params(params, locals)
-                                            })
-                                            .transpose()?,
-                                    })
-                                }
-                            })
-                            .collect::<Result<Vec<_>, ManifestError>>()
-                    })
-                    .transpose()?,
-                config: xai
-                    .config
-                    .as_ref()
-                    .map(|config| {
-                        Ok::<_, ManifestError>(ResolvedContextProviderXaiConfig {
-                            api_key: config
-                                .api_key
-                                .clone()
-                                .interpolate(locals)?,
-                        })
-                    })
-                    .transpose()?,
-                params: xai
-                    .params
-                    .clone()
-                    .map(|params| Self::resolve_provider_params(params, locals))
-                    .transpose()?,
-            }));
-        }
-
-        if let Some(gemini) = &self.providers.gemini {
-            providers.push(ResolvedContextProvider::Gemini(ResolvedContextProviderGemini {
-                models: gemini
-                    .models
-                    .as_ref()
-                    .map(|models| {
-                        models
-                            .iter()
-                            .map(|model| match model {
-                                ManifestProviderGeminiModel::Name(name) => {
-                                    Ok(ResolvedContextProviderGeminiModel {
-                                        name: name.clone().interpolate(locals)?,
-                                        params: None,
-                                    })
-                                }
-                                ManifestProviderGeminiModel::Config(config) => {
-                                    Ok(ResolvedContextProviderGeminiModel {
-                                        name: config
-                                            .name
-                                            .clone()
-                                            .interpolate(locals)?,
-                                        params: config
-                                            .params
-                                            .clone()
-                                            .map(|params| {
-                                                Self::resolve_provider_params(params, locals)
-                                            })
-                                            .transpose()?,
-                                    })
-                                }
-                            })
-                            .collect::<Result<Vec<_>, ManifestError>>()
-                    })
-                    .transpose()?,
-                config: gemini
-                    .config
-                    .as_ref()
-                    .map(|config| {
-                        Ok::<_, ManifestError>(ResolvedContextProviderGeminiConfig {
-                            api_key: config
-                                .api_key
-                                .clone()
-                                .interpolate(locals)?,
-                        })
-                    })
-                    .transpose()?,
-                params: gemini
-                    .params
-                    .clone()
-                    .map(|params| Self::resolve_provider_params(params, locals))
-                    .transpose()?,
-            }));
-        }
-
-        if let Some(huggingface) = &self.providers.huggingface {
-            providers.push(ResolvedContextProvider::HuggingFace(
-                ResolvedContextProviderHuggingFace {
-                    models: huggingface
-                        .models
-                        .as_ref()
-                        .map(|models| {
-                            models
-                                .iter()
-                                .map(|model| match model {
-                                    ManifestProviderHuggingFaceModel::Name(name) => {
-                                        Ok(ResolvedContextProviderHuggingFaceModel {
-                                            name: name.clone().interpolate(locals)?,
-                                            params: None,
-                                        })
-                                    }
-                                    ManifestProviderHuggingFaceModel::Config(config) => {
-                                        Ok(ResolvedContextProviderHuggingFaceModel {
-                                            name: config
-                                                .name
-                                                .clone()
-                                                .interpolate(locals)?,
-                                            params: config
-                                                .params
-                                                .clone()
-                                                .map(|params| {
-                                                    Self::resolve_provider_params(params, locals)
-                                                })
-                                                .transpose()?,
-                                        })
-                                    }
-                                })
-                                .collect::<Result<Vec<_>, ManifestError>>()
-                        })
-                        .transpose()?,
-                    config: huggingface
-                        .config
-                        .as_ref()
-                        .map(|config| {
-                            Ok::<_, ManifestError>(ResolvedContextProviderHuggingFaceConfig {
-                                api_key: config
-                                    .api_key
-                                    .clone()
-                                    .interpolate(locals)?,
-                                base_url: config
-                                    .base_url
-                                    .clone()
-                                    .interpolate(locals)?,
-                            })
-                        })
-                        .transpose()?,
-                    params: huggingface
-                        .params
-                        .clone()
-                        .map(|params| Self::resolve_provider_params(params, locals))
-                        .transpose()?,
-                },
-            ));
-        }
-
-        Ok(providers)
-    }
-
     async fn resolve_agent(&self, locals: &Value) -> Result<ResolvedContextAgent, ManifestError> {
         let agent_label = self.resolve_agent_label()?;
         let agent_block = self
@@ -565,6 +142,14 @@ impl Manifest {
                 ))
             })?
             .clone();
+
+        if let RuntimeValue::Constant(label) = &agent_block.model.provider
+            && !self.provider.contains_key(label)
+        {
+            return Err(ManifestError::resolution(format!(
+                "agent `{agent_label}` uses provider `{label}`, which no `provider` block declares"
+            )));
+        }
 
         Ok(ResolvedContextAgent {
             version: agent_block
@@ -1156,7 +741,11 @@ impl Manifest {
                     .replace([' ', '-'], "_"),
                 agent_name: agent_label,
                 runtime: self.resolve_runtime(&locals)?,
-                providers: self.resolve_providers(&locals)?,
+                providers: self
+                    .provider
+                    .iter()
+                    .map(|(name, provider)| Ok((name.clone(), provider.resolve(name, &locals)?)))
+                    .collect::<Result<_, ManifestError>>()?,
                 agent: self.resolve_agent(&locals).await?,
                 blocks: self
                     .resolve_blocks(loader, &locals)
@@ -1223,7 +812,9 @@ build {{
   archetype = "standalone"
 }}
 
-providers {{}}
+provider "anthropic" {{
+  kind = "anthropic"
+}}
 
 locals {{
   prompt_folder = "support"
@@ -1285,7 +876,9 @@ build {
   archetype = "standalone"
 }
 
-providers {}
+provider "anthropic" {
+  kind = "anthropic"
+}
 
 agent "assistant" {
   version = "0.1.0"
@@ -1343,7 +936,9 @@ build {{
   archetype = "standalone"
 }}
 
-providers {{}}
+provider "anthropic" {{
+  kind = "anthropic"
+}}
 
 agent "assistant" {{
   graph {{
@@ -1555,7 +1150,9 @@ build {
   archetype = "standalone"
 }
 
-providers {}
+provider "anthropic" {
+  kind = "anthropic"
+}
 
 agent "assistant" {
   graph {
@@ -1598,7 +1195,9 @@ build {
   archetype = "standalone"
 }
 
-providers {}
+provider "anthropic" {
+  kind = "anthropic"
+}
 
 agent "assistant" {
   graph {
@@ -1649,7 +1248,9 @@ build {
   archetype = "standalone"
 }
 
-providers {}
+provider "anthropic" {
+  kind = "anthropic"
+}
 
 agent "assistant" {
   graph {
@@ -1692,7 +1293,9 @@ build {
   archetype = "standalone"
 }
 
-providers {}
+provider "anthropic" {
+  kind = "anthropic"
+}
 
 agent "assistant" {
   graph {
@@ -1755,7 +1358,9 @@ build {
   archetype = "standalone"
 }
 
-providers {}
+provider "anthropic" {
+  kind = "anthropic"
+}
 
 agent "assistant" {
   graph {
@@ -1791,7 +1396,9 @@ build {
   archetype = "standalone"
 }
 
-providers {}
+provider "anthropic" {
+  kind = "anthropic"
+}
 
 agent "assistant" {
   graph {
@@ -1896,47 +1503,50 @@ limits {
             .insert("value".to_owned(), RuntimeValue::constant("interpolated".to_owned()));
         manifest.runtime.default_tenant_id =
             RuntimeValue::default_runtime("TENANT", "${locals.value}".to_owned());
-        manifest.providers.anthropic = Some(ManifestProviderAnthropic {
-            models: Some(vec![
-                ManifestProviderAnthropicModel::Name("${locals.value}".to_owned()),
-                ManifestProviderAnthropicModel::Config(ManifestProviderAnthropicModelConfig {
-                    name: "${locals.value}".to_owned(),
-                    params: Some(ManifestProviderParams {
-                        max_tokens: None,
-                        temperature: None,
-                        top_p: None,
-                        top_k: None,
-                        stop_sequences: Some(RuntimeValue::constant(vec![
-                            "${locals.value}".to_owned(),
-                        ])),
-                        frequency_penalty: None,
-                        presence_penalty: None,
-                        seed: None,
-                        provider_params: None,
+        manifest.provider.insert(
+            "anthropic".to_owned(),
+            ManifestProvider::Anthropic(ManifestProviderDefinition {
+                models: Some(vec![
+                    ManifestProviderAnthropicModel::Name("${locals.value}".to_owned()),
+                    ManifestProviderAnthropicModel::Config(ManifestProviderAnthropicModelConfig {
+                        name: "${locals.value}".to_owned(),
+                        params: Some(ManifestProviderParams {
+                            max_tokens: None,
+                            temperature: None,
+                            top_p: None,
+                            top_k: None,
+                            stop_sequences: Some(RuntimeValue::constant(vec![
+                                "${locals.value}".to_owned(),
+                            ])),
+                            frequency_penalty: None,
+                            presence_penalty: None,
+                            seed: None,
+                            provider_params: None,
+                        }),
                     }),
+                ]),
+                config: Some(ManifestProviderAnthropicConfig {
+                    api_key: Some(RuntimeValue::default_runtime(
+                        "ANTHROPIC_API_KEY",
+                        "${locals.value}".to_owned(),
+                    )),
+                    base_url: Some(RuntimeValue::constant("${locals.value}".to_owned())),
                 }),
-            ]),
-            config: Some(ManifestProviderAnthropicConfig {
-                api_key: Some(RuntimeValue::default_runtime(
-                    "ANTHROPIC_API_KEY",
-                    "${locals.value}".to_owned(),
-                )),
-                base_url: Some(RuntimeValue::constant("${locals.value}".to_owned())),
+                params: Some(ManifestProviderParams {
+                    max_tokens: None,
+                    temperature: None,
+                    top_p: None,
+                    top_k: None,
+                    stop_sequences: None,
+                    frequency_penalty: None,
+                    presence_penalty: None,
+                    seed: None,
+                    provider_params: Some(RuntimeValue::constant(
+                        json!({ "nested": ["${locals.value}"] }),
+                    )),
+                }),
             }),
-            params: Some(ManifestProviderParams {
-                max_tokens: None,
-                temperature: None,
-                top_p: None,
-                top_k: None,
-                stop_sequences: None,
-                frequency_penalty: None,
-                presence_penalty: None,
-                seed: None,
-                provider_params: Some(RuntimeValue::constant(
-                    json!({ "nested": ["${locals.value}"] }),
-                )),
-            }),
-        });
+        );
 
         let agent = manifest
             .agent
@@ -2045,7 +1655,8 @@ limits {
                 .as_runtime(),
             Some(("TENANT", Some(&"interpolated".to_owned()), false)),
         );
-        let ResolvedContextProvider::Anthropic(provider) = &resolved.providers[0] else {
+        let provider = &resolved.providers["anthropic"];
+        let ResolvedContextProviderKind::Anthropic(anthropic) = &provider.kind else {
             panic!("provider should be Anthropic");
         };
         let models = provider.models.as_ref().unwrap();
@@ -2064,10 +1675,7 @@ limits {
             &vec!["interpolated".to_owned()],
         );
         assert_eq!(
-            provider
-                .config
-                .as_ref()
-                .unwrap()
+            anthropic
                 .api_key
                 .as_ref()
                 .unwrap()

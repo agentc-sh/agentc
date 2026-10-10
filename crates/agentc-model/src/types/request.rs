@@ -85,8 +85,83 @@ impl CompletionRequest {
             .or_else(|| params.provider_params.clone());
     }
 
+    pub fn merge_overrides(&mut self, params: InferenceParams) {
+        self.max_tokens = params.max_tokens.or(self.max_tokens);
+        self.temperature = params.temperature.or(self.temperature);
+        self.top_p = params.top_p.or(self.top_p);
+        self.top_k = params.top_k.or(self.top_k);
+        self.stop_sequences = params
+            .stop_sequences
+            .or(self.stop_sequences.take());
+        self.frequency_penalty = params
+            .frequency_penalty
+            .or(self.frequency_penalty);
+        self.presence_penalty = params
+            .presence_penalty
+            .or(self.presence_penalty);
+        self.seed = params.seed.or(self.seed);
+        self.provider_params = params
+            .provider_params
+            .or(self.provider_params.take());
+    }
+
     pub fn with_defaults(mut self, params: &InferenceParams) -> Self {
         self.merge_defaults(params);
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+
+    #[test]
+    fn merge_overrides_sets_some_fields_and_keeps_none_fields() {
+        let mut request = CompletionRequest::new(vec![]);
+
+        request.temperature = Some(0.1);
+        request.seed = Some(7);
+
+        request.merge_overrides(InferenceParams {
+            max_tokens: Some(256),
+            temperature: Some(0.9),
+            top_p: Some(0.5),
+            top_k: Some(40),
+            stop_sequences: Some(vec!["END".to_string()]),
+            frequency_penalty: Some(0.2),
+            presence_penalty: Some(0.3),
+            seed: None,
+            provider_params: Some(json!({ "user": "u" })),
+        });
+
+        assert_eq!(request.max_tokens, Some(256));
+        assert_eq!(request.temperature, Some(0.9));
+        assert_eq!(request.top_p, Some(0.5));
+        assert_eq!(request.top_k, Some(40));
+        assert_eq!(request.stop_sequences, Some(vec!["END".to_string()]));
+        assert_eq!(request.frequency_penalty, Some(0.2));
+        assert_eq!(request.presence_penalty, Some(0.3));
+        assert_eq!(request.seed, Some(7));
+        assert_eq!(request.provider_params, Some(json!({ "user": "u" })));
+    }
+
+    #[test]
+    fn merge_overrides_win_over_merge_defaults() {
+        let mut request = CompletionRequest::new(vec![]);
+
+        request.merge_overrides(InferenceParams {
+            temperature: Some(0.9),
+            ..Default::default()
+        });
+        request.merge_defaults(&InferenceParams {
+            max_tokens: Some(1024),
+            temperature: Some(0.2),
+            ..Default::default()
+        });
+
+        assert_eq!(request.temperature, Some(0.9));
+        assert_eq!(request.max_tokens, Some(1024));
     }
 }

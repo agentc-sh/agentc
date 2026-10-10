@@ -6,7 +6,11 @@ use rig_core::providers::openrouter;
 use serde::{Deserialize, Serialize};
 use std::env;
 
-use crate::{errors::ModelError, providers::openrouter::client::OpenRouterClient};
+use crate::{
+    errors::ModelError,
+    providers::openrouter::{client::OpenRouterClient, constants::API_KEY_ENV},
+    types::identity::ProviderId,
+};
 
 /// Configuration for constructing an [`OpenRouterClient`].
 ///
@@ -17,13 +21,17 @@ pub struct OpenRouterConfig {
 }
 
 impl OpenRouterConfig {
-    pub fn build_client(&self) -> Result<OpenRouterClient, ModelError> {
+    pub fn build_client(&self, provider: ProviderId) -> Result<OpenRouterClient, ModelError> {
         Ok(OpenRouterClient::new(
+            provider.clone(),
             openrouter::Client::new(
                 match &self.api_key {
                     Some(key) => key.clone(),
-                    None => env::var("OPENROUTER_API_KEY")
-                        .expect("OPENROUTER_API_KEY must be set if api_key is not provided"),
+                    None => env::var(API_KEY_ENV).map_err(|_| {
+                        ModelError::configuration(format!(
+                            "provider '{provider}' has no api_key and {API_KEY_ENV} is not set"
+                        ))
+                    })?,
                 }
                 .as_str(),
             )

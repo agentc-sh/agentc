@@ -5,7 +5,8 @@
 use rig_core::providers::huggingface;
 
 use crate::{
-    providers::huggingface::{constants::PROVIDER, model::HuggingFaceModel},
+    errors::ModelError,
+    providers::huggingface::model::HuggingFaceModel,
     traits::CompletionClient,
     types::{
         identity::{ModelId, ProviderId},
@@ -15,12 +16,13 @@ use crate::{
 
 #[derive(Clone)]
 pub struct HuggingFaceClient {
+    provider: ProviderId,
     inner: huggingface::Client,
 }
 
 impl HuggingFaceClient {
-    pub fn new(client: huggingface::Client) -> Self {
-        Self { inner: client }
+    pub fn new(provider: ProviderId, client: huggingface::Client) -> Self {
+        Self { provider, inner: client }
     }
 }
 
@@ -28,10 +30,14 @@ impl CompletionClient for HuggingFaceClient {
     type Model = HuggingFaceModel;
 
     fn provider(&self) -> ProviderId {
-        PROVIDER.into()
+        self.provider.clone()
     }
 
-    fn model(&self, model: ModelId, params: InferenceParams) -> HuggingFaceModel {
-        HuggingFaceModel::new(self.inner.clone(), model, params)
+    fn model(
+        &self,
+        model: ModelId,
+        params: InferenceParams,
+    ) -> Result<HuggingFaceModel, ModelError> {
+        Ok(HuggingFaceModel::new(self.provider.clone(), self.inner.clone(), model, params))
     }
 }

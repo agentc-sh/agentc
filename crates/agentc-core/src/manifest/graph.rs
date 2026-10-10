@@ -48,13 +48,12 @@ build {{
   archetype = "standalone"
 }}
 
-providers {{
-  anthropic {{
-    models = ["claude-haiku-4-5"]
+provider "anthropic" {{
+  kind   = "anthropic"
+  models = ["claude-haiku-4-5"]
 
-    config {{
-      api_key = "test"
-    }}
+  config {{
+    api_key = "test"
   }}
 }}
 

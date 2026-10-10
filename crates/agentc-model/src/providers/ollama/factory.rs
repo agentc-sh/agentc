@@ -2,11 +2,13 @@
 //
 // SPDX-License-Identifier: MIT
 
+use async_trait::async_trait;
+
 use crate::{
     errors::ModelError,
-    providers::ollama::{client::OllamaClient, config::OllamaConfig, constants::PROVIDER},
+    providers::ollama::{client::OllamaClient, config::OllamaConfig, constants::KIND},
     traits::ClientFactory,
-    types::identity::ProviderId,
+    types::identity::{ProviderId, ProviderKind},
 };
 
 /// Factory for constructing [`OllamaClient`] instances from
@@ -15,21 +17,20 @@ use crate::{
 /// provider dispatch.
 pub struct OllamaFactory;
 
-impl OllamaFactory {
-    pub fn provider() -> ProviderId {
-        PROVIDER.into()
-    }
-}
-
+#[async_trait]
 impl ClientFactory for OllamaFactory {
     type Config = OllamaConfig;
     type Client = OllamaClient;
 
-    fn provider(&self) -> ProviderId {
-        Self::provider()
+    fn kind() -> ProviderKind {
+        KIND
     }
 
-    fn build(&self, config: OllamaConfig) -> Result<OllamaClient, ModelError> {
-        config.build_client()
+    async fn build(
+        &self,
+        provider: ProviderId,
+        config: OllamaConfig,
+    ) -> Result<OllamaClient, ModelError> {
+        config.build_client(provider)
     }
 }

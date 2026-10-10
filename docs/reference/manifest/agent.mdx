@@ -167,11 +167,9 @@ The `model` block selects the LLM the agent uses.
 
 | Field | Type | Required | runtime() | Default | Description |
 |-------|------|----------|-----------|---------|-------------|
-| `provider` | string | yes | yes | … | Provider name. Must match a key in the `providers` block. |
+| `provider` | string | yes | yes | … | Label of a `provider` block. A constant that matches no `provider` block fails the build; a `runtime()` value that matches none is rejected when the agent selects its model. |
 | `name` | string | yes | yes | … | Model identifier as recognised by the provider. |
 
-Inference parameters such as `temperature`, `max_tokens`, and `top_p` are declared in the
-`providers` block, not here. Provider-level defaults apply to every model request, and individual
-models can override them with their own `params` block. See
-[Configure a model provider](/guides/configure-a-model-provider) and the
-[providers reference](/reference/manifest/providers) for details.
+Inference parameters such as `temperature`, `max_tokens`, and `top_p` are set on the `provider` block,
+not here. See [Configure a model provider](/guides/configure-a-model-provider) and the
+[provider reference](/reference/manifest/providers).
