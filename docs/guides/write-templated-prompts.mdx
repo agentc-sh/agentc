@@ -1,0 +1,137 @@
+---
+title: Write templated prompts
+description: Write system prompts that adapt at runtime using Jinja2 template variables.
+---
+
+The `prompt` field accepts a Jinja2 template. The graph determines when it renders the template
+and which values it supplies. This guide shows how to write templates that adapt to those
+values. For the concept, see [Agents and prompts](/concepts/agents-and-prompts). For the template
+language and its rules, see the [Prompt templates reference](/reference/prompt-templates).
+
+## Reference variables in the prompt
+
+Use `{{ variable }}` to insert a value and `{%- ... %}` for logic. This prompt greets by the agent's
+name and lists its skills only when there are any:
+
+```hcl title="agent.acl"
+agent "assistant" {
+  graph {
+    type = "react"
+  }
+
+  prompt = <<-EOT
+    You are {{ agent_name }}, a helpful assistant.
+    The current date and time is {{ current_datetime }}.
+
+    {%- if skills is defined and skills %}
+    You have access to the following skills:
+    {%- for skill in skills %}
+    - {{ skill.name }}: {{ skill.description }}
+    {%- endfor %}
+    {%- endif %}
+  EOT
+}
+```
+
+The `{%- if skills is defined and skills %}` guard keeps the block out of the prompt entirely when
+no skills are registered, so the rendered prompt stays clean.
+
+## Know which variables are available
+
+The set of variables you can reference is defined by the graph the agent runs on, because the graph
+decides what state exists during a run. For the ReAct graph see the full list, with types, in
+the [ReAct prompt templates reference](/reference/graph/react/prompt-templates).
+
+## Format values with filters
+
+A filter transforms a value before it is inserted. Write it after the value with `|`. This prompt
+formats the ReAct graph's `current_datetime` as a date, using the `strftime` filter:
+
+```hcl
+prompt = <<-EOT
+  You are a scheduling assistant.
+  Today is {{ current_datetime | strftime("%A, %B %-d, %Y") }}.
+EOT
+```
+
+It renders as `Today is Tuesday, October 6, 2026.`
+
+Format a value only as precisely as the prompt needs. Model providers cache prompts by their
+beginning, so a value that changes on every render, such as a timestamp with nanoseconds, prevents
+the provider from reusing the cached prompt. A date changes once a day, so the rendered prompt stays
+the same and stays cacheable all day.
+
+Pass `tz` to show local time:
+
+```hcl
+prompt = "The local time is {{ current_datetime | strftime(\"%H:%M %Z\", tz=\"America/New_York\") }}."
+```
+
+Every filter and its arguments are listed in the [Filters reference](/reference/prompt-templates/filters).
+
+## Use client context
+
+Context variables are values held in run state, such as the user's name or account tier. Loop
+over `context_vars` to fold them into the prompt:
+
+```hcl
+prompt = <<-EOT
+  You are a support agent.
+
+  {%- if context_vars %}
+  Context about the customer you are helping:
+  {%- for var in context_vars %}
+  - {{ var.description }} is {{ var.value }}
+  {%- endfor %}
+  {%- endif %}
+EOT
+```
+
+Sending these values from a client is covered in
+[Pass context from the client](/guides/pass-context-from-the-client).
+
+## Seed several messages
+
+The `prompt` field also accepts a list of role and content objects when you want to seed more than a
+single system message before the conversation begins. Each item is rendered as its own template:
+
+```hcl
+prompt = [
+  { role = "system",    content = "You are {{ agent_name }}, a helpful assistant." },
+  { role = "user",      content = "Always respond in the same language the user writes in." },
+  { role = "assistant", content = "Understood. I will match the user's language." }
+]
+```
+
+## Keep templates in files
+
+Use `file("path")` to keep a prompt template outside `agent.acl`:
+
+```hcl
+prompt = file("./prompts/system.md")
+```
+
+The file can contain the same Jinja2 expressions as an inline prompt. For a multi-message prompt, use `file("path")` on each
+message whose content comes from a file. See [File-backed string values](/reference/manifest#file-backed-string-values) for
+path behavior.
+
+## Do not confuse the two interpolations
+
+The manifest has two interpolation syntaxes and they run at different times. `${locals.value}` is local
+interpolation, applied when the manifest is resolved at build time. `{{ variable }}` and `{%- ... %}`
+are Jinja2, evaluated when the graph renders the prompt. Use local interpolation for build-time
+values and Jinja2 for values supplied at runtime:
+
+```hcl
+prompt = "You are {{ agent_name }}, version ${locals.version}. Today is {{ current_datetime }}."
+```
+
+Here `${locals.version}` is replaced once at build time, while `{{ agent_name }}` and
+`{{ current_datetime }}` are replaced when the ReAct graph renders the prompt.
+
+## Where to go next
+
+- [Pass context from the client](/guides/pass-context-from-the-client): supply context variables in a run request.
+- [Agents and prompts](/concepts/agents-and-prompts): how the prompt relates to identity, model, and capabilities.
+- [Prompt templates reference](/reference/prompt-templates): the template language, its rules, and the filters every template can use.
+- [ReAct prompt templates reference](/reference/graph/react/prompt-templates): the variables available to the ReAct graph.

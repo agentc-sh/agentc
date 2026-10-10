@@ -16,6 +16,7 @@ use agentc_prompt::{
     compaction::{CompactionStrategy, NoCompaction},
     counter::{CharApproxCounter, TokenCounter},
     env::PromptEnv,
+    source::PromptSource,
     vars::TemplateVars,
 };
 use agentc_telemetry::{
@@ -32,6 +33,7 @@ use crate::{
         runtime::{Graph, RunOutcome, SessionConfig},
         state::{GraphNode, InputOf, StateOf},
     },
+    instrument::{InvokeAgentSpan, InvokeAgentSpans},
     stream::{EventEmitter, RunStream},
     tools::{
         registry::ToolRegistry,
@@ -55,7 +57,7 @@ static INVOKE_AGENT_DURATION: LazyLock<Histogram<f64>> = LazyLock::new(|| {
 /// require context-window management.
 pub struct Agent<N, E, M = ()>
 where
-    N: GraphNode<Context = AgentContext<E, M>>,
+    N: GraphNode<Context = AgentContext<E, M>> + InvokeAgentSpans,
     E: From<AgentEvent<StateOf<N>>> + Send + Clone + 'static,
     M: Send + Clone + 'static,
 {
@@ -64,6 +66,7 @@ where
     model_registry: ModelRegistry,
     tool_registry: ToolRegistry,
     prompt_env: PromptEnv,
+    prompt_source: Arc<dyn PromptSource>,
     token_counter: Arc<dyn TokenCounter>,
     compaction_strategy: Arc<dyn CompactionStrategy<M>>,
     template_vars: Vec<Arc<dyn TemplateVars>>,
@@ -71,7 +74,7 @@ where
 
 impl<N, E, M> Agent<N, E, M>
 where
-    N: GraphNode<Context = AgentContext<E, M>> + 'static,
+    N: GraphNode<Context = AgentContext<E, M>> + InvokeAgentSpans + 'static,
     E: From<AgentEvent<StateOf<N>>> + Send + Clone + 'static,
     M: Send + Clone + 'static,
 {
@@ -110,6 +113,7 @@ where
         let identity = self.identity.clone();
         let agent_name = self.identity.name.clone();
         let prompt_env = self.prompt_env.clone();
+        let prompt_source = self.prompt_source.clone();
         let token_counter = self.token_counter.clone();
         let compaction_strategy = self.compaction_strategy.clone();
         let template_vars = self.template_vars.clone();
@@ -128,8 +132,15 @@ where
                     gen_ai.operation.name = "invoke_agent",
                     gen_ai.agent.name = %agent_name,
                     gen_ai.conversation.id = %session_id,
+                    gen_ai.input.messages = field::Empty,
+                    gen_ai.output.messages = field::Empty,
+                    agentc.agent.input = field::Empty,
+                    agentc.agent.output = field::Empty,
                     error.type = field::Empty,
                 );
+
+                InvokeAgentSpan::record_input::<N>(&span, &params.input);
+
                 let start = Instant::now();
 
                 let result = graph
@@ -140,6 +151,7 @@ where
                             tool_registry,
                             identity,
                             prompt_env,
+                            prompt_source,
                             token_counter,
                             compaction_strategy,
                             session_id,
@@ -166,6 +178,10 @@ where
                 }
 
                 INVOKE_AGENT_DURATION.record(start.elapsed().as_secs_f64(), &attributes);
+
+                if let Ok(outcome) = &result {
+                    InvokeAgentSpan::record_output::<N>(&span, outcome);
+                }
 
                 match result {
                     Ok(result) => {
@@ -206,7 +222,7 @@ where
 
 pub struct AgentBuilder<N, E, M = ()>
 where
-    N: GraphNode<Context = AgentContext<E, M>> + 'static,
+    N: GraphNode<Context = AgentContext<E, M>> + InvokeAgentSpans + 'static,
     E: From<AgentEvent<StateOf<N>>> + Send + Clone + 'static,
     M: Send + Clone + 'static,
 {
@@ -216,6 +232,7 @@ where
     tool_registry: ToolRegistry,
     tool_registries: Vec<ToolRegistry>,
     prompt_env: PromptEnv,
+    prompt_source: Option<Arc<dyn PromptSource>>,
     token_counter: Arc<dyn TokenCounter>,
     compaction_strategy: Arc<dyn CompactionStrategy<M>>,
     template_vars: Vec<Arc<dyn TemplateVars>>,
@@ -223,7 +240,7 @@ where
 
 impl<N, E, M> Default for AgentBuilder<N, E, M>
 where
-    N: GraphNode<Context = AgentContext<E, M>> + 'static,
+    N: GraphNode<Context = AgentContext<E, M>> + InvokeAgentSpans + 'static,
     E: From<AgentEvent<StateOf<N>>> + Send + Clone + 'static,
     M: Send + Clone + 'static,
     NoCompaction: CompactionStrategy<M>,
@@ -235,7 +252,7 @@ where
 
 impl<N, E, M> AgentBuilder<N, E, M>
 where
-    N: GraphNode<Context = AgentContext<E, M>> + 'static,
+    N: GraphNode<Context = AgentContext<E, M>> + InvokeAgentSpans + 'static,
     E: From<AgentEvent<StateOf<N>>> + Send + Clone + 'static,
     M: Send + Clone + 'static,
 {
@@ -250,6 +267,7 @@ where
             tool_registry: ToolRegistry::empty(),
             tool_registries: Vec::new(),
             prompt_env: PromptEnv::default(),
+            prompt_source: None,
             token_counter: Arc::new(CharApproxCounter),
             compaction_strategy: Arc::new(NoCompaction),
             template_vars: Vec::new(),
@@ -278,6 +296,13 @@ where
     /// Defaults to a strict-mode environment with no custom functions or filters.
     pub fn with_prompt_env(mut self, env: PromptEnv) -> Self {
         self.prompt_env = env;
+        self
+    }
+
+    /// Set the source that resolves the agent's prompt template before each model
+    /// call. This is required.
+    pub fn with_prompt_source(mut self, prompt_source: impl PromptSource + 'static) -> Self {
+        self.prompt_source = Some(Arc::new(prompt_source));
         self
     }
 
@@ -373,6 +398,9 @@ where
                 .into_iter()
                 .fold(self.tool_registry, |acc, r| acc.merged_with(r)),
             prompt_env: self.prompt_env,
+            prompt_source: self
+                .prompt_source
+                .ok_or(AgentError::configuration("Prompt source is required"))?,
             token_counter: self.token_counter,
             compaction_strategy: self.compaction_strategy,
             template_vars: self.template_vars,

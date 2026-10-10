@@ -8,6 +8,10 @@ it requires, and the agent declares the tags it holds. A tool is callable only w
 every tag the tool requires. This guide shows how to set that up. For the underlying idea, see
 [Tools and capabilities](/concepts/tools-and-capabilities).
 
+Capabilities only gate tool invocation. They do not change what the runtime libraries expose to
+guest code. That environment is shared across components and is described at
+[Runtime libraries](/concepts/runtime-libraries).
+
 ## Tag your tools
 
 Add a `capabilities` list to each tool that should be gated. The convention is `namespace::operation`,

@@ -1,4 +1,4 @@
-import { Tool, ToolInput, ToolOutput } from '@agentc-sh/tdk';
+import { Schema, Tool, type ToolInput, type ToolOutput } from 'agentc:tools';
 
 export type {{ name_pascal }}Params = {
     name: string;
@@ -8,10 +8,10 @@ export type {{ name_pascal }}Result = {
     message: string;
 }
 
-export const {{ name_snake }}: Tool<{{ name_pascal }}Params, {{ name_pascal }}Result> = {
-    name: '{{ name_snake }}',
-    description: 'A tool.',
-    parameters: {
+export class {{ name_pascal }} extends Tool<{{ name_pascal }}Params, {{ name_pascal }}Result> {
+    static readonly description = 'A tool.';
+
+    static readonly parameters = new Schema({
         type: 'object',
         properties: {
             name: {
@@ -20,12 +20,15 @@ export const {{ name_snake }}: Tool<{{ name_pascal }}Params, {{ name_pascal }}Re
             },
         },
         required: ['name'],
-    },
-    async execute(input: ToolInput<{{ name_pascal }}Params>): Promise<ToolOutput<{{ name_pascal }}Result>> {
+    });
+
+    async execute(
+        input: ToolInput<{{ name_pascal }}Params>,
+    ): Promise<ToolOutput<{{ name_pascal }}Result>> {
         return {
             output: {
                 message: `Hello, ${input.args.name}!`,
-            }
-        }
+            },
+        };
     }
 }

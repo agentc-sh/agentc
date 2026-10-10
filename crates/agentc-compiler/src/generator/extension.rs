@@ -8,6 +8,8 @@ use std::{
     marker::PhantomData,
 };
 
+use proc_macro2::TokenStream;
+
 use crate::generator::errors::GeneratorError;
 
 /// A named coordination point between blocks.
@@ -115,6 +117,35 @@ impl From<&str> for ErasedContributionValue {
     }
 }
 
+/// Rust source that has already been rendered to text.
+///
+/// Carries token output across the `Send + Sync + 'static` bound on
+/// [`ExtensionPoint::Contribution`], which `proc_macro2::TokenStream` does not satisfy.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RenderedTokenStream(String);
+
+impl RenderedTokenStream {
+    pub fn tokens(&self) -> Result<TokenStream, GeneratorError> {
+        self.0.parse().map_err(|error| {
+            GeneratorError::unexpected(format!("rendered token stream is not valid Rust: {error}",))
+        })
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl From<TokenStream> for RenderedTokenStream {
+    fn from(tokens: TokenStream) -> Self {
+        Self(tokens.to_string())
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct StringExtensionPoint {
     name: String,
@@ -136,6 +167,39 @@ impl ExtensionPoint for StringExtensionPoint {
 
     fn reduce(&self, contributions: Vec<Self::Contribution>) -> Result<String, GeneratorError> {
         Ok((self.reducer)(contributions))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TokenStreamExtensionPoint {
+    name: String,
+    reducer: fn(Vec<String>) -> String,
+}
+
+impl TokenStreamExtensionPoint {
+    pub fn new(name: impl Into<String>, reducer: fn(Vec<String>) -> String) -> Self {
+        Self { name: name.into(), reducer }
+    }
+}
+
+impl ExtensionPoint for TokenStreamExtensionPoint {
+    type Contribution = RenderedTokenStream;
+
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn reduce(&self, contributions: Vec<Self::Contribution>) -> Result<String, GeneratorError> {
+        // Empty contributions are dropped so a block with nothing to say for this point
+        // cannot introduce a blank element. Under `reducers::last` this makes the rule
+        // "last non-empty".
+        Ok((self.reducer)(
+            contributions
+                .iter()
+                .filter(|rendered| !rendered.is_empty())
+                .map(|rendered| rendered.as_str().to_string())
+                .collect(),
+        ))
     }
 }
 
@@ -456,5 +520,48 @@ mod tests {
         .unwrap();
 
         assert_eq!(registry.get("empty_point"), Some(""));
+    }
+
+    #[test]
+    fn rendered_token_stream_round_trips_through_text() {
+        let rendered = RenderedTokenStream::from(quote::quote! { pub struct A; });
+
+        assert_eq!(rendered.tokens().unwrap().to_string(), "pub struct A ;");
+    }
+
+    #[test]
+    fn rendered_token_stream_is_empty_when_default() {
+        assert!(RenderedTokenStream::default().is_empty());
+    }
+
+    #[test]
+    fn token_stream_point_reduces_rendered_contributions() {
+        assert_eq!(
+            ExtensionPoint::reduce(
+                &TokenStreamExtensionPoint::new("tokens", reducers::concat),
+                vec![
+                    RenderedTokenStream::from(quote::quote! { mod first; }),
+                    RenderedTokenStream::from(quote::quote! { mod second; }),
+                ],
+            )
+            .unwrap(),
+            "mod first ;\nmod second ;",
+        );
+    }
+
+    #[test]
+    fn token_stream_point_drops_empty_contributions() {
+        assert_eq!(
+            ExtensionPoint::reduce(
+                &TokenStreamExtensionPoint::new("tokens", reducers::concat),
+                vec![
+                    RenderedTokenStream::default(),
+                    RenderedTokenStream::from(quote::quote! { mod only; }),
+                    RenderedTokenStream::default(),
+                ],
+            )
+            .unwrap(),
+            "mod only ;",
+        );
     }
 }

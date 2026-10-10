@@ -43,8 +43,18 @@ impl<I> RunParams<I> {
         self
     }
 
+    pub fn maybe_with_checkpoint_id(mut self, checkpoint_id: Option<impl Into<Uuid>>) -> Self {
+        self.checkpoint_id = checkpoint_id.map(Into::into);
+        self
+    }
+
     pub fn with_resume_payload(mut self, resume_payload: impl Into<Value>) -> Self {
         self.resume_payload = Some(resume_payload.into());
+        self
+    }
+
+    pub fn maybe_with_resume_payload(mut self, resume_payload: Option<impl Into<Value>>) -> Self {
+        self.resume_payload = resume_payload.map(Into::into);
         self
     }
 }

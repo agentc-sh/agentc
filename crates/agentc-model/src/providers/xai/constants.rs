@@ -4,11 +4,13 @@
 
 use std::fmt::{Display, Formatter, Result as FmtResult};
 
-use crate::types::identity::{ModelId, StaticProviderId};
+use crate::types::identity::{ModelId, ProviderKind};
 
-pub const PROVIDER: StaticProviderId = StaticProviderId::new("xai");
+pub const KIND: ProviderKind = ProviderKind::new("xai");
 
 pub const OTEL_PROVIDER_NAME: &str = "x_ai";
+
+pub const API_KEY_ENV: &str = "XAI_API_KEY";
 
 pub enum Model {
     Grok3,

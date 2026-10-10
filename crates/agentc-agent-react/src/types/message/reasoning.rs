@@ -23,6 +23,7 @@ pub struct ReasoningMessage {
     pub tenant_id: String,
     pub session_id: Uuid,
     pub run_id: Uuid,
+    pub checkpoint_id: Option<Uuid>,
     pub content: String,
     /// Provider-issued opaque value needed for multi-turn continuity.
     /// For text thinking blocks this is the provider's signature; for
@@ -38,6 +39,7 @@ impl ReasoningMessage {
             tenant_id: String::new(),
             session_id: Uuid::nil(),
             run_id: Uuid::nil(),
+            checkpoint_id: None,
             content: content.into(),
             signature: None,
             created_at: Utc::now(),
@@ -69,6 +71,11 @@ impl ReasoningMessage {
 
     pub fn with_run_id(mut self, run_id: impl Into<Uuid>) -> Self {
         self.run_id = run_id.into();
+        self
+    }
+
+    pub fn with_checkpoint_id(mut self, checkpoint_id: impl Into<Uuid>) -> Self {
+        self.checkpoint_id = Some(checkpoint_id.into());
         self
     }
 

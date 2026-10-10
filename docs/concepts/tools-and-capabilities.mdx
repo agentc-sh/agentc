@@ -18,7 +18,7 @@ Every tool has a `kind` that decides how it is built and executed. The kinds ava
 into three groups:
 
 - Tools you write in code. `javascript` runs a TypeScript or JavaScript package, bundled with esbuild and executed in an embedded JS runtime. `python` runs a Python package installed with `uv`, using an embedded interpreter by default or CPython through the `static` option for packages with C extensions. See [Write a tool](/guides/write-a-tool).
-- Built-in tools you configure rather than author. `bash` provides a sandboxed shell environment with configurable access to host programs, the filesystem, and the network. See [Use the bash tool](/guides/use-the-bash-tool).
+- Built-in tools you configure rather than author. `bash` provides a shell that uses the agent's shared filesystem and network policy, while its tool configuration controls shell behavior and access to additional host programs. See [Use the bash tool](/guides/use-the-bash-tool).
 - Tools that live elsewhere. `mcp` connects tools served by a Model Context Protocol server over stdio or HTTP, rather than embedding tool code. `a2a` delegates a task to another agent over the Agent2Agent protocol. See [Connect external tools via MCP](/guides/connect-external-tools-via-mcp) and [Connect agents via A2A](/guides/connect-agents-via-a2a).
 
 More kinds may be added over time; the `kind` field on the [tool reference](/reference/manifest/tool)
@@ -40,15 +40,19 @@ instead allow clients to extend or replace that set per session, which is useful
 callers should have different reach. The practical recipe for setting all of this up is in
 [Control tool access with capabilities](/guides/control-tool-access-with-capabilities).
 
+Capabilities decide which tools the model may call. Every component that runs sees
+the same runtime libraries and the same environment regardless of its capabilities. See
+[Runtime libraries](/concepts/runtime-libraries).
+
 ## State and activity
 
 Tools are aware of the agent's state. When invoked, a tool can receive a snapshot of the current
 run state and read it to make context-aware decisions.
 
-Tools can also return a state update alongside their output. State updates are
-[RFC 6902 JSON Patch](https://jsonpatch.com/) operations that are applied to the agent's state,
-persisted, and emitted to the client as state delta events. What fields are patchable depends on the
-graph implementation. For ReAct, patches target paths under `/context/`.
+Tools can also return a state update alongside their output. The graph interprets its
+[RFC 6902 JSON Patch](https://jsonpatch.com/) operations and determines which state fields they
+can update. See the [ReAct state reference](/reference/graph/react/state) for that graph's patch
+shape and persistence behavior.
 
 Additionally, tools can emit activity events during execution. These deliver stateless updates to
 the client as custom events and are intended for generative UI. Activity events are not persisted.

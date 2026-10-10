@@ -28,6 +28,43 @@ or detached mode, where the server returns the run and session IDs and keeps exe
 background. Active runs can also be observed through a live reattach stream. Reattachment does not
 replay earlier events; persisted run and message history remain available through the read endpoints.
 
+Because every step is checkpointed, a run can also be started from an earlier checkpoint instead of the
+session's latest state. Doing so creates a new run whose history descends from the chosen checkpoint,
+so the original run's history is left unchanged. List a session's checkpoints with the
+[checkpoints endpoint](/reference/graph/react/http/checkpoints) to find one to start from.
+
+## Nodes
+
+Each step of a run executes one node. The node that ran is recorded on the step's checkpoint, as the
+`node` field returned by the [checkpoints endpoint](/reference/graph/react/http/checkpoints).
+
+| Node | What it does | Next node |
+|---|---|---|
+| `entrypoint` | Starts every run. Emits the state snapshot and decides where the run goes from the conversation. | `call_model` if the conversation ends in a user message, otherwise `call_tools` if the latest assistant message has tool calls without results, otherwise `call_model` if the conversation ends in a tool result, otherwise `exit` |
+| `call_model` | Calls the model and adds its reply to the conversation. | `call_tools` if the reply has tool calls, otherwise `exit` |
+| `call_tools` | Runs every pending tool call. Server tools execute; client-defined tools are announced to the client. | `exit` if any call is for a client-defined tool, otherwise `call_model` |
+| `exit` | Emits the messages snapshot and ends the run. | none |
+
+Checkpoints written by earlier versions can have the node `route_next`. Starting a run from such a
+checkpoint, or from an `exit` checkpoint, starts at `entrypoint`.
+
+## Client-defined tools
+
+A run can carry tool definitions in its `tools` field. The model can call these tools like any
+other, but only the client can execute them.
+
+When the model calls a client-defined tool, the run emits `tool_call_start`, `tool_call_args` and
+`tool_call_end` for that call, with no `tool_call_result`, and then finishes. Server tools called in
+the same model reply still execute in that run, and their results are kept.
+
+To continue, the client executes the tool and starts a new run in the same session with a `tool`
+message whose `tool_call_id` is the call's ID. When every call in that model reply has a result, the
+model is called again.
+
+If a run starts while some of those calls still have no result, the run announces only the calls
+that are still unanswered, and then finishes again. Server tool calls that already have a result are
+not executed again.
+
 ## Reference in this section
 
 - [HTTP reference](/reference/graph/react/http): the native `/v1` endpoints for sessions, messages, runs, and live run event streams.

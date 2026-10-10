@@ -3,8 +3,8 @@ title: agentc tool init
 description: Scaffold a new tool source directory.
 ---
 
-`agentc tool init` scaffolds a new tool package for the given language with the correct structure,
-dependencies, and TDK integration pre-configured.
+`agentc tool init` scaffolds a new tool package for the given language with the correct structure and
+dependencies pre-configured.
 
 ```bash
 agentc tool init <NAME> --language <LANGUAGE> [OPTIONS]
@@ -33,7 +33,7 @@ Scaffold a Python tool:
 agentc tool init weather --language python
 ```
 
-Scaffold a TypeScript tool:
+Scaffold a JavaScript tool:
 
 ```bash
 agentc tool init math --language javascript
@@ -48,8 +48,15 @@ On success, the command prints:
 ```
 
 The generated package is immediately usable. For Python, install dependencies with `uv sync`. For
-JavaScript, install with `pnpm install`. The TDK dependency is pre-configured in both cases so you
-can start implementing tool logic right away.
+JavaScript, install with `pnpm install`.
+
+## Generated package
+
+For JavaScript, the command writes a ready-to-use package with package metadata, runtime type
+support, and an entry point that exports a `Tool` subclass from `agentc:tools`.
+
+For Python, the command writes a ready-to-use package with a `pyproject.toml`, runtime type
+support, and a typed package directory whose module exports a `Tool` subclass from `agentc_tools`.
 
 See [Write a tool](/guides/write-a-tool) for details on the tool API and how to declare the tool in
 your manifest.

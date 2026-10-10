@@ -3,8 +3,9 @@
 // SPDX-License-Identifier: MIT
 
 use async_stream::try_stream;
+use async_trait::async_trait;
 use axum::{
-    extract::State,
+    extract::{FromRef, State},
     http::StatusCode,
     response::{
         IntoResponse, Response,
@@ -12,8 +13,11 @@ use axum::{
     },
 };
 use futures::stream::{BoxStream, StreamExt};
-use jobq::{Error as JobQueueError, JobStreamOptions, StreamTask};
-use std::{convert::Infallible, time::Duration};
+use jobq::{
+    AnyExecutable, FifoQueue, Independent, IndependentBatchStreamTask, JobStreamOptions,
+    StreamBatcher,
+};
+use std::{convert::Infallible, ops::Deref, sync::Arc, time::Duration};
 use subway::Bus;
 use tokio_util::sync::CancellationToken;
 use utoipa_axum::{router::OpenApiRouter, routes};
@@ -21,7 +25,7 @@ use uuid::Uuid;
 use validator::Validate;
 
 use agentc_domain::types::RunStatus;
-use agentc_http::{
+use agentc_http::server::{
     dto::{errors::ErrorResponseDTO, page::PaginatedResponseDTO},
     errors::ApiError,
     extractors::{Json, Path, Query, TenantIdHeader},
@@ -42,43 +46,78 @@ use crate::{
     },
 };
 
-struct RunStreamTask {
-    service: ApplicationService,
+#[derive(Clone)]
+struct RunState {
+    api: ReActApiState,
+    run_task_queue: StreamBatcher<RunStreamTask, FifoQueue<AnyExecutable>, Independent>,
+}
+
+impl Deref for RunState {
+    type Target = ReActApiState;
+
+    fn deref(&self) -> &Self::Target {
+        &self.api
+    }
+}
+
+impl FromRef<RunState> for ReActApiState {
+    fn from_ref(state: &RunState) -> Self {
+        state.api.clone()
+    }
+}
+
+struct RunStreamTaskInput {
     params: RunParams,
     disconnect: CancellationToken,
+}
+
+impl RunStreamTaskInput {
+    pub fn new(params: RunParams, disconnect: CancellationToken) -> Self {
+        Self { params, disconnect }
+    }
+}
+
+struct RunStreamTask {
+    service: Arc<ApplicationService>,
     bus: Bus,
 }
 
 impl RunStreamTask {
-    fn new(
-        service: ApplicationService,
-        params: RunParams,
-        disconnect: CancellationToken,
-        bus: Bus,
-    ) -> Self {
-        Self { service, params, disconnect, bus }
+    fn new(service: Arc<ApplicationService>, bus: Bus) -> Self {
+        Self { service, bus }
     }
 }
 
-impl StreamTask for RunStreamTask {
+#[async_trait]
+impl IndependentBatchStreamTask for RunStreamTask {
+    type Input = RunStreamTaskInput;
+    type Shared = ();
     type Item = RunEvent;
     type Error = ServiceError;
 
-    fn execute(&self) -> BoxStream<'_, Result<Self::Item, Self::Error>> {
+    async fn prepare(&self, _inputs: &[Self::Input]) -> Result<Self::Shared, Self::Error> {
+        Ok(())
+    }
+
+    fn stream<'a>(
+        &'a self,
+        _shared: &'a Self::Shared,
+        input: &'a Self::Input,
+    ) -> BoxStream<'a, Result<Self::Item, Self::Error>> {
         Box::pin(try_stream! {
-            let tenant_id = self.params.tenant_id.clone();
-            let run_id = self.params.run_id;
+            let tenant_id = input.params.tenant_id.clone();
+            let run_id = input.params.run_id;
 
             let topic = self.bus
                 .topic::<RunEvent>(&format!("run:{tenant_id}:{run_id}"));
 
             let mut stream = self.service
-                .run(self.params.clone())
+                .run(input.params.clone())
                 .await?;
 
             loop {
                 match tokio::select! {
-                    _ = self.disconnect.cancelled() => self.service
+                    _ = input.disconnect.cancelled() => self.service
                         .cancel_run(&tenant_id, run_id)
                         .await
                         .map(|_| None),
@@ -86,7 +125,6 @@ impl StreamTask for RunStreamTask {
                 }? {
                     Some(event) => {
                         let _ = topic.publish(&event).await;
-
                         yield event;
                     }
                     None => break,
@@ -96,7 +134,7 @@ impl StreamTask for RunStreamTask {
     }
 }
 
-pub fn router() -> OpenApiRouter<ReActApiState> {
+pub fn router(state: &ReActApiState) -> OpenApiRouter<ReActApiState> {
     OpenApiRouter::new()
         .routes(routes!(find_runs_endpoint))
         .routes(routes!(get_run_endpoint))
@@ -104,6 +142,15 @@ pub fn router() -> OpenApiRouter<ReActApiState> {
         .routes(routes!(start_run_endpoint))
         .routes(routes!(cancel_run_endpoint))
         .routes(routes!(reattach_run_endpoint))
+        .with_state(RunState {
+            api: state.clone(),
+            run_task_queue: state
+                .task_queue
+                .stream_batcher(RunStreamTask::new(state.service.clone(), state.bus.clone()))
+                .mode(Independent)
+                .policy(state.batch_policy)
+                .build(),
+        })
 }
 
 /// Find runs for a session
@@ -219,7 +266,7 @@ async fn get_run_endpoint(
     ),
 )]
 async fn create_run_endpoint(
-    State(state): State<ReActApiState>,
+    State(state): State<RunState>,
     tenant_id: Option<TenantIdHeader>,
     Json(payload): Json<CreateRunRequestDTO>,
 ) -> Response {
@@ -230,14 +277,13 @@ async fn create_run_endpoint(
     let disconnect = CancellationToken::new();
 
     match state
-        .task_queue
-        .enqueue_stream(JobStreamOptions::new(RunStreamTask::new(
-            (*state.service).clone(),
+        .run_task_queue
+        .enqueue(JobStreamOptions::new(RunStreamTaskInput::new(
             payload.to_params(
-                tenant_id.map_or(state.default_tenant_id.into_inner(), TenantIdHeader::into_inner),
+                tenant_id
+                    .map_or(state.api.default_tenant_id.into_inner(), TenantIdHeader::into_inner),
             ),
             disconnect.clone(),
-            state.bus.clone(),
         )))
         .await
     {
@@ -252,10 +298,10 @@ async fn create_run_endpoint(
                 Err(err) => Ok(Event::default()
                     .event("error")
                     .json_data(ErrorResponseDTO::from(match err {
-                        JobQueueError::TaskExecution { source, .. } => {
-                            match source.downcast::<ServiceError>() {
-                                Ok(err) => ApiError::from(*err),
-                                Err(source) => ApiError::unexpected_error(source.to_string()),
+                        jobq::Error::TaskExecution { source, .. } => {
+                            match source.downcast_ref::<ServiceError>() {
+                                Some(err) => ApiError::from(err),
+                                None => ApiError::unexpected_error(source.to_string()),
                             }
                         }
                         err => ApiError::unexpected_error(err.to_string()),
@@ -294,7 +340,7 @@ async fn create_run_endpoint(
     ),
 )]
 async fn start_run_endpoint(
-    State(state): State<ReActApiState>,
+    State(state): State<RunState>,
     tenant_id: Option<TenantIdHeader>,
     Json(payload): Json<StartRunRequestDTO>,
 ) -> Response {
@@ -303,14 +349,13 @@ async fn start_run_endpoint(
     }
 
     match state
-        .task_queue
-        .enqueue_stream(JobStreamOptions::new(RunStreamTask::new(
-            (*state.service).clone(),
+        .run_task_queue
+        .enqueue(JobStreamOptions::new(RunStreamTaskInput::new(
             payload.to_params(
-                tenant_id.map_or(state.default_tenant_id.into_inner(), TenantIdHeader::into_inner),
+                tenant_id
+                    .map_or(state.api.default_tenant_id.into_inner(), TenantIdHeader::into_inner),
             ),
             CancellationToken::new(),
-            state.bus.clone(),
         )))
         .await
     {

@@ -2,150 +2,461 @@
 //
 // SPDX-License-Identifier: MIT
 
-use convert_case::{Case, Casing};
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
-use agentc_compiler::generator::{blocks::codegen::ToIdent, errors::GeneratorError};
+use agentc_compiler::generator::{
+    blocks::{codegen::ToIdent, fragment::Fragment},
+    context::GenerationContext,
+    errors::GeneratorError,
+    extension::ErasedContributionValue,
+};
 
 use crate::{
-    context::{ResolvedContext, ResolvedContextToolJavascript, ResolvedContextToolKind},
-    fields::FieldsSpec,
-    graph::codegen::tools::ToolCodeGen,
+    config::fields::FieldsSpec,
+    context::{
+        ResolvedContext, ResolvedContextTool, ResolvedContextToolJavascript,
+        ResolvedContextToolKind,
+    },
+    contributions::{
+        dependency::{
+            CargoDependencies, CargoDependencyContribution, CargoPatchContribution, CargoPatches,
+            RuntimeDependencyContribution,
+        },
+        import::ImportContribution,
+    },
+    graph::codegen::tools::{ToolCodeGen, enabled::ToolEnabledGuard},
 };
 
 /// All JavaScript tools in the context. Tools that share a bundle path share a single
-/// `QuickJsRuntime`, mirroring how embedded Python tools share a runtime per venv.
+/// `Executor`, mirroring how embedded Python tools share a runtime per venv.
 pub struct JavascriptTools<'a>(pub &'a ResolvedContext);
 
-impl ToolCodeGen for JavascriptTools<'_> {
-    fn imports(&self) -> Option<TokenStream> {
-        self.0
-            .tools
+impl JavascriptTools<'_> {
+    pub fn is_present(ctx: &ResolvedContext) -> bool {
+        ctx.tools
             .values()
-            .any(|t| t.kind.is_javascript())
+            .any(|tool| tool.kind.is_javascript())
+    }
+}
+
+impl ToolCodeGen for JavascriptTools<'_> {
+    fn imports(&self) -> Vec<ImportContribution> {
+        Self::is_present(self.0)
             .then(|| {
-                quote! {
-                    use agentc_tools::javascript::{QuickJsRuntime, JavascriptTool};
-                }
+                vec![
+                    ImportContribution::path(&["agentc_executor_typescript", "executor"])
+                        .item("Executor"),
+                    ImportContribution::path(&["agentc_fs", "typescript", "executor"])
+                        .item("ExecutorBuilderFsExt"),
+                    ImportContribution::path(&["agentc_http", "client", "typescript"])
+                        .item("ExecutorBuilderHttpExt"),
+                    ImportContribution::path(&["agentc_tools", "javascript"])
+                        .item("ExecutorBuilderToolsExt")
+                        .item("JavascriptTool"),
+                ]
             })
+            .unwrap_or_default()
     }
 
     fn feature(&self) -> Option<&'static str> {
-        self.0
-            .tools
-            .values()
-            .any(|t| t.kind.is_javascript())
-            .then_some("javascript")
+        Self::is_present(self.0).then_some("javascript")
     }
 
-    /// Emits one `QuickJsRuntime` binding per unique bundle path, then one
+    /// Emits one `Executor` binding per unique bundle path, then one
     /// `.with_tool(JavascriptTool::builder()...)` registration per JS tool.
     fn registrations(&self, fields: &FieldsSpec) -> Result<Vec<TokenStream>, GeneratorError> {
-        let ctx = self.0;
         let mut registrations = Vec::new();
 
-        // Group tools by bundle path so each unique bundle shares one runtime.
-        let mut by_bundle = HashMap::<&str, Vec<(&str, &ResolvedContextToolJavascript)>>::new();
-        for (tool_name, tool) in &ctx.tools {
+        let mut by_bundle =
+            HashMap::<&str, Vec<(&ResolvedContextTool, &ResolvedContextToolJavascript)>>::new();
+
+        for tool in self.0.tools.values() {
             if let ResolvedContextToolKind::Javascript(js) = &tool.kind {
                 by_bundle
                     .entry(js.bundle_path.as_str())
                     .or_default()
-                    .push((tool_name.as_str(), js));
+                    .push((tool, js));
             }
         }
 
         for (bundle_path, tools) in &by_bundle {
-            let runtime_ident =
-                Ident::new(&format!("js_runtime_{}", bundle_path.to_ident()), Span::call_site());
-
-            // Union of capability strings across all tools sharing this bundle.
-            let caps = {
-                let mut seen = HashSet::new();
-                ctx.tools
-                    .iter()
-                    .filter(|(_, t)| {
-                        matches!(&t.kind, ResolvedContextToolKind::Javascript(js) if js.bundle_path == *bundle_path)
-                    })
-                    .flat_map(|(_, t)| t.capabilities.iter().map(String::as_str))
-                    .filter(|c| seen.insert(*c))
-                    .collect::<Vec<_>>()
-            };
-
-            let caps_tokens = if caps.is_empty() {
-                quote! {}
-            } else {
-                quote! { .capabilities([#(#caps),*]) }
-            };
+            let executor_ident =
+                Ident::new(&format!("js_executor_{}", bundle_path.to_ident()), Span::call_site());
 
             registrations.push(quote! {
                 #[allow(non_snake_case, nonstandard_style)]
-                let #runtime_ident = std::sync::Arc::new(
-                    QuickJsRuntime::builder()
-                        .source(include_str!(#bundle_path).to_string())
-                        #caps_tokens
-                        .num_interpreters(4)
-                        .shutdown(shutdown.clone())
-                        .build()
-                        .await?
-                );
+                let #executor_ident = Executor::builder(#bundle_path, include_str!(#bundle_path))
+                    .workers(4)
+                    .queue_capacity(32)
+                    .standard_environment()
+                    .with_tools()
+                    .with_http(config.network.builder()?)
+                    .with_fs(fs.root())?
+                    .cancellation(shutdown.clone())
+                    .build()
+                    .await?;
             });
 
-            for (tool_name, js) in tools {
+            for (tool, js) in tools {
                 let export_name = &js.export_name;
+                let name = &tool.name;
+                let description = tool
+                    .description
+                    .as_ref()
+                    .map(|description| quote! { .description(#description) });
+                let capabilities = (!tool.capabilities.is_empty()).then(|| {
+                    let capabilities = &tool.capabilities;
 
-                let tool_caps = ctx
-                    .tools
-                    .get(*tool_name)
-                    .map(|t| {
-                        t.capabilities
-                            .iter()
-                            .map(String::as_str)
-                            .collect::<Vec<_>>()
-                    })
-                    .unwrap_or_default();
+                    quote! { .capabilities([#(#capabilities),*]) }
+                });
 
-                let caps_call = if tool_caps.is_empty() {
-                    quote! {}
-                } else {
-                    quote! { .capabilities([#(#tool_caps),*]) }
-                };
-
-                let build_tool = quote! {
-                    JavascriptTool::builder()
-                        .runtime(#runtime_ident.clone())
-                        .export_name(#export_name)
-                        #caps_call
-                        .build()
-                        .await?
-                };
-
-                let enabled_path = fields.config_accessor(&[
-                    "tool",
-                    &if tool_name.contains(|c: char| !c.is_alphanumeric() && c != '_') {
-                        tool_name.to_case(Case::Snake)
-                    } else {
-                        tool_name.to_string()
+                registrations.push(ToolEnabledGuard(tool).wrap(
+                    fields,
+                    quote! {
+                        builder = builder.with_tool(
+                            JavascriptTool::builder()
+                                .executor(#executor_ident.clone())
+                                .export_name(#export_name)
+                                .name(#name)
+                                #description
+                                #capabilities
+                                .build()
+                                .await?
+                        );
                     },
-                    "enabled",
-                ]);
-
-                if let Some(enabled) = enabled_path {
-                    registrations.push(quote! {
-                        if #enabled {
-                            builder = builder.with_tool(#build_tool);
-                        }
-                    });
-                } else {
-                    registrations.push(quote! {
-                        builder = builder.with_tool(#build_tool);
-                    });
-                }
+                ));
             }
         }
 
         Ok(registrations)
+    }
+}
+
+pub struct JavascriptToolCargoFragment;
+
+impl Fragment<ResolvedContext> for JavascriptToolCargoFragment {
+    fn generate_contribution(
+        &self,
+        _ctx: &GenerationContext<ResolvedContext>,
+        point: &str,
+    ) -> Result<ErasedContributionValue, GeneratorError> {
+        match point {
+            "cargo::dependencies" => Ok(ErasedContributionValue::new(
+                CargoDependencies::from_entries([CargoDependencyContribution::runtime(
+                    RuntimeDependencyContribution::new("agentc-executor-typescript"),
+                )])
+                .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
+            )),
+            "cargo::patches" => Ok(ErasedContributionValue::new(
+                CargoPatches::from_entries([CargoPatchContribution::runtime(
+                    RuntimeDependencyContribution::new("agentc-executor-typescript"),
+                )])
+                .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
+            )),
+            _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
+        }
+    }
+}
+
+pub struct HttpTypescriptCargoFragment;
+
+impl Fragment<ResolvedContext> for HttpTypescriptCargoFragment {
+    fn generate_contribution(
+        &self,
+        _ctx: &GenerationContext<ResolvedContext>,
+        point: &str,
+    ) -> Result<ErasedContributionValue, GeneratorError> {
+        match point {
+            "cargo::dependencies" => Ok(ErasedContributionValue::new(
+                CargoDependencies::from_entries([CargoDependencyContribution::runtime(
+                    RuntimeDependencyContribution::new("agentc-http")
+                        .default_features(false)
+                        .feature("typescript"),
+                )])
+                .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
+            )),
+            _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
+        }
+    }
+}
+
+pub struct FilesystemTypescriptCargoFragment;
+
+impl Fragment<ResolvedContext> for FilesystemTypescriptCargoFragment {
+    fn generate_contribution(
+        &self,
+        _ctx: &GenerationContext<ResolvedContext>,
+        point: &str,
+    ) -> Result<ErasedContributionValue, GeneratorError> {
+        match point {
+            "cargo::dependencies" => Ok(ErasedContributionValue::new(
+                CargoDependencies::from_entries([CargoDependencyContribution::runtime(
+                    RuntimeDependencyContribution::new("agentc-fs")
+                        .default_features(false)
+                        .feature("typescript"),
+                )])
+                .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
+            )),
+            _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use super::*;
+    use crate::{
+        context::{
+            ResolvedContextAgent, ResolvedContextAgentModel, ResolvedContextFilesystem,
+            ResolvedContextNetwork, ResolvedContextRuntime, ResolvedContextTool,
+        },
+        types::RuntimeValue,
+    };
+
+    struct JavascriptToolsFixture;
+
+    impl JavascriptToolsFixture {
+        fn tool(
+            name: &str,
+            bundle_path: &str,
+            export_name: &str,
+            capabilities: impl IntoIterator<Item = &'static str>,
+        ) -> (String, ResolvedContextTool) {
+            (
+                name.to_string(),
+                ResolvedContextTool {
+                    name: name.to_string(),
+                    description: None,
+                    enabled: RuntimeValue::constant(true),
+                    capabilities: capabilities
+                        .into_iter()
+                        .map(String::from)
+                        .collect(),
+                    config: HashMap::new(),
+                    kind: ResolvedContextToolKind::Javascript(ResolvedContextToolJavascript {
+                        bundle_path: bundle_path.to_string(),
+                        export_name: export_name.to_string(),
+                    }),
+                },
+            )
+        }
+
+        fn context(
+            tools: impl IntoIterator<Item = (String, ResolvedContextTool)>,
+        ) -> ResolvedContext {
+            ResolvedContext {
+                slug: "assistant".to_string(),
+                agent_name: "assistant".to_string(),
+                runtime: ResolvedContextRuntime {
+                    default_tenant_id: RuntimeValue::constant("default".to_string()),
+                },
+                providers: HashMap::new(),
+                agent: ResolvedContextAgent {
+                    version: "0.1.0".to_string(),
+                    description: None,
+                    prompt: None,
+                    capabilities: None,
+                    capability_policy: None,
+                    model: ResolvedContextAgentModel {
+                        provider: RuntimeValue::constant("anthropic".to_string()),
+                        name: RuntimeValue::constant("claude".to_string()),
+                    },
+                },
+                blocks: HashMap::new(),
+                tools: tools.into_iter().collect(),
+                skills: HashMap::new(),
+                http_server: None,
+                network: ResolvedContextNetwork::default(),
+                filesystem: ResolvedContextFilesystem::default(),
+            }
+        }
+
+        fn registrations(ctx: &ResolvedContext) -> String {
+            JavascriptTools(ctx)
+                .registrations(&FieldsSpec::collect_from(ctx))
+                .expect("javascript registrations should succeed")
+                .into_iter()
+                .map(|tokens| tokens.to_string())
+                .collect::<Vec<_>>()
+                .join("\n")
+        }
+    }
+
+    #[test]
+    fn shared_bundle_generates_one_executor_for_all_exports() {
+        let ctx = JavascriptToolsFixture::context([
+            JavascriptToolsFixture::tool("search", "/artifacts/pkg/dist/index.js", "search", []),
+            JavascriptToolsFixture::tool("lookup", "/artifacts/pkg/dist/index.js", "lookup", []),
+        ]);
+        let registrations = JavascriptToolsFixture::registrations(&ctx);
+
+        assert_eq!(
+            registrations
+                .matches("Executor :: builder")
+                .count(),
+            1
+        );
+        assert_eq!(
+            registrations
+                .matches("JavascriptTool :: builder")
+                .count(),
+            2
+        );
+        assert!(registrations.contains("include_str ! (\"/artifacts/pkg/dist/index.js\")"));
+        assert!(registrations.contains("\"search\""));
+        assert!(registrations.contains("\"lookup\""));
+    }
+
+    #[test]
+    fn shared_bundle_clones_one_executor_into_each_tool() {
+        let ctx = JavascriptToolsFixture::context([
+            JavascriptToolsFixture::tool("search", "/artifacts/pkg/dist/index.js", "search", []),
+            JavascriptToolsFixture::tool("lookup", "/artifacts/pkg/dist/index.js", "lookup", []),
+        ]);
+        let registrations = JavascriptToolsFixture::registrations(&ctx);
+
+        assert_eq!(
+            registrations
+                .matches(". executor (js_executor_")
+                .count(),
+            2
+        );
+    }
+
+    #[test]
+    fn separate_bundles_generate_separate_executors() {
+        let ctx = JavascriptToolsFixture::context([
+            JavascriptToolsFixture::tool("a", "/artifacts/a/dist/index.js", "a", []),
+            JavascriptToolsFixture::tool("b", "/artifacts/b/dist/index.js", "b", []),
+        ]);
+        let registrations = JavascriptToolsFixture::registrations(&ctx);
+
+        assert_eq!(
+            registrations
+                .matches("Executor :: builder")
+                .count(),
+            2
+        );
+        assert!(registrations.contains("include_str ! (\"/artifacts/a/dist/index.js\")"));
+        assert!(registrations.contains("include_str ! (\"/artifacts/b/dist/index.js\")"));
+    }
+
+    #[test]
+    fn executor_uses_four_workers_queue_and_shutdown_cancellation() {
+        let ctx = JavascriptToolsFixture::context([JavascriptToolsFixture::tool(
+            "search",
+            "/artifacts/pkg/dist/index.js",
+            "search",
+            [],
+        )]);
+        let registrations = JavascriptToolsFixture::registrations(&ctx);
+
+        assert!(registrations.contains(". workers (4)"));
+        assert!(registrations.contains(". queue_capacity (32)"));
+        assert!(registrations.contains(". standard_environment ()"));
+        assert!(registrations.contains(". with_tools ()"));
+        assert!(registrations.contains(". with_http (config . network . builder () ?)"));
+        assert!(registrations.contains(". with_fs (fs . root ())"));
+        assert!(registrations.contains(". cancellation (shutdown . clone ())"));
+    }
+
+    #[test]
+    fn each_tool_reports_only_its_own_capabilities() {
+        let ctx = JavascriptToolsFixture::context([JavascriptToolsFixture::tool(
+            "search",
+            "/artifacts/pkg/dist/index.js",
+            "search",
+            ["network"],
+        )]);
+        let registrations = JavascriptToolsFixture::registrations(&ctx);
+
+        assert!(registrations.contains(". capabilities ([\"network\"])"));
+    }
+
+    #[test]
+    fn registration_passes_the_block_name() {
+        let ctx = JavascriptToolsFixture::context([JavascriptToolsFixture::tool(
+            "search_document_sections",
+            "/artifacts/pkg/dist/index.js",
+            "SearchDocumentSections",
+            [],
+        )]);
+        let registrations = JavascriptToolsFixture::registrations(&ctx);
+
+        assert!(registrations.contains(". export_name (\"SearchDocumentSections\")"));
+        assert!(registrations.contains(". name (\"search_document_sections\")"));
+        assert!(!registrations.contains(". description ("));
+        assert!(!registrations.contains(". capabilities ("));
+    }
+
+    #[test]
+    fn registration_passes_the_block_description_when_set() {
+        let (name, mut tool) =
+            JavascriptToolsFixture::tool("search", "/artifacts/pkg/dist/index.js", "Search", []);
+        tool.description = Some("Searches the documentation.".to_string());
+
+        let registrations =
+            JavascriptToolsFixture::registrations(&JavascriptToolsFixture::context([(name, tool)]));
+
+        assert!(registrations.contains(". description (\"Searches the documentation.\")"));
+    }
+
+    #[test]
+    fn registration_is_guarded_by_the_generated_enabled_field() {
+        let ctx = JavascriptToolsFixture::context([JavascriptToolsFixture::tool(
+            "search",
+            "/artifacts/pkg/dist/index.js",
+            "search",
+            [],
+        )]);
+        let registrations = JavascriptToolsFixture::registrations(&ctx);
+
+        assert!(registrations.contains("if config . tool . search . enabled"));
+        assert!(registrations.contains("builder = builder . with_tool"));
+    }
+
+    #[test]
+    fn imports_reference_the_executor_and_tool_surface() {
+        let ctx = JavascriptToolsFixture::context([JavascriptToolsFixture::tool(
+            "search",
+            "/artifacts/pkg/dist/index.js",
+            "search",
+            [],
+        )]);
+        assert_eq!(
+            JavascriptTools(&ctx).imports(),
+            vec![
+                ImportContribution::path(&["agentc_executor_typescript", "executor"])
+                    .item("Executor"),
+                ImportContribution::path(&["agentc_fs", "typescript", "executor"])
+                    .item("ExecutorBuilderFsExt"),
+                ImportContribution::path(&["agentc_http", "client", "typescript"])
+                    .item("ExecutorBuilderHttpExt"),
+                ImportContribution::path(&["agentc_tools", "javascript"])
+                    .item("ExecutorBuilderToolsExt")
+                    .item("JavascriptTool"),
+            ],
+        );
+    }
+
+    #[test]
+    fn absent_javascript_tools_generate_no_imports_or_registrations() {
+        let ctx = JavascriptToolsFixture::context([]);
+
+        assert!(
+            JavascriptTools(&ctx)
+                .imports()
+                .is_empty()
+        );
+        assert!(
+            JavascriptTools(&ctx)
+                .feature()
+                .is_none()
+        );
+        assert!(JavascriptToolsFixture::registrations(&ctx).is_empty());
     }
 }

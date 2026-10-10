@@ -4,5 +4,7 @@
 
 pub mod archetype;
 pub mod codegen;
+pub mod toolchain;
 
 pub use archetype::{StandaloneArchetype, StandaloneArchetypeConfig};
+pub use toolchain::StandaloneToolchain;

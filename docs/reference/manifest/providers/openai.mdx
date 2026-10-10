@@ -3,65 +3,77 @@ title: OpenAI
 description: Configuration for the OpenAI model provider.
 ---
 
-The `openai` sub-block configures the OpenAI cloud provider. It also works with any
+A `provider` block with `kind = "openai"` configures the OpenAI cloud provider. It also works with any
 OpenAI-compatible endpoint, such as Azure OpenAI or a local proxy, by setting `config.base_url`.
 
 ## Fields
 
-| Field | Type | Required | runtime() | Description |
-|-------|------|----------|-----------|-------------|
-| `models` | list | no | no | Allowlist of models for this provider. Each entry is a plain string or a config object with `name` and `params`. When omitted, no allowlist is enforced. |
-| `config` | block | no | | Connection configuration. |
-| `config.api_key` | string | no | yes | OpenAI API key. Wrap in `secret(runtime(...))` to keep it out of build artifacts. |
-| `config.base_url` | string | no | yes | API base URL. Override to point at a compatible endpoint such as Azure OpenAI or a local proxy. |
-| `params` | block | no | | Provider-level inference parameter defaults. Applied to every request unless overridden at the model level. |
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `kind` | `openai` | yes | no | … | Provider kind. |
+| `models` | array&lt;string \| [ModelEntry](#modelentry)&gt; | no | no | unset | Models permitted for this provider, with optional model-specific inference settings. |
+| `config` | [ProviderConfig](#providerconfig) | no | | unset | API credentials and endpoint settings for this provider. |
+| `params` | [InferenceParams](#inferenceparams) | no | | unset | Default inference settings for requests to this provider. |
 
-The `config` block is optional. When omitted, the OpenAI SDK reads credentials from the
-`OPENAI_API_KEY` environment variable using its standard resolution logic.
+When `config.api_key` is unset, the key is read from the `OPENAI_API_KEY` environment variable. The
+agent fails to start when neither is set.
 
-## params
+## ModelEntry
+
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `name` | string | yes | no | … | Model identifier. |
+| `params` | [InferenceParams](#inferenceparams) | no | | unset | Model-specific inference parameter overrides. |
+
+## ProviderConfig
+
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `api_key` | string | no | yes | unset | OpenAI API key. Wrap in `secret(runtime(...))` to keep it out of build artifacts. |
+| `base_url` | string | no | yes | unset | API base URL. Override to point at a compatible endpoint such as Azure OpenAI or a local proxy. |
+
+## InferenceParams
 
 The `params` block sets inference parameter defaults for all models under this provider. All fields
 are optional and support `runtime()`.
 
-| Field | Type | runtime() | Description |
-|-------|------|-----------|-------------|
-| `max_tokens` | integer | yes | Maximum number of tokens to generate. |
-| `temperature` | float | yes | Sampling temperature. |
-| `top_p` | float | yes | Nucleus sampling probability. |
-| `top_k` | integer | yes | Top-K sampling limit. |
-| `stop_sequences` | list of strings | yes | Sequences that stop generation. |
-| `frequency_penalty` | float | yes | Penalty for token frequency. |
-| `presence_penalty` | float | yes | Penalty for token presence. |
-| `seed` | integer | yes | Seed for deterministic sampling. |
-| `provider_params` | object | yes | Provider-specific parameters passed directly to the API. Use this for options not covered by the typed fields above. |
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `max_tokens` | integer | no | yes | unset | Maximum number of tokens to generate. |
+| `temperature` | number | no | yes | unset | Controls randomness when selecting the next token; higher values produce more varied output. |
+| `top_p` | number | no | yes | unset | Selects tokens from the smallest group whose combined probability reaches this value. |
+| `top_k` | integer | no | yes | unset | Limits the next-token choices to the K most likely tokens. |
+| `stop_sequences` | array&lt;string&gt; | no | yes | unset | Sequences that stop generation. |
+| `frequency_penalty` | number | no | yes | unset | Reduces repetition by penalizing tokens according to how often they have appeared. |
+| `presence_penalty` | number | no | yes | unset | Penalizes tokens that have already appeared to reduce repetition. |
+| `seed` | integer | no | yes | unset | Seed for deterministic sampling. |
+| `provider_params` | object | no | yes | unset | Additional provider-specific inference options sent directly to the API. |
 
 ## Example
 
 ```hcl title="agent.acl"
-providers {
-  openai {
-    models = [
-      "gpt-4o-mini",
-      {
-        name = "gpt-4o"
-        params {
-          max_tokens  = 8192
-          temperature = 0.3
-        }
+provider "openai" {
+  kind = "openai"
+  models = [
+    "gpt-4o-mini",
+    {
+      name = "gpt-4o"
+      params {
+        max_tokens  = 8192
+        temperature = 0.3
       }
-    ]
-
-    config {
-      api_key  = secret(runtime("OPENAI_API_KEY"))
-      base_url = runtime("OPENAI_BASE_URL", "https://api.openai.com/v1")
     }
+  ]
 
-    params {
-      max_tokens        = 2048
-      temperature       = 0.5
-      frequency_penalty = 0.1
-    }
+  config {
+    api_key  = secret(runtime("OPENAI_API_KEY"))
+    base_url = runtime("OPENAI_BASE_URL", "https://api.openai.com/v1")
+  }
+
+  params {
+    max_tokens        = 2048
+    temperature       = 0.5
+    frequency_penalty = 0.1
   }
 }
 ```

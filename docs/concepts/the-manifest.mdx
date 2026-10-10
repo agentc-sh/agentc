@@ -25,12 +25,12 @@ locals {
   version = "1.0.0"
 }
 
-providers {
-  anthropic {
-    models = ["claude-haiku-4-5"]
-    config {
-      api_key = secret(runtime("ANTHROPIC_API_KEY"))
-    }
+provider "anthropic" {
+  kind   = "anthropic"
+  models = ["claude-haiku-4-5"]
+
+  config {
+    api_key = secret(runtime("ANTHROPIC_API_KEY"))
   }
 }
 
@@ -108,13 +108,11 @@ agent "my_agent" {
 }
 ```
 
-Locals are referenced with `locals.name` syntax. They cannot contain `runtime()` expressions; they
-are always build-time constants.
+Locals are referenced with `locals.name` syntax. A local can provide a constant string or a `runtime()` default string for build-time interpolation. See [locals](/reference/manifest/locals) for the constraints.
 
 ## Interpolation in strings
 
-String values in the manifest support `${...}` interpolation. This works for locals and for simple
-HCL expressions.
+String values in the manifest support `${...}` interpolation. This substitutes local values when the manifest is resolved.
 
 ```hcl
 locals {
@@ -131,12 +129,12 @@ agent "my_agent" {
 ```
 
 The `prompt` field additionally supports Jinja2 template syntax for dynamic rendering at runtime. See
-[Write dynamic prompts](/guides/write-dynamic-prompts) for details.
+[Write templated prompts](/guides/write-templated-prompts) for details.
 
 ## Which fields accept runtime()
 
 Structural fields that define the shape of the build, such as `archetype`, the agent `graph` type,
-`kind` on tool blocks, and provider names, are always build-time. The compiler needs these values
+and `kind` on tool and provider blocks, are always build-time. The compiler needs these values
 during code generation and they cannot vary at runtime.
 
 Most configurable fields accept `runtime()`. These include hosts, ports, API keys, feature flags,

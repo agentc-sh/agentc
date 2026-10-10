@@ -14,11 +14,15 @@ use agentc_core::{
     },
     inspect::pipeline::InspectPipeline,
     manifest::Manifest,
-    parser::{SpecFormat, SpecParser, middleware::hcl::RuntimeFunctionDeserialize},
+    parser::{
+        SpecFormat, SpecParser,
+        middleware::hcl::{FileFunctionDeserialize, RootedFileReader, RuntimeFunctionDeserialize},
+    },
 };
 
 use crate::cli::{
-    catalog::DefaultCompilationCatalog, context::Ctx, errors::CliError, traits::Cmd, ui::UiFormat,
+    catalog::DefaultCompilationCatalog, context::Ctx, errors::CliError, traits::Cmd,
+    types::CmdOutcome, ui::UiFormat,
 };
 
 #[derive(Clone, Args, Debug)]
@@ -36,7 +40,7 @@ pub struct CliCommandInspect {
 
 #[async_trait]
 impl Cmd for CliCommandInspect {
-    async fn run(&self, _ctx: &mut Ctx) -> Result<(), CliError> {
+    async fn run(&self, _ctx: &mut Ctx) -> Result<CmdOutcome, CliError> {
         if !self.context.is_dir() && !self.context.join("agent.acl").is_file() {
             return Err(CliError::invalid_parameters(format!(
                 "Context path '{}' must be a directory containing 'agent.acl'",
@@ -54,7 +58,11 @@ impl Cmd for CliCommandInspect {
                 context
                     .join("agent.acl")
                     .to_string_lossy(),
-                SpecFormat::hcl().with_hcl_deserialize_middleware(RuntimeFunctionDeserialize),
+                SpecFormat::hcl()
+                    .with_hcl_deserialize_middleware(FileFunctionDeserialize::new(
+                        RootedFileReader::new(context.clone()),
+                    ))
+                    .with_hcl_deserialize_middleware(RuntimeFunctionDeserialize),
             )
             .parse()
             .await
@@ -62,7 +70,7 @@ impl Cmd for CliCommandInspect {
 
         if self.raw {
             println!("{:#?}", manifest);
-            return Ok(());
+            return Ok(CmdOutcome::Success);
         }
 
         let (pipeline, mut rx) = InspectPipeline::builder()
@@ -100,13 +108,16 @@ impl Cmd for CliCommandInspect {
                     println!("protocols: {}", res.protocol_names.join(", "));
                 }
                 println!("{:#?}", res.context);
-            }
-            Err(e) => self
-                .format
-                .ui()
-                .failure(&format!("Inspection failed: {e}")),
-        }
 
-        Ok(())
+                Ok(CmdOutcome::Success)
+            }
+            Err(e) => {
+                self.format
+                    .ui()
+                    .failure(&format!("Inspection failed: {e}"));
+
+                Ok(CmdOutcome::failure(1))
+            }
+        }
     }
 }

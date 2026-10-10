@@ -1,0 +1,41 @@
+[package]
+name = "agentc-fs"
+version.workspace = true
+edition.workspace = true
+description.workspace = true
+repository.workspace = true
+license.workspace = true
+readme.workspace = true
+
+[features]
+default = ["embedded"]
+embedded = ["dep:include_dir"]
+typescript = ["dep:agentc-executor-typescript", "dep:serde"]
+python = ["dep:agentc-executor-python"]
+
+[dependencies]
+async-trait = { workspace = true }
+futures = { workspace = true }
+tokio = { workspace = true }
+
+thiserror = { workspace = true }
+
+bytes = { workspace = true }
+
+getrandom = "0.4"
+arc-swap = "1"
+bstr = "1"
+typed-path = "0.12"
+
+include_dir = { version = "0.7", optional = true }
+
+agentc-executor-python = { path = "../agentc-executor-python", version = "0.3.1", default-features = false, optional = true }
+agentc-executor-typescript = { path = "../agentc-executor-typescript", version = "0.3.1", default-features = false, optional = true }
+
+serde = { workspace = true, optional = true }
+
+[dev-dependencies]
+agentc-executor-python = { path = "../agentc-executor-python", version = "0.3.1", features = ["rustpython"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+rustix = { version = "1", features = ["fs"] }

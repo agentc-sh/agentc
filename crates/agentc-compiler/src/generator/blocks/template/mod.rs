@@ -6,8 +6,6 @@ pub mod block;
 pub mod evaluator;
 pub mod manifest;
 pub mod renderer;
-pub mod traits;
 
-pub use block::{TemplateBlock, TemplateFragmentBlock};
+pub use block::TemplateBlock;
 pub use manifest::{ExtensionPointSpec, FileSpec, Reducer, SlotFillSpec, TemplateBlockManifest};
-pub use traits::TemplateFragment;

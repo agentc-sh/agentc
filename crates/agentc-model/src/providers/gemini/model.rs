@@ -12,7 +12,7 @@ use serde_json::json;
 
 use crate::{
     errors::{IntoModelError, ModelError},
-    providers::gemini::constants::{OTEL_PROVIDER_NAME, PROVIDER},
+    providers::{gemini::constants::OTEL_PROVIDER_NAME, rig::events::CompletionStreamMetadata},
     stream::ChatCompletionStream,
     traits::CompletionModel,
     types::{
@@ -22,9 +22,29 @@ use crate::{
     },
 };
 
+impl CompletionStreamMetadata for gemini::streaming::StreamingCompletionResponse {
+    fn finish_reason(&self) -> Option<String> {
+        self.finish_reason
+            .as_ref()
+            .and_then(|reason| {
+                serde_json::to_value(reason)
+                    .ok()?
+                    .as_str()
+                    .map(|reason| match reason {
+                        "STOP" => "stop".to_string(),
+                        "MAX_TOKENS" => "length".to_string(),
+                        "SAFETY" | "RECITATION" | "LANGUAGE" | "BLOCKLIST"
+                        | "PROHIBITED_CONTENT" | "SPII" => "content_filter".to_string(),
+                        reason => reason.to_lowercase(),
+                    })
+            })
+    }
+}
+
 /// A specific Gemini model instance. Obtained from
 /// [`GeminiClient::model`](crate::providers::gemini::client::GeminiClient::model).
 pub struct GeminiModel {
+    provider: ProviderId,
     model: gemini::completion::CompletionModel,
     model_id: ModelId,
     inference_params: InferenceParams,
@@ -32,11 +52,13 @@ pub struct GeminiModel {
 
 impl GeminiModel {
     pub fn new(
+        provider: ProviderId,
         client: gemini::Client,
         model_id: ModelId,
         inference_params: InferenceParams,
     ) -> Self {
         Self {
+            provider,
             model: client.completion_model(model_id.as_str()),
             model_id,
             inference_params,
@@ -47,7 +69,7 @@ impl GeminiModel {
 #[async_trait]
 impl CompletionModel for GeminiModel {
     fn provider(&self) -> ProviderId {
-        PROVIDER.into()
+        self.provider.clone()
     }
 
     fn otel_provider_name(&self) -> &'static str {
@@ -121,6 +143,8 @@ impl CompletionModel for GeminiModel {
             builder = builder.additional_params(additional);
         }
 
+        let provider = self.provider.clone();
+
         ChatCompletionStream::establish(
             builder
                 .messages(
@@ -130,14 +154,59 @@ impl CompletionModel for GeminiModel {
                 )
                 .stream()
                 .await
-                .map_err(|e| e.into_model_error(PROVIDER))?
-                .filter_map(|event| async move {
-                    match event {
-                        Ok(e) => Some(Ok(e.try_into().ok()?)),
-                        Err(e) => Some(Err(e.into_model_error(PROVIDER))),
+                .map_err(|e| e.into_model_error(self.provider.clone()))?
+                .filter_map(move |event| {
+                    let provider = provider.clone();
+
+                    async move {
+                        match event {
+                            Ok(e) => Some(Ok(e.try_into().ok()?)),
+                            Err(e) => Some(Err(e.into_model_error(provider))),
+                        }
                     }
                 }),
         )
         .await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use rig_core::{
+        providers::gemini::{
+            completion::gemini_api_types::FinishReason,
+            streaming::{PartialUsage, StreamingCompletionResponse},
+        },
+        streaming::StreamedAssistantContent,
+    };
+
+    use crate::types::stream::CompletionStreamEvent;
+
+    #[test]
+    fn final_response_preserves_usage_and_finish_reason() {
+        let event = CompletionStreamEvent::try_from(StreamedAssistantContent::Final(
+            StreamingCompletionResponse {
+                usage_metadata: PartialUsage {
+                    total_token_count: 15,
+                    cached_content_token_count: Some(2),
+                    candidates_token_count: Some(5),
+                    prompt_token_count: 10,
+                    ..Default::default()
+                },
+                finish_reason: Some(FinishReason::Stop),
+                finish_message: None,
+                model_version: None,
+            },
+        ))
+        .expect("final response should convert");
+
+        let CompletionStreamEvent::Done(final_response) = event else {
+            panic!("expected final completion metadata");
+        };
+
+        assert_eq!(final_response.usage.input_tokens, 10);
+        assert_eq!(final_response.usage.output_tokens, 5);
+        assert_eq!(final_response.usage.cache_input_tokens, Some(2));
+        assert_eq!(final_response.finish_reason.as_deref(), Some("stop"));
     }
 }

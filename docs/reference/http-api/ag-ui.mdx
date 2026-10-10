@@ -41,37 +41,208 @@ With a custom base path, the run endpoint becomes `<path>/run`.
 </Endpoint>
 
 <Parameters in="body">
-  <Field name="thread_id" type="string">
+  <Field name="threadId" type="string">
     Optional session ID to continue. If omitted, a new session is created.
   </Field>
-  <Field name="run_id" type="string">
+  <Field name="runId" type="string">
     Optional identifier for this run. Generated automatically if not provided.
   </Field>
   <Field name="messages" type={<>{<Link href="#message">Message</Link>}[]</>}>
-    Conversation messages. Each has a `role` and `content`.
+    Conversation messages. A run accepts `system`, `user` and `tool` messages. Messages with any
+    other role are ignored.
   </Field>
   <Field name="tools" type={<>{<Link href="#tool">Tool</Link>}[]</>}>
-    Optional client-defined tool definitions to make available for this run.
+    Tool definitions supplied in the run request.
   </Field>
   <Field name="context" type={<>{<Link href="#context-variable">ContextVariable</Link>}[]</>}>
-    Optional per-run context variables.
+    Context variables supplied in the run request.
   </Field>
   <Field name="state" type="object">
     Optional initial or updated state. Applied to the `context` field of the agent state.
   </Field>
-  <Field name="forwarded_props" type="object">
-    Optional arbitrary additional properties forwarded to the agent.
+  <Field name="forwardedProps" type="object">
+    Additional properties forwarded to the agent.
+  </Field>
+  <Field name="resume" type={<>{<Link href="#resume-entry">ResumeEntry</Link>}[]</>}>
+    Optional interrupt to resume. Supply at most one entry.
   </Field>
 </Parameters>
 
 ### Message
 
-<Fields label="Message">
-  <Field name="role" type="string" enum={["user", "assistant", "system"]}>
-    The role of the message sender.
+<Variants label="Message">
+  <Variant label="user">
+    <Field name="role" type="string" enum={["user"]}>
+      The role of the message sender.
+    </Field>
+    <Field name="id" type="string">
+      Optional message ID. Generated automatically if not provided.
+    </Field>
+    <Field name="content" type={<>string | {<Link href="#input-content">InputContent</Link>}[]</>}>
+      The content of the message, as text or as a list of content blocks.
+    </Field>
+    <Field name="name" type="string">
+      Optional name of the message sender.
+    </Field>
+  </Variant>
+  <Variant label="assistant">
+    <Field name="role" type="string" enum={["assistant"]}>
+      The role of the message sender.
+    </Field>
+    <Field name="id" type="string">
+      Optional message ID. Generated automatically if not provided.
+    </Field>
+    <Field name="content" type="string">
+      Optional text content of the message.
+    </Field>
+    <Field name="name" type="string">
+      Optional name of the message sender.
+    </Field>
+    <Field name="toolCalls" type={<>{<Link href="#tool-call">ToolCall</Link>}[]</>}>
+      Optional tool calls the assistant requested.
+    </Field>
+  </Variant>
+  <Variant label="system">
+    <Field name="role" type="string" enum={["system"]}>
+      The role of the message sender.
+    </Field>
+    <Field name="id" type="string">
+      Optional message ID. Generated automatically if not provided.
+    </Field>
+    <Field name="content" type="string">
+      The text content of the message.
+    </Field>
+    <Field name="name" type="string">
+      Optional name of the message sender.
+    </Field>
+  </Variant>
+  <Variant label="tool">
+    <Field name="role" type="string" enum={["tool"]}>
+      The role of the message sender.
+    </Field>
+    <Field name="id" type="string">
+      Optional message ID. Generated automatically if not provided.
+    </Field>
+    <Field name="content" type="string">
+      The result of the tool call.
+    </Field>
+    <Field name="toolCallId" type="string">
+      The ID of the tool call this message answers.
+    </Field>
+    <Field name="error" type="string">
+      Optional error from the tool call.
+    </Field>
+  </Variant>
+  <Variant label="reasoning">
+    <Field name="role" type="string" enum={["reasoning"]}>
+      The role of the message sender.
+    </Field>
+    <Field name="id" type="string">
+      Optional message ID. Generated automatically if not provided.
+    </Field>
+    <Field name="content" type="string">
+      The reasoning text.
+    </Field>
+    <Field name="encryptedValue" type="string">
+      Optional encrypted reasoning, passed through unchanged.
+    </Field>
+  </Variant>
+</Variants>
+
+### Input Content
+
+<Variants label="InputContent">
+  <Variant label="text">
+    <Field name="type" type="string" enum={["text"]}>
+      The block type.
+    </Field>
+    <Field name="text" type="string">
+      The text.
+    </Field>
+  </Variant>
+  <Variant label="image">
+    <Field name="type" type="string" enum={["image"]}>
+      The block type.
+    </Field>
+    <Field name="source" type={<Link href="#input-content-source">InputContentSource</Link>}>
+      Where the image's bytes come from.
+    </Field>
+  </Variant>
+  <Variant label="audio">
+    <Field name="type" type="string" enum={["audio"]}>
+      The block type.
+    </Field>
+    <Field name="source" type={<Link href="#input-content-source">InputContentSource</Link>}>
+      Where the audio's bytes come from.
+    </Field>
+  </Variant>
+  <Variant label="video">
+    <Field name="type" type="string" enum={["video"]}>
+      The block type.
+    </Field>
+    <Field name="source" type={<Link href="#input-content-source">InputContentSource</Link>}>
+      Where the video's bytes come from.
+    </Field>
+  </Variant>
+  <Variant label="document">
+    <Field name="type" type="string" enum={["document"]}>
+      The block type.
+    </Field>
+    <Field name="source" type={<Link href="#input-content-source">InputContentSource</Link>}>
+      Where the document's bytes come from.
+    </Field>
+  </Variant>
+</Variants>
+
+### Input Content Source
+
+<Variants label="InputContentSource">
+  <Variant label="data">
+    <Field name="type" type="string" enum={["data"]}>
+      The source type.
+    </Field>
+    <Field name="value" type="string">
+      The base64-encoded bytes.
+    </Field>
+    <Field name="mimeType" type="string">
+      The MIME type of the bytes.
+    </Field>
+  </Variant>
+  <Variant label="url">
+    <Field name="type" type="string" enum={["url"]}>
+      The source type.
+    </Field>
+    <Field name="value" type="string">
+      The URL of the bytes.
+    </Field>
+    <Field name="mimeType" type="string">
+      The MIME type of the bytes.
+    </Field>
+  </Variant>
+</Variants>
+
+### Tool Call
+
+<Fields label="ToolCall">
+  <Field name="id" type="string">
+    The tool call ID.
   </Field>
-  <Field name="content" type="string">
-    The text content of the message.
+  <Field name="type" type="string" enum={["function"]}>
+    The tool call type.
+  </Field>
+  <Field name="function" type={<Link href="#function-call">FunctionCall</Link>}>
+    The function to call.
+  </Field>
+</Fields>
+
+### Function Call
+
+<Fields label="FunctionCall">
+  <Field name="name" type="string">
+    The tool name.
+  </Field>
+  <Field name="arguments" type="string">
+    The tool arguments, as a JSON-encoded string.
   </Field>
 </Fields>
 
@@ -85,22 +256,36 @@ With a custom base path, the run endpoint becomes `<path>/run`.
     A description of the tool.
   </Field>
   <Field name="parameters" type="object">
-    A JSON Schema object describing the tool's parameters.
+    Optional JSON Schema object describing the tool's parameters. Defaults to an empty object schema.
+  </Field>
+</Fields>
+
+### Resume Entry
+
+<Fields label="ResumeEntry">
+  <Field name="interruptId" type="string">
+    The interrupted run's ID.
+  </Field>
+  <Field name="status" type="string">
+    Set to `resolved`.
+  </Field>
+  <Field name="payload" type="any">
+    Optional value returned to the interrupted run.
   </Field>
 </Fields>
 
 ### Context Variable
 
 <Fields label="Context Variable">
-  <Field name="name" type="string">
-    The variable name.
+  <Field name="description" type="string">
+    What the variable represents.
   </Field>
   <Field name="value" type="string">
     The variable value.
   </Field>
 </Fields>
 
-<Tabs defaultValue="curl">
+<Tabs group="client" defaultValue="curl">
   <TabsList>
     <TabsTrigger value="curl">cURL</TabsTrigger>
   </TabsList>
@@ -117,46 +302,62 @@ curl -X POST http://localhost:8080/ag-ui/run \
   </TabsContent>
 </Tabs>
 
-To continue a previous conversation, pass the `thread_id` from a prior run. The agent loads the
-checkpoint for that thread and resumes the conversation from where it left off.
+To continue a previous conversation, pass the `threadId` from a prior run. The agent loads the
+checkpoint for that thread and resumes the conversation from where it left off. To resume an
+interrupted run, use the same `threadId` with a new `runId` and a `resume` entry:
+
+```json
+{
+  "threadId": "<thread ID>",
+  "runId": "<new run ID>",
+  "messages": [],
+  "resume": [
+    {
+      "interruptId": "<interrupted run ID>",
+      "status": "resolved",
+      "payload": { "approved": true }
+    }
+  ]
+}
+```
+
+Client-supplied thread, run, and message IDs may be any strings. Events use server-generated UUIDs.
+Event timestamps are integer milliseconds since the Unix epoch.
 
 <Responses>
   <Response status="200" description="The stream of events for the run.">
     <Variants label="Event">
       <Variant label="RUN_STARTED">
-        <Field name="timestamp" type="float | null">
+        <Field name="timestamp" type="integer | null">
           The timestamp of the event.
         </Field>
-        <Field name="run_id" type="string">
+        <Field name="runId" type="string">
           The run ID for this session.
         </Field>
-        <Field name="thread_id" type="string">
+        <Field name="threadId" type="string">
           The thread ID for this session.
         </Field>
       </Variant>
       <Variant label="RUN_FINISHED">
-        <Field name="timestamp" type="float | null">
+        <Field name="timestamp" type="integer | null">
           The timestamp of the event.
         </Field>
-        <Field name="run_id" type="string">
+        <Field name="runId" type="string">
           The run ID for this session.
         </Field>
-        <Field name="thread_id" type="string">
+        <Field name="threadId" type="string">
           The thread ID for this session.
         </Field>
-        <Field name="result" type="object | null">
-          The final state of the run, if any.
+        <Field name="result" type="any">
+          The final state context. Omitted when null.
+        </Field>
+        <Field name="outcome" type={<Link href="#run-outcomes">RunOutcome</Link>}>
+          The run's conclusion.
         </Field>
       </Variant>
       <Variant label="RUN_ERROR">
-        <Field name="timestamp" type="float | null">
+        <Field name="timestamp" type="integer | null">
           The timestamp of the event.
-        </Field>
-        <Field name="thread_id" type="string">
-          The thread ID for this session.
-        </Field>
-        <Field name="run_id" type="string">
-          The run ID for this session.
         </Field>
         <Field name="message" type="string">
           The error message.
@@ -166,64 +367,64 @@ checkpoint for that thread and resumes the conversation from where it left off.
         </Field>
       </Variant>
       <Variant label="STEP_STARTED">
-        <Field name="timestamp" type="float | null">
+        <Field name="timestamp" type="integer | null">
           The timestamp of the event.
         </Field>
-        <Field name="step_name" type="string">
+        <Field name="stepName" type="string">
           The named step that started.
         </Field>
       </Variant>
       <Variant label="STEP_FINISHED">
-        <Field name="timestamp" type="float | null">
+        <Field name="timestamp" type="integer | null">
           The timestamp of the event.
         </Field>
-        <Field name="step_name" type="string">
+        <Field name="stepName" type="string">
           The named step that finished.
         </Field>
       </Variant>
       <Variant label="TEXT_MESSAGE_START">
-        <Field name="timestamp" type="float | null">
+        <Field name="timestamp" type="integer | null">
           The timestamp of the event.
         </Field>
-        <Field name="message_id" type="string">
+        <Field name="messageId" type="string">
           The message ID for the streamed text message.
         </Field>
       </Variant>
       <Variant label="TEXT_MESSAGE_CONTENT">
-        <Field name="timestamp" type="float | null">
+        <Field name="timestamp" type="integer | null">
           The timestamp of the event.
         </Field>
-        <Field name="message_id" type="string">
+        <Field name="messageId" type="string">
           The message ID for the streamed text message.
         </Field>
         <Field name="delta" type="string">
-          A chunk of text content.
+          A chunk of text content, which may be empty.
         </Field>
       </Variant>
       <Variant label="TEXT_MESSAGE_END">
-        <Field name="timestamp" type="float | null">
+        <Field name="timestamp" type="integer | null">
           The timestamp of the event.
         </Field>
-        <Field name="message_id" type="string">
+        <Field name="messageId" type="string">
           The message ID for the streamed text message.
         </Field>
       </Variant>
       <Variant label="TOOL_CALL_START">
-        <Field name="timestamp" type="float | null">
+        <Field name="timestamp" type="integer | null">
           The timestamp of the event.
         </Field>
-        <Field name="tool_call_id" type="string">
+        <Field name="toolCallId" type="string">
           The tool call ID.
         </Field>
-        <Field name="tool_name" type="string">
+        <Field name="toolCallName" type="string">
           The tool name.
         </Field>
       </Variant>
       <Variant label="TOOL_CALL_ARGS">
-        <Field name="timestamp" type="float | null">
+        <Field name="timestamp" type="integer | null">
           The timestamp of the event.
         </Field>
-        <Field name="tool_call_id" type="string">
+        <Field name="toolCallId" type="string">
           The tool call ID.
         </Field>
         <Field name="delta" type="string">
@@ -231,15 +432,29 @@ checkpoint for that thread and resumes the conversation from where it left off.
         </Field>
       </Variant>
       <Variant label="TOOL_CALL_END">
-        <Field name="timestamp" type="float | null">
+        <Field name="timestamp" type="integer | null">
           The timestamp of the event.
         </Field>
-        <Field name="tool_call_id" type="string">
+        <Field name="toolCallId" type="string">
           The tool call ID.
         </Field>
       </Variant>
+      <Variant label="TOOL_CALL_RESULT">
+        <Field name="timestamp" type="integer | null">
+          The timestamp of the event.
+        </Field>
+        <Field name="messageId" type="string">
+          The result message ID.
+        </Field>
+        <Field name="toolCallId" type="string">
+          The tool call ID.
+        </Field>
+        <Field name="content" type="string">
+          The result text. Non-string results are JSON text.
+        </Field>
+      </Variant>
       <Variant label="STATE_SNAPSHOT">
-        <Field name="timestamp" type="float | null">
+        <Field name="timestamp" type="integer | null">
           The timestamp of the event.
         </Field>
         <Field name="state" type="object">
@@ -247,7 +462,7 @@ checkpoint for that thread and resumes the conversation from where it left off.
         </Field>
       </Variant>
       <Variant label="STATE_DELTA">
-        <Field name="timestamp" type="float | null">
+        <Field name="timestamp" type="integer | null">
           The timestamp of the event.
         </Field>
         <Field name="delta" type="array">
@@ -255,7 +470,7 @@ checkpoint for that thread and resumes the conversation from where it left off.
         </Field>
       </Variant>
       <Variant label="MESSAGES_SNAPSHOT">
-        <Field name="timestamp" type="float | null">
+        <Field name="timestamp" type="integer | null">
           The timestamp of the event.
         </Field>
         <Field name="messages" type={<>{<Link href="#message">Message</Link>}[]</>}>
@@ -263,7 +478,7 @@ checkpoint for that thread and resumes the conversation from where it left off.
         </Field>
       </Variant>
       <Variant label="CUSTOM">
-        <Field name="timestamp" type="float | null">
+        <Field name="timestamp" type="integer | null">
           The timestamp of the event.
         </Field>
         <Field name="name" type="string">
@@ -275,7 +490,40 @@ checkpoint for that thread and resumes the conversation from where it left off.
       </Variant>
     </Variants>
   </Response>
+  <Response status="400" description="Bad request." />
+  <Response status="500" description="Internal server error." />
 </Responses>
+
+## Run outcomes
+
+`RUN_FINISHED.outcome` has one of these shapes:
+
+```json
+{ "type": "success" }
+```
+
+```json
+{ "type": "cancelled" }
+```
+
+```json
+{
+  "type": "interrupt",
+  "interrupts": [
+    {
+      "id": "<run ID>",
+      "reason": "interrupt",
+      "metadata": { "payload": { "question": "continue?" } }
+    }
+  ]
+}
+```
+
+For an interrupted run, the interrupt ID is that run's ID. If the run provides a payload, it is
+available at `metadata.payload`.
+
+Invalid request input receives an HTTP 400 response with the standard error body before streaming.
+Once streaming has started, a failure is sent as a `RUN_ERROR` event.
 
 ## SSE wire format
 
@@ -284,19 +532,19 @@ payload.
 
 ```text
 event: RUN_STARTED
-data: {"type":"RUN_STARTED","timestamp":1710000000.0,"threadId":"...","runId":"..."}
+data: {"type":"RUN_STARTED","timestamp":1710000000000,"threadId":"...","runId":"..."}
 
 event: TEXT_MESSAGE_START
-data: {"type":"TEXT_MESSAGE_START","timestamp":1710000000.1,"messageId":"..."}
+data: {"type":"TEXT_MESSAGE_START","timestamp":1710000000100,"messageId":"..."}
 
 event: TEXT_MESSAGE_CONTENT
-data: {"type":"TEXT_MESSAGE_CONTENT","timestamp":1710000000.2,"messageId":"...","delta":"Hello"}
+data: {"type":"TEXT_MESSAGE_CONTENT","timestamp":1710000000200,"messageId":"...","delta":"Hello"}
 
 event: TEXT_MESSAGE_END
-data: {"type":"TEXT_MESSAGE_END","timestamp":1710000000.3,"messageId":"..."}
+data: {"type":"TEXT_MESSAGE_END","timestamp":1710000000300,"messageId":"..."}
 
 event: RUN_FINISHED
-data: {"type":"RUN_FINISHED","timestamp":1710000000.4,"threadId":"...","runId":"...","result":null}
+data: {"type":"RUN_FINISHED","timestamp":1710000000400,"threadId":"...","runId":"...","outcome":{"type":"success"}}
 ```
 
 ## JSON Patches
@@ -326,7 +574,7 @@ have a `type` field and an optional `timestamp`.
 
 ```
 RUN_STARTED      emitted when the run begins
-RUN_FINISHED     emitted when the run completes successfully
+RUN_FINISHED     emitted when the run concludes
 RUN_ERROR        emitted if the run encounters an unrecoverable error
 STEP_STARTED     emitted at the start of each reasoning step
 STEP_FINISHED    emitted at the end of each reasoning step
@@ -369,10 +617,10 @@ agent state is visible to clients via these events.
 CUSTOM  used to deliver real-time updates from tools to the client
 ```
 
-When a tool calls `agentc.emit` (JavaScript) or `input.emit` (Python) during execution, the update
-is delivered to the client as a `CUSTOM` event. Note that AG-UI defines its own `ACTIVITY_DELTA`
-event type; agentc tool emissions are not that. They arrive as `CUSTOM` events because agentc's
-concept of an activity update does not map to AG-UI's `ACTIVITY_DELTA`.
+When a TypeScript tool calls `input.emit?.(...)`, or a Python tool calls `input.emit(...)`, during
+execution, the update is delivered to the client as a `CUSTOM` event. Note that AG-UI defines its
+own `ACTIVITY_DELTA` event type; agentc tool emissions are not that. They arrive as `CUSTOM` events
+because agentc's concept of an activity update does not map to AG-UI's `ACTIVITY_DELTA`.
 
 These updates are stateless and not persisted. They are intended for generative UI, such as
 showing progress or intermediate results while a tool is working.

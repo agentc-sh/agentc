@@ -148,7 +148,8 @@ Create a new attached run and stream its events back as Server-Sent Events (SSE)
     Optional run ID. If omitted, one is generated automatically.
   </Field>
   <Field name="checkpoint_id" type="string | null">
-    Optional checkpoint to resume from.
+    Optional checkpoint to start the run from. If omitted, the run continues from the session's latest
+    state.
   </Field>
   <Field name="resume_payload" type="object | null">
     Opaque resume data supplied by the graph.
@@ -160,13 +161,13 @@ Create a new attached run and stream its events back as Server-Sent Events (SSE)
     Optional capability override for this run.
   </Field>
   <Field name="messages" type={<>{<Link href="/reference/graph/react/http/messages">Message</Link>}[]</>}>
-    Messages that seed the run. At least one message is required.
+    The messages to append to the current session.
   </Field>
   <Field name="context_vars" type={<>{<Link href="#contextvar">ContextVar</Link>}[]</>}>
     Client-supplied context variables.
   </Field>
   <Field name="context" type="object | null">
-    Initial context object.
+    Create or replace the context for the current session.
   </Field>
   <Field name="tools" type={<>{<Link href="#tooldefinition">ToolDefinition</Link>}[]</>}>
     Client-defined tools available to the run.
@@ -278,6 +279,9 @@ Create a new attached run and stream its events back as Server-Sent Events (SSE)
         </Field>
         <Field name="tool_call_id" type="string">
           The tool call ID.
+        </Field>
+        <Field name="parent_message_id" type="string">
+          The ID of the assistant message that contains the tool call.
         </Field>
         <Field name="tool_name" type="string">
           The tool name.
@@ -480,7 +484,7 @@ Create a new attached run and stream its events back as Server-Sent Events (SSE)
   <Response status="500" description="Internal server error." />
 </Responses>
 
-<Tabs defaultValue="curl">
+<Tabs group="client" defaultValue="curl">
   <TabsList>
     <TabsTrigger value="curl">cURL</TabsTrigger>
   </TabsList>
@@ -518,6 +522,10 @@ curl -X POST http://localhost:8080/v1/runs \
 ```
   </TabsContent>
 </Tabs>
+
+When continuing a session, omit `model`, `capability_override`, `context_vars`, or `tools` to keep
+their stored values. Send `null` for `model` or `capability_override` to clear them. Send `[]` for
+`context_vars` or `tools` to clear those lists. A supplied value replaces the stored value.
 
 The stream keeps the connection alive with periodic `keep-alive` comments between events. Closing the
 connection before the run finishes cancels the attached run. A full run looks like this on the wire:
@@ -562,7 +570,8 @@ not cancel the run.
     Optional run ID. If omitted, one is generated automatically.
   </Field>
   <Field name="checkpoint_id" type="string | null">
-    Optional checkpoint to resume from.
+    Optional checkpoint to start the run from. If omitted, the run continues from the session's latest
+    state.
   </Field>
   <Field name="resume_payload" type="object | null">
     Opaque resume data supplied by the graph.
@@ -574,13 +583,13 @@ not cancel the run.
     Optional capability override for this run.
   </Field>
   <Field name="messages" type={<>{<Link href="/reference/graph/react/http/messages">Message</Link>}[]</>}>
-    Messages that seed the run. At least one message is required.
+    The messages to append to the current session.
   </Field>
   <Field name="context_vars" type={<>{<Link href="#contextvar">ContextVar</Link>}[]</>}>
     Client-supplied context variables.
   </Field>
   <Field name="context" type="object | null">
-    Initial context object.
+    Create or replace the context for the current session.
   </Field>
   <Field name="tools" type={<>{<Link href="#tooldefinition">ToolDefinition</Link>}[]</>}>
     Client-defined tools available to the run.
@@ -603,7 +612,7 @@ not cancel the run.
   <Response status="500" description="Internal server error." />
 </Responses>
 
-<Tabs defaultValue="curl">
+<Tabs group="client" defaultValue="curl">
   <TabsList>
     <TabsTrigger value="curl">cURL</TabsTrigger>
   </TabsList>
@@ -659,7 +668,7 @@ terminal state. A run that does not exist and a run that belongs to another tena
   <Response status="500" description="Internal server error." />
 </Responses>
 
-<Tabs defaultValue="curl">
+<Tabs group="client" defaultValue="curl">
   <TabsList>
     <TabsTrigger value="curl">cURL</TabsTrigger>
   </TabsList>
@@ -699,7 +708,7 @@ cancel the run. Use `PUT /v1/runs/{run_id}/cancel` when the client wants to stop
   <Response status="500" description="Internal server error." />
 </Responses>
 
-<Tabs defaultValue="curl">
+<Tabs group="client" defaultValue="curl">
   <TabsList>
     <TabsTrigger value="curl">cURL</TabsTrigger>
   </TabsList>
@@ -845,7 +854,7 @@ configuration.
 
 <Fields label="ModelConfigOverride">
   <Field name="provider" type="string | null">
-    Provider name to use instead of the configured one.
+    Label of the `provider` block to use instead of the configured one.
   </Field>
   <Field name="model" type="string | null">
     Model identifier to use instead of the configured one.

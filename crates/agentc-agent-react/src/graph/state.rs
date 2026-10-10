@@ -16,10 +16,17 @@ use agentc_agent::{
         errors::GraphError,
         state::{FromStateUpdate, GraphState, GraphStateInput, GraphStateUpdate, IntoStateUpdate},
     },
-    types::{capability::CapabilityOverride, tools::ToolDefinition},
+    types::{
+        capability::CapabilityOverride,
+        tools::{ToolCall, ToolDefinition},
+    },
 };
 
-use crate::types::{context_var::ContextVar, message::Message, model::ModelConfig};
+use crate::types::{
+    context_var::ContextVar,
+    message::{AssistantMessage, Message},
+    model::ModelConfig,
+};
 
 /// The main state corresponding to a specific session of an agent.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -42,6 +49,31 @@ pub struct ReActState {
     pub context: Value,
 }
 
+impl ReActState {
+    pub fn pending_tool_calls(&self) -> Option<(AssistantMessage, Vec<ToolCall>)> {
+        self.messages
+            .iter()
+            .rposition(|m| m.as_assistant().is_some())
+            .and_then(|idx| {
+                let assistant = self.messages[idx].as_assistant()?;
+                let calls = assistant
+                    .tool_calls
+                    .iter()
+                    .flatten()
+                    .filter(|call| {
+                        !self.messages[idx + 1..]
+                            .iter()
+                            .filter_map(Message::as_tool)
+                            .any(|tool| tool.tool_call_id == call.id)
+                    })
+                    .cloned()
+                    .collect::<Vec<_>>();
+
+                (!calls.is_empty()).then(|| (assistant.clone(), calls))
+            })
+    }
+}
+
 /// Updates that can be applied to the `ReActState`.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ReActStateUpdate {
@@ -49,6 +81,22 @@ pub struct ReActStateUpdate {
     pub messages: Vec<Message>,
     /// Patches to the arbitrary context.
     pub context: Vec<PatchOperation>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "serde_with::rust::double_option"
+    )]
+    pub model: Option<Option<ModelConfig>>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "serde_with::rust::double_option"
+    )]
+    pub capability_override: Option<Option<CapabilityOverride>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_vars: Option<Vec<ContextVar>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tools: Option<Vec<ToolDefinition>>,
 }
 
 impl ReActStateUpdate {
@@ -56,6 +104,10 @@ impl ReActStateUpdate {
         Self {
             messages: Vec::new(),
             context: Vec::new(),
+            model: None,
+            capability_override: None,
+            context_vars: None,
+            tools: None,
         }
     }
 
@@ -86,69 +138,105 @@ impl Default for ReActStateUpdate {
 
 impl FromStateUpdate<ReActStateUpdate> for Patch {
     fn from_update(update: ReActStateUpdate) -> Result<Option<Self>, GraphError> {
-        // Manually add the messages patch, then unpack all of the context patches from the update
-        // and mutate all of their paths to start with /context so that they apply to the context field of the state.
-        Ok(Some(Patch(
-            (!update.messages.is_empty())
-                .then(|| {
-                    Some(PatchOperation::Add(AddOperation {
-                        path: "/messages".try_into().ok()?,
-                        value: to_value(update.messages).expect("failed to serialize messages"),
-                    }))
-                })
-                .flatten()
+        let mut operations = Vec::new();
+
+        if !update.messages.is_empty() {
+            operations.push(PatchOperation::Add(AddOperation {
+                path: "/messages"
+                    .try_into()
+                    .map_err(GraphError::conversion_error)?,
+                value: to_value(update.messages).map_err(GraphError::conversion_error)?,
+            }));
+        }
+
+        if let Some(model) = update.model {
+            operations.push(PatchOperation::Add(AddOperation {
+                path: "/model"
+                    .try_into()
+                    .map_err(GraphError::conversion_error)?,
+                value: to_value(model).map_err(GraphError::conversion_error)?,
+            }));
+        }
+
+        if let Some(capability_override) = update.capability_override {
+            operations.push(PatchOperation::Add(AddOperation {
+                path: "/capability_override"
+                    .try_into()
+                    .map_err(GraphError::conversion_error)?,
+                value: to_value(capability_override).map_err(GraphError::conversion_error)?,
+            }));
+        }
+
+        if let Some(context_vars) = update.context_vars {
+            operations.push(PatchOperation::Add(AddOperation {
+                path: "/context_vars"
+                    .try_into()
+                    .map_err(GraphError::conversion_error)?,
+                value: to_value(context_vars).map_err(GraphError::conversion_error)?,
+            }));
+        }
+
+        if let Some(tools) = update.tools {
+            operations.push(PatchOperation::Add(AddOperation {
+                path: "/tools"
+                    .try_into()
+                    .map_err(GraphError::conversion_error)?,
+                value: to_value(tools).map_err(GraphError::conversion_error)?,
+            }));
+        }
+
+        operations.extend(
+            update
+                .context
                 .into_iter()
-                .chain(
-                    update
-                        .context
-                        .into_iter()
-                        .filter_map(|patch_op| match patch_op {
-                            PatchOperation::Add(mut add_op) => {
-                                add_op.path = format!("/context{}", add_op.path)
-                                    .try_into()
-                                    .ok()?;
-                                Some(PatchOperation::Add(add_op))
-                            }
-                            PatchOperation::Remove(mut remove_op) => {
-                                remove_op.path = format!("/context{}", remove_op.path)
-                                    .try_into()
-                                    .ok()?;
-                                Some(PatchOperation::Remove(remove_op))
-                            }
-                            PatchOperation::Replace(mut replace_op) => {
-                                replace_op.path = format!("/context{}", replace_op.path)
-                                    .try_into()
-                                    .ok()?;
-                                Some(PatchOperation::Replace(replace_op))
-                            }
-                            PatchOperation::Move(mut move_op) => {
-                                move_op.from = format!("/context{}", move_op.from)
-                                    .try_into()
-                                    .ok()?;
-                                move_op.path = format!("/context{}", move_op.path)
-                                    .try_into()
-                                    .ok()?;
-                                Some(PatchOperation::Move(move_op))
-                            }
-                            PatchOperation::Copy(mut copy_op) => {
-                                copy_op.from = format!("/context{}", copy_op.from)
-                                    .try_into()
-                                    .ok()?;
-                                copy_op.path = format!("/context{}", copy_op.path)
-                                    .try_into()
-                                    .ok()?;
-                                Some(PatchOperation::Copy(copy_op))
-                            }
-                            PatchOperation::Test(mut test_op) => {
-                                test_op.path = format!("/context{}", test_op.path)
-                                    .try_into()
-                                    .ok()?;
-                                Some(PatchOperation::Test(test_op))
-                            }
-                        }),
-                )
-                .collect(),
-        )))
+                // Ensure all context patch operations are prefixed with "/context"
+                .filter_map(|patch_op| match patch_op {
+                    PatchOperation::Add(mut add_op) => {
+                        add_op.path = format!("/context{}", add_op.path)
+                            .try_into()
+                            .ok()?;
+                        Some(PatchOperation::Add(add_op))
+                    }
+                    PatchOperation::Remove(mut remove_op) => {
+                        remove_op.path = format!("/context{}", remove_op.path)
+                            .try_into()
+                            .ok()?;
+                        Some(PatchOperation::Remove(remove_op))
+                    }
+                    PatchOperation::Replace(mut replace_op) => {
+                        replace_op.path = format!("/context{}", replace_op.path)
+                            .try_into()
+                            .ok()?;
+                        Some(PatchOperation::Replace(replace_op))
+                    }
+                    PatchOperation::Move(mut move_op) => {
+                        move_op.from = format!("/context{}", move_op.from)
+                            .try_into()
+                            .ok()?;
+                        move_op.path = format!("/context{}", move_op.path)
+                            .try_into()
+                            .ok()?;
+                        Some(PatchOperation::Move(move_op))
+                    }
+                    PatchOperation::Copy(mut copy_op) => {
+                        copy_op.from = format!("/context{}", copy_op.from)
+                            .try_into()
+                            .ok()?;
+                        copy_op.path = format!("/context{}", copy_op.path)
+                            .try_into()
+                            .ok()?;
+                        Some(PatchOperation::Copy(copy_op))
+                    }
+                    PatchOperation::Test(mut test_op) => {
+                        test_op.path = format!("/context{}", test_op.path)
+                            .try_into()
+                            .ok()?;
+                        Some(PatchOperation::Test(test_op))
+                    }
+                }),
+        );
+
+        Ok(Some(Patch(operations)))
     }
 }
 
@@ -160,15 +248,27 @@ pub struct ReActStateInput {
     /// A unique identifier for the session within the agent.
     pub session_id: Uuid,
     /// Model configuration for this agent session.
-    pub model: Option<ModelConfig>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "serde_with::rust::double_option"
+    )]
+    pub model: Option<Option<ModelConfig>>,
     /// Override the capabilities for this agent session.
-    pub capability_override: Option<CapabilityOverride>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "serde_with::rust::double_option"
+    )]
+    pub capability_override: Option<Option<CapabilityOverride>>,
     /// New messages for the agent's conversation.
     pub messages: Vec<Message>,
     /// Initial context variables for the agent.
-    pub context_vars: Vec<ContextVar>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_vars: Option<Vec<ContextVar>>,
     /// The tools available to the agent.
-    pub tools: Vec<ToolDefinition>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tools: Option<Vec<ToolDefinition>>,
     /// Additional arbitrary context that can be used by the agent or tools, not structured as variables.
     pub context: Value,
 }
@@ -181,8 +281,8 @@ impl Default for ReActStateInput {
             run_id: Uuid::new_v4(),
             session_id: Uuid::new_v4(),
             messages: Vec::new(),
-            context_vars: Vec::new(),
-            tools: Vec::new(),
+            context_vars: None,
+            tools: None,
             context: Value::Object(Default::default()),
         }
     }
@@ -200,7 +300,6 @@ impl IntoStateUpdate<ReActStateUpdate> for ReActStateInput {
                 Value::Object(map) => map
                     .into_iter()
                     .filter_map(|(key, value)| {
-                        // RFC 6901: `~` -> `~0`, `/` -> `~1`
                         format!(
                             "/{}",
                             key.replace('~', "~0")
@@ -213,6 +312,10 @@ impl IntoStateUpdate<ReActStateUpdate> for ReActStateInput {
                     .collect(),
                 _ => Vec::new(),
             },
+            model: self.model,
+            capability_override: self.capability_override,
+            context_vars: self.context_vars,
+            tools: self.tools,
         }))
     }
 }
@@ -272,11 +375,44 @@ impl GraphStateUpdate for ReActStateUpdate {
         if !self.context.is_empty() {
             let _ = patch(&mut state.context, &self.context);
         }
+
+        if let Some(model) = self.model {
+            state.model = model;
+        }
+
+        if let Some(value) = self.capability_override {
+            state.capability_override = value;
+        }
+
+        if let Some(vars) = self.context_vars {
+            state.context_vars = vars;
+        }
+
+        if let Some(tools) = self.tools {
+            state.tools = tools;
+        }
     }
 
     fn merge(mut self, other: Self) -> Self {
         self.messages.extend(other.messages);
         self.context.extend(other.context);
+
+        if other.model.is_some() {
+            self.model = other.model;
+        }
+
+        if other.capability_override.is_some() {
+            self.capability_override = other.capability_override;
+        }
+
+        if other.context_vars.is_some() {
+            self.context_vars = other.context_vars;
+        }
+
+        if other.tools.is_some() {
+            self.tools = other.tools;
+        }
+
         self
     }
 }
@@ -286,13 +422,13 @@ impl GraphStateInput for ReActStateInput {
 
     fn initialize(self) -> Self::State {
         ReActState {
-            model: self.model,
-            capability_override: self.capability_override,
+            model: self.model.flatten(),
+            capability_override: self.capability_override.flatten(),
             run_id: self.run_id,
             session_id: self.session_id,
             messages: self.messages,
-            context_vars: self.context_vars,
-            tools: self.tools,
+            context_vars: self.context_vars.unwrap_or_default(),
+            tools: self.tools.unwrap_or_default(),
             context: self.context,
         }
     }
@@ -319,6 +455,7 @@ mod tests {
                 path: "/foo".try_into().unwrap(),
                 value: json!("bar"),
             })],
+            ..Default::default()
         }
         .apply(&mut state);
 
@@ -335,6 +472,7 @@ mod tests {
                 path: "/a".try_into().unwrap(),
                 value: json!(1),
             })],
+            ..Default::default()
         }
         .merge(ReActStateUpdate {
             messages: vec![],
@@ -342,6 +480,7 @@ mod tests {
                 path: "/b".try_into().unwrap(),
                 value: json!(2),
             })],
+            ..Default::default()
         })
         .apply(&mut state);
 
@@ -353,7 +492,7 @@ mod tests {
     fn state_updates_preserve_client_model_config() {
         let model = ModelConfig::new().with_timeout(250);
         let mut state = ReActStateInput {
-            model: Some(model.clone()),
+            model: Some(Some(model.clone())),
             ..Default::default()
         }
         .initialize();
@@ -366,5 +505,160 @@ mod tests {
             .apply(&mut state);
 
         assert_eq!(state.model, Some(model));
+    }
+
+    #[test]
+    fn run_input_preserves_omitted_values_and_clears_explicit_values() {
+        let model = ModelConfig::new().with_timeout(250);
+        let capability = CapabilityOverride::Inherit;
+        let context_var = ContextVar {
+            description: "prior".into(),
+            value: "value".into(),
+        };
+        let tool = ToolDefinition {
+            name: "prior_tool".into(),
+            description: "prior".into(),
+            parameters: json!({}),
+        };
+
+        let mut state = ReActStateInput {
+            model: Some(Some(model.clone())),
+            capability_override: Some(Some(capability.clone())),
+            context_vars: Some(vec![context_var.clone()]),
+            tools: Some(vec![tool.clone()]),
+            ..Default::default()
+        }
+        .initialize();
+
+        ReActStateInput::default()
+            .into_update()
+            .unwrap()
+            .unwrap()
+            .apply(&mut state);
+
+        assert_eq!(state.model, Some(model));
+        assert_eq!(state.capability_override, Some(capability));
+        assert_eq!(state.context_vars, vec![context_var]);
+        assert_eq!(state.tools, vec![tool]);
+
+        ReActStateInput {
+            model: Some(None),
+            capability_override: Some(None),
+            context_vars: Some(Vec::new()),
+            tools: Some(Vec::new()),
+            ..Default::default()
+        }
+        .into_update()
+        .unwrap()
+        .unwrap()
+        .apply(&mut state);
+
+        assert_eq!(state.model, None);
+        assert_eq!(state.capability_override, None);
+        assert!(state.context_vars.is_empty());
+        assert!(state.tools.is_empty());
+    }
+
+    #[test]
+    fn later_specified_update_wins_without_losing_earlier_values() {
+        let model = ModelConfig::new().with_timeout(250);
+        let tool = ToolDefinition {
+            name: "prior_tool".into(),
+            description: "prior".into(),
+            parameters: json!({}),
+        };
+
+        let merged = ReActStateUpdate {
+            model: Some(Some(model.clone())),
+            capability_override: Some(Some(CapabilityOverride::Inherit)),
+            context_vars: Some(vec![]),
+            tools: Some(vec![tool]),
+            ..Default::default()
+        }
+        .merge(ReActStateUpdate {
+            model: Some(None),
+            tools: Some(vec![]),
+            ..Default::default()
+        });
+
+        assert_eq!(merged.model, Some(None));
+        assert_eq!(merged.capability_override, Some(Some(CapabilityOverride::Inherit)));
+        assert_eq!(merged.context_vars, Some(vec![]));
+        assert_eq!(merged.tools, Some(vec![]));
+
+        let unchanged = merged.merge(ReActStateUpdate::default());
+
+        assert_eq!(unchanged.model, Some(None));
+        assert_eq!(unchanged.tools, Some(vec![]));
+    }
+
+    #[test]
+    fn update_serialization_preserves_omission_and_explicit_clear() {
+        let default = serde_json::to_value(ReActStateUpdate::default()).unwrap();
+
+        assert!(default.get("model").is_none());
+        assert!(
+            default
+                .get("capability_override")
+                .is_none()
+        );
+        assert!(default.get("context_vars").is_none());
+        assert!(default.get("tools").is_none());
+
+        let clear = serde_json::from_value::<ReActStateUpdate>(json!({
+            "messages": [],
+            "context": [],
+            "model": null,
+            "capability_override": null,
+            "context_vars": [],
+            "tools": []
+        }))
+        .unwrap();
+
+        assert_eq!(clear.model, Some(None));
+        assert_eq!(clear.capability_override, Some(None));
+        assert_eq!(clear.context_vars, Some(vec![]));
+        assert_eq!(clear.tools, Some(vec![]));
+        assert_eq!(
+            serde_json::to_value(clear).unwrap(),
+            json!({
+                "messages": [],
+                "context": [],
+                "model": null,
+                "capability_override": null,
+                "context_vars": [],
+                "tools": []
+            })
+        );
+    }
+
+    #[test]
+    fn generic_patch_conversion_preserves_override_values() {
+        let clear = ReActStateUpdate {
+            model: Some(None),
+            capability_override: Some(None),
+            context_vars: Some(vec![]),
+            tools: Some(vec![]),
+            ..Default::default()
+        };
+        let patch = Patch::from_update(clear.clone())
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(
+            serde_json::to_value(&patch).unwrap(),
+            json!([
+                {"op": "add", "path": "/model", "value": null},
+                {"op": "add", "path": "/capability_override", "value": null},
+                {"op": "add", "path": "/context_vars", "value": []},
+                {"op": "add", "path": "/tools", "value": []}
+            ])
+        );
+        assert_eq!(
+            <Patch as IntoStateUpdate<ReActStateUpdate>>::into_update(patch)
+                .unwrap()
+                .unwrap(),
+            clear
+        );
     }
 }

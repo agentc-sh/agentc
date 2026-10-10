@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
+use json_patch::Patch;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use utoipa::ToSchema;
@@ -9,6 +10,7 @@ use utoipa::ToSchema;
 use crate::protocol::{
     ids::{MessageId, RunId, ThreadId, ToolCallId},
     message::{Message, Role},
+    outcome::RunFinishedOutcome,
     state::AgentState,
 };
 
@@ -103,14 +105,41 @@ impl EventType {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, ToSchema)]
+#[serde(transparent)]
+pub struct Timestamp(i64);
+
+impl Timestamp {
+    pub fn from_millis(millis: i64) -> Self {
+        Self(millis)
+    }
+
+    pub fn from_secs_f64(secs: f64) -> Self {
+        Self((secs * 1000.0).round() as i64)
+    }
+
+    pub fn as_millis(&self) -> i64 {
+        self.0
+    }
+}
+
 /// Base event for all events in the Agent User Interaction Protocol.
 /// Contains common fields that are present in all event types.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct BaseEvent {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub timestamp: Option<f64>,
+    pub timestamp: Option<Timestamp>,
     #[serde(rename = "rawEvent", skip_serializing_if = "Option::is_none")]
     pub raw_event: Option<Value>,
+}
+
+impl BaseEvent {
+    pub fn at(timestamp: Timestamp) -> Self {
+        Self {
+            timestamp: Some(timestamp),
+            raw_event: None,
+        }
+    }
 }
 
 /// Event indicating the start of a text message.
@@ -323,7 +352,7 @@ pub struct StateSnapshotEvent<StateT: AgentState = Value> {
 pub struct StateDeltaEvent {
     #[serde(flatten)]
     pub base: BaseEvent,
-    pub delta: Vec<Value>,
+    pub delta: Patch,
 }
 
 /// Event containing a snapshot of the messages.
@@ -380,6 +409,8 @@ pub struct RunFinishedEvent {
     pub run_id: RunId,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub result: Option<Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub outcome: Option<RunFinishedOutcome>,
 }
 
 /// Event indicating that a run has encountered an error.
@@ -485,7 +516,7 @@ pub enum Event<StateT: AgentState = Value> {
     StateSnapshot(StateSnapshotEvent<StateT>),
 
     /// Provides incremental changes to the state.
-    /// Contains a vector of delta operations to apply to the state.
+    /// Contains JSON Patch operations to apply to the state.
     StateDelta(StateDeltaEvent),
 
     /// Provides a complete snapshot of all messages.
@@ -555,7 +586,7 @@ impl Event {
     }
 
     /// Get the timestamp if available
-    pub fn timestamp(&self) -> Option<f64> {
+    pub fn timestamp(&self) -> Option<Timestamp> {
         match self {
             Event::TextMessageStart(e) => e.base.timestamp,
             Event::TextMessageContent(e) => e.base.timestamp,
@@ -587,37 +618,17 @@ impl Event {
     }
 }
 
-/// Validation error types for events in the Agent User Interaction Protocol.
-/// These errors represent validation failures when creating or processing events.
-#[derive(Debug, thiserror::Error)]
-pub enum EventValidationError {
-    #[error("Delta must not be an empty string")]
-    EmptyDelta,
-    #[error("Invalid event format: {0}")]
-    InvalidFormat(String),
-}
-
-/// Validate text message content event
-impl TextMessageContentEvent {
-    pub fn validate(&self) -> Result<(), EventValidationError> {
-        if self.delta.is_empty() {
-            return Err(EventValidationError::EmptyDelta);
-        }
-        Ok(())
-    }
-}
-
 /// Builder pattern for creating events
 impl TextMessageStartEvent {
     pub fn new(message_id: impl Into<MessageId>) -> Self {
         Self {
-            base: BaseEvent { timestamp: None, raw_event: None },
+            base: BaseEvent::default(),
             message_id: message_id.into(),
             role: Role::Assistant,
         }
     }
 
-    pub fn with_timestamp(mut self, timestamp: f64) -> Self {
+    pub fn with_timestamp(mut self, timestamp: Timestamp) -> Self {
         self.base.timestamp = Some(timestamp);
         self
     }
@@ -629,20 +640,15 @@ impl TextMessageStartEvent {
 }
 
 impl TextMessageContentEvent {
-    pub fn new(
-        message_id: impl Into<MessageId>,
-        delta: String,
-    ) -> Result<Self, EventValidationError> {
-        let event = Self {
-            base: BaseEvent { timestamp: None, raw_event: None },
+    pub fn new(message_id: impl Into<MessageId>, delta: String) -> Self {
+        Self {
+            base: BaseEvent::default(),
             message_id: message_id.into(),
             delta,
-        };
-        event.validate()?;
-        Ok(event)
+        }
     }
 
-    pub fn with_timestamp(mut self, timestamp: f64) -> Self {
+    pub fn with_timestamp(mut self, timestamp: Timestamp) -> Self {
         self.base.timestamp = Some(timestamp);
         self
     }

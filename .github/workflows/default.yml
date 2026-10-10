@@ -39,6 +39,11 @@ jobs:
         with:
           version: 3.43.3
 
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+
       - name: Lint commit message
         run: |
           pip install gitlint
@@ -66,6 +71,11 @@ jobs:
         uses: arduino/setup-task@v3
         with:
           version: 3.43.3
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
 
       - name: Unit tests - Compiler
         run: task rust:test:compiler

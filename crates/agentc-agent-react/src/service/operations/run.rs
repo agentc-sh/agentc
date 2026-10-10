@@ -172,7 +172,9 @@ impl RunOperations for ApplicationService {
             .run(
                 AgentRunParams::new(params.to_input(), params.tenant_id.clone())
                     .with_session_id(params.session_id)
-                    .with_run_id(params.run_id),
+                    .with_run_id(params.run_id)
+                    .maybe_with_checkpoint_id(params.checkpoint_id)
+                    .maybe_with_resume_payload(params.resume_payload.clone()),
             )
             .await
             .map_err(ServiceError::from)

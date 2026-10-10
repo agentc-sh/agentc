@@ -449,8 +449,9 @@ impl<S: GraphState + 'static> TypedTool<S> for RunSkillScriptTool {
             ));
         }
 
-        let content = skill
-            .read_resource(&input.args.script_path)
+        let content = self
+            .registry
+            .read_file(&input.args.skill_name, &input.args.script_path)
             .await
             .map_err(|e| ToolError::execution_error("run_skill_script", e.to_string()))?;
 
@@ -479,10 +480,6 @@ impl<S: GraphState + 'static> TypedTool<S> for RunSkillScriptTool {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    // -------------------------------------------------------------------------
-    // ScriptKind::detect -- extension-based
-    // -------------------------------------------------------------------------
 
     #[test]
     fn detect_bash_extensions() {
@@ -513,10 +510,6 @@ mod tests {
     fn detect_ruby_extension() {
         assert_eq!(ScriptKind::detect("script.rb", ""), ScriptKind::Ruby);
     }
-
-    // -------------------------------------------------------------------------
-    // ScriptKind::detect -- shebang fallback
-    // -------------------------------------------------------------------------
 
     #[test]
     fn detect_bash_shebang() {
@@ -571,10 +564,6 @@ mod tests {
         assert_eq!(ScriptKind::detect("script.py", "#!/bin/bash\n"), ScriptKind::Python);
     }
 
-    // -------------------------------------------------------------------------
-    // ScriptKind::stdin_invocation
-    // -------------------------------------------------------------------------
-
     #[test]
     fn stdin_invocation_known_kinds_return_some() {
         assert_eq!(ScriptKind::Bash.stdin_invocation(), Some(("bash", ["-s"].as_slice())));
@@ -599,10 +588,6 @@ mod tests {
                 .is_none()
         );
     }
-
-    // -------------------------------------------------------------------------
-    // ScriptKind::path_invocation
-    // -------------------------------------------------------------------------
 
     #[test]
     fn path_invocation_known_kind_prepends_interpreter() {

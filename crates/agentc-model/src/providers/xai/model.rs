@@ -5,14 +5,16 @@
 use async_trait::async_trait;
 use futures::StreamExt;
 use rig_core::{
-    client::CompletionClient, completion::CompletionModel as RigCompletionModel, message::Message,
-    providers::xai,
+    client::CompletionClient,
+    completion::CompletionModel as RigCompletionModel,
+    message::Message,
+    providers::{openai::responses_api::streaming::StreamingCompletionResponse, xai},
 };
 use serde_json::json;
 
 use crate::{
     errors::{IntoModelError, ModelError},
-    providers::xai::constants::{OTEL_PROVIDER_NAME, PROVIDER},
+    providers::{rig::events::CompletionStreamMetadata, xai::constants::OTEL_PROVIDER_NAME},
     stream::ChatCompletionStream,
     traits::CompletionModel,
     types::{
@@ -22,17 +24,26 @@ use crate::{
     },
 };
 
+impl CompletionStreamMetadata for StreamingCompletionResponse {}
+
 /// A specific xAI model instance. Obtained from
 /// [`XaiClient::model`](crate::providers::xai::client::XaiClient::model).
 pub struct XaiModel {
+    provider: ProviderId,
     model: xai::CompletionModel,
     model_id: ModelId,
     inference_params: InferenceParams,
 }
 
 impl XaiModel {
-    pub fn new(client: xai::Client, model_id: ModelId, inference_params: InferenceParams) -> Self {
+    pub fn new(
+        provider: ProviderId,
+        client: xai::Client,
+        model_id: ModelId,
+        inference_params: InferenceParams,
+    ) -> Self {
         Self {
+            provider,
             model: client.completion_model(model_id.as_str()),
             model_id,
             inference_params,
@@ -43,7 +54,7 @@ impl XaiModel {
 #[async_trait]
 impl CompletionModel for XaiModel {
     fn provider(&self) -> ProviderId {
-        PROVIDER.into()
+        self.provider.clone()
     }
 
     fn otel_provider_name(&self) -> &'static str {
@@ -121,6 +132,8 @@ impl CompletionModel for XaiModel {
             builder = builder.additional_params(additional);
         }
 
+        let provider = self.provider.clone();
+
         ChatCompletionStream::establish(
             builder
                 .messages(
@@ -130,11 +143,15 @@ impl CompletionModel for XaiModel {
                 )
                 .stream()
                 .await
-                .map_err(|e| e.into_model_error(PROVIDER))?
-                .filter_map(|event| async move {
-                    match event {
-                        Ok(e) => Some(Ok(e.try_into().ok()?)),
-                        Err(e) => Some(Err(e.into_model_error(PROVIDER))),
+                .map_err(|e| e.into_model_error(self.provider.clone()))?
+                .filter_map(move |event| {
+                    let provider = provider.clone();
+
+                    async move {
+                        match event {
+                            Ok(e) => Some(Ok(e.try_into().ok()?)),
+                            Err(e) => Some(Err(e.into_model_error(provider))),
+                        }
                     }
                 }),
         )

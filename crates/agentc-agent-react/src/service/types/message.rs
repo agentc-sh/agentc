@@ -53,6 +53,7 @@ impl CreateSystemMessageParams {
             tenant_id: tenant_id.into(),
             session_id: session_id.into(),
             run_id: None,
+            checkpoint_id: None,
             content: self.content.clone(),
             name: self.name.clone(),
             created_at: Utc::now(),
@@ -66,6 +67,7 @@ pub struct SystemMessageResponse {
     pub tenant_id: String,
     pub session_id: Uuid,
     pub run_id: Option<Uuid>,
+    pub checkpoint_id: Option<Uuid>,
     pub content: String,
     pub name: Option<String>,
     pub created_at: DateTime<Utc>,
@@ -78,6 +80,7 @@ impl SystemMessageResponse {
             tenant_id: entity.tenant_id.clone(),
             session_id: entity.session_id,
             run_id: entity.run_id,
+            checkpoint_id: entity.checkpoint_id,
             content: entity.content.clone(),
             name: entity.name.clone(),
             created_at: entity.created_at,
@@ -139,6 +142,7 @@ impl CreateUserMessageParams {
             tenant_id: tenant_id.into(),
             session_id: session_id.into(),
             run_id: None,
+            checkpoint_id: None,
             content: self.content.clone(),
             name: self.name.clone(),
             created_at: Utc::now(),
@@ -152,6 +156,7 @@ pub struct UserMessageResponse {
     pub tenant_id: String,
     pub session_id: Uuid,
     pub run_id: Option<Uuid>,
+    pub checkpoint_id: Option<Uuid>,
     pub content: Vec<UserContent>,
     pub name: Option<String>,
     pub created_at: DateTime<Utc>,
@@ -164,6 +169,7 @@ impl UserMessageResponse {
             tenant_id: entity.tenant_id.clone(),
             session_id: entity.session_id,
             run_id: entity.run_id,
+            checkpoint_id: entity.checkpoint_id,
             content: entity.content.clone(),
             name: entity.name.clone(),
             created_at: entity.created_at,
@@ -177,6 +183,7 @@ pub struct AssistantMessageResponse {
     pub tenant_id: String,
     pub session_id: Uuid,
     pub run_id: Uuid,
+    pub checkpoint_id: Option<Uuid>,
     pub content: Option<String>,
     pub name: Option<String>,
     pub tool_calls: Option<Vec<ToolCall>>,
@@ -190,6 +197,7 @@ impl AssistantMessageResponse {
             tenant_id: entity.tenant_id.clone(),
             session_id: entity.session_id,
             run_id: entity.run_id,
+            checkpoint_id: entity.checkpoint_id,
             content: entity.content.clone(),
             name: entity.name.clone(),
             tool_calls: entity.tool_calls.clone(),
@@ -255,6 +263,7 @@ impl CreateToolMessageParams {
             tenant_id: tenant_id.into(),
             session_id: session_id.into(),
             run_id: None,
+            checkpoint_id: None,
             content: self.content.clone(),
             name: self.name.clone(),
             tool_call_id: self.tool_call_id.clone(),
@@ -271,6 +280,7 @@ pub struct ToolMessageResponse {
     pub tenant_id: String,
     pub session_id: Uuid,
     pub run_id: Option<Uuid>,
+    pub checkpoint_id: Option<Uuid>,
     pub content: Option<String>,
     pub name: Option<String>,
     pub tool_call_id: String,
@@ -286,6 +296,7 @@ impl ToolMessageResponse {
             tenant_id: entity.tenant_id.clone(),
             session_id: entity.session_id,
             run_id: entity.run_id,
+            checkpoint_id: entity.checkpoint_id,
             content: entity.content.clone(),
             name: entity.name.clone(),
             tool_call_id: entity.tool_call_id.clone(),
@@ -302,6 +313,7 @@ pub struct ReasoningMessageResponse {
     pub tenant_id: String,
     pub session_id: Uuid,
     pub run_id: Uuid,
+    pub checkpoint_id: Option<Uuid>,
     pub content: String,
     pub signature: Option<String>,
     pub created_at: DateTime<Utc>,
@@ -314,6 +326,7 @@ impl ReasoningMessageResponse {
             tenant_id: entity.tenant_id.clone(),
             session_id: entity.session_id,
             run_id: entity.run_id,
+            checkpoint_id: entity.checkpoint_id,
             content: entity.content.clone(),
             signature: entity.signature.clone(),
             created_at: entity.created_at,
@@ -397,6 +410,7 @@ pub struct FindMessageParams {
     pub ids: Option<Vec<Uuid>>,
     pub session_ids: Option<Vec<Uuid>>,
     pub run_ids: Option<Vec<Uuid>>,
+    pub checkpoint_ids: Option<Vec<Uuid>>,
     pub roles: Option<Vec<MessageRole>>,
     pub created_before: Option<DateTime<Utc>>,
     pub created_after: Option<DateTime<Utc>>,
@@ -411,6 +425,7 @@ impl FindMessageParams {
             ids: None,
             session_ids: None,
             run_ids: None,
+            checkpoint_ids: None,
             roles: None,
             created_before: None,
             created_after: None,
@@ -473,6 +488,15 @@ impl FindMessageParams {
         self
     }
 
+    pub fn checkpoint_ids(mut self, ids: impl IntoIterator<Item = impl Into<Uuid>>) -> Self {
+        self.checkpoint_ids = Some(
+            ids.into_iter()
+                .map(Into::into)
+                .collect(),
+        );
+        self
+    }
+
     pub fn roles(mut self, roles: impl IntoIterator<Item = impl Into<MessageRole>>) -> Self {
         self.roles = Some(
             roles
@@ -509,6 +533,7 @@ impl From<FindMessageParams> for RepoFindMessageParams {
             ids: params.ids,
             session_ids: params.session_ids,
             run_ids: params.run_ids,
+            checkpoint_ids: params.checkpoint_ids,
             roles: params.roles,
             created_before: params.created_before,
             created_after: params.created_after,

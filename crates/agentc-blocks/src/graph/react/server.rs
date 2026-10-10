@@ -7,11 +7,13 @@ use quote::quote;
 use std::path::PathBuf;
 
 use agentc_compiler::generator::{
-    blocks::codegen::CodeGen, context::GenerationContext, errors::GeneratorError,
-    extension::ExtensionRegistry,
+    blocks::codegen::CodeGen,
+    context::GenerationContext,
+    errors::GeneratorError,
+    extension::{ErasedContributionValue, ExtensionRegistry, RenderedTokenStream},
 };
 
-use crate::{context::ResolvedContext, fields::FieldsSpec};
+use crate::{config::fields::FieldsSpec, context::ResolvedContext};
 
 pub struct ServerCodeGen {
     pub fields: FieldsSpec,
@@ -22,11 +24,13 @@ impl CodeGen<ResolvedContext> for ServerCodeGen {
         &self,
         _ctx: &GenerationContext<ResolvedContext>,
         point: &str,
-    ) -> Result<TokenStream, GeneratorError> {
+    ) -> Result<ErasedContributionValue, GeneratorError> {
         match point {
-            "main::modules" => Ok(quote! {
-                mod server;
-            }),
+            "main::modules" => {
+                Ok(ErasedContributionValue::new(RenderedTokenStream::from(quote! {
+                    mod server;
+                })))
+            }
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }
     }
@@ -83,8 +87,8 @@ impl CodeGen<ResolvedContext> for ServerCodeGen {
             use subway::Bus;
             use utoipa::OpenApi;
 
-            use agentc_http::{
-                server::HttpServer,
+            use agentc_http::server::{
+                HttpServer,
                 state::DefaultTenantId,
             };
             use agentc_agent_react::{
@@ -108,7 +112,7 @@ impl CodeGen<ResolvedContext> for ServerCodeGen {
 
             pub fn build(
                 service: Arc<ApplicationService>,
-                task_queue: Arc<JobQueue<FifoQueue<AnyExecutable>>>,
+                task_queue: JobQueue<FifoQueue<AnyExecutable>>,
                 bus: Bus,
                 config: &Config,
             ) -> Result<HttpServer> {
@@ -122,6 +126,7 @@ impl CodeGen<ResolvedContext> for ServerCodeGen {
                         service.clone(),
                         default_tenant_id.clone(),
                         task_queue.clone(),
+                        config.task_queue.batch_policy(),
                         bus,
                     ));
 

@@ -14,7 +14,10 @@ use agentc_core::{
         transformer::TransformerRegistry,
     },
     manifest::Manifest,
-    parser::{SpecFormat, SpecParser, middleware::hcl::RuntimeFunctionDeserialize},
+    parser::{
+        SpecFormat, SpecParser,
+        middleware::hcl::{FileFunctionDeserialize, RootedFileReader, RuntimeFunctionDeserialize},
+    },
 };
 
 use crate::cli::{
@@ -23,6 +26,7 @@ use crate::cli::{
     context::Ctx,
     errors::CliError,
     traits::Cmd,
+    types::CmdOutcome,
     ui::{StreamRenderer, UiFormat},
 };
 
@@ -59,7 +63,7 @@ pub struct CliCommandBuild {
 
 #[async_trait]
 impl Cmd for CliCommandBuild {
-    async fn run(&self, _ctx: &mut Ctx) -> Result<(), CliError> {
+    async fn run(&self, _ctx: &mut Ctx) -> Result<CmdOutcome, CliError> {
         if !self.context.is_dir() || !self.context.join("agent.acl").is_file() {
             return Err(CliError::invalid_parameters(format!(
                 "Context path '{}' must be a directory containing 'agent.acl'",
@@ -77,7 +81,11 @@ impl Cmd for CliCommandBuild {
                 context
                     .join("agent.acl")
                     .to_string_lossy(),
-                SpecFormat::hcl().with_hcl_deserialize_middleware(RuntimeFunctionDeserialize),
+                SpecFormat::hcl()
+                    .with_hcl_deserialize_middleware(FileFunctionDeserialize::new(
+                        RootedFileReader::new(context.clone()),
+                    ))
+                    .with_hcl_deserialize_middleware(RuntimeFunctionDeserialize),
             )
             .parse()
             .await
@@ -135,10 +143,16 @@ impl Cmd for CliCommandBuild {
         });
 
         match result {
-            Ok(_) => renderer.on_success(),
-            Err(e) => renderer.on_failure(&e.to_string()),
-        }
+            Ok(_) => {
+                renderer.on_success();
 
-        Ok(())
+                Ok(CmdOutcome::Success)
+            }
+            Err(e) => {
+                renderer.on_failure(&e.to_string());
+
+                Ok(CmdOutcome::failure(1))
+            }
+        }
     }
 }

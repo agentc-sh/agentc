@@ -2,33 +2,34 @@
 //
 // SPDX-License-Identifier: MIT
 
+use async_trait::async_trait;
+
 use crate::{
     errors::ModelError,
     providers::huggingface::{
-        client::HuggingFaceClient, config::HuggingFaceConfig, constants::PROVIDER,
+        client::HuggingFaceClient, config::HuggingFaceConfig, constants::KIND,
     },
     traits::ClientFactory,
-    types::identity::ProviderId,
+    types::identity::{ProviderId, ProviderKind},
 };
 
 /// Factory for constructing [`HuggingFaceClient`] instances from [`HuggingFaceConfig`].
 pub struct HuggingFaceFactory;
 
-impl HuggingFaceFactory {
-    pub fn provider() -> ProviderId {
-        PROVIDER.into()
-    }
-}
-
+#[async_trait]
 impl ClientFactory for HuggingFaceFactory {
     type Config = HuggingFaceConfig;
     type Client = HuggingFaceClient;
 
-    fn provider(&self) -> ProviderId {
-        Self::provider()
+    fn kind() -> ProviderKind {
+        KIND
     }
 
-    fn build(&self, config: HuggingFaceConfig) -> Result<HuggingFaceClient, ModelError> {
-        config.build_client()
+    async fn build(
+        &self,
+        provider: ProviderId,
+        config: HuggingFaceConfig,
+    ) -> Result<HuggingFaceClient, ModelError> {
+        config.build_client(provider)
     }
 }

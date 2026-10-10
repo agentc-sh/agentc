@@ -6,9 +6,13 @@ use thiserror::Error;
 use uuid::Uuid;
 
 use agentc_agent::errors::AgentError;
-use agentc_domain::repository::{run::errors::RunRepoError, session::errors::SessionRepoError};
+use agentc_domain::repository::{
+    checkpoint_record::errors::CheckpointRecordRepoError, run::errors::RunRepoError,
+    session::errors::SessionRepoError,
+};
 use agentc_domain_sql::scope::SqlScopeFactoryError;
-use agentc_http::errors::ApiError;
+#[cfg(feature = "api")]
+use agentc_http::server::errors::ApiError;
 
 use crate::repository::message::errors::MessageRepoError;
 
@@ -41,11 +45,17 @@ pub enum ServiceError {
     #[error("message repo error: {0}")]
     MessageRepo(#[from] MessageRepoError),
 
+    #[error("checkpoint record repo error: {0}")]
+    CheckpointRecordRepo(#[from] CheckpointRecordRepoError),
+
     #[error("scope error: {0}")]
     Scope(#[from] SqlScopeFactoryError),
 
     #[error("agent error: {0}")]
     Agent(#[from] AgentError),
+
+    #[error("invalid input: {0}")]
+    InvalidInput(String),
 
     #[error("unexpected error: {message}")]
     Unexpected {
@@ -80,6 +90,10 @@ impl ServiceError {
         ServiceError::MessageAlreadyExists(id.into())
     }
 
+    pub fn invalid_input(message: impl Into<String>) -> Self {
+        ServiceError::InvalidInput(message.into())
+    }
+
     pub fn unexpected(message: impl Into<String>) -> Self {
         ServiceError::Unexpected { message: message.into(), source: None }
     }
@@ -95,8 +109,9 @@ impl ServiceError {
     }
 }
 
-impl From<ServiceError> for ApiError {
-    fn from(err: ServiceError) -> Self {
+#[cfg(feature = "api")]
+impl From<&ServiceError> for ApiError {
+    fn from(err: &ServiceError) -> Self {
         match err {
             ServiceError::SessionNotFound(_) => ApiError::new(404010, err.to_string()),
             ServiceError::SessionAlreadyExists(_) => ApiError::new(400010, err.to_string()),
@@ -104,7 +119,15 @@ impl From<ServiceError> for ApiError {
             ServiceError::RunAlreadyExists(_) => ApiError::new(400011, err.to_string()),
             ServiceError::MessageNotFound(_) => ApiError::new(404012, err.to_string()),
             ServiceError::MessageAlreadyExists(_) => ApiError::new(400012, err.to_string()),
+            ServiceError::InvalidInput(_) => ApiError::bad_request(err.to_string()),
             _ => ApiError::unexpected_error(err.to_string()),
         }
+    }
+}
+
+#[cfg(feature = "api")]
+impl From<ServiceError> for ApiError {
+    fn from(err: ServiceError) -> Self {
+        ApiError::from(&err)
     }
 }

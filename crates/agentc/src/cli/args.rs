@@ -16,7 +16,7 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 #[clap(
     name = "agentc",
     version,
-    author = "Tim Pogue",
+    author = "agentc Authors",
     about = "An LLM agent compiler and runtime."
 )]
 pub struct CliArgs {
@@ -54,10 +54,14 @@ impl CliArgs {
                     .await
                     .unwrap_or_else(|e| e.exit());
 
-                (command as &dyn Cmd)
+                let outcome = (command as &dyn Cmd)
                     .walk_execute(&mut ctx)
                     .await
                     .unwrap_or_else(|e| e.exit());
+
+                if !outcome.is_success() {
+                    std::process::exit(outcome.code());
+                }
             }
             _ => {
                 Self::command()
@@ -82,6 +86,8 @@ pub enum CliCommands {
     Generate(generate::CliCommandGenerate),
     #[clap(name = "build", about = "Build an agent from a manifest")]
     Build(build::CliCommandBuild),
+    #[clap(name = "run", about = "Build an agent from a manifest and run it")]
+    Run(run::CliCommandRun),
     #[clap(name = "inspect", about = "Inspect the resolved manifest of an agent")]
     Inspect(inspect::CliCommandInspect),
     #[clap(name = "init", about = "Scaffold a new agent project")]
@@ -97,6 +103,7 @@ impl Cmd for CliCommands {
             CliCommands::Completions(cmd) => Some(cmd as &dyn Cmd),
             CliCommands::Generate(cmd) => Some(cmd as &dyn Cmd),
             CliCommands::Build(cmd) => Some(cmd as &dyn Cmd),
+            CliCommands::Run(cmd) => Some(cmd as &dyn Cmd),
             CliCommands::Inspect(cmd) => Some(cmd as &dyn Cmd),
             CliCommands::Init(cmd) => Some(cmd as &dyn Cmd),
             CliCommands::Tool(cmd) => Some(cmd as &dyn Cmd),

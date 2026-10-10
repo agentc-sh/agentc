@@ -67,6 +67,22 @@ impl StateResponse {
 pub struct StateUpdateResponse {
     pub messages: Vec<MessageResponse>,
     pub context: Vec<PatchOperation>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "serde_with::rust::double_option"
+    )]
+    pub model: Option<Option<ModelConfig>>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "serde_with::rust::double_option"
+    )]
+    pub capability_override: Option<Option<CapabilityOverride>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_vars: Option<Vec<ContextVar>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tools: Option<Vec<ToolDefinition>>,
 }
 
 impl StateUpdateResponse {
@@ -78,6 +94,10 @@ impl StateUpdateResponse {
                 .map(MessageResponse::from_entity)
                 .collect(),
             context: entity.context.clone(),
+            model: entity.model.clone(),
+            capability_override: entity.capability_override.clone(),
+            context_vars: entity.context_vars.clone(),
+            tools: entity.tools.clone(),
         }
     }
 }
@@ -121,6 +141,7 @@ pub enum RunEvent {
     ToolCallStart {
         timestamp: f64,
         tool_call_id: String,
+        parent_message_id: Uuid,
         tool_name: String,
     },
     ToolCallEnd {
@@ -272,9 +293,15 @@ impl RunEvent {
                     delta: delta.clone(),
                 }
             }
-            Event::ToolCallStart { timestamp, tool_call_id, tool_name } => Self::ToolCallStart {
+            Event::ToolCallStart {
+                timestamp,
+                tool_call_id,
+                parent_message_id,
+                tool_name,
+            } => Self::ToolCallStart {
                 timestamp: *timestamp,
                 tool_call_id: tool_call_id.clone(),
+                parent_message_id: *parent_message_id,
                 tool_name: tool_name.clone(),
             },
             Event::ToolCallEnd { timestamp, tool_call_id } => Self::ToolCallEnd {
@@ -405,11 +432,23 @@ pub struct RunParams {
     pub run_id: Uuid,
     pub checkpoint_id: Option<Uuid>,
     pub resume_payload: Option<Value>,
-    pub model: Option<ModelConfig>,
-    pub capability_override: Option<CapabilityOverride>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "serde_with::rust::double_option"
+    )]
+    pub model: Option<Option<ModelConfig>>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "serde_with::rust::double_option"
+    )]
+    pub capability_override: Option<Option<CapabilityOverride>>,
     pub messages: Vec<CreateMessageParams>,
-    pub context_vars: Vec<ContextVar>,
-    pub tools: Vec<ToolDefinition>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_vars: Option<Vec<ContextVar>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tools: Option<Vec<ToolDefinition>>,
     pub context: Option<Value>,
 }
 
@@ -424,8 +463,8 @@ impl RunParams {
             model: None,
             capability_override: None,
             messages: Vec::new(),
-            context_vars: Vec::new(),
-            tools: Vec::new(),
+            context_vars: None,
+            tools: None,
             context: None,
         }
     }
@@ -463,23 +502,23 @@ impl RunParams {
     }
 
     pub fn with_model(mut self, model: ModelConfig) -> Self {
-        self.model = Some(model);
+        self.model = Some(Some(model));
         self
     }
 
-    pub fn maybe_with_model(mut self, model: Option<ModelConfig>) -> Self {
+    pub fn maybe_with_model(mut self, model: Option<Option<ModelConfig>>) -> Self {
         self.model = model;
         self
     }
 
     pub fn with_capability_override(mut self, capability_override: CapabilityOverride) -> Self {
-        self.capability_override = Some(capability_override);
+        self.capability_override = Some(Some(capability_override));
         self
     }
 
     pub fn maybe_with_capability_override(
         mut self,
-        capability_override: Option<CapabilityOverride>,
+        capability_override: Option<Option<CapabilityOverride>>,
     ) -> Self {
         self.capability_override = capability_override;
         self
@@ -504,7 +543,7 @@ impl RunParams {
     }
 
     pub fn with_context_vars(mut self, context_vars: impl IntoIterator<Item = ContextVar>) -> Self {
-        self.context_vars = context_vars.into_iter().collect();
+        self.context_vars = Some(context_vars.into_iter().collect());
         self
     }
 
@@ -512,14 +551,12 @@ impl RunParams {
         mut self,
         context_vars: Option<impl IntoIterator<Item = ContextVar>>,
     ) -> Self {
-        if let Some(context_vars) = context_vars {
-            self.context_vars = context_vars.into_iter().collect();
-        }
+        self.context_vars = context_vars.map(|context_vars| context_vars.into_iter().collect());
         self
     }
 
     pub fn with_tools(mut self, tools: impl IntoIterator<Item = ToolDefinition>) -> Self {
-        self.tools = tools.into_iter().collect();
+        self.tools = Some(tools.into_iter().collect());
         self
     }
 
@@ -527,9 +564,7 @@ impl RunParams {
         mut self,
         tools: Option<impl IntoIterator<Item = ToolDefinition>>,
     ) -> Self {
-        if let Some(tools) = tools {
-            self.tools = tools.into_iter().collect();
-        }
+        self.tools = tools.map(|tools| tools.into_iter().collect());
         self
     }
 
@@ -776,7 +811,7 @@ mod tests {
 
         assert_eq!(
             input.model,
-            Some(
+            Some(Some(
                 ModelConfig::new()
                     .with_override(ModelConfigOverride {
                         provider: Some("openai".to_string()),
@@ -789,7 +824,80 @@ mod tests {
                         initial_backoff: 100,
                         max_backoff: 1000,
                     }),
-            ),
+            )),
+        );
+    }
+
+    #[test]
+    fn run_params_builders_preserve_presence_through_input() {
+        let model = ModelConfig::new().with_timeout(5000);
+        let context_var = ContextVar {
+            description: "purpose".into(),
+            value: "value".into(),
+        };
+        let tool = ToolDefinition {
+            name: "lookup".into(),
+            description: "Looks up a value".into(),
+            parameters: serde_json::json!({ "type": "object" }),
+        };
+
+        let specified = RunParams::new("tenant", Uuid::new_v4())
+            .with_model(model.clone())
+            .with_capability_override(CapabilityOverride::Inherit)
+            .with_context_vars([context_var.clone()])
+            .with_tools([tool.clone()])
+            .to_input();
+
+        assert_eq!(specified.model, Some(Some(model)));
+        assert_eq!(specified.capability_override, Some(Some(CapabilityOverride::Inherit)));
+        assert_eq!(specified.context_vars, Some(vec![context_var]));
+        assert_eq!(specified.tools, Some(vec![tool]));
+
+        let cleared = RunParams::new("tenant", Uuid::new_v4())
+            .maybe_with_model(Some(None))
+            .maybe_with_capability_override(Some(None))
+            .maybe_with_context_vars(Some(Vec::<ContextVar>::new()))
+            .maybe_with_tools(Some(Vec::<ToolDefinition>::new()))
+            .to_input();
+
+        assert_eq!(cleared.model, Some(None));
+        assert_eq!(cleared.capability_override, Some(None));
+        assert_eq!(cleared.context_vars, Some(vec![]));
+        assert_eq!(cleared.tools, Some(vec![]));
+
+        let omitted = RunParams::new("tenant", Uuid::new_v4())
+            .maybe_with_model(None)
+            .maybe_with_capability_override(None)
+            .maybe_with_context_vars(None::<Vec<ContextVar>>)
+            .maybe_with_tools(None::<Vec<ToolDefinition>>)
+            .to_input();
+
+        assert_eq!(omitted.model, None);
+        assert_eq!(omitted.capability_override, None);
+        assert_eq!(omitted.context_vars, None);
+        assert_eq!(omitted.tools, None);
+    }
+
+    #[test]
+    fn state_update_response_carries_full_override_delta() {
+        let response = StateUpdateResponse::from_entity(&ReActStateUpdate {
+            model: Some(None),
+            capability_override: Some(None),
+            context_vars: Some(vec![]),
+            tools: Some(vec![]),
+            ..Default::default()
+        });
+
+        assert_eq!(
+            serde_json::to_value(response).unwrap(),
+            serde_json::json!({
+                "messages": [],
+                "context": [],
+                "model": null,
+                "capability_override": null,
+                "context_vars": [],
+                "tools": []
+            })
         );
     }
 }

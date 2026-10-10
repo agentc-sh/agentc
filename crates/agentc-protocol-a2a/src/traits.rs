@@ -10,7 +10,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use agentc_http::errors::ApiError;
+use agentc_http::server::errors::ApiError;
 
 use crate::protocol::{
     AgentCard, AgentInterface, CancelTaskRequest, GetTaskRequest, SendMessageRequest,

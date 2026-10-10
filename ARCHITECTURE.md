@@ -128,7 +128,7 @@ That composability shows up in several directions:
 - **Graph runtimes** define different execution loops for generated agents
 - **Tools** define executable capabilities available to an agent
 - **Skills** define reusable capability bundles and behavior scaffolding
-- **Providers and model layers** define how LLM access is supplied
+- **Providers and model layers** define how LLM access is supplied. Each provider kind owns its configuration shape and client factory, and a manifest declares any number of labeled instances of each kind
 - **Protocols and serving layers** define how external systems interact with the running agent
 
 This separation is not accidental. It exists so `agentc` can support more deployment targets, more runtime models, and more integration styles over time without turning the project into one fixed stack.

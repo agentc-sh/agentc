@@ -105,6 +105,9 @@ builtin_feature!(Streaming, "streaming");
 builtin_feature!(ProtocolAgUi, "protocol_ag_ui");
 builtin_feature!(ProtocolA2a, "protocol_a2a");
 
+builtin_feature!(SupportsAgUi, "supports_ag_ui");
+builtin_feature!(SupportsA2a, "supports_a2a");
+
 builtin_feature!(GraphReAct, "graph_react");
 
 builtin_feature!(ArchetypeStandalone, "archetype_standalone");
@@ -160,6 +163,14 @@ mod tests {
 
         assert!(features.contains::<ArchetypeStandalone>());
         assert!(features.contains::<GraphReAct>());
+        assert!(!features.contains::<ProtocolAgUi>());
+    }
+
+    #[test]
+    fn adapter_support_is_distinct_from_protocol_presence() {
+        let features = GenerationFeatureSet::new().with::<SupportsAgUi>();
+
+        assert!(features.contains::<SupportsAgUi>());
         assert!(!features.contains::<ProtocolAgUi>());
     }
 

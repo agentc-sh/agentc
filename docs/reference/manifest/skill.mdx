@@ -18,9 +18,9 @@ skill "git-review" {
 The `source` field points to a directory containing a `SKILL.md` file. The compiler reads the skill
 content and embeds it in the artifact.
 
-| Field | Type | Required | runtime() | Description |
-|-------|------|----------|-----------|-------------|
-| `source` | string | yes (if no inline content) | no | Path to the skill directory. |
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `source` | string | yes (if no inline content) | no | … | Path to the skill directory. |
 
 ## Inline skill
 
@@ -38,11 +38,11 @@ skill "data-analysis" {
 }
 ```
 
-| Field | Type | Required | runtime() | Description |
-|-------|------|----------|-----------|-------------|
-| `description` | string | yes (for inline) | no | Short description shown to the agent. |
-| `content` | string | yes (for inline) | no | The skill body in Markdown. |
-| `resources` | map | no | no | Named resource files embedded alongside the skill. |
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `description` | string | yes (for inline) | no | … | Short description shown to the agent. |
+| `content` | string | yes (for inline) | no | … | The skill body in Markdown. |
+| `resources` | map&lt;string, string&gt; | no | no | `{}` | Named resource files embedded alongside the skill. |
 
 See [Skills](/concepts/skills) for the conceptual model, including the requirement that the agent
 hold the `skills` capability in order to use skills.

@@ -290,21 +290,28 @@ pub struct CreateRunRequestDTO {
     #[serde(default)]
     pub resume_payload: Option<Value>,
     #[validate(nested)]
-    #[serde(default)]
-    pub model: Option<ModelConfigDTO>,
-    #[serde(default)]
-    pub capability_override: Option<CapabilityOverrideDTO>,
-    #[validate(length(min = 1))]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "serde_with::rust::double_option"
+    )]
+    pub model: Option<Option<ModelConfigDTO>>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "serde_with::rust::double_option"
+    )]
+    pub capability_override: Option<Option<CapabilityOverrideDTO>>,
     #[serde(default)]
     pub messages: Vec<CreateMessageRequestDTO>,
     #[validate(nested)]
-    #[serde(default)]
-    pub context_vars: Vec<ContextVarDTO>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_vars: Option<Vec<ContextVarDTO>>,
     #[serde(default)]
     pub context: Option<Value>,
     #[validate(nested)]
-    #[serde(default)]
-    pub tools: Vec<ToolDefinitionDTO>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tools: Option<Vec<ToolDefinitionDTO>>,
 }
 
 impl CreateRunRequestDTO {
@@ -315,14 +322,19 @@ impl CreateRunRequestDTO {
             run_id: self.run_id,
             checkpoint_id: self.checkpoint_id,
             resume_payload: self.resume_payload.clone(),
-            model: self
-                .model
-                .as_ref()
-                .map(|m| m.to_params()),
+            model: self.model.as_ref().map(|model| {
+                model
+                    .as_ref()
+                    .map(ModelConfigDTO::to_params)
+            }),
             capability_override: self
                 .capability_override
                 .as_ref()
-                .map(|c| c.to_params()),
+                .map(|value| {
+                    value
+                        .as_ref()
+                        .map(CapabilityOverrideDTO::to_params)
+                }),
             messages: self
                 .messages
                 .iter()
@@ -330,14 +342,19 @@ impl CreateRunRequestDTO {
                 .collect(),
             context_vars: self
                 .context_vars
-                .iter()
-                .map(|c| c.to_params())
-                .collect(),
-            tools: self
-                .tools
-                .iter()
-                .map(|t| t.to_params())
-                .collect(),
+                .as_ref()
+                .map(|context_vars| {
+                    context_vars
+                        .iter()
+                        .map(ContextVarDTO::to_params)
+                        .collect()
+                }),
+            tools: self.tools.as_ref().map(|tools| {
+                tools
+                    .iter()
+                    .map(ToolDefinitionDTO::to_params)
+                    .collect()
+            }),
             context: self.context.clone(),
         }
     }
@@ -354,21 +371,28 @@ pub struct StartRunRequestDTO {
     #[serde(default)]
     pub resume_payload: Option<Value>,
     #[validate(nested)]
-    #[serde(default)]
-    pub model: Option<ModelConfigDTO>,
-    #[serde(default)]
-    pub capability_override: Option<CapabilityOverrideDTO>,
-    #[validate(length(min = 1))]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "serde_with::rust::double_option"
+    )]
+    pub model: Option<Option<ModelConfigDTO>>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "serde_with::rust::double_option"
+    )]
+    pub capability_override: Option<Option<CapabilityOverrideDTO>>,
     #[serde(default)]
     pub messages: Vec<CreateMessageRequestDTO>,
     #[validate(nested)]
-    #[serde(default)]
-    pub context_vars: Vec<ContextVarDTO>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_vars: Option<Vec<ContextVarDTO>>,
     #[serde(default)]
     pub context: Option<Value>,
     #[validate(nested)]
-    #[serde(default)]
-    pub tools: Vec<ToolDefinitionDTO>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tools: Option<Vec<ToolDefinitionDTO>>,
 }
 
 impl StartRunRequestDTO {
@@ -379,14 +403,19 @@ impl StartRunRequestDTO {
             run_id: self.run_id,
             checkpoint_id: self.checkpoint_id,
             resume_payload: self.resume_payload.clone(),
-            model: self
-                .model
-                .as_ref()
-                .map(|m| m.to_params()),
+            model: self.model.as_ref().map(|model| {
+                model
+                    .as_ref()
+                    .map(ModelConfigDTO::to_params)
+            }),
             capability_override: self
                 .capability_override
                 .as_ref()
-                .map(|c| c.to_params()),
+                .map(|value| {
+                    value
+                        .as_ref()
+                        .map(CapabilityOverrideDTO::to_params)
+                }),
             messages: self
                 .messages
                 .iter()
@@ -394,14 +423,19 @@ impl StartRunRequestDTO {
                 .collect(),
             context_vars: self
                 .context_vars
-                .iter()
-                .map(|c| c.to_params())
-                .collect(),
-            tools: self
-                .tools
-                .iter()
-                .map(|t| t.to_params())
-                .collect(),
+                .as_ref()
+                .map(|context_vars| {
+                    context_vars
+                        .iter()
+                        .map(ContextVarDTO::to_params)
+                        .collect()
+                }),
+            tools: self.tools.as_ref().map(|tools| {
+                tools
+                    .iter()
+                    .map(ToolDefinitionDTO::to_params)
+                    .collect()
+            }),
             context: self.context.clone(),
         }
     }
@@ -470,103 +504,6 @@ impl FindRunEndpointParams {
     }
 }
 
-// #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-// pub struct StateResponseDTO {
-//     pub run_id: Uuid,
-//     pub session_id: Uuid,
-//     pub model: Option<ModelConfigDTO>,
-//     pub capability_override: Option<CapabilityOverrideDTO>,
-//     pub messages: Vec<MessageResponseDTO>,
-//     pub context_vars: Vec<ContextVarDTO>,
-//     pub context: Value,
-//     pub tools: Vec<ToolDefinitionDTO>,
-// }
-
-// impl StateResponseDTO {
-//     pub fn from_response(response: StateResponse) -> Self {
-//         Self {
-//             run_id: response.run_id,
-//             session_id: response.session_id,
-//             model: response.model.map(ModelConfigDTO::from_response),
-//             capability_override: response.capability_override.map(CapabilityOverrideDTO::from_response),
-//             messages: response.messages
-//                 .into_iter()
-//                 .map(MessageResponseDTO::from_response)
-//                 .collect(),
-//             context_vars: response.context_vars
-//                 .into_iter()
-//                 .map(ContextVarDTO::from_response)
-//                 .collect(),
-//             context: response.context,
-//             tools: response.tools
-//                 .into_iter()
-//                 .map(ToolDefinitionDTO::from_response)
-//                 .collect(),
-//         }
-//     }
-// }
-
-// #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-// pub struct StateUpdateResponseDTO {
-//     pub messages: Vec<MessageResponseDTO>,
-//     pub context: Vec<PatchOperation>,
-// }
-
-// impl StateUpdateResponseDTO {
-//     pub fn from_response(response: StateUpdateResponse) -> Self {
-//         Self {
-//             messages: response.messages
-//                 .into_iter()
-//                 .map(MessageResponseDTO::from_response)
-//                 .collect(),
-//             context: response.context,
-//         }
-//     }
-
-//     pub fn into_patch(self) -> Patch {
-//         Patch(
-//             (!self.messages.is_empty())
-//                 .then(|| {
-//                     PatchOperation::Add(AddOperation {
-//                         path: "/messages".try_into().expect("invalid patch path"),
-//                         value: to_value(self.messages).expect("failed to serialize messages"),
-//                     })
-//                 })
-//                 .into_iter()
-//                 .chain(self.context.into_iter().filter_map(|patch_op| match patch_op {
-//                     PatchOperation::Add(mut add_op) => {
-//                         add_op.path = format!("/context{}", add_op.path).try_into().ok()?;
-//                         Some(PatchOperation::Add(add_op))
-//                     },
-//                     PatchOperation::Remove(mut remove_op) => {
-//                         remove_op.path = format!("/context{}", remove_op.path).try_into().ok()?;
-//                         Some(PatchOperation::Remove(remove_op))
-//                     },
-//                     PatchOperation::Replace(mut replace_op) => {
-//                         replace_op.path = format!("/context{}", replace_op.path).try_into().ok()?;
-//                         Some(PatchOperation::Replace(replace_op))
-//                     },
-//                     PatchOperation::Move(mut move_op) => {
-//                         move_op.from = format!("/context{}", move_op.from).try_into().ok()?;
-//                         move_op.path = format!("/context{}", move_op.path).try_into().ok()?;
-//                         Some(PatchOperation::Move(move_op))
-//                     },
-//                     PatchOperation::Copy(mut copy_op) => {
-//                         copy_op.from = format!("/context{}", copy_op.from).try_into().ok()?;
-//                         copy_op.path = format!("/context{}", copy_op.path).try_into().ok()?;
-//                         Some(PatchOperation::Copy(copy_op))
-//                     },
-//                     PatchOperation::Test(mut test_op) => {
-//                         test_op.path = format!("/context{}", test_op.path).try_into().ok()?;
-//                         Some(PatchOperation::Test(test_op))
-//                     }
-//                 }))
-//                 .collect()
-//         )
-//     }
-// }
-
-/// DTO for [`ReasoningSignatureSubtype`](crate::types::event::ReasoningSignatureSubtype).
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ReasoningSignatureSubtypeDTO {
@@ -597,7 +534,6 @@ pub enum RunEventDTO {
         run_id: Uuid,
         status: RunStatusDTO,
         interrupt_payload: Option<Value>,
-        // result: Option<StateResponseDTO>,
         result: Option<Value>,
     },
     RunError {
@@ -623,6 +559,7 @@ pub enum RunEventDTO {
     ToolCallStart {
         timestamp: f64,
         tool_call_id: String,
+        parent_message_id: Uuid,
         tool_name: String,
     },
     ToolCallEnd {
@@ -715,7 +652,6 @@ impl RunEventDTO {
                 run_id,
                 status: RunStatusDTO::from_status(status),
                 interrupt_payload,
-                // result: result.map(StateResponseDTO::from_response),
                 result: result.map(|r| r.context),
             },
             RunEvent::RunError {
@@ -740,9 +676,17 @@ impl RunEventDTO {
             RunEvent::TextMessageContent { timestamp, message_id, delta } => {
                 Self::TextMessageContent { timestamp, message_id, delta }
             }
-            RunEvent::ToolCallStart { timestamp, tool_call_id, tool_name } => {
-                Self::ToolCallStart { timestamp, tool_call_id, tool_name }
-            }
+            RunEvent::ToolCallStart {
+                timestamp,
+                tool_call_id,
+                parent_message_id,
+                tool_name,
+            } => Self::ToolCallStart {
+                timestamp,
+                tool_call_id,
+                parent_message_id,
+                tool_name,
+            },
             RunEvent::ToolCallEnd { timestamp, tool_call_id } => {
                 Self::ToolCallEnd { timestamp, tool_call_id }
             }
@@ -812,17 +756,12 @@ impl RunEventDTO {
                 entity_id,
                 value,
             },
-            RunEvent::StateSnapshot { timestamp, state } => Self::StateSnapshot {
-                timestamp,
-                // state: StateResponseDTO::from_response(state),
-                state: state.context,
-            },
-            RunEvent::StateDelta { timestamp, delta } => Self::StateDelta {
-                timestamp,
-                // delta: StateUpdateResponseDTO::from_response(delta)
-                //     .into_patch(),
-                delta: delta.context,
-            },
+            RunEvent::StateSnapshot { timestamp, state } => {
+                Self::StateSnapshot { timestamp, state: state.context }
+            }
+            RunEvent::StateDelta { timestamp, delta } => {
+                Self::StateDelta { timestamp, delta: delta.context }
+            }
             RunEvent::MessagesSnapshot { timestamp, messages } => Self::MessagesSnapshot {
                 timestamp,
                 messages: messages

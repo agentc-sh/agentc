@@ -3,36 +3,49 @@ title: xAI
 description: Configuration for the xAI model provider.
 ---
 
-The `xai` sub-block configures the [xAI](https://x.ai) cloud provider, which serves the Grok
-family of models.
+A `provider` block with `kind = "xai"` configures the [xAI](https://x.ai) cloud provider, which serves
+the Grok family of models.
 
 ## Fields
 
-| Field | Type | Required | runtime() | Description |
-|-------|------|----------|-----------|-------------|
-| `models` | list | no | no | Allowlist of models for this provider. Each entry is a plain string or a config object with `name` and `params`. When omitted, no allowlist is enforced. |
-| `config` | block | no | | Connection configuration. |
-| `config.api_key` | string | no | yes | xAI API key. Wrap in `secret(runtime(...))` to keep it out of build artifacts. |
-| `params` | block | no | | Provider-level inference parameter defaults. Applied to every request unless overridden at the model level. |
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `kind` | `xai` | yes | no | … | Provider kind. |
+| `models` | array&lt;string \| [ModelEntry](#modelentry)&gt; | no | no | unset | Models permitted for this provider, with optional model-specific inference settings. |
+| `config` | [ProviderConfig](#providerconfig) | no | | unset | API key used to connect to this provider. |
+| `params` | [InferenceParams](#inferenceparams) | no | | unset | Default inference settings for requests to this provider. |
 
-The `config` block is optional. When omitted, the client reads credentials from the
-`XAI_API_KEY` environment variable.
+When `config.api_key` is unset, the key is read from the `XAI_API_KEY` environment variable. The agent
+fails to start when neither is set.
 
-## params
+## ModelEntry
+
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `name` | string | yes | no | … | Model identifier. |
+| `params` | [InferenceParams](#inferenceparams) | no | | unset | Model-specific inference parameter overrides. |
+
+## ProviderConfig
+
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `api_key` | string | no | yes | unset | xAI API key. Wrap in `secret(runtime(...))` to keep it out of build artifacts. |
+
+## InferenceParams
 
 The `params` block sets inference parameter defaults for all models under this provider. All fields
 are optional and support `runtime()`.
 
-| Field | Type | runtime() | Description |
-|-------|------|-----------|-------------|
-| `max_tokens` | integer | yes | Maximum number of tokens to generate. |
-| `temperature` | float | yes | Sampling temperature. |
-| `top_p` | float | yes | Nucleus sampling probability. |
-| `stop_sequences` | list of strings | yes | Sequences that stop generation. |
-| `frequency_penalty` | float | yes | Penalty for token frequency. |
-| `presence_penalty` | float | yes | Penalty for token presence. |
-| `seed` | integer | yes | Seed for deterministic sampling. |
-| `provider_params` | object | yes | Provider-specific parameters passed directly to the API. |
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `max_tokens` | integer | no | yes | unset | Maximum number of tokens to generate. |
+| `temperature` | number | no | yes | unset | Controls randomness when selecting the next token; higher values produce more varied output. |
+| `top_p` | number | no | yes | unset | Selects tokens from the smallest group whose combined probability reaches this value. |
+| `stop_sequences` | array&lt;string&gt; | no | yes | unset | Sequences that stop generation. |
+| `frequency_penalty` | number | no | yes | unset | Reduces repetition by penalizing tokens according to how often they have appeared. |
+| `presence_penalty` | number | no | yes | unset | Penalizes tokens that have already appeared to reduce repetition. |
+| `seed` | integer | no | yes | unset | Seed for deterministic sampling. |
+| `provider_params` | object | no | yes | unset | Provider-specific parameters passed directly to the API. |
 
 <Callout type="note">
   `top_k` is not part of the OpenAI-compatible wire format that xAI uses. Setting it has no
@@ -52,27 +65,26 @@ are optional and support `runtime()`.
 ## Example
 
 ```hcl title="agent.acl"
-providers {
-  xai {
-    models = [
-      "grok-3-mini",
-      {
-        name = "grok-4"
-        params {
-          max_tokens  = 16384
-          temperature = 0.6
-        }
+provider "xai" {
+  kind = "xai"
+  models = [
+    "grok-3-mini",
+    {
+      name = "grok-4"
+      params {
+        max_tokens  = 16384
+        temperature = 0.6
       }
-    ]
-
-    config {
-      api_key = secret(runtime("XAI_API_KEY"))
     }
+  ]
 
-    params {
-      max_tokens  = 4096
-      temperature = 0.5
-    }
+  config {
+    api_key = secret(runtime("XAI_API_KEY"))
+  }
+
+  params {
+    max_tokens  = 4096
+    temperature = 0.5
   }
 }
 

@@ -304,6 +304,7 @@ pub struct SystemMessageResponseDTO {
     pub id: Uuid,
     pub session_id: Uuid,
     pub run_id: Option<Uuid>,
+    pub checkpoint_id: Option<Uuid>,
     pub content: String,
     pub created_at: DateTime<Utc>,
 }
@@ -314,6 +315,7 @@ impl SystemMessageResponseDTO {
             id: response.id,
             session_id: response.session_id,
             run_id: response.run_id,
+            checkpoint_id: response.checkpoint_id,
             content: response.content,
             created_at: response.created_at,
         }
@@ -325,6 +327,7 @@ pub struct UserMessageResponseDTO {
     pub id: Uuid,
     pub session_id: Uuid,
     pub run_id: Option<Uuid>,
+    pub checkpoint_id: Option<Uuid>,
     pub content: Vec<UserContentDTO>,
     pub created_at: DateTime<Utc>,
 }
@@ -335,6 +338,7 @@ impl UserMessageResponseDTO {
             id: response.id,
             session_id: response.session_id,
             run_id: response.run_id,
+            checkpoint_id: response.checkpoint_id,
             content: response
                 .content
                 .into_iter()
@@ -367,6 +371,7 @@ pub struct AssistantMessageResponseDTO {
     pub id: Uuid,
     pub session_id: Uuid,
     pub run_id: Uuid,
+    pub checkpoint_id: Option<Uuid>,
     pub content: Option<String>,
     pub tool_calls: Option<Vec<AssistantMessageResponseDTOToolCall>>,
     pub created_at: DateTime<Utc>,
@@ -378,6 +383,7 @@ impl AssistantMessageResponseDTO {
             id: response.id,
             session_id: response.session_id,
             run_id: response.run_id,
+            checkpoint_id: response.checkpoint_id,
             content: response.content,
             tool_calls: response.tool_calls.map(|calls| {
                 calls
@@ -395,6 +401,7 @@ pub struct ToolMessageResponseDTO {
     pub id: Uuid,
     pub session_id: Uuid,
     pub run_id: Option<Uuid>,
+    pub checkpoint_id: Option<Uuid>,
     pub tool_call_id: String,
     pub content: Option<String>,
     pub error: Option<String>,
@@ -407,6 +414,7 @@ impl ToolMessageResponseDTO {
             id: response.id,
             session_id: response.session_id,
             run_id: response.run_id,
+            checkpoint_id: response.checkpoint_id,
             tool_call_id: response.tool_call_id,
             content: response.content,
             error: response.error,
@@ -420,6 +428,7 @@ pub struct ReasoningMessageResponseDTO {
     pub id: Uuid,
     pub session_id: Uuid,
     pub run_id: Uuid,
+    pub checkpoint_id: Option<Uuid>,
     pub content: String,
     pub signature: Option<String>,
     pub created_at: DateTime<Utc>,
@@ -431,6 +440,7 @@ impl ReasoningMessageResponseDTO {
             id: response.id,
             session_id: response.session_id,
             run_id: response.run_id,
+            checkpoint_id: response.checkpoint_id,
             content: response.content,
             signature: response.signature,
             created_at: response.created_at,
@@ -468,6 +478,7 @@ pub struct FindMessageEndpointParams {
     pub page: Option<String>,
     pub ids: Option<Vec<Uuid>>,
     pub run_ids: Option<Vec<Uuid>>,
+    pub checkpoint_ids: Option<Vec<Uuid>>,
     pub roles: Option<Vec<MessageRoleDTO>>,
     pub created_before: Option<DateTime<Utc>>,
     pub created_after: Option<DateTime<Utc>>,
@@ -486,6 +497,7 @@ impl FindMessageEndpointParams {
             session_ids: Some(vec![session_id.into()]),
             ids: self.ids.clone(),
             run_ids: self.run_ids.clone(),
+            checkpoint_ids: self.checkpoint_ids.clone(),
             roles: self.roles.clone().map(|roles| {
                 roles
                     .into_iter()

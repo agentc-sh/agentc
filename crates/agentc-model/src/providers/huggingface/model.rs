@@ -12,7 +12,7 @@ use serde_json::json;
 
 use crate::{
     errors::{IntoModelError, ModelError},
-    providers::huggingface::constants::{OTEL_PROVIDER_NAME, PROVIDER},
+    providers::huggingface::constants::OTEL_PROVIDER_NAME,
     stream::ChatCompletionStream,
     traits::CompletionModel,
     types::{
@@ -22,9 +22,13 @@ use crate::{
     },
 };
 
+// NOTE: Huggingface provider uses the OpenAI stream completion response which already has the completion metadata
+// trait implemented, so it is unnecessary to implement it again here.
+
 /// A specific Hugging Face model instance. Obtained from
 /// [`HuggingFaceClient::model`](crate::providers::huggingface::client::HuggingFaceClient::model).
 pub struct HuggingFaceModel {
+    provider: ProviderId,
     model: huggingface::completion::CompletionModel,
     model_id: ModelId,
     inference_params: InferenceParams,
@@ -32,11 +36,13 @@ pub struct HuggingFaceModel {
 
 impl HuggingFaceModel {
     pub fn new(
+        provider: ProviderId,
         client: huggingface::Client,
         model_id: ModelId,
         inference_params: InferenceParams,
     ) -> Self {
         Self {
+            provider,
             model: client.completion_model(model_id.as_str()),
             model_id,
             inference_params,
@@ -47,7 +53,7 @@ impl HuggingFaceModel {
 #[async_trait]
 impl CompletionModel for HuggingFaceModel {
     fn provider(&self) -> ProviderId {
-        PROVIDER.into()
+        self.provider.clone()
     }
 
     fn otel_provider_name(&self) -> &'static str {
@@ -128,6 +134,8 @@ impl CompletionModel for HuggingFaceModel {
             builder = builder.additional_params(additional);
         }
 
+        let provider = self.provider.clone();
+
         ChatCompletionStream::establish(
             builder
                 .messages(
@@ -137,11 +145,15 @@ impl CompletionModel for HuggingFaceModel {
                 )
                 .stream()
                 .await
-                .map_err(|e| e.into_model_error(PROVIDER))?
-                .filter_map(|event| async move {
-                    match event {
-                        Ok(e) => Some(Ok(e.try_into().ok()?)),
-                        Err(e) => Some(Err(e.into_model_error(PROVIDER))),
+                .map_err(|e| e.into_model_error(self.provider.clone()))?
+                .filter_map(move |event| {
+                    let provider = provider.clone();
+
+                    async move {
+                        match event {
+                            Ok(e) => Some(Ok(e.try_into().ok()?)),
+                            Err(e) => Some(Err(e.into_model_error(provider))),
+                        }
                     }
                 }),
         )

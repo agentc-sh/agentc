@@ -5,7 +5,7 @@
 use proc_macro2::TokenStream;
 use quote::quote;
 
-use crate::fields::FieldsSpec;
+use crate::config::fields::FieldsSpec;
 
 /// Builds the field entries of an `agentc_model::types::inference::InferenceParams`
 /// struct literal from the config accessors registered under

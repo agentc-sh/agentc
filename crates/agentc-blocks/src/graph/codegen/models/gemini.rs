@@ -5,91 +5,39 @@
 use proc_macro2::TokenStream;
 use quote::quote;
 
-use agentc_compiler::generator::blocks::codegen::ToIdent;
-
 use crate::{
-    context::ResolvedContextProviderGemini,
-    fields::FieldsSpec,
-    graph::codegen::models::{ModelCodeGen, params::InferenceParamsFields},
+    config::fields::FieldsSpec, context::ResolvedContextProviderGemini,
+    graph::codegen::models::ProviderKindCodeGen,
 };
 
-impl ModelCodeGen for ResolvedContextProviderGemini {
+impl ProviderKindCodeGen for ResolvedContextProviderGemini {
+    fn kind(&self) -> &'static str {
+        "gemini"
+    }
+
     fn imports(&self) -> TokenStream {
         quote! {
             use agentc_model::providers::gemini::{GeminiConfig, GeminiFactory};
         }
     }
 
-    fn registration(&self, fields: &FieldsSpec) -> TokenStream {
+    fn factory(&self) -> TokenStream {
+        quote! { GeminiFactory }
+    }
+
+    fn config(&self, fields: &FieldsSpec, provider: &str) -> TokenStream {
         let api_key = self
-            .config
+            .api_key
             .as_ref()
-            .and_then(|c| c.api_key.as_ref())
-            .and_then(|_| fields.config_accessor(&["provider", "gemini", "api_key"]))
+            .and_then(|_| fields.config_accessor(&["provider", provider, "api_key"]))
             .map(|path| quote! { Some(#path.clone().into_inner()) })
             .unwrap_or(quote! { None });
 
-        let constraints = self.models.as_ref().map(|models| {
-            let names = models
-                .iter()
-                .map(|m| m.name.as_str())
-                .collect::<Vec<_>>();
-            quote! {
-                .with_constraints(GeminiFactory::provider(), [#(#names),*])
-            }
-        });
-
-        let provider_params = InferenceParamsFields::build(fields, "gemini", "params");
-        let with_provider_params = if provider_params.is_empty() {
-            quote! {}
-        } else {
-            quote! {
-                .with_provider_params(
-                    GeminiFactory::provider(),
-                    agentc_model::types::inference::InferenceParams {
-                        #(#provider_params)*
-                        ..Default::default()
-                    },
-                )
-            }
-        };
-
-        let with_model_params = self
-            .models
-            .iter()
-            .flatten()
-            .filter_map(|model| {
-                let model_params =
-                    InferenceParamsFields::build(fields, "gemini", model.name.to_ident().as_str());
-
-                if model_params.is_empty() {
-                    return None;
-                }
-
-                let name = &model.name;
-
-                Some(quote! {
-                    .with_model_params(
-                        GeminiFactory::provider(),
-                        #name,
-                        agentc_model::types::inference::InferenceParams {
-                            #(#model_params)*
-                            ..Default::default()
-                        },
-                    )
-                })
-            })
-            .collect::<Vec<_>>();
-
         quote! {
-            .with_factory(GeminiFactory)
-            .with_config(GeminiFactory::provider(), GeminiConfig {
+            GeminiConfig {
                 api_key: #api_key,
                 ..Default::default()
-            })?
-            #constraints
-            #with_provider_params
-            #(#with_model_params)*
+            }
         }
     }
 }
@@ -99,8 +47,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn imports_and_registration_reference_the_gemini_factory() {
-        let provider = ResolvedContextProviderGemini { config: None, params: None, models: None };
+    fn imports_and_config_reference_the_gemini_factory() {
+        let provider = ResolvedContextProviderGemini { api_key: None };
 
         assert!(
             provider
@@ -108,12 +56,12 @@ mod tests {
                 .to_string()
                 .contains("GeminiFactory")
         );
+        assert_eq!(provider.factory().to_string(), "GeminiFactory");
 
         let rendered = provider
-            .registration(&FieldsSpec::new(vec![]))
+            .config(&FieldsSpec::new(vec![]), "gemini")
             .to_string()
             .replace(' ', "");
-        assert!(rendered.contains("with_factory(GeminiFactory)"));
         assert!(rendered.contains("GeminiConfig{"));
     }
 }

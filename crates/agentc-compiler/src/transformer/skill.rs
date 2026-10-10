@@ -27,11 +27,10 @@ impl SkillTransformer {
         Self
     }
 
-    /// Walk the skill directory and produce one artifact per file.
+    /// Walk the skill directory and produce one artifact resource path per file.
     ///
     /// `SKILL.md` gets kind `"skill_md"`; every other file gets kind
-    /// `"resource"`. The transformer never needs to compile or bundle
-    /// anything. The paths are passed directly to codegen for `include_str!`.
+    /// `"resource"`.
     async fn collect_artifacts(&self, dir: &Path) -> Result<Vec<AssetArtifact>, TransformError> {
         let mut artifacts = Vec::new();
         let skill_md = dir.join("SKILL.md");
