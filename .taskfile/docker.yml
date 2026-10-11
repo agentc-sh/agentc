@@ -129,7 +129,7 @@ tasks:
       IMAGE_NAME: '{{ .IMAGE_NAME | default "ghcr.io/agentc-sh/agentc" }}'
       IMAGE_TAG: '{{ .IMAGE_TAG | default "local-toolchain" }}'
       DOCKERFILE: '{{ .DOCKERFILE | default "build/docker/toolchain.Dockerfile" }}'
-      PYTHON_VERSION: '{{ .PYTHON_VERSION | default "3.14.7" }}'
+      PYTHON_VERSION: '{{ .PYTHON_VERSION | default "3.14.8" }}'
       NODE_VERSION: '{{ .NODE_VERSION | default "26.5.1" }}'
       PNPM_VERSION: '{{ .PNPM_VERSION | default "11.17.0" }}'
       NPM_VERSION: '{{ .NPM_VERSION | default "12.0.2" }}'
