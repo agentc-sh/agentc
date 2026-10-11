@@ -15,13 +15,15 @@ agentc generate [CONTEXT] [OPTIONS]
 
 | Argument | Default | Description |
 |----------|---------|-------------|
-| `CONTEXT` | `.` | Path to the directory containing `agent.acl`. |
+| `CONTEXT` | `.` | Directory that relative paths in the manifest resolve against. |
 
 ## Options
 
 | Flag | Short | Default | Description |
 |------|-------|---------|-------------|
-| `--output <DIR>` | `-o` | `<CONTEXT>/artifacts/generated` | Directory to write the generated project into. |
+| `--manifest <FILE>` | | `<CONTEXT>/agent.acl` | Manifest file to read. |
+| `--artifacts-dir <DIR>` | | `<CONTEXT>/artifacts` | Directory the compiler writes its artifacts into. |
+| `--output <DIR>` | `-o` | `<ARTIFACTS_DIR>/generated` | Directory to write the generated project into. |
 | `--dry-run` | | `false` | Run all pipeline stages but print the generated file contents to stdout instead of writing them to disk. |
 | `--verbose` | `-v` | `false` | Print detailed output from each pipeline stage, including transformer subprocess output. |
 | `--format <FORMAT>` | | `auto` | Output format. `auto` selects TTY or plain based on the terminal. `plain` disables colors and progress indicators. |

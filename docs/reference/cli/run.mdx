@@ -15,22 +15,24 @@ agentc run [CONTEXT] [OPTIONS] [-- <ARGS>...]
 
 | Argument | Default | Description |
 |----------|---------|-------------|
-| `CONTEXT` | `.` | Path to the directory containing `agent.acl`. |
+| `CONTEXT` | `.` | Directory that relative paths in the manifest resolve against. |
 
 ## Options
 
 | Flag | Short | Default | Description |
 |------|-------|---------|-------------|
+| `--manifest <FILE>` | | `<CONTEXT>/agent.acl` | Manifest file to read. |
+| `--artifacts-dir <DIR>` | | `<CONTEXT>/artifacts` | Directory the compiler writes its artifacts into. |
 | `--release` | | `false` | Compile in release mode (optimized, slower to build). |
 | `--verbose` | `-v` | `false` | Print detailed output from each pipeline stage, including compiler output and transformer subprocess output. |
 | `--format <FORMAT>` | | `auto` | Output format. `auto` selects TTY or plain based on the terminal. `plain` disables colors and progress indicators. |
 | `--build-arg=<ARG>` | | | One argument forwarded to the compiler rather than to the agent. Always written with `=`. Repeat the flag to pass more than one. |
-| `--cache-dir <DIR>` | | `<CONTEXT>/artifacts/cache` | Directory used to cache compiler artifacts between runs. This is the same default `agentc build` uses, so the two commands share a warm cache. |
+| `--cache-dir <DIR>` | | `<ARTIFACTS_DIR>/cache` | Directory used to cache compiler artifacts between runs. This is the same default `agentc build` uses, so the two commands share a warm cache. |
 | `--no-cache` | | `false` | Disable the build cache. The compiler will not read from or write to the cache directory. |
 | `--no-cleanup` | | `false` | Skip deletion of ephemeral build artifacts (for example, temporary virtual environments created during tool transforms). |
 | `-- <ARGS>...` | | | Arguments forwarded verbatim to the built agent. |
 
-There is no `--output` flag. The artifact is written to `<CONTEXT>/artifacts/build`, the same
+There is no `--output` flag. The artifact is written to `<ARTIFACTS_DIR>/build`, the same
 location `agentc build` uses.
 
 ## Examples
