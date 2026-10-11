@@ -4,7 +4,7 @@
 
 use async_trait::async_trait;
 use clap::{ArgAction, Args};
-use std::path::PathBuf;
+use std::path::{PathBuf, absolute};
 
 use agentc_core::{
     compiler::{
@@ -25,6 +25,7 @@ use crate::cli::{
     commands::generate::renderer::GenerateStreamRenderer,
     context::Ctx,
     errors::CliError,
+    project::ProjectArgs,
     traits::Cmd,
     types::CmdOutcome,
     ui::{StreamRenderer, UiFormat},
@@ -32,9 +33,8 @@ use crate::cli::{
 
 #[derive(Clone, Args, Debug)]
 pub struct CliCommandGenerate {
-    /// The directory path containing the agent manifest file.
-    #[clap(default_value = ".")]
-    context: PathBuf,
+    #[clap(flatten)]
+    project: ProjectArgs,
     /// The output directory where the generated agent files will be saved.
     #[clap(short, long)]
     output: Option<PathBuf>,
@@ -55,26 +55,14 @@ pub struct CliCommandGenerate {
 #[async_trait]
 impl Cmd for CliCommandGenerate {
     async fn run(&self, _ctx: &mut Ctx) -> Result<CmdOutcome, CliError> {
-        if !self.context.is_dir() || !self.context.join("agent.acl").is_file() {
-            return Err(CliError::invalid_parameters(format!(
-                "Context path '{}' must be a directory containing 'agent.acl'",
-                self.context.to_string_lossy()
-            )));
-        }
-
-        let context = self
-            .context
-            .canonicalize()
-            .map_err(|e| CliError::unexpected_error(e.to_string()))?;
+        let project = self.project.resolve().await?;
 
         let manifest = SpecParser::<Manifest>::default()
             .with_file_format(
-                context
-                    .join("agent.acl")
-                    .to_string_lossy(),
+                project.manifest().to_string_lossy(),
                 SpecFormat::hcl()
                     .with_hcl_deserialize_middleware(FileFunctionDeserialize::new(
-                        RootedFileReader::new(context.clone()),
+                        RootedFileReader::new(project.context().to_path_buf()),
                     ))
                     .with_hcl_deserialize_middleware(RuntimeFunctionDeserialize),
             )
@@ -86,21 +74,17 @@ impl Cmd for CliCommandGenerate {
             .manifest(manifest)
             .asset_resolver(
                 AssetResolver::builder()
-                    .with_store(ArtifactStore::new(context.join("artifacts").join("store")))
-                    .with_handler(LocalFileHandler::new(context.clone()))
+                    .with_store(ArtifactStore::new(project.artifacts_dir().join("store")))
+                    .with_handler(LocalFileHandler::new(project.context().to_path_buf()))
                     .build(),
             )
-            .loader(FileSystemLoader::new(context.clone()))
+            .loader(FileSystemLoader::new(project.context().to_path_buf()))
             .catalog(
                 DefaultCompilationCatalog::build()
                     .map_err(|e| CliError::unexpected_error(e.to_string()))?,
             )
             .transformer_registry(TransformerRegistry::default())
-            .runtime_dir(
-                context
-                    .join("artifacts")
-                    .join("runtime"),
-            )
+            .runtime_dir(project.artifacts_dir().join("runtime"))
             .cleanup(self.cleanup)
             .build()
             .map_err(|e| CliError::unexpected_error(e.to_string()))?;
@@ -130,20 +114,13 @@ impl Cmd for CliCommandGenerate {
                     }
                 } else {
                     res.vfs
-                        .write_to(
-                            &self
-                                .output
-                                .as_ref()
-                                .map(|p| {
-                                    p.canonicalize()
-                                        .unwrap_or_else(|_| p.clone())
-                                })
-                                .unwrap_or_else(|| {
-                                    context
-                                        .join("artifacts")
-                                        .join("generated")
-                                }),
-                        )
+                        .write_to(&match &self.output {
+                            Some(dir) => absolute(dir)
+                                .map_err(|e| CliError::unexpected_error(e.to_string()))?,
+                            None => project
+                                .artifacts_dir()
+                                .join("generated"),
+                        })
                         .await
                         .map_err(|e| CliError::unexpected_error(e.to_string()))?;
                 }

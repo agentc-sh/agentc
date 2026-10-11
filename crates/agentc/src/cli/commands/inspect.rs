@@ -4,7 +4,6 @@
 
 use async_trait::async_trait;
 use clap::Args;
-use std::path::PathBuf;
 
 use agentc_core::{
     compiler::{
@@ -21,15 +20,14 @@ use agentc_core::{
 };
 
 use crate::cli::{
-    catalog::DefaultCompilationCatalog, context::Ctx, errors::CliError, traits::Cmd,
-    types::CmdOutcome, ui::UiFormat,
+    catalog::DefaultCompilationCatalog, context::Ctx, errors::CliError, project::ProjectArgs,
+    traits::Cmd, types::CmdOutcome, ui::UiFormat,
 };
 
 #[derive(Clone, Args, Debug)]
 pub struct CliCommandInspect {
-    /// The directory path containing the agent manifest file.
-    #[clap(default_value = ".")]
-    context: PathBuf,
+    #[clap(flatten)]
+    project: ProjectArgs,
     /// Set the UI format.
     #[clap(long, default_value = "auto")]
     format: UiFormat,
@@ -41,26 +39,14 @@ pub struct CliCommandInspect {
 #[async_trait]
 impl Cmd for CliCommandInspect {
     async fn run(&self, _ctx: &mut Ctx) -> Result<CmdOutcome, CliError> {
-        if !self.context.is_dir() && !self.context.join("agent.acl").is_file() {
-            return Err(CliError::invalid_parameters(format!(
-                "Context path '{}' must be a directory containing 'agent.acl'",
-                self.context.to_string_lossy()
-            )));
-        }
-
-        let context = self
-            .context
-            .canonicalize()
-            .map_err(|e| CliError::unexpected_error(e.to_string()))?;
+        let project = self.project.resolve().await?;
 
         let manifest = SpecParser::<Manifest>::default()
             .with_file_format(
-                context
-                    .join("agent.acl")
-                    .to_string_lossy(),
+                project.manifest().to_string_lossy(),
                 SpecFormat::hcl()
                     .with_hcl_deserialize_middleware(FileFunctionDeserialize::new(
-                        RootedFileReader::new(context.clone()),
+                        RootedFileReader::new(project.context().to_path_buf()),
                     ))
                     .with_hcl_deserialize_middleware(RuntimeFunctionDeserialize),
             )
@@ -77,11 +63,11 @@ impl Cmd for CliCommandInspect {
             .manifest(manifest)
             .asset_resolver(
                 AssetResolver::builder()
-                    .with_store(ArtifactStore::new(context.join("artifacts").join("store")))
-                    .with_handler(LocalFileHandler::new(context.clone()))
+                    .with_store(ArtifactStore::new(project.artifacts_dir().join("store")))
+                    .with_handler(LocalFileHandler::new(project.context().to_path_buf()))
                     .build(),
             )
-            .loader(FileSystemLoader::new(context.clone()))
+            .loader(FileSystemLoader::new(project.context().to_path_buf()))
             .catalog(
                 DefaultCompilationCatalog::build()
                     .map_err(|e| CliError::unexpected_error(e.to_string()))?,
