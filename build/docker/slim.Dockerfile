@@ -38,12 +38,11 @@ RUN apt-get update && \
         xz-utils \
     && rm -rf /var/lib/apt/lists/*
 
-RUN useradd -u 1000 -G sudo -U -m -s /bin/bash agentc \
-    && echo "agentc ALL=(ALL) NOPASSWD: /bin/chown" >> /etc/sudoers
+RUN useradd -u 1000 -G sudo -U -m -s /bin/bash agentc
 
 COPY --from=build --chown=agentc:agentc /workspace/target/release/agentc /usr/local/bin/agentc
 COPY --from=build --chown=agentc:agentc /workspace/LICENSE /home/agentc/LICENSE
 
-USER agentc
+WORKDIR /workspace
 ENTRYPOINT ["agentc"]
 CMD ["help"]
