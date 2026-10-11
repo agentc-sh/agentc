@@ -15,12 +15,14 @@ agentc inspect [CONTEXT] [OPTIONS]
 
 | Argument | Default | Description |
 |----------|---------|-------------|
-| `CONTEXT` | `.` | Path to the directory containing `agent.acl`. |
+| `CONTEXT` | `.` | Directory that relative paths in the manifest resolve against. |
 
 ## Options
 
 | Flag | Default | Description |
 |------|---------|-------------|
+| `--manifest <FILE>` | `<CONTEXT>/agent.acl` | Manifest file to read. |
+| `--artifacts-dir <DIR>` | `<CONTEXT>/artifacts` | Directory the compiler writes its artifacts into. |
 | `--format <FORMAT>` | `auto` | Output format. `auto` selects TTY or plain based on the terminal. |
 | `--raw` | `false` | Print the parsed manifest as a raw debug struct instead of the resolved context. Useful for checking how HCL was deserialized before resolution runs. |
 

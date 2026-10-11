@@ -8,6 +8,7 @@ pub mod commands;
 pub mod context;
 pub mod errors;
 pub mod io;
+pub mod project;
 pub mod traits;
 pub mod types;
 pub mod ui;
