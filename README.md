@@ -1,5 +1,3 @@
-<a id="readme-top"></a>
-
 <!-- PROJECT LOGO -->
 <br />
 <div align="center">
@@ -194,8 +192,6 @@ The documentation under `docs/` is distributed under CC-BY-4.0.
 <!-- CONTACT -->
 ## Contact
 
-Email: [hello@agentc.sh](mailto:hello@agentc.sh)
-Project Link: [https://github.com/agentc-sh/agentc](https://github.com/agentc-sh/agentc)
-Website: [https://agentc.sh](https://agentc.sh)
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+- Email: [hello@agentc.sh](mailto:hello@agentc.sh)
+- Project Link: [https://github.com/agentc-sh/agentc](https://github.com/agentc-sh/agentc)
+- Website: [https://agentc.sh](https://agentc.sh)

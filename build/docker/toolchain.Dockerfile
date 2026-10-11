@@ -57,10 +57,17 @@ RUN apt-get update && \
 
 ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
+    PNPM_HOME=/usr/local/pnpm \
+    pnpm_config_cache_dir=/usr/local/pnpm/cache \
+    pnpm_config_state_dir=/usr/local/pnpm/state \
+    npm_config_cache=/usr/local/npm \
+    UV_CACHE_DIR=/usr/local/uv/cache \
+    UV_PYTHON_INSTALL_DIR=/usr/local/uv/python \
     PATH=/usr/local/cargo/bin:$PATH \
     RUST_VERSION=${RUST_VERSION}
 
-RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain ${RUST_VERSION} --no-modify-path
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain ${RUST_VERSION} --no-modify-path \
+    && chmod -R a+w "${RUSTUP_HOME}" "${CARGO_HOME}"
 
 RUN case "${TARGETARCH}" in \
     amd64) NODE_ARCH="x64" ;; \
@@ -74,20 +81,26 @@ RUN npm install --global \
     npm@${NPM_VERSION} \
     pnpm@${PNPM_VERSION} \
     esbuild@${ESBUILD_VERSION} \
-    && npm cache clean --force
-
-RUN useradd -u 1000 -G sudo -U -m -s /bin/bash agentc \
-    && echo "agentc ALL=(ALL) NOPASSWD: /bin/chown" >> /etc/sudoers \
+    && npm cache clean --force \
     && mkdir -p \
-        /home/agentc/.cache \
-        /home/agentc/.local/share/pnpm \
-        /home/agentc/.npm \
-    && chown -R agentc:agentc /home/agentc
+        "${PNPM_HOME}" \
+        "${pnpm_config_cache_dir}" \
+        "${pnpm_config_state_dir}" \
+        "${npm_config_cache}" \
+        "${UV_CACHE_DIR}" \
+        "${UV_PYTHON_INSTALL_DIR}" \
+    && chmod -R a+w \
+        "${PNPM_HOME}" \
+        "${npm_config_cache}" \
+        "${UV_CACHE_DIR}" \
+        "${UV_PYTHON_INSTALL_DIR}"
+
+RUN useradd -u 1000 -G sudo -U -m -s /bin/bash agentc
 
 COPY --from=uv /uv /uvx /usr/local/bin/
 COPY --from=build --chown=agentc:agentc /workspace/target/release/agentc /usr/local/bin/agentc
 COPY --from=build --chown=agentc:agentc /workspace/LICENSE /home/agentc/LICENSE
 
-USER agentc
+WORKDIR /workspace
 ENTRYPOINT ["agentc"]
 CMD ["help"]
