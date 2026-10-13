@@ -52,7 +52,7 @@ impl PubSubSection {
                         capacity: usize,
                     },
                     Redis {
-                        url: String,
+                        url: agentc_config::secret::SecretUrl,
                     },
                 }
 
@@ -71,7 +71,7 @@ impl PubSubSection {
                             )),
                             ConfigPubSub::Redis { url } => Ok(Bus::new(
                                 RedisTransport::builder()
-                                    .url(url.clone())
+                                    .url(url.as_str())
                                     .build()
                                     .await?,
                             )),
@@ -166,6 +166,12 @@ mod tests {
                 .types
                 .as_str()
                 .contains("pub enum ConfigPubSub")
+        );
+        assert!(
+            section
+                .types
+                .as_str()
+                .contains("url : agentc_config :: secret :: SecretUrl")
         );
         assert!(
             section

@@ -56,7 +56,7 @@ impl Fragment<ResolvedContext> for McpAgentFragment {
                                 },
                                 ConfigMcpTransport::Http { url, auth_token, headers } => McpTransport::StreamableHttp {
                                     url: url.clone(),
-                                    auth_token: auth_token.clone(),
+                                    auth_token: auth_token.clone().map(|token| token.into_inner()),
                                     headers: headers.clone(),
                                 },
                             })

@@ -54,7 +54,7 @@ impl McpSection {
                     Http {
                         url: String,
                         #[serde(default)]
-                        auth_token: Option<String>,
+                        auth_token: Option<agentc_config::secret::Secret<String>>,
                         #[serde(default)]
                         headers: HashMap<String, String>,
                     },

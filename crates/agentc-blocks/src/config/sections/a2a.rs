@@ -46,7 +46,7 @@ impl A2aSection {
                 #[serde(default)]
                 pub struct ConfigA2aAgent {
                     pub url: String,
-                    pub auth_token: Option<String>,
+                    pub auth_token: Option<agentc_config::secret::Secret<String>>,
                     pub headers: HashMap<String, String>,
                     pub tenant: ConfigA2aAgentTenant,
                     pub timeout_secs: u64,
@@ -486,6 +486,12 @@ mod tests {
                 .types
                 .as_str()
                 .contains("pub enum ConfigA2aAgentTenant")
+        );
+        assert!(
+            section
+                .types
+                .as_str()
+                .contains("pub auth_token : Option < agentc_config :: secret :: Secret < String > >")
         );
         assert!(
             section

@@ -55,7 +55,7 @@ impl Fragment<ResolvedContext> for A2aAgentFragment {
                     if let Some(token) = &agent.auth_token {
                         client_config = client_config.try_header(
                             "Authorization",
-                            format!("Bearer {token}"),
+                            format!("Bearer {}", token.as_inner()),
                         )?;
                     }
 
@@ -149,6 +149,7 @@ mod tests {
         assert!(rendered.contains("config . a2a . agents"));
         assert!(rendered.contains("A2aClientConfig :: new"));
         assert!(rendered.contains("client_config . try_header"));
+        assert!(rendered.contains("token . as_inner ()"));
         assert!(rendered.contains("target . send_task_tool"));
         assert!(rendered.contains("target . stream_task_tool"));
         assert!(rendered.contains("target . get_task_tool"));
