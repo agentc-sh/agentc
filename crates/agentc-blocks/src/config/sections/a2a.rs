@@ -488,10 +488,9 @@ mod tests {
                 .contains("pub enum ConfigA2aAgentTenant")
         );
         assert!(
-            section
-                .types
-                .as_str()
-                .contains("pub auth_token : Option < agentc_config :: secret :: Secret < String > >")
+            section.types.as_str().contains(
+                "pub auth_token : Option < agentc_config :: secret :: Secret < String > >"
+            )
         );
         assert!(
             section

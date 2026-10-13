@@ -27,15 +27,11 @@ macro_rules! impl_deserialize_number {
     ($method:ident, $visit:ident, $type:ty) => {
         fn $method<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
             match self.node {
-                ConfigNode::Scalar(ref scalar) => {
-                    visitor.$visit(
-                        self.parse_scalar(
-                            &scalar.as_text(),
-                            stringify!($type),
-                            |s| s.parse::<$type>(),
-                        )?,
-                    )
-                }
+                ConfigNode::Scalar(ref scalar) => visitor.$visit(self.parse_scalar(
+                    &scalar.as_text(),
+                    stringify!($type),
+                    |s| s.parse::<$type>(),
+                )?),
                 ConfigNode::Null => Err(ConfigError::missing_required(self.path)),
                 other => {
                     Err(ConfigError::type_mismatch(self.path, stringify!($type), other.kind()))
@@ -82,15 +78,13 @@ impl<'de> Deserializer<'de> for ConfigDeserializer {
             },
             ConfigNode::Scalar(Scalar::String(value)) => visitor.visit_string(value),
             ConfigNode::Scalar(Scalar::Bool(value)) => visitor.visit_bool(value),
-            ConfigNode::Scalar(Scalar::Number(number)) => match (number.as_u64(), number.as_i64()) {
-                (Some(value), _) => visitor.visit_u64(value),
-                (None, Some(value)) => visitor.visit_i64(value),
-                (None, None) => visitor.visit_f64(
-                    number
-                        .as_f64()
-                        .unwrap_or_default(),
-                ),
-            },
+            ConfigNode::Scalar(Scalar::Number(number)) => {
+                match (number.as_u64(), number.as_i64()) {
+                    (Some(value), _) => visitor.visit_u64(value),
+                    (None, Some(value)) => visitor.visit_i64(value),
+                    (None, None) => visitor.visit_f64(number.as_f64().unwrap_or_default()),
+                }
+            }
             ConfigNode::Map(map) => visitor.visit_map(MapDeserializer::new(map, self.path.clone())),
             ConfigNode::Sequence(seq) => {
                 visitor.visit_seq(SequenceDeserializer::new(seq, self.path.clone()))
@@ -214,11 +208,10 @@ impl<'de> Deserializer<'de> for ConfigDeserializer {
             ConfigNode::Sequence(sequence) => {
                 visitor.visit_seq(SequenceDeserializer::new(sequence, self.path))
             }
-            ConfigNode::Scalar(Scalar::Raw(raw)) => ConfigDeserializer::new(
-                ConfigNode::document(&raw, &self.path)?,
-                self.path,
-            )
-            .deserialize_seq(visitor),
+            ConfigNode::Scalar(Scalar::Raw(raw)) => {
+                ConfigDeserializer::new(ConfigNode::document(&raw, &self.path)?, self.path)
+                    .deserialize_seq(visitor)
+            }
             ConfigNode::Null => visitor.visit_seq(SequenceDeserializer::new(vec![], self.path)),
             other => Err(ConfigError::type_mismatch(self.path, "sequence", other.kind())),
         }
@@ -244,11 +237,10 @@ impl<'de> Deserializer<'de> for ConfigDeserializer {
     fn deserialize_map<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
         match self.node {
             ConfigNode::Map(map) => visitor.visit_map(MapDeserializer::new(map, self.path)),
-            ConfigNode::Scalar(Scalar::Raw(raw)) => ConfigDeserializer::new(
-                ConfigNode::document(&raw, &self.path)?,
-                self.path,
-            )
-            .deserialize_map(visitor),
+            ConfigNode::Scalar(Scalar::Raw(raw)) => {
+                ConfigDeserializer::new(ConfigNode::document(&raw, &self.path)?, self.path)
+                    .deserialize_map(visitor)
+            }
             ConfigNode::Null => visitor.visit_map(MapDeserializer::new(BTreeMap::new(), self.path)),
             other => Err(ConfigError::type_mismatch(self.path, "map", other.kind())),
         }

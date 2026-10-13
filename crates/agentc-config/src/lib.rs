@@ -159,8 +159,12 @@ mod tests {
             ConfigNode::map([("hostname", ConfigNode::scalar("b"))]),
         ]);
 
-        root.insert(&path![5, "hostname"], ConfigNode::scalar("x"), &mut SequenceIndexes::default())
-            .unwrap();
+        root.insert(
+            &path![5, "hostname"],
+            ConfigNode::scalar("x"),
+            &mut SequenceIndexes::default(),
+        )
+        .unwrap();
 
         assert_eq!(
             root,
@@ -252,8 +256,12 @@ mod tests {
     fn insert_into_empty_sequence_appends() {
         let mut root = ConfigNode::sequence(Vec::new());
 
-        root.insert(&path![0, "hostname"], ConfigNode::scalar("x"), &mut SequenceIndexes::default())
-            .unwrap();
+        root.insert(
+            &path![0, "hostname"],
+            ConfigNode::scalar("x"),
+            &mut SequenceIndexes::default(),
+        )
+        .unwrap();
 
         assert_eq!(
             root,
@@ -273,10 +281,8 @@ mod tests {
 
     #[test]
     fn insert_replaces_whole_value() {
-        let mut root = ConfigNode::map([(
-            "allow",
-            ConfigNode::sequence(vec![ConfigNode::scalar("a")]),
-        )]);
+        let mut root =
+            ConfigNode::map([("allow", ConfigNode::sequence(vec![ConfigNode::scalar("a")]))]);
 
         root.insert(
             &path!["allow"],
@@ -285,10 +291,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(
-            root.get(&path!["allow"]),
-            Some(&ConfigNode::scalar(r#"[{"hostname":"x"}]"#))
-        )
+        assert_eq!(root.get(&path!["allow"]), Some(&ConfigNode::scalar(r#"[{"hostname":"x"}]"#)))
     }
 
     #[test]
@@ -401,10 +404,7 @@ mod tests {
         root.decode_at(&path!["pubsub"], &Path::new())
             .unwrap();
 
-        assert_eq!(
-            root.get(&path!["pubsub"]),
-            Some(&ConfigNode::from(json!({ "kind": "redis" })))
-        )
+        assert_eq!(root.get(&path!["pubsub"]), Some(&ConfigNode::from(json!({ "kind": "redis" }))))
     }
 
     #[test]

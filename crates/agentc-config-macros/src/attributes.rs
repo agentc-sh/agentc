@@ -31,9 +31,7 @@ impl SerdeMeta {
     }
 
     fn is(&self, name: &str) -> bool {
-        self.0
-            .path()
-            .is_ident(name)
+        self.0.path().is_ident(name)
     }
 
     fn deserialize_name(&self) -> Result<Option<String>, darling::Error> {
@@ -48,9 +46,7 @@ impl SerdeMeta {
                 .map(Self)
                 .find(|meta| meta.is("deserialize"))
                 .map_or(Ok(None), |meta| meta.deserialize_name()),
-            Meta::Path(path) => {
-                Err(darling::Error::custom("expected a name").with_span(path))
-            }
+            Meta::Path(path) => Err(darling::Error::custom("expected a name").with_span(path)),
         }
     }
 
@@ -153,7 +149,9 @@ impl SerdeVariant {
                     .deserialize_name()?
                     .or(variant.rename);
             } else if meta.is("alias") {
-                variant.aliases.extend(meta.deserialize_name()?);
+                variant
+                    .aliases
+                    .extend(meta.deserialize_name()?);
             } else if meta.is("rename_all") {
                 variant.rename_all = meta
                     .rename_rule()?
@@ -317,8 +315,7 @@ mod tests {
     #[test]
     fn reads_container_tag_and_content() {
         let container =
-            SerdeContainer::new(&[parse_quote!(#[serde(tag = "type", content = "data")])])
-                .unwrap();
+            SerdeContainer::new(&[parse_quote!(#[serde(tag = "type", content = "data")])]).unwrap();
 
         assert_eq!(container.tag(), Some(String::from("type")));
         assert_eq!(container.content(), Some(String::from("data")));

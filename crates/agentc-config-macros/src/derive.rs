@@ -114,45 +114,37 @@ impl ConfigSchemaField {
         rename_all: Option<RenameRule>,
     ) -> Result<Option<Member>, darling::Error> {
         let serde = SerdeField::new(&self.attrs)?;
-        let declaration = match (
-            self.default,
-            self.constant,
-            self.seal.is_present(),
-            self.nested.is_present(),
-        ) {
-            (None, None, false, false) => return Ok(None),
-            (Some(value), None, false, false) => Declaration::Default(value),
-            (None, Some(value), false, false) => Declaration::Constant(value),
-            (None, None, true, false) => Declaration::Seal,
-            (None, None, false, true) => Declaration::Nested(self.ty.clone()),
-            _ => {
-                return Err(darling::Error::custom(
-                    "a field takes one of `default`, `constant`, `seal` or `nested`",
-                )
-                .with_span(&self.ty));
-            }
-        };
+        let declaration =
+            match (self.default, self.constant, self.seal.is_present(), self.nested.is_present()) {
+                (None, None, false, false) => return Ok(None),
+                (Some(value), None, false, false) => Declaration::Default(value),
+                (None, Some(value), false, false) => Declaration::Constant(value),
+                (None, None, true, false) => Declaration::Seal,
+                (None, None, false, true) => Declaration::Nested(self.ty.clone()),
+                _ => {
+                    return Err(darling::Error::custom(
+                        "a field takes one of `default`, `constant`, `seal` or `nested`",
+                    )
+                    .with_span(&self.ty));
+                }
+            };
 
         if serde.is_skipped() {
-            return Err(
-                darling::Error::custom("a skipped field has no config declarations")
-                    .with_span(&self.ty),
-            );
+            return Err(darling::Error::custom("a skipped field has no config declarations")
+                .with_span(&self.ty));
         }
 
         match (serde.is_flatten(), declaration, same, self.ident) {
-            (true, declaration @ Declaration::Nested(_), ..) => Ok(Some(Member {
-                path: MemberPath::Same,
-                declaration,
-            })),
-            (true, ..) => Err(
-                darling::Error::custom("a flattened field takes only `nested`")
-                    .with_span(&self.ty),
-            ),
-            (false, declaration, true, _) => Ok(Some(Member {
-                path: MemberPath::Same,
-                declaration,
-            })),
+            (true, declaration @ Declaration::Nested(_), ..) => {
+                Ok(Some(Member { path: MemberPath::Same, declaration }))
+            }
+            (true, ..) => {
+                Err(darling::Error::custom("a flattened field takes only `nested`")
+                    .with_span(&self.ty))
+            }
+            (false, declaration, true, _) => {
+                Ok(Some(Member { path: MemberPath::Same, declaration }))
+            }
             (false, declaration, false, Some(ident)) => Ok(Some(Member {
                 path: MemberPath::Key(Naming::member(&ident, serde.rename(), rename_all)),
                 declaration,
@@ -273,14 +265,14 @@ impl ConfigSchemaVariant {
             serde.is_untagged() || matches!(representation, Representation::Untagged),
         ) {
             (true, ..) => Ok(Variant { names, members }),
-            (false, true, _) => Err(
-                darling::Error::custom("a skipped variant has no config declarations")
-                    .with_span(&self.ident),
-            ),
-            (false, false, true) => Err(
-                darling::Error::custom("an untagged variant has no config declarations")
-                    .with_span(&self.ident),
-            ),
+            (false, true, _) => {
+                Err(darling::Error::custom("a skipped variant has no config declarations")
+                    .with_span(&self.ident))
+            }
+            (false, false, true) => {
+                Err(darling::Error::custom("an untagged variant has no config declarations")
+                    .with_span(&self.ident))
+            }
             (false, false, false) => Ok(Variant { names, members }),
         }
     }
@@ -294,9 +286,7 @@ enum Shape {
 impl Shape {
     fn members(&self) -> Vec<&Member> {
         match self {
-            Self::Struct(members) => members
-                .iter()
-                .collect(),
+            Self::Struct(members) => members.iter().collect(),
             Self::Enum(_, variants) => variants
                 .iter()
                 .flat_map(Variant::members)
@@ -319,7 +309,11 @@ impl Shape {
 }
 
 #[derive(FromDeriveInput)]
-#[darling(attributes(config), supports(struct_any, enum_any), forward_attrs(serde))]
+#[darling(
+    attributes(config),
+    supports(struct_any, enum_any),
+    forward_attrs(serde)
+)]
 struct ConfigSchemaInput {
     ident: Ident,
     generics: Generics,
@@ -422,7 +416,7 @@ impl ConfigSchemaDerive {
 mod tests {
     use proc_macro2::TokenStream;
     use quote::{ToTokens, quote};
-    use syn::{DeriveInput, ItemImpl, parse2, parse_quote};
+    use syn::{DeriveInput, ItemImpl, parse_quote, parse2};
 
     use super::ConfigSchemaDerive;
 
@@ -451,9 +445,7 @@ mod tests {
         }
 
         fn error(&self) -> &str {
-            self.0
-                .as_ref()
-                .unwrap_err()
+            self.0.as_ref().unwrap_err()
         }
     }
 
@@ -550,10 +542,7 @@ mod tests {
             }),
             1,
         );
-        assert_eq!(
-            expansion.count(quote! { where T: ::agentc_config::traits::ConfigSchema }),
-            1,
-        );
+        assert_eq!(expansion.count(quote! { where T: ::agentc_config::traits::ConfigSchema }), 1,);
     }
 
     #[test]
@@ -586,10 +575,7 @@ mod tests {
             expansion.count(quote! { ::agentc_config::path::Segment::key("listenPort") }),
             1,
         );
-        assert_eq!(
-            expansion.count(quote! { ::agentc_config::path::Segment::key("who") }),
-            1,
-        );
+        assert_eq!(expansion.count(quote! { ::agentc_config::path::Segment::key("who") }), 1,);
     }
 
     #[test]
@@ -757,14 +743,8 @@ mod tests {
             expansion.count(quote! { let declarations = declarations.seal(path.clone()); }),
             1,
         );
-        assert_eq!(
-            expansion.count(quote! { ::agentc_config::path::Segment::index(0usize) }),
-            1,
-        );
-        assert_eq!(
-            expansion.count(quote! { ::agentc_config::path::Segment::index(1usize) }),
-            1,
-        );
+        assert_eq!(expansion.count(quote! { ::agentc_config::path::Segment::index(0usize) }), 1,);
+        assert_eq!(expansion.count(quote! { ::agentc_config::path::Segment::index(1usize) }), 1,);
     }
 
     #[test]
@@ -784,14 +764,8 @@ mod tests {
             struct Pair(#[config(seal)] u8, #[config(seal)] u8);
         });
 
-        assert_eq!(
-            expansion.count(quote! { ::agentc_config::path::Segment::index(0usize) }),
-            1,
-        );
-        assert_eq!(
-            expansion.count(quote! { ::agentc_config::path::Segment::index(1usize) }),
-            1,
-        );
+        assert_eq!(expansion.count(quote! { ::agentc_config::path::Segment::index(0usize) }), 1,);
+        assert_eq!(expansion.count(quote! { ::agentc_config::path::Segment::index(1usize) }), 1,);
     }
 
     #[test]
@@ -842,10 +816,7 @@ mod tests {
         });
 
         assert_eq!(expansion.count(quote! { "redis_cache" }), 1);
-        assert_eq!(
-            expansion.count(quote! { ::agentc_config::path::Segment::key("poolSize") }),
-            1,
-        );
+        assert_eq!(expansion.count(quote! { ::agentc_config::path::Segment::key("poolSize") }), 1,);
     }
 
     #[test]

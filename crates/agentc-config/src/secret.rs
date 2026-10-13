@@ -120,9 +120,7 @@ impl Display for SecretUrl {
         let mut redacted = self.0.clone();
 
         if !redacted.username().is_empty() {
-            redacted
-                .set_username("*****")
-                .ok();
+            redacted.set_username("*****").ok();
         }
 
         if redacted.password().is_some() {
@@ -186,10 +184,7 @@ mod tests {
     #[test]
     fn secret_url_debug_wraps_the_redacted_url() {
         assert_eq!(
-            format!(
-                "{:?}",
-                SecretUrl::parse("postgresql://agent:hunter2@db:5432/agent").unwrap(),
-            ),
+            format!("{:?}", SecretUrl::parse("postgresql://agent:hunter2@db:5432/agent").unwrap(),),
             "SecretUrl(postgresql://*****:*****@db:5432/agent)",
         );
     }
@@ -199,9 +194,6 @@ mod tests {
         let url = SecretUrl::parse("postgresql://agent:hunter2@db:5432/agent").unwrap();
 
         assert_eq!(url.as_inner().password(), Some("hunter2"));
-        assert_eq!(
-            url.into_inner().as_str(),
-            "postgresql://agent:hunter2@db:5432/agent",
-        );
+        assert_eq!(url.into_inner().as_str(), "postgresql://agent:hunter2@db:5432/agent",);
     }
 }

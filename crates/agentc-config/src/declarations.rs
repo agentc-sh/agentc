@@ -42,21 +42,25 @@ impl VariantCondition {
     pub fn holds(&self, root: &mut ConfigNode) -> Result<bool, ConfigError> {
         root.decode_at(&self.path, &Path::new())?;
 
-        Ok(
-            match &self.tag {
-                VariantTag::Key => root
-                    .get(&self.path)
-                    .is_some_and(|node| {
-                        node.get(&[Segment::key(self.name.clone())])
-                            .is_some()
-                            || node.as_text().is_some_and(|text| text == self.name)
-                    }),
-                VariantTag::Field(tag) => root
-                    .get(&self.path.child(Segment::key(tag.clone())))
-                    .and_then(ConfigNode::as_text)
-                    .is_some_and(|text| text == self.name),
-            }
-        )
+        Ok(match &self.tag {
+            VariantTag::Key => root
+                .get(&self.path)
+                .is_some_and(|node| {
+                    node.get(&[Segment::key(self.name.clone())])
+                        .is_some()
+                        || node
+                            .as_text()
+                            .is_some_and(|text| text == self.name)
+                }),
+            VariantTag::Field(tag) => root
+                .get(
+                    &self
+                        .path
+                        .child(Segment::key(tag.clone())),
+                )
+                .and_then(ConfigNode::as_text)
+                .is_some_and(|text| text == self.name),
+        })
     }
 }
 
@@ -96,7 +100,9 @@ impl Declarations {
             if selection.contains(condition) {
                 let selected = declarations.active(selection);
 
-                active.defaults.extend(selected.defaults);
+                active
+                    .defaults
+                    .extend(selected.defaults);
                 active.seals.extend(selected.seals);
             }
         }
@@ -150,7 +156,8 @@ impl Declarations {
     }
 
     pub fn default(mut self, path: impl Into<Path>, value: impl Into<Value>) -> Self {
-        self.defaults.push((path.into(), value.into()));
+        self.defaults
+            .push((path.into(), value.into()));
         self
     }
 
@@ -171,7 +178,8 @@ impl Declarations {
         condition: VariantCondition,
         declare: impl FnOnce(Declarations) -> Declarations,
     ) -> Self {
-        self.variants.push((condition, declare(Declarations::new())));
+        self.variants
+            .push((condition, declare(Declarations::new())));
         self
     }
 

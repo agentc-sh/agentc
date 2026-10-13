@@ -128,12 +128,10 @@ impl ConfigBuilder {
                 .then_with(|| left.path.cmp(&right.path))
         });
 
-        Ok(
-            Config::new(
-                self.declarations
-                    .build(&mapped, &opens)?,
-            )
-        )
+        Ok(Config::new(
+            self.declarations
+                .build(&mapped, &opens)?,
+        ))
     }
 }
 

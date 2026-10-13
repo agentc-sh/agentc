@@ -86,13 +86,11 @@ impl ConfigNode {
         indexes: &mut SequenceIndexes,
     ) -> Result<(Segment, &mut ConfigNode), ConfigError> {
         match (segment, self) {
-            (Segment::Key(key), ConfigNode::Map(map)) => Ok(
-                (
-                    segment.clone(),
-                    map.entry(key.clone())
-                        .or_insert(ConfigNode::Null),
-                )
-            ),
+            (Segment::Key(key), ConfigNode::Map(map)) => Ok((
+                segment.clone(),
+                map.entry(key.clone())
+                    .or_insert(ConfigNode::Null),
+            )),
             (Segment::Index(requested), ConfigNode::Sequence(sequence)) => {
                 let index = indexes.resolve(current_path, *requested, sequence.len());
 
@@ -242,11 +240,7 @@ impl From<Value> for ConfigNode {
             Value::Bool(value) => ConfigNode::Scalar(Scalar::Bool(value)),
             Value::Number(value) => ConfigNode::Scalar(Scalar::Number(value)),
             Value::String(value) => ConfigNode::Scalar(Scalar::String(value)),
-            Value::Array(items) => ConfigNode::sequence(
-                items
-                    .into_iter()
-                    .map(ConfigNode::from),
-            ),
+            Value::Array(items) => ConfigNode::sequence(items.into_iter().map(ConfigNode::from)),
             Value::Object(entries) => ConfigNode::map(
                 entries
                     .into_iter()
