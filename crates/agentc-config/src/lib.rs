@@ -27,6 +27,9 @@ pub mod prelude {
 
 pub mod macros {
     pub use crate::path;
+
+    #[cfg(feature = "derive")]
+    pub use agentc_config_macros::ConfigSchema;
 }
 
 #[cfg(test)]

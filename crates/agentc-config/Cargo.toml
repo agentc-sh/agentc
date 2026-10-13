@@ -7,7 +7,12 @@ repository.workspace = true
 license.workspace = true
 readme.workspace = true
 
+[features]
+derive = ["dep:agentc-config-macros"]
+
 [dependencies]
+agentc-config-macros = { path = "../agentc-config-macros", version = "0.3.1", optional = true }
+
 async-trait = { workspace = true }
 futures = { workspace = true }
 
