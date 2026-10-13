@@ -6,6 +6,8 @@ use async_trait::async_trait;
 use std::collections::HashSet;
 
 use crate::{
+    config::ConfigBuilder,
+    declarations::Declarations,
     errors::SourceError,
     node::ConfigNode,
     path::{Path, Segment},
@@ -17,9 +19,30 @@ pub trait Source: Send + Sync {
     async fn vars(&self) -> Result<Vec<(String, String)>, SourceError>;
 }
 
+#[derive(Clone)]
+pub enum MappedValue {
+    Set(ConfigNode),
+    Unset,
+}
+
+#[derive(Clone)]
+pub struct MappedVar {
+    pub path: Path,
+    pub value: MappedValue,
+}
+
 pub trait Mapper: Send + Sync {
     fn name(&self) -> &str;
-    fn map(&self, vars: &[(String, String)]) -> Result<Vec<(Path, ConfigNode)>, SourceError>;
+    fn map(&self, vars: &[(String, String)]) -> Result<Vec<MappedVar>, SourceError>;
+    fn targets(&self) -> Vec<Path>;
+}
+
+pub trait ConfigSchema {
+    fn declare(declarations: Declarations, path: &Path) -> Declarations;
+
+    fn schema() -> ConfigBuilder {
+        ConfigBuilder::from(Self::declare(Declarations::new(), &Path::new()))
+    }
 }
 
 pub struct OsEnvSource;
@@ -35,7 +58,7 @@ impl Source for OsEnvSource {
     }
 }
 
-pub struct FieldMapping {
+pub struct AliasMapping {
     pub target: Path,
     pub prefix: String,
 }
@@ -43,7 +66,7 @@ pub struct FieldMapping {
 pub struct PrefixMapper {
     prefix: String,
     delimiter: String,
-    fields: Vec<FieldMapping>,
+    aliases: Vec<AliasMapping>,
 }
 
 impl PrefixMapper {
@@ -51,12 +74,12 @@ impl PrefixMapper {
         Self {
             prefix: prefix.into(),
             delimiter: delimiter.into(),
-            fields: Vec::new(),
+            aliases: Vec::new(),
         }
     }
 
-    pub fn field(mut self, target: impl Into<Path>, prefix: impl Into<String>) -> Self {
-        self.fields.push(FieldMapping {
+    pub fn alias(mut self, target: impl Into<Path>, prefix: impl Into<String>) -> Self {
+        self.aliases.push(AliasMapping {
             target: target.into(),
             prefix: prefix.into(),
         });
@@ -69,7 +92,7 @@ impl PrefixMapper {
         value: &str,
         env_prefix: &str,
         target: &Path,
-    ) -> Option<(Path, ConfigNode)> {
+    ) -> Option<MappedVar> {
         let stripped = if key == env_prefix {
             ""
         } else {
@@ -92,15 +115,19 @@ impl PrefixMapper {
                 .collect::<Vec<_>>()
         };
 
-        Some((
-            target
+        Some(MappedVar {
+            path: target
                 .iter()
                 .cloned()
                 .chain(segments)
                 .collect::<Vec<_>>()
                 .into(),
-            ConfigNode::scalar(value),
-        ))
+            value: if value.is_empty() {
+                MappedValue::Unset
+            } else {
+                MappedValue::Set(ConfigNode::scalar(value))
+            },
+        })
     }
 }
 
@@ -109,13 +136,13 @@ impl Mapper for PrefixMapper {
         "prefix_mapper"
     }
 
-    fn map(&self, vars: &[(String, String)]) -> Result<Vec<(Path, ConfigNode)>, SourceError> {
+    fn map(&self, vars: &[(String, String)]) -> Result<Vec<MappedVar>, SourceError> {
         let mut mapped = Vec::new();
 
         let claimed = self
-            .fields
+            .aliases
             .iter()
-            .map(|field| field.prefix.as_str())
+            .map(|alias| alias.prefix.as_str())
             .collect::<HashSet<_>>();
 
         for (key, value) in vars {
@@ -125,19 +152,26 @@ impl Mapper for PrefixMapper {
                 continue;
             }
 
-            if let Some(pair) = self.parse_into(key, value, &self.prefix, &Path::new()) {
-                mapped.push(pair);
+            if let Some(var) = self.parse_into(key, value, &self.prefix, &Path::new()) {
+                mapped.push(var);
             }
         }
 
-        for field in &self.fields {
+        for alias in &self.aliases {
             for (key, value) in vars {
-                if let Some(pair) = self.parse_into(key, value, &field.prefix, &field.target) {
-                    mapped.push(pair);
+                if let Some(var) = self.parse_into(key, value, &alias.prefix, &alias.target) {
+                    mapped.push(var);
                 }
             }
         }
 
         Ok(mapped)
+    }
+
+    fn targets(&self) -> Vec<Path> {
+        self.aliases
+            .iter()
+            .map(|alias| alias.target.clone())
+            .collect()
     }
 }

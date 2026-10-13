@@ -15,7 +15,7 @@ use serde_json::Value;
 
 use crate::{
     errors::ConfigError,
-    node::ConfigNode,
+    node::{ConfigNode, Scalar},
     path::{Path, Segment},
 };
 
@@ -29,10 +29,13 @@ macro_rules! impl_deserialize_number {
             match self.node {
                 ConfigNode::Scalar(ref scalar) => {
                     visitor.$visit(
-                        self.parse_scalar(&scalar, stringify!($type), |s| s.parse::<$type>())?,
+                        self.parse_scalar(
+                            &scalar.as_text(),
+                            stringify!($type),
+                            |s| s.parse::<$type>(),
+                        )?,
                     )
                 }
-                ConfigNode::Json(ref value) => self.delegate_json(value, visitor),
                 ConfigNode::Null => Err(ConfigError::missing_required(self.path)),
                 other => {
                     Err(ConfigError::type_mismatch(self.path, stringify!($type), other.kind()))
@@ -64,20 +67,6 @@ impl ConfigDeserializer {
     {
         f(s).map_err(|e| ConfigError::parse_failure(self.path.clone(), s, type_name, e))
     }
-
-    fn delegate_json<'a, V: Visitor<'a>>(
-        &self,
-        value: &Value,
-        visitor: V,
-    ) -> Result<V::Value, ConfigError> {
-        value
-            .clone()
-            .into_deserializer()
-            .deserialize_any(visitor)
-            .map_err(|e| {
-                ConfigError::parse_failure(self.path.clone(), value.to_string(), "json", e)
-            })
-    }
 }
 
 impl<'de> Deserializer<'de> for ConfigDeserializer {
@@ -86,8 +75,22 @@ impl<'de> Deserializer<'de> for ConfigDeserializer {
     fn deserialize_any<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
         match self.node {
             ConfigNode::Null => visitor.visit_none(),
-            ConfigNode::Scalar(scalar) => visitor.visit_string(scalar),
-            ConfigNode::Json(ref value) => self.delegate_json(value, visitor),
+            ConfigNode::Scalar(Scalar::Raw(raw)) => match serde_json::from_str::<Value>(&raw) {
+                Ok(value) => ConfigDeserializer::new(ConfigNode::from(value), self.path)
+                    .deserialize_any(visitor),
+                Err(_) => visitor.visit_string(raw),
+            },
+            ConfigNode::Scalar(Scalar::String(value)) => visitor.visit_string(value),
+            ConfigNode::Scalar(Scalar::Bool(value)) => visitor.visit_bool(value),
+            ConfigNode::Scalar(Scalar::Number(number)) => match (number.as_u64(), number.as_i64()) {
+                (Some(value), _) => visitor.visit_u64(value),
+                (None, Some(value)) => visitor.visit_i64(value),
+                (None, None) => visitor.visit_f64(
+                    number
+                        .as_f64()
+                        .unwrap_or_default(),
+                ),
+            },
             ConfigNode::Map(map) => visitor.visit_map(MapDeserializer::new(map, self.path.clone())),
             ConfigNode::Sequence(seq) => {
                 visitor.visit_seq(SequenceDeserializer::new(seq, self.path.clone()))
@@ -98,8 +101,7 @@ impl<'de> Deserializer<'de> for ConfigDeserializer {
     fn deserialize_option<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
         match &self.node {
             ConfigNode::Null => visitor.visit_none(),
-            ConfigNode::Scalar(scalar) if scalar.is_empty() => visitor.visit_none(),
-            ConfigNode::Json(Value::Null) => visitor.visit_none(),
+            ConfigNode::Scalar(scalar) if scalar.as_text().is_empty() => visitor.visit_none(),
             _ => visitor.visit_some(self),
         }
     }
@@ -107,20 +109,21 @@ impl<'de> Deserializer<'de> for ConfigDeserializer {
     fn deserialize_bool<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
         match self.node {
             ConfigNode::Scalar(scalar) => {
-                visitor.visit_bool(match scalar.to_ascii_lowercase().as_str() {
+                let text = scalar.as_text();
+
+                visitor.visit_bool(match text.to_ascii_lowercase().as_str() {
                     "true" | "1" | "yes" | "on" => true,
                     "false" | "0" | "no" | "off" => false,
                     _ => {
                         return Err(ConfigError::parse_failure(
                             self.path.clone(),
-                            &scalar,
+                            text.as_ref(),
                             "bool",
-                            format!("invalid boolean value: {}", scalar),
+                            format!("invalid boolean value: {}", text),
                         ));
                     }
                 })
             }
-            ConfigNode::Json(ref value) => self.delegate_json(value, visitor),
             ConfigNode::Null => Err(ConfigError::missing_required(self.path)),
             other => Err(ConfigError::type_mismatch(self.path, "bool", other.kind())),
         }
@@ -132,9 +135,7 @@ impl<'de> Deserializer<'de> for ConfigDeserializer {
 
     fn deserialize_string<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
         match self.node {
-            ConfigNode::Scalar(scalar) => visitor.visit_string(scalar),
-            ConfigNode::Json(Value::String(value)) => visitor.visit_string(value),
-            ConfigNode::Json(ref value) => visitor.visit_string(value.to_string()),
+            ConfigNode::Scalar(scalar) => visitor.visit_string(scalar.as_text().into_owned()),
             ConfigNode::Null => Err(ConfigError::missing_required(self.path)),
             other => Err(ConfigError::type_mismatch(self.path, "string", other.kind())),
         }
@@ -154,19 +155,19 @@ impl<'de> Deserializer<'de> for ConfigDeserializer {
     fn deserialize_char<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
         match self.node {
             ConfigNode::Scalar(scalar) => {
-                let mut chars = scalar.chars();
+                let text = scalar.as_text();
+                let mut chars = text.chars();
 
                 match (chars.next(), chars.next()) {
                     (Some(c), None) => visitor.visit_char(c),
                     _ => Err(ConfigError::parse_failure(
                         self.path.clone(),
-                        &scalar,
+                        text.as_ref(),
                         "char",
-                        format!("expected a single character, got: {}", scalar),
+                        format!("expected a single character, got: {}", text),
                     )),
                 }
             }
-            ConfigNode::Json(ref value) => self.delegate_json(value, visitor),
             ConfigNode::Null => Err(ConfigError::missing_required(self.path)),
             other => Err(ConfigError::type_mismatch(self.path, "char", other.kind())),
         }
@@ -174,8 +175,12 @@ impl<'de> Deserializer<'de> for ConfigDeserializer {
 
     fn deserialize_bytes<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
         match self.node {
-            ConfigNode::Scalar(scalar) => visitor.visit_byte_buf(scalar.into_bytes()),
-            ConfigNode::Json(ref value) => self.delegate_json(value, visitor),
+            ConfigNode::Scalar(scalar) => visitor.visit_byte_buf(
+                scalar
+                    .as_text()
+                    .into_owned()
+                    .into_bytes(),
+            ),
             other => Err(ConfigError::type_mismatch(self.path, "bytes", other.kind())),
         }
     }
@@ -209,7 +214,11 @@ impl<'de> Deserializer<'de> for ConfigDeserializer {
             ConfigNode::Sequence(sequence) => {
                 visitor.visit_seq(SequenceDeserializer::new(sequence, self.path))
             }
-            ConfigNode::Json(ref value) => self.delegate_json(value, visitor),
+            ConfigNode::Scalar(Scalar::Raw(raw)) => ConfigDeserializer::new(
+                ConfigNode::document(&raw, &self.path)?,
+                self.path,
+            )
+            .deserialize_seq(visitor),
             ConfigNode::Null => visitor.visit_seq(SequenceDeserializer::new(vec![], self.path)),
             other => Err(ConfigError::type_mismatch(self.path, "sequence", other.kind())),
         }
@@ -235,7 +244,11 @@ impl<'de> Deserializer<'de> for ConfigDeserializer {
     fn deserialize_map<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
         match self.node {
             ConfigNode::Map(map) => visitor.visit_map(MapDeserializer::new(map, self.path)),
-            ConfigNode::Json(ref value) => self.delegate_json(value, visitor),
+            ConfigNode::Scalar(Scalar::Raw(raw)) => ConfigDeserializer::new(
+                ConfigNode::document(&raw, &self.path)?,
+                self.path,
+            )
+            .deserialize_map(visitor),
             ConfigNode::Null => visitor.visit_map(MapDeserializer::new(BTreeMap::new(), self.path)),
             other => Err(ConfigError::type_mismatch(self.path, "map", other.kind())),
         }
@@ -260,15 +273,29 @@ impl<'de> Deserializer<'de> for ConfigDeserializer {
 
     fn deserialize_enum<V: Visitor<'de>>(
         self,
-        _name: &'static str,
-        _variants: &'static [&'static str],
+        name: &'static str,
+        variants: &'static [&'static str],
         visitor: V,
     ) -> Result<V::Value, Self::Error> {
         match self.node {
+            ConfigNode::Scalar(Scalar::Raw(raw)) if raw.trim_start().starts_with('{') => {
+                ConfigDeserializer::new(ConfigNode::document(&raw, &self.path)?, self.path)
+                    .deserialize_enum(name, variants, visitor)
+            }
             ConfigNode::Scalar(scalar) => visitor
-                .visit_enum(scalar.clone().into_deserializer())
+                .visit_enum(
+                    scalar
+                        .as_text()
+                        .into_owned()
+                        .into_deserializer(),
+                )
                 .map_err(|e: serde::de::value::Error| {
-                    ConfigError::parse_failure(self.path.clone(), &scalar, "enum variant", e)
+                    ConfigError::parse_failure(
+                        self.path.clone(),
+                        scalar.as_text(),
+                        "enum variant",
+                        e,
+                    )
                 }),
             ConfigNode::Map(map) if map.len() == 1 => {
                 let (variant, value) = map.into_iter().next().unwrap();
@@ -279,12 +306,6 @@ impl<'de> Deserializer<'de> for ConfigDeserializer {
                     path: self.path.clone(),
                 })
             }
-            ConfigNode::Json(Value::String(value)) => visitor
-                .visit_enum(value.clone().into_deserializer())
-                .map_err(|e: serde::de::value::Error| {
-                    ConfigError::parse_failure(self.path.clone(), value, "enum variant", e)
-                }),
-            ConfigNode::Json(ref value) => self.delegate_json(value, visitor),
             ConfigNode::Null => Err(ConfigError::missing_required(self.path)),
             other => Err(ConfigError::type_mismatch(self.path, "enum", other.kind())),
         }
