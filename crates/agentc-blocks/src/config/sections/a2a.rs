@@ -489,7 +489,7 @@ mod tests {
         );
         assert!(
             section.types.as_str().contains(
-                "pub auth_token : Option < agentc_config :: secret :: Secret < String > >"
+                "pub auth_token : Option < agentc_config :: secret :: Secret < String >>"
             )
         );
         assert!(
