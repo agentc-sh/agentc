@@ -140,6 +140,11 @@ during code generation and they cannot vary at runtime.
 Most configurable fields accept `runtime()`. These include hosts, ports, API keys, feature flags,
 model names, and similar values. The manifest reference notes which fields are build-time only.
 
+Some fields are runtime values even when omitted. Each is bound to a fixed environment variable
+and uses its default when that variable is unset, so a deployment can adjust it without the
+manifest naming it. Writing the field in the manifest replaces the binding. The reference page of
+each block lists these variables.
+
 ## Where to go next
 
 - [The compilation pipeline](/concepts/the-compilation-pipeline): what the compiler does with this file.

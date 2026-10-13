@@ -49,6 +49,17 @@ export AGENT__AGENT__MODEL__NAME=claude-opus-4-7
 export AGENT__DEFAULT_TENANT_ID=my_tenant
 ```
 
+Some fields are also read from a shorter variable, such as `HTTP_PORT` for the server port. Each
+block's manifest reference lists these under Environment variables. When both set the same value,
+the shorter variable wins:
+
+```bash
+export AGENT__SERVER__PORT=8080
+export HTTP_PORT=9090
+```
+
+The server listens on port `9090`.
+
 <Callout type="warning">
 If a `runtime()` expression in the manifest has no default and its environment variable is not set, the
 binary exits at startup with an error naming the missing variable.
