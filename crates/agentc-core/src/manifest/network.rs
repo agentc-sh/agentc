@@ -77,7 +77,7 @@ pub struct ManifestNetworkPolicy {
     pub addresses: ManifestNetworkPolicyAddresses,
     /// The HTTP methods outbound requests may use. `None` means unrestricted.
     pub methods: RuntimeValue<Option<BTreeSet<String>>>,
-    /// URL patterns outbound requests must match. Empty means unrestricted.
+    /// URL patterns outbound requests must match. Empty denies every request.
     pub allow: RuntimeValue<Vec<ManifestNetworkUrlPattern>>,
 }
 
@@ -112,12 +112,13 @@ impl Default for ManifestNetworkPolicyAddresses {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct ManifestNetworkUrlPattern {
-    pub protocol: Option<String>,
-    pub hostname: Option<String>,
-    pub port: Option<String>,
-    pub pathname: Option<String>,
+    pub protocol: RuntimeValue<Option<String>>,
+    pub hostname: RuntimeValue<Option<String>>,
+    pub port: RuntimeValue<Option<String>>,
+    pub pathname: RuntimeValue<Option<String>>,
 }
 
 impl ManifestNetworkUrlPattern {

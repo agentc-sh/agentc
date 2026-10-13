@@ -13,7 +13,7 @@ use agentc_compiler::generator::{
 
 use crate::{
     config::{
-        fields::FieldValue,
+        fields::{AsFieldValue, FieldTokens, FieldValue, types::FieldSegment},
         sections::{
             block::ConfigSectionBlockBuilderExt,
             contribution::{ConfigSectionContribution, ConfigSections},
@@ -40,24 +40,27 @@ impl NetworkSection {
             .build(Self)
     }
 
-    fn leaves(network: &ResolvedContextNetwork) -> Vec<(Vec<String>, FieldValue)> {
+    fn leaves(network: &ResolvedContextNetwork) -> Vec<(Vec<FieldSegment>, FieldValue)> {
         vec![
-            (
-                vec!["network".into(), "user_agent".into()],
-                FieldValue::from(&network.user_agent),
-            ),
-            (vec!["network".into(), "headers".into()], FieldValue::from(&network.headers)),
+            (vec!["network".into(), "user_agent".into()], network.user_agent.as_field_value()),
+            (vec!["network".into(), "headers".into()], network.headers.as_field_value()),
             (
                 vec![
                     "network".into(),
                     "limits".into(),
                     "connect_timeout_ms".into(),
                 ],
-                FieldValue::from(&network.limits.connect_timeout_ms),
+                network
+                    .limits
+                    .connect_timeout_ms
+                    .as_field_value(),
             ),
             (
                 vec!["network".into(), "limits".into(), "read_timeout_ms".into()],
-                FieldValue::from(&network.limits.read_timeout_ms),
+                network
+                    .limits
+                    .read_timeout_ms
+                    .as_field_value(),
             ),
             (
                 vec![
@@ -65,11 +68,17 @@ impl NetworkSection {
                     "limits".into(),
                     "request_timeout_ms".into(),
                 ],
-                FieldValue::from(&network.limits.request_timeout_ms),
+                network
+                    .limits
+                    .request_timeout_ms
+                    .as_field_value(),
             ),
             (
                 vec!["network".into(), "limits".into(), "max_redirects".into()],
-                FieldValue::from(&network.limits.max_redirects),
+                network
+                    .limits
+                    .max_redirects
+                    .as_field_value(),
             ),
             (
                 vec![
@@ -77,7 +86,10 @@ impl NetworkSection {
                     "limits".into(),
                     "max_response_bytes".into(),
                 ],
-                FieldValue::from(&network.limits.max_response_bytes),
+                network
+                    .limits
+                    .max_response_bytes
+                    .as_field_value(),
             ),
             (
                 vec![
@@ -85,7 +97,10 @@ impl NetworkSection {
                     "limits".into(),
                     "concurrency_limit".into(),
                 ],
-                FieldValue::from(&network.limits.concurrency_limit),
+                network
+                    .limits
+                    .concurrency_limit
+                    .as_field_value(),
             ),
             (
                 vec![
@@ -94,7 +109,11 @@ impl NetworkSection {
                     "addresses".into(),
                     "allow_loopback".into(),
                 ],
-                FieldValue::from(&network.policy.addresses.allow_loopback),
+                network
+                    .policy
+                    .addresses
+                    .allow_loopback
+                    .as_field_value(),
             ),
             (
                 vec![
@@ -103,7 +122,11 @@ impl NetworkSection {
                     "addresses".into(),
                     "allow_private".into(),
                 ],
-                FieldValue::from(&network.policy.addresses.allow_private),
+                network
+                    .policy
+                    .addresses
+                    .allow_private
+                    .as_field_value(),
             ),
             (
                 vec![
@@ -112,36 +135,32 @@ impl NetworkSection {
                     "addresses".into(),
                     "allow_link_local".into(),
                 ],
-                FieldValue::from(
-                    &network
-                        .policy
-                        .addresses
-                        .allow_link_local,
-                ),
+                network
+                    .policy
+                    .addresses
+                    .allow_link_local
+                    .as_field_value(),
             ),
             (
                 vec!["network".into(), "policy".into(), "methods".into()],
-                FieldValue::from(&network.policy.methods),
+                network.policy.methods.as_field_value(),
             ),
             (
                 vec!["network".into(), "policy".into(), "allow".into()],
-                FieldValue::from(&network.policy.allow),
+                network.policy.allow.as_field_value(),
             ),
         ]
     }
 
     fn section(&self, network: &ResolvedContextNetwork) -> Result<ConfigSections, GeneratorError> {
-        let mut constants = Vec::new();
-        let mut defaults = Vec::new();
-        let mut field_mappings = Vec::new();
+        let mut tokens = FieldTokens::default();
 
-        for (path, value) in &Self::leaves(network) {
-            let tokens = value.loader_tokens(path);
-
-            constants.extend(tokens.constant);
-            defaults.extend(tokens.default);
-            field_mappings.extend(tokens.field);
+        for (path, value) in Self::leaves(network) {
+            tokens.extend(value.tokens(&path));
         }
+
+        let loader = tokens.loader();
+        let mapper = tokens.mapper();
 
         ConfigSections::from_entries([ConfigSectionContribution::new(Self::NAME)
             .uses(quote! {
@@ -233,23 +252,21 @@ impl NetworkSection {
                             ));
                         }
 
-                        if !self.policy.allow.is_empty() {
-                            builder = builder.policy(
-                                PatternPolicy::allow(
-                                    self.policy
-                                        .allow
-                                        .iter()
-                                        .map(|pattern| UrlPattern {
-                                            protocol: pattern.protocol.clone(),
-                                            hostname: pattern.hostname.clone(),
-                                            port: pattern.port.clone(),
-                                            pathname: pattern.pathname.clone(),
-                                            ..Default::default()
-                                        })
-                                        .collect::<Vec<_>>(),
-                                )?,
-                            );
-                        }
+                        builder = builder.policy(
+                            PatternPolicy::allow(
+                                self.policy
+                                    .allow
+                                    .iter()
+                                    .map(|pattern| UrlPattern {
+                                        protocol: pattern.protocol.clone(),
+                                        hostname: pattern.hostname.clone(),
+                                        port: pattern.port.clone(),
+                                        pathname: pattern.pathname.clone(),
+                                        ..Default::default()
+                                    })
+                                    .collect::<Vec<_>>(),
+                            )?,
+                        );
 
                         Ok(builder)
                     }
@@ -308,11 +325,10 @@ impl NetworkSection {
                 pub network: ConfigNetwork,
             })
             .loader(quote! {
-                #(#constants)*
-                #(#defaults)*
+                #(#loader)*
             })
             .mapper(quote! {
-                #(#field_mappings)*
+                #(#mapper)*
             })])
         .map_err(|error| GeneratorError::unexpected(error.to_string()))
     }
@@ -357,7 +373,7 @@ mod tests {
 
     use serde_json::json;
 
-    use crate::types::RuntimeValue;
+    use crate::{context::ResolvedContextNetworkUrlPattern, types::RuntimeValue};
 
     fn context() -> GenerationContext<ResolvedContext> {
         GenerationContext::new(
@@ -435,7 +451,7 @@ mod tests {
     }
 
     #[test]
-    fn a_locked_leaf_emits_a_constant_and_no_field_mapping() {
+    fn a_locked_leaf_emits_a_constant_and_no_alias() {
         let mut network = ResolvedContextNetwork::default();
         network.limits.max_redirects = RuntimeValue::constant(3);
 
@@ -461,7 +477,7 @@ mod tests {
     }
 
     #[test]
-    fn a_runtime_leaf_with_a_default_emits_both_a_default_and_a_field_mapping() {
+    fn a_runtime_leaf_with_a_default_emits_both_a_default_and_an_alias() {
         let mut network = ResolvedContextNetwork::default();
         network.limits.max_redirects =
             RuntimeValue::default_runtime("NETWORK_MAX_REDIRECTS", 5usize);
@@ -474,7 +490,7 @@ mod tests {
             .unwrap();
 
         assert!(section.mapper.as_str().contains(
-            r#". field (path ! ["network" , "limits" , "max_redirects"] , "NETWORK_MAX_REDIRECTS")"#
+            r#". alias (path ! ["network" , "limits" , "max_redirects"] , "NETWORK_MAX_REDIRECTS")"#
         ));
         assert!(
             section
@@ -482,5 +498,69 @@ mod tests {
                 .as_str()
                 .contains(r#". default (path ! ["network" , "limits" , "max_redirects"] , serde_json :: json ! (5))"#)
         );
+    }
+
+    #[test]
+    fn a_runtime_pattern_field_seals_the_allow_list_and_aliases_the_field() {
+        let mut network = ResolvedContextNetwork::default();
+        network.policy.allow = RuntimeValue::constant(vec![ResolvedContextNetworkUrlPattern {
+            hostname: RuntimeValue::default_runtime(
+                "BACKEND_HOST",
+                Some("backend.svc".to_string()),
+            ),
+            ..Default::default()
+        }]);
+
+        let sections = NetworkSection
+            .section(&network)
+            .unwrap();
+        let section = sections
+            .get(&NetworkSection::NAME)
+            .unwrap();
+
+        assert!(
+            section
+                .loader
+                .as_str()
+                .contains(r#". seal (path ! ["network" , "policy" , "allow"])"#)
+        );
+        assert!(
+            section
+                .loader
+                .as_str()
+                .contains(r#". seal (path ! ["network" , "policy" , "allow" , 0usize])"#)
+        );
+        assert!(section.loader.as_str().contains(
+            r#". default (path ! ["network" , "policy" , "allow" , 0usize , "hostname"] , serde_json :: json ! ("backend.svc"))"#
+        ));
+        assert!(section.mapper.as_str().contains(
+            r#". alias (path ! ["network" , "policy" , "allow" , 0usize , "hostname"] , "BACKEND_HOST")"#
+        ));
+    }
+
+    #[test]
+    fn the_pattern_policy_is_installed_for_an_empty_allow_list() {
+        let sections = NetworkSection
+            .section(&ResolvedContextNetwork::default())
+            .unwrap();
+        let section = sections
+            .get(&NetworkSection::NAME)
+            .unwrap();
+
+        assert!(
+            section
+                .types
+                .as_str()
+                .contains("PatternPolicy :: allow")
+        );
+        assert!(
+            !section
+                .types
+                .as_str()
+                .contains("is_empty")
+        );
+        assert!(section.loader.as_str().contains(
+            r#". constant (path ! ["network" , "policy" , "allow"] , serde_json :: json ! ([]))"#
+        ));
     }
 }

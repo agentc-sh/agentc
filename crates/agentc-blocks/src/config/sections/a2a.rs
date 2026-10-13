@@ -303,7 +303,7 @@ impl A2aSection {
 
         if let RuntimeValue::Runtime { env, .. } = rv {
             fields.push(quote! {
-                .field(path![#(#path_segments),*], #env)
+                .alias(path![#(#path_segments),*], #env)
             });
         }
     }

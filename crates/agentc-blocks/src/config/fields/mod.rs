@@ -5,6 +5,7 @@
 pub mod agent;
 pub mod context;
 pub mod http;
+pub mod network;
 pub mod providers;
 pub mod runtime;
 pub mod spec;
@@ -12,4 +13,4 @@ pub mod tools;
 pub mod types;
 
 pub use spec::{FieldSpec, FieldsSpec, IntoFieldSpecs};
-pub use types::{FieldValue, IntoTypeTokens, LeafTokens};
+pub use types::{AsFieldValue, FieldTokens, FieldValue, IntoTypeTokens};
