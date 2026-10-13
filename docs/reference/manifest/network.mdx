@@ -7,7 +7,7 @@ The `network` block declares what the agent's outbound HTTP client may do.
 
 ```hcl title="agent.acl"
 network {
-  user_agent = runtime("NETWORK_USER_AGENT", "my-agent/1.0")
+  user_agent = runtime("USER_AGENT", "my-agent/1.0")
 
   headers = {
     "X-Env" = "production"
@@ -75,8 +75,8 @@ resolves to. The link-local category is the one covering the cloud instance meta
 
 `allow` is a list of WHATWG
 [`URLPattern`](https://developer.mozilla.org/en-US/docs/Web/API/URL_Pattern_API) objects. An empty
-list means URL patterns are unrestricted. Each pattern uses the `protocol`, `hostname`, `port`, and
-`pathname` components. An omitted component matches anything.
+list denies every request. `[{}]` matches every URL. Each pattern uses the `protocol`, `hostname`,
+`port`, and `pathname` components. An omitted component matches anything.
 
 | Field | Type | Required | runtime() | Default | Description |
 |-------|------|----------|-----------|---------|-------------|
@@ -86,12 +86,10 @@ list means URL patterns are unrestricted. Each pattern uses the `protocol`, `hos
 
 | Field | Type | Required | runtime() | Default | Description |
 |-------|------|----------|-----------|---------|-------------|
-| `protocol` | string | no | no | any | URL scheme to match, such as `https`. |
-| `hostname` | string | no | no | any | Host name to match, such as `api.example.com`. |
-| `port` | string | no | no | any | Port to match in the request URL, such as `443`. |
-| `pathname` | string | no | no | any | Path component to match in the request URL. |
-
-In an HCL pattern, a whole-number port such as `port = 8086` is accepted as the string `"8086"`.
+| `protocol` | string | no | yes | any | The URL scheme pattern, such as `https` or `http{s}?`. |
+| `hostname` | string | no | yes | any | The host name pattern, such as `api.example.com`, `*.example.com`, or `:tenant.example.com`. |
+| `port` | string | no | yes | any | The port pattern, such as `8443` or `(8080\|8443)`. |
+| `pathname` | string | no | yes | any | The path pattern, such as `/v1/*` or `/users/:id`. |
 
 ### Host name patterns
 
@@ -103,6 +101,28 @@ substring matches.
 - `api.acme.com` matches both patterns.
 - `deep.api.acme.com` matches `*.acme.com`, but not `:sub.acme.com`.
 - `evilacme.com` matches neither pattern, because `acme.com` is not a separate host label there.
+
+## Environment variables
+
+An omitted field below is read at startup from its variable. When the variable is unset, the
+field's default applies. Setting the field in the manifest replaces the variable. See
+[Runtime values](/reference/manifest#runtime-values) for how values are read.
+
+| Variable | Field |
+|----------|-------|
+| `NETWORK_USER_AGENT` | `user_agent` |
+| `NETWORK_HEADERS` | `headers` |
+| `NETWORK_CONNECT_TIMEOUT_MS` | `connect_timeout_ms` |
+| `NETWORK_READ_TIMEOUT_MS` | `read_timeout_ms` |
+| `NETWORK_REQUEST_TIMEOUT_MS` | `request_timeout_ms` |
+| `NETWORK_MAX_REDIRECTS` | `max_redirects` |
+| `NETWORK_MAX_RESPONSE_BYTES` | `max_response_bytes` |
+| `NETWORK_CONCURRENCY_LIMIT` | `concurrency_limit` |
+| `NETWORK_ALLOW_METHODS` | `methods` |
+| `NETWORK_ALLOW_PATTERNS` | `allow` |
+| `NETWORK_ALLOW_LOOPBACK` | `allow_loopback` |
+| `NETWORK_ALLOW_PRIVATE` | `allow_private` |
+| `NETWORK_ALLOW_LINK_LOCAL` | `allow_link_local` |
 
 See [HTTP library](/reference/runtime/http) for what component code sees and
 [Control network egress](/guides/control-network-egress) for the step-by-step recipe.

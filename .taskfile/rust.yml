@@ -30,6 +30,7 @@ tasks:
           -p agentc-agent-macros \
           -p agentc-agent-react \
           -p agentc-config \
+          -p agentc-config-macros \
           -p agentc-database \
           -p agentc-domain \
           -p agentc-domain-sql \
@@ -93,6 +94,7 @@ tasks:
           -p agentc-agent-macros \
           -p agentc-agent-react \
           -p agentc-config \
+          -p agentc-config-macros \
           -p agentc-database \
           -p agentc-domain \
           -p agentc-domain-sql \

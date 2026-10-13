@@ -52,8 +52,8 @@ impl DatabaseSection {
                 #[derive(Debug, Clone, Serialize, Deserialize)]
                 #[serde(default)]
                 pub struct ConfigDatabase {
-                    pub primary: String,
-                    pub replicas: Vec<String>,
+                    pub primary: agentc_config::secret::SecretUrl,
+                    pub replicas: Vec<agentc_config::secret::SecretUrl>,
                     pub options: DatabaseOptions,
                     pub auto_migrate: bool,
                 }
@@ -64,8 +64,13 @@ impl DatabaseSection {
                         run_migrations: bool,
                     ) -> Result<Database, DatabaseError> {
                         let db = Database::builder()
-                            .with_primary(self.primary.clone())
-                            .with_replicas(self.replicas.clone())
+                            .with_primary(self.primary.as_str())
+                            .with_replicas(
+                                self.replicas
+                                    .iter()
+                                    .map(|replica| replica.as_str())
+                                    .collect::<Vec<_>>(),
+                            )
                             .with_options(self.options.clone())
                             .build()
                             .await?;
@@ -81,7 +86,10 @@ impl DatabaseSection {
                 impl Default for ConfigDatabase {
                     fn default() -> Self {
                         ConfigDatabase {
-                            primary: "sqlite://database.db?mode=rwc".to_string(),
+                            primary: agentc_config::secret::SecretUrl::parse(
+                                "sqlite://database.db?mode=rwc",
+                            )
+                            .expect("the default database URL is valid"),
                             replicas: vec![],
                             options: DatabaseOptions::default(),
                             auto_migrate: true,
@@ -177,6 +185,18 @@ mod tests {
                 .types
                 .as_str()
                 .contains("auto_migrate : true")
+        );
+        assert!(
+            section
+                .types
+                .as_str()
+                .contains("pub primary : agentc_config :: secret :: SecretUrl")
+        );
+        assert!(
+            section
+                .types
+                .as_str()
+                .contains("pub replicas : Vec < agentc_config :: secret :: SecretUrl >")
         );
         assert!(
             section

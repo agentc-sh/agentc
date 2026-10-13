@@ -226,7 +226,7 @@ version = "0.3.1"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.119",
+ "syn 3.0.6",
 ]
 
 [[package]]
@@ -315,6 +315,7 @@ dependencies = [
 name = "agentc-config"
 version = "0.3.1"
 dependencies = [
+ "agentc-config-macros",
  "anyhow",
  "async-trait",
  "chrono",
@@ -325,8 +326,21 @@ dependencies = [
  "serde_json",
  "thiserror",
  "tokio",
+ "url",
  "uuid",
  "validator",
+]
+
+[[package]]
+name = "agentc-config-macros"
+version = "0.3.1"
+dependencies = [
+ "darling 0.24.1",
+ "heck 0.5.0",
+ "proc-macro-crate 3.5.0",
+ "proc-macro2",
+ "quote",
+ "syn 3.0.6",
 ]
 
 [[package]]

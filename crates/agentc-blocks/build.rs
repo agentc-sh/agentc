@@ -20,6 +20,7 @@ const RUNTIME_CRATES: &[&str] = &[
     "agentc-agent-macros",
     "agentc-agent-react",
     "agentc-config",
+    "agentc-config-macros",
     "agentc-database",
     "agentc-domain",
     "agentc-domain-sql",

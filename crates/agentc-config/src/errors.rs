@@ -53,6 +53,18 @@ pub enum ConfigError {
         incoming: &'static str,
     },
 
+    #[error("invalid document at {path}: {message}")]
+    InvalidDocument { path: Path, message: String },
+
+    #[error("cannot unset {path}: sequence items are positional")]
+    PositionalUnset { path: Path },
+
+    #[error("cannot write {path}: path is sealed")]
+    Sealed { path: Path },
+
+    #[error("unstable variant at {path}: a declaration deselects a selected variant")]
+    UnstableVariant { path: Path },
+
     #[error("source `{name}` failed: {inner}")]
     Source { name: String, inner: SourceError },
 }
@@ -90,6 +102,25 @@ impl ConfigError {
         incoming: &'static str,
     ) -> Self {
         Self::MergeConflict { path: path.into(), existing, incoming }
+    }
+
+    pub fn invalid_document(path: impl Into<Path>, message: impl Into<String>) -> Self {
+        Self::InvalidDocument {
+            path: path.into(),
+            message: message.into(),
+        }
+    }
+
+    pub fn positional_unset(path: impl Into<Path>) -> Self {
+        Self::PositionalUnset { path: path.into() }
+    }
+
+    pub fn sealed(path: impl Into<Path>) -> Self {
+        Self::Sealed { path: path.into() }
+    }
+
+    pub fn unstable_variant(path: impl Into<Path>) -> Self {
+        Self::UnstableVariant { path: path.into() }
     }
 
     pub fn source(name: impl Into<String>, inner: SourceError) -> Self {

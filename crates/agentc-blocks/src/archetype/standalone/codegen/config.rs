@@ -13,7 +13,7 @@ use agentc_compiler::generator::{
 };
 
 use crate::{
-    config::fields::{FieldSpec, FieldValue, FieldsSpec},
+    config::fields::{FieldSpec, FieldTokens, FieldValue, FieldsSpec, types::FieldSegment},
     context::ResolvedContext,
 };
 
@@ -75,14 +75,14 @@ impl StructTree {
 
                 match node {
                     StructNode::Leaf { rust_type, value } => {
-                        let ty = match value {
-                            FieldValue::Runtime { secret: true, .. } => {
-                                quote! { agentc_config::secret::Secret<#rust_type> }
-                            }
-                            _ => rust_type.clone(),
+                        let ty = if value.is_secret() {
+                            quote! { agentc_config::secret::Secret<#rust_type> }
+                        } else {
+                            rust_type.clone()
                         };
+                        let attribute = value.attribute();
 
-                        quote! { pub #field_ident: #ty, }
+                        quote! { #attribute pub #field_ident: #ty, }
                     }
                     StructNode::Interior(_) => {
                         let child_ident = Ident::new(
@@ -94,14 +94,14 @@ impl StructTree {
                             Span::call_site(),
                         );
 
-                        quote! { pub #field_ident: #child_ident, }
+                        quote! { #[config(nested)] pub #field_ident: #child_ident, }
                     }
                 }
             })
             .collect::<Vec<_>>();
 
         out.push(quote! {
-            #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default)]
+            #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default, ConfigSchema)]
             #[serde(default)]
             pub struct #struct_ident {
                 #(#fields)*
@@ -130,14 +130,14 @@ impl StructTree {
 
                 match node {
                     StructNode::Leaf { rust_type, value } => {
-                        let ty = match value {
-                            FieldValue::Runtime { secret: true, .. } => {
-                                quote! { agentc_config::secret::Secret<#rust_type> }
-                            }
-                            _ => rust_type.clone(),
+                        let ty = if value.is_secret() {
+                            quote! { agentc_config::secret::Secret<#rust_type> }
+                        } else {
+                            rust_type.clone()
                         };
+                        let attribute = value.attribute();
 
-                        quote! { pub #field_ident: #ty, }
+                        quote! { #attribute pub #field_ident: #ty, }
                     }
                     StructNode::Interior(_) => {
                         let child_ident = Ident::new(
@@ -145,39 +145,24 @@ impl StructTree {
                             Span::call_site(),
                         );
 
-                        quote! { pub #field_ident: #child_ident, }
+                        quote! { #[config(nested)] pub #field_ident: #child_ident, }
                     }
                 }
             })
             .collect()
     }
 
-    fn generate_loader_calls(
-        &self,
-        path_segments: &[String],
-        constants: &mut Vec<TokenStream>,
-        defaults: &mut Vec<TokenStream>,
-        field_mappings: &mut Vec<TokenStream>,
-    ) {
+    fn generate_loader_calls(&self, path_segments: &[FieldSegment], tokens: &mut FieldTokens) {
         for (field_name, node) in self.as_inner() {
             let mut current_path = path_segments.to_vec();
-            current_path.push(field_name.clone());
+            current_path.push(field_name.clone().into());
 
             match node {
                 StructNode::Leaf { value, .. } => {
-                    let tokens = value.loader_tokens(&current_path);
-
-                    constants.extend(tokens.constant);
-                    defaults.extend(tokens.default);
-                    field_mappings.extend(tokens.field);
+                    tokens.extend(value.inner_tokens(&current_path));
                 }
                 StructNode::Interior(subtree) => {
-                    subtree.generate_loader_calls(
-                        &current_path,
-                        constants,
-                        defaults,
-                        field_mappings,
-                    );
+                    subtree.generate_loader_calls(&current_path, tokens);
                 }
             }
         }
@@ -253,18 +238,7 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
         let tree = self
             .fields
             .iter()
-            .map(|spec| FieldSpec {
-                path: spec.path.clone(),
-                rust_type: spec.rust_type,
-                value: match &spec.value {
-                    FieldValue::Constant { value } => FieldValue::Constant { value: value.clone() },
-                    FieldValue::Runtime { env, default, secret } => FieldValue::Runtime {
-                        env: env.clone(),
-                        default: default.clone(),
-                        secret: *secret,
-                    },
-                },
-            })
+            .cloned()
             .collect::<StructTree>();
 
         let mut generated_structs = Vec::new();
@@ -279,16 +253,17 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
         }
 
         let config_generated_fields = tree.generate_config_fields("Config");
-        let mut constants = Vec::new();
-        let mut defaults = Vec::new();
-        let mut field_mappings = Vec::new();
+        let mut tokens = FieldTokens::default();
 
-        tree.generate_loader_calls(&[], &mut constants, &mut defaults, &mut field_mappings);
+        tree.generate_loader_calls(&[], &mut tokens);
+
+        let loader = tokens.loader();
+        let aliases = tokens.mapper();
 
         let mapper = quote! {
             .mapper(
                 PrefixMapper::new("AGENT", "__")
-                    #(#field_mappings)*
+                    #(#aliases)*
                     #extra_mapper
                     #section_mapper
             )
@@ -301,8 +276,10 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
             use serde::{Serialize, Deserialize};
             use anyhow::Result;
 
-            use agentc_config::traits::{OsEnvSource, PrefixMapper};
-            use agentc_config::macros::path;
+            use agentc_config::{
+                traits::{ConfigSchema, OsEnvSource, PrefixMapper},
+                macros::{ConfigSchema, path},
+            };
 
             #extra_use
             #section_use
@@ -311,7 +288,7 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
 
             #(#generated_structs)*
 
-            #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+            #[derive(Debug, Clone, Serialize, Deserialize, Default, ConfigSchema)]
             #[serde(default)]
             pub struct Config {
                 #section_fields
@@ -322,10 +299,9 @@ impl CodeGen<ResolvedContext> for ConfigCodeGen {
             impl Config {
                 pub async fn load() -> Result<Self> {
                     Ok(
-                        agentc_config::config::Config::builder()
+                        Self::schema()
                             .source(OsEnvSource)
-                            #(#constants)*
-                            #(#defaults)*
+                            #(#loader)*
                             #extra_loader
                             #section_loader
                             #mapper
@@ -412,5 +388,77 @@ mod tests {
         assert!(!rendered.contains("struct ConfigDatabase"));
         assert!(!rendered.contains("struct ConfigTaskQueue"));
         assert!(!rendered.contains("enum ConfigPubSub"));
+    }
+
+    #[test]
+    fn a_leaf_declares_itself_by_attribute_and_an_interior_node_is_nested() {
+        let rendered = ConfigCodeGen {
+            fields: FieldsSpec::new(vec![
+                FieldSpec::new(
+                    &["server", "port"],
+                    &RuntimeValue::default_runtime("PORT", 8080u16),
+                ),
+                FieldSpec::new(
+                    &["agent", "model", "name"],
+                    &RuntimeValue::constant("claude".to_string()),
+                ),
+            ]),
+        }
+        .generate_files(&context(), &ExtensionRegistry::empty())
+        .unwrap()
+        .remove(0)
+        .1
+        .to_string();
+
+        assert!(
+            rendered.contains(
+                &quote! {
+                    pub struct ConfigServer {
+                        #[config(default = serde_json::json!(8080))]
+                        pub port: u16,
+                    }
+                }
+                .to_string()
+            )
+        );
+        assert!(
+            rendered.contains(
+                &quote! {
+                    pub struct ConfigAgentModel {
+                        #[config(constant = serde_json::json!("claude"))]
+                        pub name: String,
+                    }
+                }
+                .to_string()
+            )
+        );
+        assert!(
+            rendered.contains(
+                &quote! {
+                    #[config(nested)]
+                    pub agent: ConfigAgent,
+                    #[config(nested)]
+                    pub server: ConfigServer,
+                }
+                .to_string()
+            )
+        );
+        assert!(rendered.contains(&quote! { .alias(path!["server", "port"], "PORT") }.to_string()));
+        assert!(!rendered.contains(". default (path !"));
+        assert!(!rendered.contains(". constant (path !"));
+    }
+
+    #[test]
+    fn the_config_derives_its_schema_and_loads_from_it() {
+        let rendered = rendered();
+
+        assert!(
+            rendered.contains(
+                &quote! { #[derive(Debug, Clone, Serialize, Deserialize, Default, ConfigSchema)] }
+                    .to_string()
+            )
+        );
+        assert!(rendered.contains(&quote! { Self::schema().source(OsEnvSource) }.to_string()));
+        assert!(rendered.contains(&quote! { macros::{ConfigSchema, path} }.to_string()));
     }
 }

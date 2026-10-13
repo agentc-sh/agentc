@@ -25,6 +25,7 @@ members = [
     "crates/agentc-tools",
     "crates/agentc-mcp",
     "crates/agentc-config",
+    "crates/agentc-config-macros",
     "crates/agentc-prompt",
     "crates/agentc-executor-typescript",
     "crates/agentc-executor-python",
@@ -53,6 +54,14 @@ rustls = { version = "0.23", features = ["aws_lc_rs"] }
 
 thiserror = { version = "2" }
 anyhow = { version = "1" }
+
+syn = { version = "3", features = ["full", "extra-traits"] }
+quote = "1"
+proc-macro2 = "1"
+proc-macro-crate = { version = "3.5" }
+prettyplease = { version = "0.3" }
+darling = "0.24"
+heck = "0.5"
 
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1" }

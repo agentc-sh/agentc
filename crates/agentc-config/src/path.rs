@@ -7,7 +7,7 @@ use std::{
     ops::Deref,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Segment {
     Key(String),
     Index(usize),
@@ -50,7 +50,7 @@ impl From<usize> for Segment {
     }
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Path(pub Vec<Segment>);
 
 impl Path {

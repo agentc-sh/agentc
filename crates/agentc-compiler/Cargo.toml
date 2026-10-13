@@ -26,11 +26,12 @@ toml = { workspace = true }
 cel = { workspace = true }
 minijinja = { workspace = true }
 
-sha2 = { version = "0.10" }
 syn = { version = "2", features = ["full", "extra-traits"] }
 quote = { version = "1" }
 proc-macro2 = { version = "1" }
 prettyplease = { version = "0.2" }
+
+sha2 = { version = "0.10" }
 
 [dev-dependencies]
 tokio = { workspace = true }
