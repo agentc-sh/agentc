@@ -148,6 +148,11 @@ pub static EMBEDDED_RUNTIME: &[EmbeddedAsset] = &[
         mode: ExtractionMode::TarGz,
     },
     EmbeddedAsset {
+        name: "agentc-config-macros",
+        bytes: include_bytes!("../../embedded/agentc-config-macros.crate"),
+        mode: ExtractionMode::TarGz,
+    },
+    EmbeddedAsset {
         name: "agentc-database",
         bytes: include_bytes!("../../embedded/agentc-database.crate"),
         mode: ExtractionMode::TarGz,
