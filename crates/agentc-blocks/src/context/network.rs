@@ -42,7 +42,7 @@ pub struct ResolvedContextNetworkPolicy {
     pub addresses: ResolvedContextNetworkPolicyAddresses,
     /// The HTTP methods outbound requests may use. `None` means unrestricted.
     pub methods: RuntimeValue<Option<BTreeSet<String>>>,
-    /// URL patterns outbound requests must match. Empty means unrestricted.
+    /// URL patterns outbound requests must match. Empty denies every request.
     pub allow: RuntimeValue<Vec<ResolvedContextNetworkUrlPattern>>,
 }
 
@@ -56,10 +56,14 @@ pub struct ResolvedContextNetworkPolicyAddresses {
     pub allow_link_local: RuntimeValue<bool>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ResolvedContextNetworkUrlPattern {
-    pub protocol: Option<String>,
-    pub hostname: Option<String>,
-    pub port: Option<String>,
-    pub pathname: Option<String>,
+    /// The URL scheme pattern, such as `https` or `http{s}?`.
+    pub protocol: RuntimeValue<Option<String>>,
+    /// The host name pattern, such as `api.example.com`, `*.example.com`, or `:tenant.example.com`.
+    pub hostname: RuntimeValue<Option<String>>,
+    /// The port pattern, such as `8443` or `(8080|8443)`.
+    pub port: RuntimeValue<Option<String>>,
+    /// The path pattern, such as `/v1/*` or `/users/:id`.
+    pub pathname: RuntimeValue<Option<String>>,
 }

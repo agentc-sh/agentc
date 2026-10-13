@@ -9,8 +9,9 @@ from the default policy and narrow it to the exact network surface a component n
 
 ## Start from the default
 
-With no `network` block, outbound requests are unrestricted by URL pattern. Loopback, private, and
-link-local addresses are still refused by default.
+With no `network` block, every outbound request is refused until a pattern allows it. Loopback,
+private, and link-local addresses are also refused. An operator opens destinations with
+`NETWORK_ALLOW_PATTERNS`.
 
 The manifest is the first place network policy is defined. Runtime configuration can also control
 the policy at startup, including when the manifest omits the `network` block entirely, so one
@@ -64,7 +65,7 @@ operator should be able to adjust the value at startup.
 ```hcl title="agent.acl"
 network {
   limits {
-    request_timeout_ms = runtime("NETWORK_REQUEST_TIMEOUT_MS", 5000)
+    request_timeout_ms = runtime("REQUEST_TIMEOUT_MS", 5000)
   }
 
   policy {
@@ -78,19 +79,40 @@ network {
 }
 ```
 
+## Adjust the policy at startup
+
+`NETWORK_ALLOW_PATTERNS` sets `allow` when the binary starts, so one compiled binary can open
+different destinations per deployment. It applies when the manifest omits `allow` or writes it as
+`runtime("NETWORK_ALLOW_PATTERNS", [...])`. See [Runtime values](/reference/manifest#runtime-values)
+for how the value is read.
+
+```bash
+# Allow one host
+NETWORK_ALLOW_PATTERNS='[{"protocol":"https","hostname":"api.example.com"}]'
+
+# Change the host of the first pattern the manifest declares
+NETWORK_ALLOW_PATTERNS__0__HOSTNAME=backend.svc
+
+# Allow every URL
+NETWORK_ALLOW_PATTERNS='[{}]'
+```
+
 ## Permit an address class for local development
 
 Loopback is off by default because allowing it lets component code talk to services bound on the
-same machine, which is usually broader access than a production agent should have. Make it runtime
-configurable when local development needs it.
+same machine, which is usually broader access than a production agent should have.
+
+Enable it at startup where local development needs it:
+
+```bash
+NETWORK_ALLOW_LOOPBACK=true
+```
+
+Requests to loopback still need a pattern that allows them:
 
 ```hcl title="agent.acl"
 network {
   policy {
-    addresses {
-      allow_loopback = runtime("NETWORK_ALLOW_LOOPBACK", false)
-    }
-
     allow = [
       {
         protocol = "http"
@@ -102,7 +124,18 @@ network {
 }
 ```
 
-The default stays off, but an operator can enable it where it is explicitly wanted.
+To give the switch a name of your own, write the field with `runtime()`. The field then reads
+`ALLOW_LOOPBACK` in place of `NETWORK_ALLOW_LOOPBACK`:
+
+```hcl title="agent.acl"
+network {
+  policy {
+    addresses {
+      allow_loopback = runtime("ALLOW_LOOPBACK", false)
+    }
+  }
+}
+```
 
 ## Make a request from a component
 

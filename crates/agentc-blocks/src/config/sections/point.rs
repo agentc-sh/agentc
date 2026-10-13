@@ -102,7 +102,7 @@ mod tests {
                         .types(quote! { pub struct A; })
                         .fields(quote! { pub a: A, })
                         .loader(quote! { .default(path!["a"], 1) })
-                        .mapper(quote! { .field(path!["a"], "A") }),
+                        .mapper(quote! { .alias(path!["a"], "A") }),
                 )],
             )
             .unwrap(),

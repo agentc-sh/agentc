@@ -7,7 +7,7 @@ use quote::quote;
 use std::ops::Deref;
 
 use crate::{
-    config::fields::types::{FieldValue, IntoTypeTokens},
+    config::fields::types::{AsFieldValue, FieldValue, IntoTypeTokens},
     types::RuntimeValue,
 };
 
@@ -29,14 +29,14 @@ pub struct FieldSpec {
 impl FieldSpec {
     pub fn new<T>(path: &[&str], value: &RuntimeValue<T>) -> Self
     where
-        T: serde::Serialize + IntoTypeTokens,
+        T: AsFieldValue + IntoTypeTokens,
     {
         Self {
             path: path
                 .iter()
                 .map(|s| s.to_string())
                 .collect(),
-            value: FieldValue::from(value),
+            value: value.as_field_value(),
             rust_type: T::type_tokens,
         }
     }
@@ -52,7 +52,7 @@ impl FieldsSpec {
 
     pub fn push<T>(&mut self, path: &[&str], value: &RuntimeValue<T>)
     where
-        T: serde::Serialize + IntoTypeTokens,
+        T: AsFieldValue + IntoTypeTokens,
     {
         self.0.push(FieldSpec::new(path, value));
     }

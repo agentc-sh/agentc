@@ -23,9 +23,9 @@ http_server {
 
 | Field | Type | Required | runtime() | Default | Description |
 |-------|------|----------|-----------|---------|-------------|
-| `host` | string | no | yes | `"127.0.0.1"` | Host address to bind the server to. Overridable via the `HTTP_HOST` environment variable. |
-| `port` | integer | no | yes | `8080` | Port to listen on (0 to 65535). Overridable via the `HTTP_PORT` environment variable. |
-| `max_request_size` | integer | no | yes | `2097152` | Maximum accepted request body size, in bytes. Requests exceeding it are rejected with `413 Payload Too Large`. Overridable via the `HTTP_MAX_REQUEST_SIZE` environment variable. |
+| `host` | string | no | yes | `"127.0.0.1"` | Host address to bind the server to. |
+| `port` | integer | no | yes | `8080` | Port to listen on (0 to 65535). |
+| `max_request_size` | integer | no | yes | `2097152` | Maximum accepted request body size, in bytes. Requests exceeding it are rejected with `413 Payload Too Large`. |
 | `protocol` | [HttpProtocol](#httpprotocol) | no | | unset | HTTP interfaces exposed by the server, such as AG-UI and A2A. |
 
 ## HttpProtocol
@@ -77,3 +77,15 @@ another A2A server, configure an A2A tool with `tool { kind = "a2a" }`.
 
 See [A2A](/reference/http-api/a2a) for the supported endpoint shapes and current implementation
 scope. See [Connect agents via A2A](/guides/connect-agents-via-a2a) for outbound A2A tools.
+
+## Environment variables
+
+An omitted field below is read at startup from its variable. When the variable is unset, the
+field's default applies. Setting the field in the manifest replaces the variable. See
+[Runtime values](/reference/manifest#runtime-values) for how values are read.
+
+| Variable | Field |
+|----------|-------|
+| `HTTP_HOST` | `host` |
+| `HTTP_PORT` | `port` |
+| `HTTP_MAX_REQUEST_SIZE` | `max_request_size` |

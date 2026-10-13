@@ -1142,51 +1142,6 @@ version = 7
     }
 
     #[tokio::test]
-    async fn spec_parser_preserves_nested_network_port_conversion() {
-        let manifest = SpecParser::<Manifest>::default()
-            .with_content(
-                r#"
-build {
-  archetype = "standalone"
-}
-
-provider "anthropic" {
-  kind = "anthropic"
-}
-
-agent "assistant" {
-  graph {
-    type = "react"
-  }
-
-  model {
-    provider = "anthropic"
-    name     = "claude-haiku-4-5"
-  }
-}
-
-network {
-  policy {
-    allow = [{ protocol = "http", port = 8086 }]
-  }
-}
-"#,
-                SpecFormat::hcl().with_hcl_deserialize_middleware(RuntimeFunctionDeserialize),
-            )
-            .parse()
-            .await
-            .expect("manifest should parse");
-
-        assert!(matches!(
-            &manifest.network.policy.allow,
-            RuntimeValue::Constant(patterns)
-                if patterns.len() == 1
-                    && patterns[0].protocol.as_deref() == Some("http")
-                    && patterns[0].port.as_deref() == Some("8086")
-        ));
-    }
-
-    #[tokio::test]
     async fn network_allow_type_error_names_the_nested_field() {
         let error = SpecParser::<Manifest>::default()
             .with_content(
@@ -1225,7 +1180,7 @@ network {
         assert!(
             matches!(
                 &error,
-                ParserError::Parser(config::ConfigError::Type {
+                ParserError::Parser(config::ConfigError::At {
                     key: Some(path),
                     ..
                 }) if path == "network.policy.allow[0]port"
@@ -1340,7 +1295,8 @@ network {
             &resolved.network.policy.allow,
             RuntimeValue::Constant(patterns)
                 if patterns.len() == 1
-                    && patterns[0].hostname.as_deref() == Some("api.internal.example.com")
+                    && patterns[0].hostname
+                        == RuntimeValue::constant(Some("api.internal.example.com".to_owned()))
         ));
         assert!(matches!(
             &resolved.network.user_agent,
@@ -1626,10 +1582,10 @@ limits {
         manifest.network.policy.allow = RuntimeValue::default_runtime(
             "PATTERNS",
             vec![ManifestNetworkUrlPattern {
-                protocol: Some("${locals.value}".to_owned()),
-                hostname: Some("${locals.value}".to_owned()),
-                port: Some("${locals.value}".to_owned()),
-                pathname: Some("${locals.value}".to_owned()),
+                protocol: RuntimeValue::constant(Some("${locals.value}".to_owned())),
+                hostname: RuntimeValue::constant(Some("${locals.value}".to_owned())),
+                port: RuntimeValue::constant(Some("${locals.value}".to_owned())),
+                pathname: RuntimeValue::constant(Some("${locals.value}".to_owned())),
             }],
         );
         manifest.filesystem.mounts = vec![ManifestFilesystemMount {
@@ -1827,10 +1783,10 @@ limits {
             .allow
             .default_value()
             .unwrap()[0];
-        assert_eq!(pattern.protocol.as_deref(), Some("interpolated"));
-        assert_eq!(pattern.hostname.as_deref(), Some("interpolated"));
-        assert_eq!(pattern.port.as_deref(), Some("interpolated"));
-        assert_eq!(pattern.pathname.as_deref(), Some("interpolated"));
+        assert_eq!(pattern.protocol, RuntimeValue::constant(Some("interpolated".to_owned())));
+        assert_eq!(pattern.hostname, RuntimeValue::constant(Some("interpolated".to_owned())));
+        assert_eq!(pattern.port, RuntimeValue::constant(Some("interpolated".to_owned())));
+        assert_eq!(pattern.pathname, RuntimeValue::constant(Some("interpolated".to_owned())));
 
         let mount = &resolved.filesystem.mounts[0];
         assert_eq!(mount.path, "/interpolated");

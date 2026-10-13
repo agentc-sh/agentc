@@ -8,7 +8,7 @@ description = "{{ ctx.agent.description }}"
 
 [dependencies]
 agentc-telemetry = { version = "{{ runtime_version }}" }
-agentc-config = { version = "{{ runtime_version }}" }
+agentc-config = { version = "{{ runtime_version }}", features = ["derive"] }
 agentc-model = { version = "{{ runtime_version }}" }
 agentc-agent = { version = "{{ runtime_version }}" }
 agentc-skills = { version = "{{ runtime_version }}" }
@@ -30,6 +30,7 @@ anyhow = { version = "1.0" }
 agentc-agent = { path = "../runtime/agentc-agent" }
 agentc-agent-macros = { path = "../runtime/agentc-agent-macros" }
 agentc-config = { path = "../runtime/agentc-config" }
+agentc-config-macros = { path = "../runtime/agentc-config-macros" }
 agentc-domain = { path = "../runtime/agentc-domain" }
 agentc-model = { path = "../runtime/agentc-model" }
 agentc-skills = { path = "../runtime/agentc-skills" }

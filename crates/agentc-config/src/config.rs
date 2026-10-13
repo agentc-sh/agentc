@@ -8,6 +8,7 @@ use serde_json::Value;
 
 use crate::{
     de::from_node,
+    declarations::Declarations,
     errors::ConfigError,
     node::ConfigNode,
     path::Path,
@@ -49,32 +50,35 @@ impl Config {
 }
 
 pub struct ConfigBuilder {
-    constants: Vec<(Path, Value)>,
-    defaults: Vec<(Path, Value)>,
+    declarations: Declarations,
     sources: Vec<Box<dyn Source>>,
     mappers: Vec<Box<dyn Mapper>>,
 }
 
 impl ConfigBuilder {
     pub fn new() -> Self {
+        Self::from(Declarations::new())
+    }
+
+    pub fn default(self, path: impl Into<Path>, value: impl Into<Value>) -> Self {
         Self {
-            constants: Vec::new(),
-            defaults: Vec::new(),
-            sources: Vec::new(),
-            mappers: Vec::new(),
+            declarations: self.declarations.default(path, value),
+            ..self
         }
     }
 
-    pub fn constant(mut self, path: impl Into<Path>, value: impl Into<Value>) -> Self {
-        self.constants
-            .push((path.into(), value.into()));
-        self
+    pub fn constant(self, path: impl Into<Path>, value: impl Into<Value>) -> Self {
+        Self {
+            declarations: self.declarations.constant(path, value),
+            ..self
+        }
     }
 
-    pub fn default(mut self, path: impl Into<Path>, value: impl Into<Value>) -> Self {
-        self.defaults
-            .push((path.into(), value.into()));
-        self
+    pub fn seal(self, path: impl Into<Path>) -> Self {
+        Self {
+            declarations: self.declarations.seal(path),
+            ..self
+        }
     }
 
     pub fn source(mut self, source: impl Source + 'static) -> Self {
@@ -88,12 +92,6 @@ impl ConfigBuilder {
     }
 
     pub async fn build(self) -> Result<Config, ConfigError> {
-        let mut root = ConfigNode::null();
-
-        for (path, value) in self.defaults {
-            root.insert(&path, ConfigNode::json(value))?;
-        }
-
         let collected = join_all(
             self.sources
                 .iter()
@@ -107,20 +105,43 @@ impl ConfigBuilder {
             vars.extend(result.map_err(|e| ConfigError::source(name, e))?);
         }
 
+        let opens = self
+            .mappers
+            .iter()
+            .flat_map(|mapper| mapper.targets())
+            .collect::<Vec<_>>();
+
+        let mut mapped = Vec::new();
+
         for mapper in &self.mappers {
-            for (path, node) in mapper
-                .map(&vars)
-                .map_err(|e| ConfigError::source(mapper.name(), e))?
-            {
-                root.insert(&path, node)?;
-            }
+            mapped.extend(
+                mapper
+                    .map(&vars)
+                    .map_err(|e| ConfigError::source(mapper.name(), e))?,
+            );
         }
 
-        for (path, value) in self.constants {
-            root.insert(&path, ConfigNode::json(value))?;
-        }
+        mapped.sort_by(|left, right| {
+            left.path
+                .len()
+                .cmp(&right.path.len())
+                .then_with(|| left.path.cmp(&right.path))
+        });
 
-        Ok(Config::new(root))
+        Ok(Config::new(
+            self.declarations
+                .build(&mapped, &opens)?,
+        ))
+    }
+}
+
+impl From<Declarations> for ConfigBuilder {
+    fn from(declarations: Declarations) -> Self {
+        Self {
+            declarations,
+            sources: Vec::new(),
+            mappers: Vec::new(),
+        }
     }
 }
 

@@ -117,6 +117,30 @@ prompt      = file("./prompts/system.md")
 A quoted path without `file(...)` is an ordinary string. You can also use `file(...)` inside list and object values,
 including the `content` of an individual prompt message.
 
+## Runtime values
+
+A `runtime("NAME", default)` value is read from the environment variable `NAME` when the binary
+starts. Some fields are runtime values when omitted; their block page lists the variable under
+Environment variables.
+
+A scalar is read as text. A list, set, map, or object is read as JSON:
+
+```bash
+NETWORK_ALLOW_METHODS='["GET","POST"]'
+NETWORK_HEADERS='{"X-Env":"production"}'
+```
+
+A nested value is set on its own by appending `__` and its path to the variable name. A numeric
+segment is a list index. Any other segment is a lowercased map key, so keys containing capital
+letters or `-` are set through the JSON form.
+
+```bash
+NETWORK_ALLOW_PATTERNS__0__HOSTNAME=api.example.com
+```
+
+A field whose manifest value contains a nested `runtime()` keeps its fixed parts. Only the nested
+runtime values are read from the environment.
+
 ## Blocks
 
 | Block | Purpose |

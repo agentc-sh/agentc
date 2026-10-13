@@ -82,7 +82,7 @@ impl AgentCodeGen {
 
         if let RuntimeValue::Runtime { env, .. } = value {
             fields.push(quote! {
-                .field(path![#(#path_segments),*], #env)
+                .alias(path![#(#path_segments),*], #env)
             });
         }
     }
