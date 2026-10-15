@@ -27,6 +27,8 @@ impl CodeGen<ResolvedContext> for EntrypointCodeGen {
             .and_then(|s| s.parse::<TokenStream>().ok());
 
         let source = quote! {
+            #![allow(non_snake_case, nonstandard_style, unused_variables)]
+
             mod agent;
             mod cli;
             mod config;
