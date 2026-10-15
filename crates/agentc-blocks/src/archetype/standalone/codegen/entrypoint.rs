@@ -37,9 +37,11 @@ impl CodeGen<ResolvedContext> for EntrypointCodeGen {
             use agentc_telemetry::bootstrap;
 
             fn main() -> Result<()> {
-                bootstrap(#agent_name, |telemetry| async move {
-                    cli::run(telemetry).await
-                })
+                Ok(
+                    bootstrap(#agent_name, |telemetry| async move {
+                        cli::run(telemetry).await
+                    })?
+                )
             }
         };
 
