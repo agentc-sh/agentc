@@ -12,6 +12,7 @@ pub mod composition;
 pub mod config;
 pub mod context;
 pub mod contributions;
+pub mod custom;
 pub mod errors;
 pub mod feature;
 pub mod graph;

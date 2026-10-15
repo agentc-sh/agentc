@@ -206,7 +206,7 @@ impl Fragment<ResolvedContext> for FilesystemTypescriptCargoFragment {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
+    use std::collections::{BTreeMap, HashMap};
 
     use super::*;
     use crate::{
@@ -266,7 +266,7 @@ mod tests {
                         name: RuntimeValue::constant("claude".to_string()),
                     },
                 },
-                blocks: HashMap::new(),
+                blocks: BTreeMap::new(),
                 tools: tools.into_iter().collect(),
                 skills: HashMap::new(),
                 http_server: None,

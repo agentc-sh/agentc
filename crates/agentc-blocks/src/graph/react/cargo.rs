@@ -25,16 +25,26 @@ impl Fragment<ResolvedContext> for ReActCargoFragment {
     ) -> Result<ErasedContributionValue, GeneratorError> {
         match point {
             "cargo::dependencies" => Ok(ErasedContributionValue::new(
-                CargoDependencies::from_entries([CargoDependencyContribution::runtime(
-                    RuntimeDependencyContribution::new("agentc-agent-react")
-                        .default_features(false),
-                )])
+                CargoDependencies::from_entries([
+                    CargoDependencyContribution::runtime(
+                        RuntimeDependencyContribution::new("agentc-agent-react")
+                            .default_features(false),
+                    ),
+                    CargoDependencyContribution::runtime(
+                        RuntimeDependencyContribution::new("agentc-tools").default_features(false),
+                    ),
+                ])
                 .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
             )),
             "cargo::patches" => Ok(ErasedContributionValue::new(
-                CargoPatches::from_entries([CargoPatchContribution::runtime(
-                    RuntimeDependencyContribution::new("agentc-agent-react"),
-                )])
+                CargoPatches::from_entries([
+                    CargoPatchContribution::runtime(RuntimeDependencyContribution::new(
+                        "agentc-agent-react",
+                    )),
+                    CargoPatchContribution::runtime(RuntimeDependencyContribution::new(
+                        "agentc-tools",
+                    )),
+                ])
                 .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
             )),
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
@@ -145,12 +155,34 @@ mod tests {
 
         assert!(
             dependencies
-                .get(&"agentc-domain-sql")
+                .get("agentc-domain-sql")
                 .is_some()
         );
         assert!(
             dependencies
-                .get(&"sea-orm-migration")
+                .get("sea-orm-migration")
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn react_fragment_contributes_the_tools_dependency_and_patch() {
+        assert!(
+            ReActCargoFragment
+                .generate_contribution(&context(), "cargo::dependencies")
+                .unwrap()
+                .downcast::<CargoDependencies>()
+                .unwrap()
+                .get("agentc-tools")
+                .is_some()
+        );
+        assert!(
+            ReActCargoFragment
+                .generate_contribution(&context(), "cargo::patches")
+                .unwrap()
+                .downcast::<CargoPatches>()
+                .unwrap()
+                .get("agentc-tools")
                 .is_some()
         );
     }

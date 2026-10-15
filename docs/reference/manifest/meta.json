@@ -12,6 +12,7 @@
     "graph",
     "tool",
     "skill",
-    "http-server"
+    "http-server",
+    "block"
   ]
 }

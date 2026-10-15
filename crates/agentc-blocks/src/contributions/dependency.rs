@@ -5,6 +5,7 @@
 use std::collections::BTreeSet;
 
 use crate::{
+    context::ResolvedContextBlockDependency,
     contributions::set::{ContributionSet, Mergeable},
     errors::BlocksError,
 };
@@ -24,19 +25,19 @@ impl CargoDependencyContribution {
         Self::External(dependency.into())
     }
 
-    pub fn name(&self) -> &'static str {
+    pub fn name(&self) -> &str {
         match self {
             Self::Runtime(dependency) => dependency.name,
-            Self::External(dependency) => dependency.name,
+            Self::External(dependency) => &dependency.name,
         }
     }
 }
 
 impl Mergeable for CargoDependencyContribution {
-    type Key = &'static str;
+    type Key = String;
 
     fn key(&self) -> Self::Key {
-        self.name()
+        self.name().to_string()
     }
 
     fn merge(&mut self, other: Self) -> Result<(), BlocksError> {
@@ -133,25 +134,39 @@ impl RuntimeDependencyContribution {
 /// A dependency on a crate outside this repository's runtime libraries.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExternalDependencyContribution {
-    pub name: &'static str,
-    pub version: Option<&'static str>,
-    pub git: Option<&'static str>,
-    pub branch: Option<&'static str>,
-    pub tag: Option<&'static str>,
-    pub rev: Option<&'static str>,
-    pub path: Option<&'static str>,
+    pub name: String,
+    pub version: Option<String>,
+    pub git: Option<String>,
+    pub branch: Option<String>,
+    pub tag: Option<String>,
+    pub rev: Option<String>,
+    pub path: Option<String>,
     pub default_features: Option<bool>,
-    pub features: BTreeSet<&'static str>,
+    pub features: BTreeSet<String>,
 }
 
 impl ExternalDependencyContribution {
+    pub fn new(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            version: None,
+            git: None,
+            branch: None,
+            tag: None,
+            rev: None,
+            path: None,
+            default_features: None,
+            features: BTreeSet::new(),
+        }
+    }
+
     fn merge_field(
-        name: &'static str,
+        name: &str,
         field: &'static str,
-        left: &mut Option<&'static str>,
-        right: Option<&'static str>,
+        left: &mut Option<String>,
+        right: Option<String>,
     ) -> Result<(), BlocksError> {
-        match (*left, right) {
+        match (left.as_deref(), right) {
             (Some(left), Some(right)) if left != right => Err(BlocksError::invalid(format!(
                 "conflicting {field} values for external dependency '{name}'",
             ))),
@@ -164,47 +179,33 @@ impl ExternalDependencyContribution {
         }
     }
 
-    pub fn new(name: &'static str) -> Self {
-        Self {
-            name,
-            version: None,
-            git: None,
-            branch: None,
-            tag: None,
-            rev: None,
-            path: None,
-            default_features: None,
-            features: BTreeSet::new(),
-        }
-    }
-
-    pub fn version(mut self, version: &'static str) -> Self {
-        self.version = Some(version);
+    pub fn version(mut self, version: impl Into<String>) -> Self {
+        self.version = Some(version.into());
         self
     }
 
-    pub fn git(mut self, url: &'static str) -> Self {
-        self.git = Some(url);
+    pub fn git(mut self, url: impl Into<String>) -> Self {
+        self.git = Some(url.into());
         self
     }
 
-    pub fn branch(mut self, branch: &'static str) -> Self {
-        self.branch = Some(branch);
+    pub fn branch(mut self, branch: impl Into<String>) -> Self {
+        self.branch = Some(branch.into());
         self
     }
 
-    pub fn tag(mut self, tag: &'static str) -> Self {
-        self.tag = Some(tag);
+    pub fn tag(mut self, tag: impl Into<String>) -> Self {
+        self.tag = Some(tag.into());
         self
     }
 
-    pub fn rev(mut self, rev: &'static str) -> Self {
-        self.rev = Some(rev);
+    pub fn rev(mut self, rev: impl Into<String>) -> Self {
+        self.rev = Some(rev.into());
         self
     }
 
-    pub fn path(mut self, path: &'static str) -> Self {
-        self.path = Some(path);
+    pub fn path(mut self, path: impl Into<String>) -> Self {
+        self.path = Some(path.into());
         self
     }
 
@@ -213,8 +214,8 @@ impl ExternalDependencyContribution {
         self
     }
 
-    pub fn feature(mut self, feature: &'static str) -> Self {
-        self.features.insert(feature);
+    pub fn feature(mut self, feature: impl Into<String>) -> Self {
+        self.features.insert(feature.into());
         self
     }
 
@@ -226,12 +227,12 @@ impl ExternalDependencyContribution {
             )));
         }
 
-        Self::merge_field(self.name, "version", &mut self.version, other.version)?;
-        Self::merge_field(self.name, "git", &mut self.git, other.git)?;
-        Self::merge_field(self.name, "branch", &mut self.branch, other.branch)?;
-        Self::merge_field(self.name, "tag", &mut self.tag, other.tag)?;
-        Self::merge_field(self.name, "rev", &mut self.rev, other.rev)?;
-        Self::merge_field(self.name, "path", &mut self.path, other.path)?;
+        Self::merge_field(&self.name, "version", &mut self.version, other.version)?;
+        Self::merge_field(&self.name, "git", &mut self.git, other.git)?;
+        Self::merge_field(&self.name, "branch", &mut self.branch, other.branch)?;
+        Self::merge_field(&self.name, "tag", &mut self.tag, other.tag)?;
+        Self::merge_field(&self.name, "rev", &mut self.rev, other.rev)?;
+        Self::merge_field(&self.name, "path", &mut self.path, other.path)?;
 
         match (self.default_features, other.default_features) {
             (Some(left), Some(right)) if left != right => {
@@ -249,6 +250,22 @@ impl ExternalDependencyContribution {
         self.features.extend(other.features);
 
         Ok(())
+    }
+}
+
+impl From<&ResolvedContextBlockDependency> for ExternalDependencyContribution {
+    fn from(dependency: &ResolvedContextBlockDependency) -> Self {
+        Self {
+            name: dependency.name.clone(),
+            version: dependency.version.clone(),
+            git: dependency.git.clone(),
+            branch: dependency.branch.clone(),
+            tag: dependency.tag.clone(),
+            rev: dependency.rev.clone(),
+            path: dependency.path.clone(),
+            default_features: dependency.default_features,
+            features: dependency.features.clone(),
+        }
     }
 }
 
@@ -342,7 +359,7 @@ mod tests {
             .merge(ExternalDependencyContribution::new("dep").version("1.0"))
             .unwrap();
 
-        assert_eq!(dependency.version, Some("1.0"));
+        assert_eq!(dependency.version.as_deref(), Some("1.0"));
     }
 
     #[test]

@@ -11,6 +11,7 @@ use agentc_blocks::{
     catalog::CompilationCatalog,
     composition::{ComposedGeneration, Composer, CompositionInput},
     context::ResolvedContext,
+    custom::CustomBlocks,
     errors::BlocksError,
     runtime::EmbeddedAsset,
 };
@@ -138,7 +139,11 @@ impl Step for ComposeStep {
             archetype,
             graph,
             protocols,
-            blocks: self.blocks,
+            blocks: self
+                .blocks
+                .into_iter()
+                .chain(CustomBlocks::resolve(&input.context))
+                .collect(),
         })?;
 
         tx.send(ComposeStepEvent::Completed {

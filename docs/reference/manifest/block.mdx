@@ -1,0 +1,104 @@
+---
+title: block
+description: The block directive adds generated files and extension point contributions to the generated project.
+---
+
+The `block` directive adds files and extension point contributions to the generated project. A
+manifest can contain any number of `block` directives. The label names the block in errors.
+
+```hcl title="agent.acl"
+block "build_info" {
+  description = "Build-time constants and their dependency."
+
+  generates = {
+    "src/build_info.rs" = "./codegen/build_info.rs.j2"
+  }
+
+  contributes = {
+    "main::modules" = {
+      kind     = "tokens"
+      template = "./codegen/modules.rs.j2"
+    }
+
+    "cargo::dependencies" = {
+      kind = "cargo_dependencies"
+      crates = {
+        const_format = {
+          version  = "0.2"
+          features = ["rust_1_64"]
+        }
+      }
+    }
+  }
+}
+```
+
+| Field | Type | Required | runtime() | Default | Description |
+|-------|------|----------|-----------|---------|-------------|
+| `description` | string | no | no | … | What the block does. |
+| `generates` | map&lt;string, string&gt; | no | no | `{}` | Files to generate. The key is the output path in the generated project; the value is the template path. |
+| `contributes` | map&lt;string, object&gt; | no | no | `{}` | Extension point contributions. The key is the extension point name; the value is a contribution. |
+
+Template paths resolve against the build context directory, like every other path in the manifest.
+
+## Contribution kinds
+
+A contribution is an object whose `kind` field names its kind, alongside that kind's fields. Each
+extension point accepts one kind.
+
+| Kind | Fields | The extension point receives |
+|------|--------|------------------------------|
+| `text` | `template` | The rendered template, as written. |
+| `tokens` | `template` | The rendered template, parsed as Rust. |
+| `cargo_dependencies` | `crates` | The crates, as Cargo dependencies. |
+
+### cargo_dependencies
+
+`crates` maps a crate name to its dependency fields:
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `version` | string | no | … | Version requirement. |
+| `git` | string | no | … | Git repository URL. |
+| `branch` | string | no | … | Git branch. |
+| `tag` | string | no | … | Git tag. |
+| `rev` | string | no | … | Git revision. |
+| `path` | string | no | … | Local path to the crate. |
+| `default_features` | bool | no | … | Whether the crate's default features are enabled. |
+| `features` | list(string) | no | `[]` | Features to enable. |
+
+When several blocks declare the same crate, their fields are merged. A field set to different
+values fails the build.
+
+## Templates
+
+Templates use Jinja2 syntax. The resolved manifest is available under `ctx`, for example
+`{{ ctx.agent_name }}` and `{{ ctx.agent.version }}`.
+
+Interpolated strings in a generated file are escaped by its output path:
+
+| Output path ends in | Interpolated strings are written as |
+|---------------------|-------------------------------------|
+| `.toml` | TOML basic-string contents |
+| `.html`, `.htm`, `.xml` | HTML-escaped text |
+| `.json`, `.json5`, `.js`, `.yaml`, `.yml` | JSON values |
+| Anything else | As is |
+
+`{{ value | safe }}` writes a value as is in any file.
+
+## Composition
+
+Manifest blocks are composed after the archetype, graph, and protocol blocks, in label order.
+
+- Contributions to the same extension point are combined in that order, so a manifest block's
+  contribution follows the built-in ones.
+- A `generates` path that a built-in block also writes is written by the manifest block.
+
+## Errors
+
+| Situation | Result |
+|-----------|--------|
+| A contribution names an extension point that does not exist | The build fails, naming the block and the point. |
+| A contribution's kind is not the kind the point accepts | The build fails, naming the expected and actual types. |
+| A `tokens` template does not render to valid Rust | The build fails with the parse error. |
+| Two blocks declare the same crate with conflicting fields | The build fails, naming the crate and the field. |

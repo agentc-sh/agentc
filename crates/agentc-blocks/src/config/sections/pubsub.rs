@@ -189,6 +189,6 @@ mod tests {
             .downcast::<CargoDependencies>()
             .unwrap();
 
-        assert!(dependencies.get(&"subway").is_some());
+        assert!(dependencies.get("subway").is_some());
     }
 }

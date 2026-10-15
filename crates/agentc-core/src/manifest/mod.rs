@@ -31,7 +31,7 @@ pub use tool::*;
 use sanitizer::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use validator::Validate;
 
 use agentc_blocks::{context::*, types::RuntimeValue};
@@ -75,7 +75,7 @@ pub struct Manifest {
     /// predefined blocks.
     #[serde(default)]
     #[validate(nested)]
-    pub block: HashMap<String, ManifestBlock>,
+    pub block: BTreeMap<String, ManifestBlock>,
     /// Optional configuration for an HTTP server to run alongside the agent.
     #[serde(default)]
     #[validate(nested)]
@@ -236,34 +236,22 @@ impl Manifest {
         &self,
         loader: &dyn ResourceLoader,
         locals: &Value,
-    ) -> Result<HashMap<String, ResolvedContextBlock>, ManifestError> {
-        let mut resolved_blocks = HashMap::new();
+    ) -> Result<BTreeMap<String, ResolvedContextBlock>, ManifestError> {
+        let mut resolved_blocks = BTreeMap::new();
 
         for (label, block) in &self.block {
             if label.is_empty() {
                 return Err(ManifestError::resolution("block label cannot be empty"));
             }
 
-            let mut generates = HashMap::new();
-            for (output_path, template_path) in &block.generates {
-                generates.insert(
-                    output_path.clone(),
-                    ResolvedContextBlockTemplate {
-                        path: template_path.clone(),
-                        content: loader.load(template_path).await?,
-                    },
-                );
+            let mut generates = BTreeMap::new();
+            for (output_path, template) in &block.generates {
+                generates.insert(output_path.clone(), template.resolve(loader).await?);
             }
 
-            let mut contributes = HashMap::new();
-            for (ext_point, template_path) in &block.contributes {
-                contributes.insert(
-                    ext_point.clone(),
-                    ResolvedContextBlockTemplate {
-                        path: template_path.clone(),
-                        content: loader.load(template_path).await?,
-                    },
-                );
+            let mut contributes = BTreeMap::new();
+            for (point, contribution) in &block.contributes {
+                contributes.insert(point.clone(), contribution.resolve(loader).await?);
             }
 
             resolved_blocks.insert(
@@ -276,7 +264,6 @@ impl Manifest {
                         .interpolate(locals)?,
                     generates,
                     contributes,
-                    dependencies: block.dependencies.clone(),
                 },
             );
         }
@@ -1517,9 +1504,8 @@ limits {
             "${locals.value}".to_owned(),
             ManifestBlock {
                 description: Some("${locals.value}".to_owned()),
-                generates: HashMap::new(),
-                contributes: HashMap::new(),
-                dependencies: HashMap::from([("dep".to_owned(), "1".to_owned())]),
+                generates: BTreeMap::new(),
+                contributes: BTreeMap::new(),
             },
         );
 
@@ -1672,13 +1658,6 @@ limits {
             .unwrap();
         assert_eq!(block.name, "${locals.value}");
         assert_eq!(block.description.as_deref(), Some("interpolated"));
-        assert_eq!(
-            block
-                .dependencies
-                .get("dep")
-                .map(String::as_str),
-            Some("1")
-        );
 
         let tool = resolved.tools.get("planner").unwrap();
         assert_eq!(tool.description.as_deref(), Some("interpolated"));

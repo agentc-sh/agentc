@@ -1,0 +1,22 @@
+---
+title: Extension points
+description: The extension points the standalone archetype declares.
+---
+
+The standalone archetype declares these extension points. A [block](/reference/manifest/block)
+contributes to a point with the kind the point accepts.
+
+| Extension point | Kind | Placement |
+|-----------------|------|-----------|
+| `cargo::dependencies` | `cargo_dependencies` | `Cargo.toml`, in `[dependencies]` |
+| `cargo::tables` | `text` | `Cargo.toml`, at the end of the file |
+| `main::modules` | `tokens` | `src/main.rs`, after the module declarations |
+| `cli::mod::use` | `tokens` | `src/cli/mod.rs`, after the module declarations |
+| `cli::mod::variants` | `tokens` | `src/cli/mod.rs`, at the end of the `Command` enum |
+| `cli::mod::arms` | `tokens` | `src/cli/mod.rs`, at the end of the `match` on the command |
+| `config::mods` | `tokens` | `src/config/mod.rs`, at the start of the file |
+| `config::use` | `tokens` | `src/config/mod.rs`, after the imports |
+| `config::fields` | `tokens` | `src/config/mod.rs`, at the end of the `Config` struct |
+| `config::impls` | `tokens` | `src/config/mod.rs`, at the end of the file |
+| `config::loader` | `tokens` | `src/config/mod.rs`, at the end of the source chain in `Config::load` |
+| `config::mapper` | `tokens` | `src/config/mod.rs`, at the end of the environment variable mapper in `Config::load` |

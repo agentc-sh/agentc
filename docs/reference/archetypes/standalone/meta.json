@@ -1,0 +1,9 @@
+{
+  "title": "Standalone",
+  "pages": [
+    "...index",
+    "cli",
+    "configuration",
+    "extension-points"
+  ]
+}

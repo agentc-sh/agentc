@@ -162,6 +162,6 @@ mod tests {
             .downcast::<CargoDependencies>()
             .unwrap();
 
-        assert!(dependencies.get(&"jobq").is_some());
+        assert!(dependencies.get("jobq").is_some());
     }
 }

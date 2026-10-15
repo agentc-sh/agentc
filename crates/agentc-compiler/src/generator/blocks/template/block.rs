@@ -4,65 +4,95 @@
 
 use async_trait::async_trait;
 use serde::Serialize;
-use serde_json::Value as JsonValue;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 
 use crate::generator::{
     blocks::{
-        template::{
-            evaluator::ConditionEvaluator, manifest::TemplateBlockManifest,
-            renderer::TemplateRenderer,
-        },
+        template::{renderer::TemplateRenderer, traits::RenderedContribution},
         traits::Block,
     },
     context::GenerationContext,
     errors::GeneratorError,
     extension::{
         Contribution, ErasedContribution, ErasedContributionValue, ErasedExtensionPoint,
-        ExtensionPoint, ExtensionRegistry, StringExtensionPoint,
+        ExtensionPoint, ExtensionRegistry, StringExtensionPoint, TokenStreamExtensionPoint,
     },
     vfs::VirtualFileSystem,
 };
 
-/// A data-driven template block implementation.
+struct TemplateFile {
+    path: String,
+    source: String,
+}
+
+impl TemplateFile {
+    fn render(
+        &self,
+        block_id: &str,
+        renderer: &TemplateRenderer,
+        registry: &ExtensionRegistry,
+        vfs: &mut VirtualFileSystem,
+    ) -> Result<(), GeneratorError> {
+        vfs.insert(
+            renderer.render(block_id, &self.path, &self.path, registry)?,
+            renderer.render(block_id, &self.path, &self.source, registry)?,
+        );
+
+        Ok(())
+    }
+}
+
+struct TemplateContribution {
+    contribution: ErasedContribution,
+    source: String,
+    value: fn(String) -> Result<ErasedContributionValue, GeneratorError>,
+}
+
+impl TemplateContribution {
+    fn new<C>(contribution: Contribution<C>, source: String) -> Self
+    where
+        C: RenderedContribution,
+    {
+        Self {
+            contribution: contribution.erase(),
+            source,
+            value: |rendered| C::from_rendered(rendered).map(ErasedContributionValue::new),
+        }
+    }
+
+    fn targets(&self, point: &str) -> bool {
+        self.contribution.point == point
+    }
+
+    fn erased(&self) -> ErasedContribution {
+        self.contribution.clone()
+    }
+
+    fn render(
+        &self,
+        block_id: &str,
+        renderer: &TemplateRenderer,
+    ) -> Result<ErasedContributionValue, GeneratorError> {
+        (self.value)(renderer.render(
+            block_id,
+            &self.contribution.point,
+            &self.source,
+            &ExtensionRegistry::empty(),
+        )?)
+    }
+}
+
 pub struct TemplateBlock {
-    manifest: TemplateBlockManifest,
-    templates: HashMap<String, String>,
-    extra_vars: BTreeMap<String, JsonValue>,
-    extra_extension_points: Vec<Box<dyn ErasedExtensionPoint>>,
+    id: String,
+    vars: BTreeMap<String, serde_json::Value>,
+    files: Vec<TemplateFile>,
+    extension_points: Vec<Box<dyn ErasedExtensionPoint>>,
+    contributions: Vec<TemplateContribution>,
 }
 
 impl TemplateBlock {
-    pub fn new(
-        manifest: TemplateBlockManifest,
-        templates: HashMap<String, String>,
-        extra_vars: BTreeMap<String, JsonValue>,
-        extra_extension_points: Vec<Box<dyn ErasedExtensionPoint>>,
-    ) -> Self {
-        Self {
-            manifest,
-            templates,
-            extra_vars,
-            extra_extension_points,
-        }
-    }
-
-    fn renderer<T: Serialize>(&self, data: &T) -> TemplateRenderer {
-        if self.extra_vars.is_empty() {
-            TemplateRenderer::new(data)
-        } else {
-            TemplateRenderer::with_vars(data, self.extra_vars.clone())
-        }
-    }
-
     pub fn builder() -> TemplateBlockBuilder {
         TemplateBlockBuilder::new()
-    }
-
-    fn get_template(&self, name: &str) -> Option<&str> {
-        self.templates
-            .get(name)
-            .map(String::as_str)
     }
 }
 
@@ -72,32 +102,17 @@ where
     T: Serialize + Send + Sync,
 {
     fn id(&self) -> &str {
-        &self.manifest.id
+        &self.id
     }
 
     fn extension_points(&self) -> Vec<Box<dyn ErasedExtensionPoint>> {
-        self.manifest
-            .extension_points
-            .iter()
-            .map(|point| {
-                Box::new(StringExtensionPoint::new(&point.name, point.reducer.as_fn()))
-                    as Box<dyn ErasedExtensionPoint>
-            })
-            .chain(self.extra_extension_points.clone())
-            .collect()
+        self.extension_points.clone()
     }
 
     fn contributions(&self) -> Vec<ErasedContribution> {
-        self.manifest
-            .slot_fills
+        self.contributions
             .iter()
-            .map(|fill| {
-                if fill.strict {
-                    Contribution::<String>::strict(&fill.point).erase()
-                } else {
-                    Contribution::<String>::lenient(&fill.point).erase()
-                }
-            })
+            .map(TemplateContribution::erased)
             .collect()
     }
 
@@ -106,35 +121,16 @@ where
         ctx: &GenerationContext<T>,
         point: &str,
     ) -> Result<ErasedContributionValue, GeneratorError> {
-        let evaluator = ConditionEvaluator::new(ctx.as_inner())?;
-        let renderer = self.renderer(ctx.as_inner());
-
-        let fill = self
-            .manifest
-            .slot_fills
+        self.contributions
             .iter()
-            .find(|sf| sf.point == point)
-            .ok_or_else(|| GeneratorError::TemplateNotFound {
-                block_id: self.manifest.id.clone(),
-                template: point.to_string(),
-            })?;
-
-        if let Some(cond) = &fill.condition
-            && !evaluator.evaluate(&self.manifest.id, cond)?
-        {
-            return Ok(ErasedContributionValue::new(String::new()));
-        }
-
-        let template_src = self
-            .get_template(&fill.template)
-            .ok_or_else(|| GeneratorError::TemplateNotFound {
-                block_id: self.manifest.id.clone(),
-                template: fill.template.clone(),
-            })?;
-
-        renderer
-            .render(&self.manifest.id, &fill.template, template_src, &ExtensionRegistry::empty())
-            .map(ErasedContributionValue::new)
+            .find(|contribution| contribution.targets(point))
+            .ok_or_else(|| {
+                GeneratorError::unexpected(format!(
+                    "block '{}' does not contribute to extension point '{point}'",
+                    self.id,
+                ))
+            })?
+            .render(&self.id, &TemplateRenderer::new(ctx.as_inner()).with_vars(self.vars.clone()))
     }
 
     async fn render(
@@ -143,63 +139,75 @@ where
         registry: &ExtensionRegistry,
         vfs: &mut VirtualFileSystem,
     ) -> Result<(), GeneratorError> {
-        let evaluator = ConditionEvaluator::new(ctx.as_inner())?;
-        let renderer = self.renderer(ctx.as_inner());
+        let renderer = TemplateRenderer::new(ctx.as_inner()).with_vars(self.vars.clone());
 
-        for file_spec in &self.manifest.files {
-            if let Some(cond) = &file_spec.condition
-                && !evaluator.evaluate(&self.manifest.id, cond)?
-            {
-                continue;
-            }
-
-            let path =
-                renderer.render(&self.manifest.id, &file_spec.path, &file_spec.path, registry)?;
-
-            let template_src = self
-                .get_template(&file_spec.template)
-                .ok_or_else(|| GeneratorError::TemplateNotFound {
-                    block_id: self.manifest.id.clone(),
-                    template: file_spec.template.clone(),
-                })?;
-
-            let content =
-                renderer.render(&self.manifest.id, &file_spec.template, template_src, registry)?;
-
-            vfs.insert(path, content);
+        for file in &self.files {
+            file.render(&self.id, &renderer, registry, vfs)?;
         }
 
         Ok(())
     }
 }
 
+pub struct TemplateBlockBuilder {
+    id: Option<String>,
+    vars: BTreeMap<String, serde_json::Value>,
+    files: Vec<TemplateFile>,
+    extension_points: Vec<Box<dyn ErasedExtensionPoint>>,
+    contributions: Vec<TemplateContribution>,
+}
+
+impl Default for TemplateBlockBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TemplateBlockBuilder {
     pub fn new() -> Self {
         Self {
-            manifest: None,
-            templates: HashMap::new(),
-            extra_vars: BTreeMap::new(),
-            extra_extension_points: Vec::new(),
+            id: None,
+            vars: BTreeMap::new(),
+            files: Vec::new(),
+            extension_points: Vec::new(),
+            contributions: Vec::new(),
         }
     }
 
-    pub fn with_var(mut self, name: impl Into<String>, value: impl Serialize) -> Self {
-        self.extra_vars
+    pub fn id(mut self, id: impl AsRef<str>) -> Self {
+        self.id = Some(id.as_ref().to_string());
+        self
+    }
+
+    pub fn var(mut self, name: impl Into<String>, value: impl Serialize) -> Self {
+        self.vars
             .insert(name.into(), serde_json::to_value(value).unwrap_or_default());
         self
     }
 
-    pub fn with_manifest(mut self, manifest: TemplateBlockManifest) -> Self {
-        self.manifest = Some(manifest);
+    pub fn file(mut self, path: impl Into<String>, source: impl Into<String>) -> Self {
+        self.files
+            .push(TemplateFile { path: path.into(), source: source.into() });
         self
     }
 
-    pub fn with_template<S>(mut self, name: S, src: S) -> Self
-    where
-        S: AsRef<str>,
-    {
-        self.templates
-            .insert(name.as_ref().to_string(), src.as_ref().to_string());
+    pub fn extension_point(
+        mut self,
+        name: impl Into<String>,
+        reducer: fn(Vec<String>) -> String,
+    ) -> Self {
+        self.extension_points
+            .push(Box::new(StringExtensionPoint::new(name, reducer)));
+        self
+    }
+
+    pub fn token_stream_extension_point(
+        mut self,
+        name: impl Into<String>,
+        reducer: fn(Vec<String>) -> String,
+    ) -> Self {
+        self.extension_points
+            .push(Box::new(TokenStreamExtensionPoint::new(name, reducer)));
         self
     }
 
@@ -207,31 +215,29 @@ impl TemplateBlockBuilder {
     where
         P: ExtensionPoint + Clone + 'static,
     {
-        self.extra_extension_points
+        self.extension_points
             .push(Box::new(point));
         self
     }
 
-    pub fn build(self) -> TemplateBlock {
-        TemplateBlock::new(
-            self.manifest
-                .expect("TemplateBlock requires a manifest"),
-            self.templates,
-            self.extra_vars,
-            self.extra_extension_points,
-        )
+    pub fn contribute<C>(mut self, contribution: Contribution<C>, source: impl Into<String>) -> Self
+    where
+        C: RenderedContribution,
+    {
+        self.contributions
+            .push(TemplateContribution::new(contribution, source.into()));
+        self
     }
-}
 
-pub struct TemplateBlockBuilder {
-    manifest: Option<TemplateBlockManifest>,
-    templates: HashMap<String, String>,
-    extra_vars: BTreeMap<String, JsonValue>,
-    extra_extension_points: Vec<Box<dyn ErasedExtensionPoint>>,
-}
-
-impl Default for TemplateBlockBuilder {
-    fn default() -> Self {
-        Self::new()
+    pub fn build(self) -> TemplateBlock {
+        TemplateBlock {
+            id: self
+                .id
+                .expect("TemplateBlock must have a non-empty id"),
+            vars: self.vars,
+            files: self.files,
+            extension_points: self.extension_points,
+            contributions: self.contributions,
+        }
     }
 }

@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::collections::BTreeMap;
+use std::{borrow::Borrow, collections::BTreeMap};
 
 use crate::errors::BlocksError;
 
@@ -63,7 +63,11 @@ impl<T: Mergeable> ContributionSet<T> {
         Ok(())
     }
 
-    pub fn get(&self, key: &T::Key) -> Option<&T> {
+    pub fn get<Q>(&self, key: &Q) -> Option<&T>
+    where
+        T::Key: Borrow<Q>,
+        Q: Ord + ?Sized,
+    {
         self.entries.get(key)
     }
 
@@ -126,7 +130,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(set.len(), 1);
-        assert_eq!(set.get(&"a").unwrap().values, vec!["one", "two"]);
+        assert_eq!(set.get("a").unwrap().values, vec!["one", "two"]);
     }
 
     #[test]

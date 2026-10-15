@@ -5,6 +5,7 @@
     "manifest",
     "runtime",
     "prompt-templates",
+    "archetypes",
     "graph",
     "http-api",
     "observability"
