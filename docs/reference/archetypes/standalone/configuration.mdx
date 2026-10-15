@@ -1,0 +1,95 @@
+---
+title: Runtime configuration
+description: Configuration loading and environment variables for the standalone binary.
+---
+
+The standalone binary loads its generated configuration from embedded values and the process
+environment when a command uses it. Configuration fields come from the selected components and
+the manifest. Changes to environment variables take effect when configuration is loaded again.
+
+Use the [config command](/reference/archetypes/standalone/cli#config) to inspect resolved values.
+
+## Fixed and runtime values
+
+| Manifest value | Configuration behavior |
+|----------------|------------------------|
+| A literal value | Embedded as a fixed value. An environment override targeting it fails configuration loading. |
+| `runtime("NAME", default)` | Read from the environment, with the embedded default as fallback. |
+| `runtime("NAME")` | Read from the environment. A required field must have a value when configuration is loaded. |
+
+For manifest expression syntax, see [Runtime values](/reference/manifest#runtime-values).
+
+Fields supplied by configuration sections also have their own defaults. A field's manifest or
+component reference defines its settings and defaults.
+
+## Environment variable names
+
+The prefix is `AGENT__`. Separate nested field names with `__` and write them in uppercase:
+
+| Configuration path | Environment variable |
+|--------------------|----------------------|
+| `default_tenant_id` | `AGENT__DEFAULT_TENANT_ID` |
+| `server.port` | `AGENT__SERVER__PORT` |
+| `database.primary` | `AGENT__DATABASE__PRIMARY` |
+
+The field must be present in the binary's generated configuration and permit environment values.
+For example, server fields are generated when the HTTP server is enabled.
+
+A `runtime("NAME", ...)` expression also maps `NAME` to that field. Both the named variable and
+its `AGENT__...` form address the same setting. When both set that setting, the named variable wins.
+
+```hcl title="agent.acl"
+http_server {
+  port = runtime("HTTP_PORT", 8080)
+}
+```
+
+```bash
+export AGENT__SERVER__PORT=8081
+export HTTP_PORT=9090
+```
+
+The resolved port is `9090`. With both variables unset, it is `8080`.
+
+## Value formats
+
+Write scalar values as text. Numbers are parsed into the field's numeric type, and `true` or
+`false` set boolean fields. Lists and maps accept JSON values:
+
+```bash
+export AGENT__DATABASE__AUTO_MIGRATE=false
+export AGENT__DATABASE__REPLICAS='["postgresql://user:password@replica:5432/dbname"]'
+```
+
+Nested keys can address individual fields. Numeric segments address list positions:
+
+```bash
+export AGENT__DATABASE__REPLICAS__0=postgresql://user:password@replica:5432/dbname
+```
+
+When both a parent value and a nested value are supplied, the parent is applied first and the
+nested value is applied afterward.
+
+An empty environment value unsets its configuration path after embedded defaults are applied.
+The field's type and defaults determine the resulting value or missing-value error.
+
+## Configuration errors
+
+Configuration loading fails when a required value is missing, a value cannot be parsed into its
+field's type, or an environment variable attempts to change a fixed value. The error identifies
+the affected configuration path.
+
+## Settings references
+
+| Settings | Reference |
+|----------|-----------|
+| Default tenant | [runtime](/reference/manifest/runtime) |
+| Provider credentials and model parameters | [Providers](/reference/manifest/providers) |
+| Agent settings | [agent](/reference/manifest/agent) |
+| HTTP listener | [http_server](/reference/manifest/http-server) |
+| Filesystem | [filesystem](/reference/manifest/filesystem) |
+| Outbound HTTP | [network](/reference/manifest/network) |
+| Logging, telemetry export, and error reporting | [Observability](/reference/observability) |
+
+Observability variables are read separately from the generated configuration and use the names
+listed in their reference.
