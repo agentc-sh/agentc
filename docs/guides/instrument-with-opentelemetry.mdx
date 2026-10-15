@@ -9,22 +9,29 @@ agent to a backend. For what each signal means, see [Observability](/concepts/ob
 
 ## Point the agent at an OTLP endpoint
 
-Set `OTLP_ENDPOINT` to the base URL of an OTLP over HTTP receiver. When it is set, the agent exports
-traces, metrics, and logs there. When it is absent, export is disabled and there is no overhead:
+Set a common OTLP/HTTP endpoint for export:
 
 ```bash
-export OTLP_ENDPOINT=http://localhost:4318
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
 export APP_ENV=production
 ./artifacts/build/my_agent serve
 ```
 
-`APP_ENV` tags every exported record with the environment it came from. The service name is the agent
-name from the manifest, baked in at build time. The agent appends the standard signal paths
-(`/v1/traces`, `/v1/metrics`, `/v1/logs`) to the endpoint automatically.
+For a receiver that accepts traces only, disable metric and log export:
+
+```bash
+export OTEL_EXPORTER_OTLP_ENDPOINT=https://telemetry.example.com
+export OTEL_METRICS_EXPORTER=none
+export OTEL_LOGS_EXPORTER=none
+./artifacts/build/my_agent serve
+```
+
+Application logs continue to appear on stdout. For signal-specific endpoints and all exporter
+settings, see the [observability reference](/reference/observability#opentelemetry).
 
 ## Send to a collector or a vendor
 
-The natural target for `OTLP_ENDPOINT` is an OpenTelemetry Collector, which receives all three signals
+The natural target for `OTEL_EXPORTER_OTLP_ENDPOINT` is an OpenTelemetry Collector, which receives all three signals
 and routes each one onward to the backends you use, for example a tracing store for traces, Prometheus
 for metrics, and a log store for logs. Because the export is standard OTLP, you can also point the
 agent directly at any OTLP-compatible vendor such as Honeycomb or Datadog without a collector in
@@ -91,6 +98,8 @@ Logs are written as structured JSON to standard output regardless of OTLP. Contr
 ```bash
 export LOG_LEVEL=debug
 ```
+
+For target filters, see the [logging reference](/reference/observability#logging).
 
 ## Report errors to Sentry
 

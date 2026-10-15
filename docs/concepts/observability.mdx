@@ -28,18 +28,15 @@ rather than reasoning from individual runs.
 **Errors** answer "what broke, and where." Optional error reporting captures unhandled errors and
 panics and sends them to an error-tracking service, tagged with the agent version and environment.
 
-## Everything exports over OTLP
+## Export signals over OTLP
 
-Logs, traces, and metrics are all exported using OpenTelemetry over OTLP, the OpenTelemetry
-line protocol. You point the agent at a single OTLP endpoint and all three signals flow there. The
-natural target is an OpenTelemetry Collector, which receives the telemetry and routes each signal
-onward to whatever backends you use, for example Jaeger or Grafana Tempo for traces, Prometheus for
-metrics, and a log store for logs. Any OTLP-compatible backend works, so you can also send directly to
-a vendor such as Honeycomb or Datadog without a collector in between.
+Logs, traces, and metrics use OTLP for remote export. Select signals to match the receiver's
+capabilities. A Collector can route several signals to different stores, while a signal-specific
+backend can receive its supported signal directly.
 
 ## Trace content and data handling
 
-When OTLP export is enabled, model and tool content is included in exported traces. Prompts,
+When trace export is enabled, model and tool content is included in exported traces. Prompts,
 messages, media, tool arguments, and tool results may contain secrets or personally identifiable
 information. Multimodal input and long contexts can also increase trace volume substantially.
 
@@ -58,9 +55,8 @@ An OpenTelemetry Collector can remove content attributes before traces leave you
 An agent in production is a long-running system that calls out to models and tools you do not control.
 When a run is slow, loops, or fails, prose logs alone rarely tell you why. Nested traces show the shape
 of a run at a glance, token counts make cost and context growth visible, and error reports surface the
-failures that would otherwise be buried in log volume. Because all of this is on by default and driven
-by environment variables, a production deployment gets it for free and a local run stays quiet until
-you ask for more.
+failures that would otherwise be buried in log volume. Built-in instrumentation and deployment-time
+export settings provide these signals without changes to application code.
 
 ## Where to go next
 
