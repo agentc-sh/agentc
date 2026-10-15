@@ -23,7 +23,7 @@ pub use skill::*;
 pub use tool::*;
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResolvedContext {
@@ -38,7 +38,7 @@ pub struct ResolvedContext {
     /// The resolved agent context.
     pub agent: ResolvedContextAgent,
     /// Resolved custom block contexts, keyed by block label.
-    pub blocks: HashMap<String, ResolvedContextBlock>,
+    pub blocks: BTreeMap<String, ResolvedContextBlock>,
     /// Resolved tool contexts, keyed by tool name.
     pub tools: HashMap<String, ResolvedContextTool>,
     /// Resolved skill contexts, keyed by skill name.

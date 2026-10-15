@@ -410,7 +410,7 @@ mod tests {
         assert_eq!(dependencies.len(), 1);
         assert!(matches!(
             dependencies
-                .get(&"agentc-http")
+                .get("agentc-http")
                 .unwrap(),
             CargoDependencyContribution::Runtime(dependency)
                 if dependency.default_features == Some(false)

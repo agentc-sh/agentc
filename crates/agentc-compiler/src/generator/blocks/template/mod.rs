@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: MIT
 
 pub mod block;
-pub mod evaluator;
-pub mod manifest;
+pub mod contribution;
 pub mod renderer;
+pub mod traits;
 
-pub use block::TemplateBlock;
-pub use manifest::{ExtensionPointSpec, FileSpec, Reducer, SlotFillSpec, TemplateBlockManifest};
+pub use block::{TemplateBlock, TemplateBlockBuilder};
+pub use traits::RenderedContribution;

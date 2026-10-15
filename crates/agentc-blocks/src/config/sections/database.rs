@@ -217,7 +217,7 @@ mod tests {
         assert_eq!(dependencies.len(), 1);
         assert!(
             dependencies
-                .get(&"agentc-database")
+                .get("agentc-database")
                 .is_some()
         );
     }

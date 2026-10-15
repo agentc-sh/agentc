@@ -8,14 +8,18 @@ pub mod javascript;
 pub mod python;
 
 use proc_macro2::TokenStream;
-use quote::quote;
 
 use agentc_compiler::generator::errors::GeneratorError;
 
 use crate::{
     config::fields::FieldsSpec,
     context::ResolvedContext,
-    contributions::import::{ImportContribution, Imports},
+    contributions::{
+        dependency::{
+            CargoDependencies, CargoDependencyContribution, RuntimeDependencyContribution,
+        },
+        import::{ImportContribution, Imports},
+    },
     graph::codegen::tools::{
         bash::BashTools,
         javascript::JavascriptTools,
@@ -75,15 +79,16 @@ impl ToolsCodeGen {
         Ok(registrations)
     }
 
-    /// The comma-separated cargo feature names for every tool kind present, as
-    /// contributed to the `tools::features` extension point.
-    pub fn features(ctx: &ResolvedContext) -> TokenStream {
-        let features = Self::generators(ctx)
-            .iter()
-            .filter_map(|g| g.feature())
-            .map(|f| quote! { #f })
-            .collect::<Vec<_>>();
-
-        quote! { #(#features),* }
+    pub fn dependencies(ctx: &ResolvedContext) -> Result<CargoDependencies, GeneratorError> {
+        CargoDependencies::from_entries([CargoDependencyContribution::runtime(
+            Self::generators(ctx)
+                .iter()
+                .filter_map(|generator| generator.feature())
+                .fold(
+                    RuntimeDependencyContribution::new("agentc-tools"),
+                    RuntimeDependencyContribution::feature,
+                ),
+        )])
+        .map_err(|error| GeneratorError::unexpected(error.to_string()))
     }
 }

@@ -108,7 +108,7 @@ impl AgentGraph for ReActGraph {
                     .contribute(Contribution::<RenderedTokenStream>::lenient("config::impls"))
                     .contribute(Contribution::<RenderedTokenStream>::lenient("config::loader"))
                     .contribute(Contribution::<RenderedTokenStream>::lenient("config::mapper"))
-                    .contribute(Contribution::<String>::lenient("tools::features"))
+                    .contribute(Contribution::<CargoDependencies>::strict("cargo::dependencies"))
                     .build(AgentCodeGen { fields: fields.clone(), config }),
             )
             .add(

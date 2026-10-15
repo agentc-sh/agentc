@@ -1,0 +1,39 @@
+---
+title: Standalone
+description: The standalone artifact, generated project, and build requirements.
+---
+
+The `standalone` archetype produces an executable binary from a generated Rust project. Select it
+through the [build block](/reference/manifest/build).
+
+## Artifact
+
+The binary embeds the generated application and prepared tool, skill and other assets.
+
+| Output | Description |
+|--------|-------------|
+| Generated project | Rust source, package manifest, and toolchain configuration. Available through [agentc generate](/reference/cli/generate). |
+| Compiled artifact | Executable binary. Its output location is controlled by [agentc build](/reference/cli/build). |
+
+The generated project includes `Cargo.toml`, `rust-toolchain.toml`, `build.rs`, and a `src/` directory.
+The executable's entry point is `src/main.rs`. Command dispatch is in `src/cli/`, and runtime
+configuration is in `src/config/`. Additional files come from the selected components and custom
+blocks.
+
+For deployment instructions, see [Deploy a standalone binary](/guides/deploy-standalone).
+
+## Build requirements
+
+Building requires Cargo and rustup. The generated project selects Rust `1.97` and edition `2024`.
+
+The [build reference](/reference/manifest/build#standalone-options) defines the target operating
+system and architecture options. Running the artifact through [agentc run](/reference/cli/run)
+requires a host-compatible target.
+
+## Interfaces
+
+| Reference | Describes |
+|-----------|-----------|
+| [Command-line interface](/reference/archetypes/standalone/cli) | Commands, options, and output of the generated binary. |
+| [Runtime configuration](/reference/archetypes/standalone/configuration) | Environment variables, runtime values, and configuration loading. |
+| [Extension points](/reference/archetypes/standalone/extension-points) | Places custom blocks contribute to generated files. |

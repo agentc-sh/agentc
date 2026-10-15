@@ -1,0 +1,91 @@
+---
+title: Command-line interface
+description: Commands, options, and output of the standalone binary.
+---
+
+Invoke commands on the compiled binary:
+
+```bash
+./my_agent <command>
+```
+
+| Command | Purpose | Availability |
+|---------|---------|--------------|
+| [run](#run) | Send an input message and print execution output. | Generated binary. |
+| [serve](#serve) | Listen for HTTP requests. | `http_server` enabled. |
+| [migrate](#migrate) | Apply pending database migrations and exit. | Generated database migration command. |
+| [config](#config) | Print resolved runtime configuration. | Generated binary. |
+
+Use `./my_agent --help` to list commands and `./my_agent <command> --help` for command options.
+`./my_agent --version` prints the application version.
+
+## run
+
+```bash
+./my_agent run [OPTIONS] <INPUT>
+```
+
+Send `INPUT` as a user message and consume the run's event stream until it ends.
+
+| Argument or option | Type | Default | Description |
+|--------------------|------|---------|-------------|
+| `INPUT` | string | Required | Message to send to the agent. |
+| `--tenant-id` | string | Configured default tenant | Tenant for the run. |
+| `--session-id` | UUID | New UUID | Session to use for the conversation. |
+| `--run-id` | UUID | New UUID | Identifier for the run. |
+| `--format` | `human` \| `json` | `human` | Output representation. |
+| `--no-migrations` | flag | Off | Skip startup database migrations. |
+
+`human` prints reasoning, assistant text, tool activity, and the final run status. `json` prints
+one event per line. State snapshots, state deltas, and the final result expose the run's context.
+
+```bash
+./my_agent run "Summarise README.md"
+./my_agent run --format json "What is 2 + 2?"
+./my_agent run --session-id 550e8400-e29b-41d4-a716-446655440000 "Continue"
+```
+
+## serve
+
+Available when the manifest enables [http_server](/reference/manifest/http-server).
+
+```bash
+./my_agent serve [--no-migrations]
+```
+
+Start the HTTP server with its configured address and enabled interfaces.
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--no-migrations` | flag | Off | Skip startup database migrations. |
+
+Server address and request limits are configured through the
+[http_server block](/reference/manifest/http-server).
+
+On the initial shutdown signal, the server stops accepting new requests and work. Existing work
+has a thirty-second grace period to finish, after which remaining connections are forcibly closed.
+
+## migrate
+
+```bash
+./my_agent migrate
+```
+
+Apply pending migrations to the configured database and exit.
+This command explicitly runs migrations regardless of the automatic migration setting.
+
+## config
+
+```bash
+./my_agent config [--format human|json]
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--format` | `human` \| `json` | `human` | Output representation of the resolved configuration. |
+
+`human` prints the resolved configuration as debugging output with secret values redacted. `json`
+prints formatted JSON with secret values included. Treat JSON output as sensitive.
+
+For loading and environment variable rules, see
+[Runtime configuration](/reference/archetypes/standalone/configuration).

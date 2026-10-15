@@ -221,7 +221,7 @@ impl Fragment<ResolvedContext> for PromptCargoFragment {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
+    use std::collections::{BTreeMap, HashMap};
 
     use super::*;
     use crate::{
@@ -255,7 +255,7 @@ mod tests {
                         name: RuntimeValue::constant("claude".to_string()),
                     },
                 },
-                blocks: HashMap::new(),
+                blocks: BTreeMap::new(),
                 tools: HashMap::new(),
                 skills: HashMap::new(),
                 http_server: None,
@@ -356,7 +356,7 @@ mod tests {
         assert_eq!(dependencies.len(), 1);
         assert!(matches!(
             dependencies
-                .get(&"agentc-prompt")
+                .get("agentc-prompt")
                 .unwrap(),
             CargoDependencyContribution::Runtime(dependency)
                 if dependency.features.len() == 2
@@ -379,7 +379,7 @@ mod tests {
         assert_eq!(dependencies.len(), 1);
         assert!(matches!(
             dependencies
-                .get(&"agentc-prompt")
+                .get("agentc-prompt")
                 .unwrap(),
             CargoDependencyContribution::Runtime(dependency)
                 if dependency.features.len() == 1
@@ -399,6 +399,6 @@ mod tests {
             .expect("patch should have the expected type");
 
         assert_eq!(patches.len(), 1);
-        assert!(patches.get(&"agentc-prompt").is_some());
+        assert!(patches.get("agentc-prompt").is_some());
     }
 }

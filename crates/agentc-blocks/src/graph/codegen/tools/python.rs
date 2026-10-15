@@ -332,7 +332,7 @@ impl Fragment<ResolvedContext> for FilesystemPythonCargoFragment {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
+    use std::collections::{BTreeMap, HashMap};
 
     use agentc_compiler::generator::extension::ExtensionPoint;
 
@@ -401,7 +401,7 @@ mod tests {
                         name: RuntimeValue::constant("claude".to_string()),
                     },
                 },
-                blocks: HashMap::new(),
+                blocks: BTreeMap::new(),
                 tools: tools.into_iter().collect(),
                 skills: HashMap::new(),
                 http_server: None,
@@ -447,11 +447,13 @@ mod tests {
         );
         assert!(registrations.contains("PythonTool :: builder"));
         assert!(registrations.contains("adder"));
-        assert!(
-            ToolsCodeGen::features(&ctx)
-                .to_string()
-                .contains("python-rustpython")
-        );
+        assert!(matches!(
+            ToolsCodeGen::dependencies(&ctx)
+                .unwrap()
+                .get("agentc-tools"),
+            Some(CargoDependencyContribution::Runtime(dependency))
+                if dependency.features.contains("python-rustpython")
+        ));
     }
 
     #[test]
@@ -474,11 +476,13 @@ mod tests {
         );
         assert!(registrations.contains("PythonTool :: builder"));
         assert!(registrations.contains("adder"));
-        assert!(
-            ToolsCodeGen::features(&ctx)
-                .to_string()
-                .contains("python-cpython")
-        );
+        assert!(matches!(
+            ToolsCodeGen::dependencies(&ctx)
+                .unwrap()
+                .get("agentc-tools"),
+            Some(CargoDependencyContribution::Runtime(dependency))
+                if dependency.features.contains("python-cpython")
+        ));
     }
 
     #[test]
@@ -498,7 +502,6 @@ mod tests {
             ),
         ]);
         let (imports, registrations) = PythonToolsFixture::generated(&ctx);
-        let features = ToolsCodeGen::features(&ctx).to_string();
 
         assert!(imports.contains("python::ExecutorBuilderHttpExt as _"));
         assert!(imports.contains("python::ExecutorBuilderToolsExt as _"));
@@ -512,8 +515,13 @@ mod tests {
         );
         assert!(registrations.contains("embedded_adder"));
         assert!(registrations.contains("static_adder"));
-        assert!(features.contains("python-rustpython"));
-        assert!(features.contains("python-cpython"));
+        assert!(matches!(
+            ToolsCodeGen::dependencies(&ctx)
+                .unwrap()
+                .get("agentc-tools"),
+            Some(CargoDependencyContribution::Runtime(dependency))
+                if dependency.features.contains("python-rustpython") && dependency.features.contains("python-cpython")
+        ));
     }
 
     #[test]
@@ -760,10 +768,12 @@ mod tests {
 
         assert!(imports.is_empty());
         assert!(registrations.is_empty());
-        assert!(
-            ToolsCodeGen::features(&ctx)
-                .to_string()
-                .is_empty()
-        );
+        assert!(matches!(
+            ToolsCodeGen::dependencies(&ctx)
+                .unwrap()
+                .get("agentc-tools"),
+            Some(CargoDependencyContribution::Runtime(dependency))
+                if dependency.features.is_empty()
+        ));
     }
 }
