@@ -1,6 +1,6 @@
 ---
 title: Runtime configuration
-description: Configuration loading and environment variables for the standalone binary.
+description: Runtime configuration fields, defaults, and environment variables for the standalone binary.
 ---
 
 The standalone binary loads its generated configuration from embedded values and the process
@@ -8,6 +8,409 @@ environment when a command uses it. Configuration fields come from the selected 
 the manifest. Changes to environment variables take effect when configuration is loaded again.
 
 Use the [config command](/reference/archetypes/standalone/cli#config) to inspect resolved values.
+
+## Configuration shape
+
+The tables below describe configuration paths in the generated binary. Fields marked
+`manifest value` take their value or runtime fallback from the resolved manifest. A field listed
+as conditional is generated only when its corresponding configuration is present.
+
+`…` indicates a required value with no default. `null` indicates an optional value. Fields with
+types linked below have their own shape definitions on this page. `JSON value` means arbitrary
+JSON data whose structure is defined by its consumer.
+
+### Config
+
+| Field | Type | Availability | Default | Description |
+|-------|------|--------------|---------|-------------|
+| `default_tenant_id` | string | Generated configuration | `default`, or manifest value | Tenant used when the caller supplies no tenant. |
+| `agent` | [AgentConfig](#agentconfig) | Generated agent fields | Manifest values | Agent model and optional prompt configuration. |
+| `provider` | [ProviderConfigs](#providerconfigs) | Providers with generated fields | Manifest values | Credentials, endpoints, and inference settings keyed by provider. |
+| `tool` | [ToolConfigs](#toolconfigs) | JavaScript, Python, or Bash tools | Manifest values | Tool activation and tool-defined configuration. |
+| `server` | [ServerConfig](#serverconfig) | `http_server` enabled | Defaults below, or manifest values | HTTP listener settings. |
+| `filesystem` | [FilesystemConfig](#filesystemconfig) | Generated configuration | Defaults below | Host directories mounted into the virtual filesystem. |
+| `network` | [NetworkConfig](#networkconfig) | Generated configuration | Defaults below, or manifest values | Outbound HTTP settings and access policy. |
+| `mcp` | [McpConfig](#mcpconfig) | Generated configuration | Manifest values, or empty servers | MCP server transports. |
+| `a2a` | [A2aConfig](#a2aconfig) | Generated configuration | Manifest values, or empty agents | Outbound A2A targets. |
+| `database` | [DatabaseConfig](#databaseconfig) | ReAct graph | Defaults below | Persistence connections and migration settings. |
+| `react` | [ReActConfig](#reactconfig) | ReAct graph | Defaults below, or manifest values | Graph-level model call policy. |
+| `task_queue` | [TaskQueueConfig](#taskqueueconfig) | ReAct graph with HTTP server | Defaults below | Queued work and batching limits. |
+| `pubsub` | [MemoryPubSub](#memorypubsub) \| [RedisPubSub](#redispubsub) | ReAct graph with HTTP server | Memory transport, capacity `4096` | Transport for distributing live run events. |
+
+Inspect a particular binary with the [config command](/reference/archetypes/standalone/cli#config).
+Custom blocks can contribute additional configuration fields.
+
+### AgentConfig
+
+Path: `agent`.
+
+| Field | Type | Availability | Default | Description |
+|-------|------|--------------|---------|-------------|
+| `model` | [AgentModel](#agentmodel) | Generated agent fields | Manifest values | Default provider and model selection. |
+| `capabilities` | array&lt;string&gt; | Capabilities configured | Manifest value | Capabilities available to the agent. |
+| `prompt` | [PromptConfig](#promptconfig) | Langfuse prompt configured | Manifest values | Remote prompt settings. |
+
+### AgentModel
+
+Path: `agent.model`.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `provider` | string | Manifest value | Provider selected for model calls. |
+| `name` | string | Manifest value | Model identifier sent to the provider. |
+
+### PromptConfig
+
+Path: `agent.prompt`.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `langfuse` | [LangfusePromptConfig](#langfusepromptconfig) | Manifest values | Langfuse prompt retrieval settings. |
+
+### LangfusePromptConfig
+
+Path: `agent.prompt.langfuse`. Optional settings below are generated when supplied by the resolved
+prompt configuration. Their values and runtime fallbacks follow the
+[Langfuse prompt source](/reference/manifest/agent).
+
+| Field | Type | Availability | Description |
+|-------|------|--------------|-------------|
+| `prompt_name` | string | Langfuse prompt configured | Name of the prompt to retrieve. |
+| `public_key` | string | Langfuse prompt configured | Public authentication key. |
+| `secret_key` | string | Langfuse prompt configured | Secret authentication key. |
+| `base_url` | string | Configured | Langfuse service URL. |
+| `label` | string | Configured | Label selecting a prompt version. |
+| `version` | integer | Configured | Specific prompt version to retrieve. |
+| `cache_ttl_seconds` | integer | Configured | Time in seconds to retain a retrieved prompt in the cache. |
+| `fetch_timeout_seconds` | integer | Configured | Time in seconds allowed for a retrieval request. |
+| `max_retries` | integer | Configured | Maximum retries for prompt retrieval. |
+
+### ProviderConfigs
+
+Path: `provider`. Each generated field is the configuration key of a declared provider.
+Provider labels containing punctuation are converted to snake case for this key.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `<provider_key>` | [ProviderConfig](#providerconfig) | Settings for the provider with this configuration key. |
+
+### ProviderConfig
+
+Path: `provider.<provider_key>`. Only configured fields are generated. Values and runtime
+fallbacks come from the corresponding [provider declaration](/reference/manifest/providers).
+
+| Field | Type | Availability | Description |
+|-------|------|--------------|-------------|
+| `api_key` | string | Configured for a provider supporting credentials | Authentication key. |
+| `base_url` | string | Configured for Anthropic, OpenAI, Ollama, or Hugging Face | Service endpoint. |
+| `params` | [InferenceParams](#inferenceparams) | Provider-level parameters configured | Inference defaults shared by the provider's models. |
+| `<model_key>` | [InferenceParams](#inferenceparams) | Parameters configured for that model | Inference settings for an individual model. |
+
+Model keys replace each non-alphanumeric character in the model name with `_`. For example,
+`google/gemma-2-2b-it` becomes `google_gemma_2_2b_it`. A model's settings live directly under this
+key, such as `provider.cloud.google_gemma_2_2b_it.temperature`.
+
+### InferenceParams
+
+Only configured parameters are generated. Each takes its value or runtime fallback from the
+corresponding provider or model declaration.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `max_tokens` | integer | Maximum output token count. |
+| `temperature` | number | Sampling temperature. |
+| `top_p` | number | Probability mass used for nucleus sampling. |
+| `top_k` | integer | Maximum candidate tokens considered during sampling. |
+| `stop_sequences` | array&lt;string&gt; | Sequences that end generation. |
+| `frequency_penalty` | number | Penalty based on token repetition frequency. |
+| `presence_penalty` | number | Penalty for tokens already present in the response. |
+| `seed` | integer | Sampling seed. |
+| `provider_params` | JSON value | Provider-specific inference settings. |
+
+### ToolConfigs
+
+Path: `tool`. Each generated field is the configuration key of a JavaScript, Python, or Bash
+tool. Tool labels containing punctuation are converted to snake case for this key.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `<tool_key>` | [ToolConfig](#toolconfig) | Settings for the tool with this configuration key. |
+
+### ToolConfig
+
+Path: `tool.<tool_key>`. Values and runtime fallbacks come from the tool declaration.
+
+| Field | Type | Availability | Description |
+|-------|------|--------------|-------------|
+| `enabled` | boolean | Generated tool fields | Whether the tool is enabled. |
+| `<config_key>` | string | Key declared in the tool's `config` | Tool-defined configuration value. |
+
+### ServerConfig
+
+Path: `server`. Defaults apply when the corresponding
+[HTTP server field](/reference/manifest/http-server) is omitted.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `host` | string | `127.0.0.1` | Address on which the server listens. |
+| `port` | integer | `8080` | TCP port on which the server listens. |
+| `max_request_size` | integer | `2097152` | Maximum accepted request body size in bytes. |
+
+### FilesystemConfig
+
+Path: `filesystem`.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `binds` | array&lt;[FilesystemBind](#filesystembind)&gt; | `[]` | Host directory mounts added after the compiled filesystem topology. |
+
+### FilesystemBind
+
+Path: `filesystem.binds.<index>`.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `path` | string | … | Mount location inside the virtual filesystem. |
+| `root` | string | … | Host directory exposed by the mount. |
+| `readonly` | boolean | `false` | Whether access through the mount is read-only. |
+| `follow_symlinks` | boolean | `false` | Whether the host backend follows symbolic links. |
+
+### NetworkConfig
+
+Path: `network`. Defaults below apply when the corresponding
+[network fields](/reference/manifest/network) are omitted. Manifest values can replace them.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `user_agent` | string \| null | `null` | User-Agent header sent with requests. |
+| `headers` | map&lt;string, string&gt; | `{}` | Additional request headers. |
+| `limits` | [NetworkLimits](#networklimits) | Defaults below | Connection, response, and concurrency limits. |
+| `policy` | [NetworkPolicy](#networkpolicy) | Defaults below | Rules governing outbound destinations and methods. |
+
+### NetworkLimits
+
+Path: `network.limits`.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `connect_timeout_ms` | integer \| null | `null` | Time in milliseconds allowed to establish a connection. |
+| `read_timeout_ms` | integer \| null | `null` | Time in milliseconds allowed between response body chunks. |
+| `request_timeout_ms` | integer \| null | `null` | Time in milliseconds allowed for the entire request. |
+| `max_redirects` | integer | `5` | Maximum redirects followed for one request. |
+| `max_response_bytes` | integer \| null | `null` | Maximum accepted response body size in bytes. |
+| `concurrency_limit` | integer \| null | `null` | Maximum simultaneous requests. |
+
+### NetworkPolicy
+
+Path: `network.policy`.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `addresses` | [NetworkAddresses](#networkaddresses) | Defaults below | Permitted destination address categories. |
+| `methods` | array&lt;string&gt; \| null | `null` | Permitted HTTP methods. `null` permits all methods. |
+| `allow` | array&lt;[NetworkUrlPattern](#networkurlpattern)&gt; | `[]` | URL patterns that requests must match. An empty array denies every URL. |
+
+### NetworkAddresses
+
+Path: `network.policy.addresses`.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `allow_loopback` | boolean | `false` | Allow this machine's loopback addresses, such as `127.0.0.1` and `::1`. |
+| `allow_private` | boolean | `false` | Allow private-network destinations, such as `10.0.0.1` and `192.168.1.1`. |
+| `allow_link_local` | boolean | `false` | Allow addresses on the immediately connected network, such as `169.254.0.1`, including cloud metadata addresses. |
+
+### NetworkUrlPattern
+
+Path: `network.policy.allow.<index>`.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `protocol` | string \| null | `null` | URL scheme pattern. |
+| `hostname` | string \| null | `null` | Host name pattern. |
+| `port` | string \| null | `null` | Port pattern. |
+| `pathname` | string \| null | `null` | URL path pattern. |
+
+A `null` component matches any value. See [URL patterns](/reference/manifest/network#allow)
+for pattern syntax.
+
+```bash
+export AGENT__NETWORK__POLICY__ALLOW__0__HOSTNAME=somehost.com
+```
+
+### McpConfig
+
+Path: `mcp`.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `servers` | map&lt;string, [McpStdioTransport](#mcpstdiotransport) \| [McpHttpTransport](#mcphttptransport)&gt; | Manifest transports, or `{}` | MCP connections keyed by manifest tool label. |
+
+### McpStdioTransport
+
+Path: `mcp.servers.<label>` when `type = stdio`.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `type` | `stdio` | … | Transport discriminator. |
+| `command` | string | Manifest value | Executable used to start the MCP server. |
+| `args` | array&lt;string&gt; | `[]`, or manifest values | Arguments passed to the executable. |
+| `env` | map&lt;string, string&gt; | `{}`, or manifest values | Environment values supplied to the MCP process. |
+
+### McpHttpTransport
+
+Path: `mcp.servers.<label>` when `type = http`.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `type` | `http` | … | Transport discriminator. |
+| `url` | string | Manifest value | MCP server URL. |
+| `auth_token` | string \| null | `null`, or manifest value | Authentication token. |
+| `headers` | map&lt;string, string&gt; | `{}`, or manifest values | Additional request headers. |
+
+### A2aConfig
+
+Path: `a2a`.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `agents` | map&lt;string, [A2aAgent](#a2aagent)&gt; | Manifest targets, or `{}` | Outbound A2A targets keyed by manifest tool label. |
+
+### A2aAgent
+
+Path: `a2a.agents.<label>`. Manifest values and runtime fallbacks take precedence over the
+defaults below.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `url` | string | Empty string | Target service URL. |
+| `auth_token` | string \| null | `null` | Authentication token. |
+| `headers` | map&lt;string, string&gt; | `{}` | Additional request headers. |
+| `tenant` | [A2aTenant](#a2atenant) | `inherit` policy | Tenant identity forwarded to the target. |
+| `timeout_secs` | integer | `60` | Request timeout in seconds. |
+| `default_accepted_output_modes` | array&lt;string&gt; | `[]` | Accepted output modes used by default. |
+| `description` | string \| null | `null` | Description presented for the target. |
+| `capabilities` | array&lt;string&gt; | `[]` | Capabilities associated with the target. |
+| `enabled` | boolean | `true` | Whether the target is enabled. |
+
+### A2aTenant
+
+Path: `a2a.agents.<label>.tenant`.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `policy` | `inherit` \| `none` \| `fixed` | `inherit` for an omitted tenant | Tenant selection policy. |
+| `id` | string | … | Tenant ID, required for `fixed`. |
+
+`inherit` forwards the caller's effective tenant. `none` sends the request without tenant
+identity. `fixed` forwards `id`.
+
+### DatabaseConfig
+
+Path: `database`. Available with the ReAct graph.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `primary` | string | `sqlite://database.db?mode=rwc` | Primary database connection URL. |
+| `replicas` | array&lt;string&gt; | `[]` | Database connection URLs available for read operations. |
+| `options` | [DatabaseOptions](#databaseoptions) | Defaults below | Connection pool and logging settings. |
+| `auto_migrate` | boolean | `true` | Apply pending migrations when an execution command starts. |
+
+The [CLI reference](/reference/archetypes/standalone/cli) defines the migration command and
+the `--no-migrations` override.
+
+### DatabaseOptions
+
+Path: `database.options`. When this entire setting is omitted, optional limits are `null` and
+`enable_logging` is `false`. When supplying an options object, include `enable_logging`.
+
+| Field | Type | Default when omitted | Description |
+|-------|------|----------------------|-------------|
+| `max_connections` | integer \| null | `null` | Maximum pool connections. |
+| `min_connections` | integer \| null | `null` | Minimum pool connections. |
+| `connect_timeout` | [Duration](#duration) \| null | `null` | Time allowed to establish a database connection. |
+| `idle_timeout` | [Duration](#duration) \| null | `null` | Time an unused connection may remain in the pool. |
+| `acquire_timeout` | [Duration](#duration) \| null | `null` | Time allowed to acquire a connection from the pool. |
+| `max_lifetime` | [Duration](#duration) \| null | `null` | Maximum lifetime of a pooled connection. |
+| `enable_logging` | boolean | … | Enable database statement logging. |
+
+### Duration
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `secs` | integer | … | Whole seconds. |
+| `nanos` | integer | … | Additional nanoseconds. |
+
+For example, configure a ten-second connection acquisition timeout:
+
+```bash
+export AGENT__DATABASE__OPTIONS__ENABLE_LOGGING=false
+export AGENT__DATABASE__OPTIONS__ACQUIRE_TIMEOUT__SECS=10
+export AGENT__DATABASE__OPTIONS__ACQUIRE_TIMEOUT__NANOS=0
+```
+
+### ReActConfig
+
+Path: `react`. Available with the ReAct graph.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `model` | [ReActModelConfig](#reactmodelconfig) | Defaults below | Default policy for model calls. |
+
+### ReActModelConfig
+
+Path: `react.model`. Configured [graph model values](/reference/manifest/graph) supply
+embedded values or runtime fallbacks.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `timeout` | integer \| null | `null` | Model call timeout in milliseconds. |
+| `retry` | [ReActRetryConfig](#reactretryconfig) \| null | `null` | Retry policy for model calls. |
+
+### ReActRetryConfig
+
+Path: `react.model.retry`. All three fields are required when a retry policy is supplied.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `max_attempts` | integer | … | Maximum attempts for a model call. |
+| `initial_backoff` | integer | … | Initial retry delay in milliseconds. |
+| `max_backoff` | integer | … | Maximum retry delay in milliseconds. |
+
+### TaskQueueConfig
+
+Path: `task_queue`. Available with the ReAct graph and HTTP server.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `worker_count` | integer | `64` | Number of workers processing queued work. |
+| `max_queue_capacity` | integer | `256` | Maximum queue capacity. |
+| `batch_size` | integer | `16` | Maximum items collected into a batch. |
+| `batch_timeout_ms` | integer | `25` | Maximum wait in milliseconds when collecting a batch. |
+
+### MemoryPubSub
+
+Path: `pubsub`. Available with the ReAct graph and HTTP server. The whole section defaults to
+`kind = memory` and `capacity = 4096`. Supplying the section explicitly requires both fields.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `kind` | `memory` | … | Select the in-process event transport. |
+| `capacity` | integer | … | Event buffer capacity. |
+
+### RedisPubSub
+
+Path: `pubsub` when `kind = redis`.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `kind` | `redis` | … | Select the Redis event transport. |
+| `url` | string | … | Redis connection URL. |
+
+```bash
+export AGENT__PUBSUB__KIND=redis
+export AGENT__PUBSUB__URL=redis://localhost:6379/1
+```
 
 ## Fixed and runtime values
 
@@ -51,20 +454,40 @@ export HTTP_PORT=9090
 
 The resolved port is `9090`. With both variables unset, it is `8080`.
 
+Aliases also support nested keys and list positions using the same `__` separator. For example:
+
+```hcl title="agent.acl"
+network {
+  policy {
+    allow = runtime("ALLOW", [])
+  }
+}
+```
+
+```bash
+export ALLOW__0__HOSTNAME=somehost.com
+export ALLOW__0__PORT=8080
+```
+
+These variables set the first allowed URL pattern's hostname and port. `ALLOW__0__PORT` addresses
+the same field as `AGENT__NETWORK__POLICY__ALLOW__0__PORT`.
+
 ## Value formats
 
 Write scalar values as text. Numbers are parsed into the field's numeric type, and `true` or
-`false` set boolean fields. Lists and maps accept JSON values:
+`false` set boolean fields. Lists and maps accept delimited field paths or JSON values:
 
 ```bash
 export AGENT__DATABASE__AUTO_MIGRATE=false
-export AGENT__DATABASE__REPLICAS='["postgresql://user:password@replica:5432/dbname"]'
+export AGENT__DATABASE__REPLICAS__0=postgresql://user:password@replica:5432/dbname
 ```
 
-Nested keys can address individual fields. Numeric segments address list positions:
+Nested keys address individual fields. Numeric segments address list positions, as `0` does above.
+
+Alternatively, supply a complete list or map as a JSON value:
 
 ```bash
-export AGENT__DATABASE__REPLICAS__0=postgresql://user:password@replica:5432/dbname
+export AGENT__DATABASE__REPLICAS='["postgresql://user:password@replica:5432/dbname"]'
 ```
 
 When both a parent value and a nested value are supplied, the parent is applied first and the
