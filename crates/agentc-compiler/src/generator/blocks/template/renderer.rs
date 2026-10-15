@@ -143,18 +143,12 @@ mod tests {
 
     #[test]
     fn quote_and_backslash_are_escaped() {
-        assert_eq!(
-            TomlEscaped::new("C:\\deps\\\"foo\"").to_string(),
-            "C:\\\\deps\\\\\\\"foo\\\"",
-        );
+        assert_eq!(TomlEscaped::new("C:\\deps\\\"foo\"").to_string(), "C:\\\\deps\\\\\\\"foo\\\"",);
     }
 
     #[test]
     fn control_characters_are_escaped() {
-        assert_eq!(
-            TomlEscaped::new("a\nb\u{1f}\u{7f}").to_string(),
-            "a\\nb\\u001F\\u007F",
-        );
+        assert_eq!(TomlEscaped::new("a\nb\u{1f}\u{7f}").to_string(), "a\\nb\\u001F\\u007F",);
     }
 
     #[test]

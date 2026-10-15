@@ -8,10 +8,7 @@ use std::fmt::{Display, Formatter, Result as FmtResult};
 use agentc_compiler::{
     generator::{
         blocks::{
-            BlockSet,
-            codegen::CodeGenBlock,
-            fragment::FragmentBlock,
-            template::TemplateBlock,
+            BlockSet, codegen::CodeGenBlock, fragment::FragmentBlock, template::TemplateBlock,
         },
         extension::{Contribution, reducers},
     },
@@ -159,10 +156,7 @@ impl Archetype for StandaloneArchetype {
             .add(
                 TemplateBlock::builder()
                     .id("rust-toolchain_toml")
-                    .file(
-                        "rust-toolchain.toml",
-                        include_str!("templates/rust-toolchain.toml.j2"),
-                    )
+                    .file("rust-toolchain.toml", include_str!("templates/rust-toolchain.toml.j2"))
                     .build(),
             )
             .add(
@@ -690,7 +684,10 @@ mod tests {
             .resolve(context(None), StandaloneArchetypeConfig::default())
             .unwrap();
         let registry = ExtensionRegistry::resolve(
-            vec![Box::new(StringExtensionPoint::new("cargo::tables", reducers::concat))],
+            vec![Box::new(StringExtensionPoint::new(
+                "cargo::tables",
+                reducers::concat,
+            ))],
             HashMap::from([(
                 "cargo::tables".to_string(),
                 vec![ErasedContributionValue::new(

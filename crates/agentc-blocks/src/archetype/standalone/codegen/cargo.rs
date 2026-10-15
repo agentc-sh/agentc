@@ -44,12 +44,9 @@ impl<'a> TomlKey<'a> {
 
     fn is_bare(&self) -> bool {
         !self.value.is_empty()
-            && self
-                .value
-                .chars()
-                .all(|character| {
-                    character.is_ascii_alphanumeric() || character == '_' || character == '-'
-                })
+            && self.value.chars().all(|character| {
+                character.is_ascii_alphanumeric() || character == '_' || character == '-'
+            })
     }
 }
 
@@ -105,7 +102,10 @@ impl CargoDependenciesExtensionPoint {
     }
 
     fn render_runtime_dependency(&self, dependency: RuntimeDependencyContribution) -> String {
-        let mut fields = vec![format!("version = {}", TomlString::new(self.runtime_version))];
+        let mut fields = vec![format!(
+            "version = {}",
+            TomlString::new(self.runtime_version)
+        )];
 
         if let Some(default_features) = dependency.default_features {
             fields.push(format!("default-features = {default_features}"));

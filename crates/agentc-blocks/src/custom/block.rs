@@ -65,7 +65,8 @@ impl From<&ResolvedContextBlock> for CustomBlock {
         for (point, contribution) in &block.contributes {
             match contribution {
                 ResolvedContextBlockContribution::Text(file) => {
-                    template = template.contribute(Contribution::<String>::strict(point), &file.content);
+                    template =
+                        template.contribute(Contribution::<String>::strict(point), &file.content);
                 }
                 ResolvedContextBlockContribution::Tokens(file) => {
                     template = template.contribute(
@@ -87,10 +88,7 @@ impl From<&ResolvedContextBlock> for CustomBlock {
             }
         }
 
-        Self {
-            template: template.build(),
-            values,
-        }
+        Self { template: template.build(), values }
     }
 }
 

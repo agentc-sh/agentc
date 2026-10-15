@@ -15,7 +15,9 @@ use crate::{
     config::fields::FieldsSpec,
     context::ResolvedContext,
     contributions::{
-        dependency::{CargoDependencies, CargoDependencyContribution, RuntimeDependencyContribution},
+        dependency::{
+            CargoDependencies, CargoDependencyContribution, RuntimeDependencyContribution,
+        },
         import::{ImportContribution, Imports},
     },
     graph::codegen::tools::{

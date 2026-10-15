@@ -130,11 +130,7 @@ where
                     self.id,
                 ))
             })?
-            .render(
-                &self.id,
-                &TemplateRenderer::new(ctx.as_inner())
-                    .with_vars(self.vars.clone()),
-            )
+            .render(&self.id, &TemplateRenderer::new(ctx.as_inner()).with_vars(self.vars.clone()))
     }
 
     async fn render(
@@ -143,8 +139,7 @@ where
         registry: &ExtensionRegistry,
         vfs: &mut VirtualFileSystem,
     ) -> Result<(), GeneratorError> {
-        let renderer = TemplateRenderer::new(ctx.as_inner())
-            .with_vars(self.vars.clone());
+        let renderer = TemplateRenderer::new(ctx.as_inner()).with_vars(self.vars.clone());
 
         for file in &self.files {
             file.render(&self.id, &renderer, registry, vfs)?;
@@ -191,10 +186,8 @@ impl TemplateBlockBuilder {
     }
 
     pub fn file(mut self, path: impl Into<String>, source: impl Into<String>) -> Self {
-        self.files.push(TemplateFile {
-            path: path.into(),
-            source: source.into(),
-        });
+        self.files
+            .push(TemplateFile { path: path.into(), source: source.into() });
         self
     }
 

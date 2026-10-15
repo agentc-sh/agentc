@@ -71,7 +71,7 @@ where
                             expected: expected_name,
                             actual: contribution.contribution_type_name,
                         });
-                    }    
+                    }
                 } else if contribution.strict {
                     return Err(GeneratorError::UndeclaredExtensionPoint {
                         block_id: block.id().to_string(),

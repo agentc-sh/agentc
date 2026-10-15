@@ -8,8 +8,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use validator::Validate;
 
 use agentc_blocks::context::{
-    ResolvedContextBlockContribution, ResolvedContextBlockDependency,
-    ResolvedContextBlockTemplate,
+    ResolvedContextBlockContribution, ResolvedContextBlockDependency, ResolvedContextBlockTemplate,
 };
 use agentc_compiler::generator::loader::ResourceLoader;
 
