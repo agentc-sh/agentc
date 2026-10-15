@@ -330,7 +330,7 @@ impl Fragment<ResolvedContext> for A2aSection {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
+    use std::collections::{BTreeMap, HashMap};
 
     use super::*;
     use crate::context::{
@@ -361,7 +361,7 @@ mod tests {
                         name: RuntimeValue::constant("claude".to_string()),
                     },
                 },
-                blocks: HashMap::new(),
+                blocks: BTreeMap::new(),
                 tools: HashMap::from([(
                     "planner".to_string(),
                     ResolvedContextTool {

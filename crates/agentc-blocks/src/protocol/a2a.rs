@@ -252,7 +252,7 @@ mod tests {
         assert_eq!(dependencies.len(), 1);
         assert!(matches!(
             dependencies
-                .get(&"agentc-protocol-a2a")
+                .get("agentc-protocol-a2a")
                 .unwrap(),
             CargoDependencyContribution::Runtime(dependency)
                 if dependency.default_features == Some(false)
@@ -272,7 +272,7 @@ mod tests {
         assert_eq!(patches.len(), 1);
         assert!(
             patches
-                .get(&"agentc-protocol-a2a")
+                .get("agentc-protocol-a2a")
                 .is_some()
         );
     }

@@ -21,6 +21,9 @@ pub enum GeneratorError {
     #[error("extension point '{point}' is declared more than once")]
     DuplicateExtensionPoint { point: String },
 
+    #[error("block '{block_id}' contributes to extension point '{point}' more than once")]
+    DuplicateContribution { block_id: String, point: String },
+
     #[error(
         "block '{block_id}' contributes to extension point '{point}' with type '{actual}', but the extension point expects '{expected}'"
     )]
@@ -31,28 +34,12 @@ pub enum GeneratorError {
         actual: &'static str,
     },
 
-    #[error("template '{template}' not found in block '{block_id}'")]
-    TemplateNotFound { block_id: String, template: String },
-
     #[error("template render failed in block '{block_id}': {source}")]
     RenderFailed {
         block_id: String,
         #[source]
         source: minijinja::Error,
     },
-
-    #[error("condition parse failed in block '{block_id}': {message}")]
-    ConditionParseFailed { block_id: String, message: String },
-
-    #[error("condition eval failed in block '{block_id}': {source}")]
-    ConditionEvalFailed {
-        block_id: String,
-        #[source]
-        source: cel::ExecutionError,
-    },
-
-    #[error("condition in block '{block_id}' did not evaluate to a boolean")]
-    ConditionNotBoolean { block_id: String },
 
     #[error("resource not found: {0}")]
     ResourceNotFound(String),

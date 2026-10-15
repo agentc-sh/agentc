@@ -215,7 +215,7 @@ mod tests {
         assert_eq!(dependencies.len(), 1);
         assert!(matches!(
             dependencies
-                .get(&"agentc-fs")
+                .get("agentc-fs")
                 .unwrap(),
             CargoDependencyContribution::Runtime(dependency)
                 if dependency.default_features == Some(false)

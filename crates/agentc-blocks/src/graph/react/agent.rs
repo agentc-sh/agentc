@@ -317,8 +317,8 @@ impl CodeGen<ResolvedContext> for AgentCodeGen {
             "config::mapper" => Ok(ErasedContributionValue::new(RenderedTokenStream::from(
                 self.config_mapper_fields(),
             ))),
-            "tools::features" => {
-                Ok(ErasedContributionValue::new(ToolsCodeGen::features(ctx).to_string()))
+            "cargo::dependencies" => {
+                Ok(ErasedContributionValue::new(ToolsCodeGen::dependencies(ctx)?))
             }
             _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
         }

@@ -20,7 +20,9 @@ where
     T: Serialize + Send + Sync,
 {
     pub fn try_new(blocks: Vec<Box<dyn Block<T>>>) -> Result<Self, GeneratorError> {
-        blocks.try_into()
+        let graph = Self { blocks: blocks };
+        graph.validate()?;
+        Ok(graph)
     }
 
     /// Validate the block graph.
@@ -49,7 +51,16 @@ where
                 return Err(GeneratorError::DuplicateBlock(block.id().to_string()));
             }
 
+            let mut contributed_points = HashSet::new();
+
             for contribution in block.contributions() {
+                if !contributed_points.insert(contribution.point.clone()) {
+                    return Err(GeneratorError::DuplicateContribution {
+                        block_id: block.id().to_string(),
+                        point: contribution.point.clone(),
+                    });
+                }
+
                 if let Some((expected_type, expected_name)) =
                     declared_extension_points.get(&contribution.point)
                 {
@@ -60,7 +71,7 @@ where
                             expected: expected_name,
                             actual: contribution.contribution_type_name,
                         });
-                    }
+                    }    
                 } else if contribution.strict {
                     return Err(GeneratorError::UndeclaredExtensionPoint {
                         block_id: block.id().to_string(),
@@ -86,8 +97,6 @@ where
     type Error = GeneratorError;
 
     fn try_from(value: Vec<Box<dyn Block<T>>>) -> Result<Self, Self::Error> {
-        let graph = Self { blocks: value };
-        graph.validate()?;
-        Ok(graph)
+        Self::try_new(value)
     }
 }

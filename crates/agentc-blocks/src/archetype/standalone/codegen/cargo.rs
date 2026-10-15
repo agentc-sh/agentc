@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 use agentc_compiler::generator::{
-    blocks::fragment::Fragment,
+    blocks::{fragment::Fragment, template::renderer::TomlEscaped},
     context::GenerationContext,
     errors::GeneratorError,
     extension::{ErasedContributionValue, ExtensionPoint},
@@ -16,6 +16,52 @@ use crate::{
         ExternalDependencyContribution, RuntimeDependencyContribution,
     },
 };
+
+struct TomlString<'a> {
+    value: &'a str,
+}
+
+impl<'a> TomlString<'a> {
+    fn new(value: &'a str) -> Self {
+        Self { value }
+    }
+}
+
+impl std::fmt::Display for TomlString<'_> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "\"{}\"", TomlEscaped::new(self.value))
+    }
+}
+
+struct TomlKey<'a> {
+    value: &'a str,
+}
+
+impl<'a> TomlKey<'a> {
+    fn new(value: &'a str) -> Self {
+        Self { value }
+    }
+
+    fn is_bare(&self) -> bool {
+        !self.value.is_empty()
+            && self
+                .value
+                .chars()
+                .all(|character| {
+                    character.is_ascii_alphanumeric() || character == '_' || character == '-'
+                })
+    }
+}
+
+impl std::fmt::Display for TomlKey<'_> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.is_bare() {
+            formatter.write_str(self.value)
+        } else {
+            write!(formatter, "{}", TomlString::new(self.value))
+        }
+    }
+}
 
 pub struct HttpServerCargoFragment;
 
@@ -59,7 +105,7 @@ impl CargoDependenciesExtensionPoint {
     }
 
     fn render_runtime_dependency(&self, dependency: RuntimeDependencyContribution) -> String {
-        let mut fields = vec![format!("version = \"{}\"", self.runtime_version)];
+        let mut fields = vec![format!("version = {}", TomlString::new(self.runtime_version))];
 
         if let Some(default_features) = dependency.default_features {
             fields.push(format!("default-features = {default_features}"));
@@ -70,41 +116,41 @@ impl CargoDependenciesExtensionPoint {
                 "features = [{}]",
                 dependency
                     .features
-                    .into_iter()
-                    .map(|feature| format!("\"{feature}\""))
+                    .iter()
+                    .map(|feature| TomlString::new(feature).to_string())
                     .collect::<Vec<_>>()
                     .join(", "),
             ));
         }
 
-        format!("{} = {{ {} }}", dependency.name, fields.join(", "))
+        format!("{} = {{ {} }}", TomlKey::new(dependency.name), fields.join(", "))
     }
 
     fn render_external_dependency(&self, dependency: ExternalDependencyContribution) -> String {
         let mut fields = Vec::new();
 
-        if let Some(path) = dependency.path {
-            fields.push(format!("path = \"{path}\""));
+        if let Some(path) = &dependency.path {
+            fields.push(format!("path = {}", TomlString::new(path)));
         }
 
-        if let Some(git) = dependency.git {
-            fields.push(format!("git = \"{git}\""));
+        if let Some(git) = &dependency.git {
+            fields.push(format!("git = {}", TomlString::new(git)));
         }
 
-        if let Some(version) = dependency.version {
-            fields.push(format!("version = \"{version}\""));
+        if let Some(version) = &dependency.version {
+            fields.push(format!("version = {}", TomlString::new(version)));
         }
 
-        if let Some(branch) = dependency.branch {
-            fields.push(format!("branch = \"{branch}\""));
+        if let Some(branch) = &dependency.branch {
+            fields.push(format!("branch = {}", TomlString::new(branch)));
         }
 
-        if let Some(tag) = dependency.tag {
-            fields.push(format!("tag = \"{tag}\""));
+        if let Some(tag) = &dependency.tag {
+            fields.push(format!("tag = {}", TomlString::new(tag)));
         }
 
-        if let Some(rev) = dependency.rev {
-            fields.push(format!("rev = \"{rev}\""));
+        if let Some(rev) = &dependency.rev {
+            fields.push(format!("rev = {}", TomlString::new(rev)));
         }
 
         if let Some(default_features) = dependency.default_features {
@@ -116,14 +162,14 @@ impl CargoDependenciesExtensionPoint {
                 "features = [{}]",
                 dependency
                     .features
-                    .into_iter()
-                    .map(|feature| format!("\"{feature}\""))
+                    .iter()
+                    .map(|feature| TomlString::new(feature).to_string())
                     .collect::<Vec<_>>()
                     .join(", "),
             ));
         }
 
-        format!("{} = {{ {} }}", dependency.name, fields.join(", "))
+        format!("{} = {{ {} }}", TomlKey::new(&dependency.name), fields.join(", "))
     }
 
     fn render(&self, dependency: CargoDependencyContribution) -> String {
@@ -166,7 +212,11 @@ impl CargoPatchesExtensionPoint {
     }
 
     fn render_runtime_patch(&self, dependency: RuntimeDependencyContribution) -> String {
-        format!("{} = {{ path = \"../runtime/{}\" }}", dependency.name, dependency.name,)
+        format!(
+            "{} = {{ path = {} }}",
+            TomlKey::new(dependency.name),
+            TomlString::new(&format!("../runtime/{}", dependency.name)),
+        )
     }
 }
 
@@ -445,5 +495,37 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn external_dependency_strings_are_escaped() {
+        assert_eq!(
+            ExtensionPoint::reduce(
+                &dependencies(),
+                vec![
+                    CargoDependencies::from_entries([CargoDependencyContribution::external(
+                        ExternalDependencyContribution::new("dep").path("C:\\deps\\dep"),
+                    )])
+                    .unwrap(),
+                ],
+            )
+            .unwrap(),
+            "dep = { path = \"C:\\\\deps\\\\dep\" }",
+        );
+    }
+
+    #[test]
+    fn crate_name_is_a_bare_key() {
+        assert_eq!(TomlKey::new("sea-orm_migration2").to_string(), "sea-orm_migration2");
+    }
+
+    #[test]
+    fn unsafe_key_is_quoted() {
+        assert_eq!(TomlKey::new("foo.bar").to_string(), "\"foo.bar\"");
+    }
+
+    #[test]
+    fn empty_key_is_quoted() {
+        assert_eq!(TomlKey::new("").to_string(), "\"\"");
     }
 }

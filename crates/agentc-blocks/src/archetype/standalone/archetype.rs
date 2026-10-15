@@ -11,9 +11,7 @@ use agentc_compiler::{
             BlockSet,
             codegen::CodeGenBlock,
             fragment::FragmentBlock,
-            template::{
-                ExtensionPointSpec, FileSpec, Reducer, TemplateBlock, TemplateBlockManifest,
-            },
+            template::TemplateBlock,
         },
         extension::{Contribution, reducers},
     },
@@ -147,44 +145,22 @@ impl Archetype for StandaloneArchetype {
         let mut blocks = BlockSet::new()
             .add(
                 TemplateBlock::builder()
-                    .with_manifest(TemplateBlockManifest {
-                        id: "cargo_toml".to_string(),
-                        files: vec![FileSpec {
-                            path: "Cargo.toml".to_string(),
-                            template: "cargo_toml".to_string(),
-                            condition: None,
-                        }],
-                        extension_points: vec![ExtensionPointSpec {
-                            name: "tools::features".to_string(),
-                            reducer: Reducer::JoinComma,
-                        }],
-                        slot_fills: vec![],
-                        description: None,
-                    })
+                    .id("cargo_toml")
+                    .var("runtime_version", env!("CARGO_PKG_VERSION"))
+                    .file("Cargo.toml", include_str!("templates/Cargo.toml.j2"))
                     .typed_extension_point(CargoDependenciesExtensionPoint::new(
                         "cargo::dependencies",
                         env!("CARGO_PKG_VERSION"),
                     ))
                     .typed_extension_point(CargoPatchesExtensionPoint::new("cargo::patches"))
-                    .with_template("cargo_toml", include_str!("templates/Cargo.toml.j2"))
-                    .with_var("runtime_version", env!("CARGO_PKG_VERSION"))
+                    .extension_point("cargo::tables", reducers::concat)
                     .build(),
             )
             .add(
                 TemplateBlock::builder()
-                    .with_manifest(TemplateBlockManifest {
-                        id: "rust-toolchain_toml".to_string(),
-                        files: vec![FileSpec {
-                            path: "rust-toolchain.toml".to_string(),
-                            template: "rust-toolchain_toml".to_string(),
-                            condition: None,
-                        }],
-                        extension_points: vec![],
-                        slot_fills: vec![],
-                        description: None,
-                    })
-                    .with_template(
-                        "rust-toolchain_toml",
+                    .id("rust-toolchain_toml")
+                    .file(
+                        "rust-toolchain.toml",
                         include_str!("templates/rust-toolchain.toml.j2"),
                     )
                     .build(),
@@ -298,7 +274,7 @@ mod tests {
     use agentc_compiler::generator::{
         blocks::codegen::CodeGen,
         context::GenerationContext,
-        extension::{ErasedContributionValue, ExtensionRegistry},
+        extension::{ErasedContributionValue, ExtensionRegistry, StringExtensionPoint},
         vfs::VirtualFileSystem,
     };
     use std::collections::HashMap;
@@ -509,45 +485,6 @@ mod tests {
         )));
     }
 
-    #[tokio::test]
-    async fn generated_cargo_toml_renders_the_tools_feature_contribution() {
-        let ctx = context(None);
-        let resolved = StandaloneArchetype
-            .resolve(ctx.clone(), StandaloneArchetypeConfig::default())
-            .unwrap();
-        let cargo_toml_block = resolved
-            .contribution
-            .blocks
-            .iter()
-            .find(|block| block.id() == "cargo_toml")
-            .expect("cargo_toml block is registered");
-        let registry = ExtensionRegistry::resolve(
-            cargo_toml_block.extension_points(),
-            HashMap::from([(
-                "tools::features".to_string(),
-                vec![ErasedContributionValue::new(
-                    "\"dummy-feature\"".to_string(),
-                )],
-            )]),
-        )
-        .unwrap();
-        let mut vfs = VirtualFileSystem::new();
-
-        cargo_toml_block
-            .render(&GenerationContext::new(ctx), &registry, &mut vfs)
-            .await
-            .unwrap();
-
-        let content = vfs
-            .get("Cargo.toml")
-            .expect("Cargo.toml is generated");
-
-        assert!(content.contains(&format!(
-            "agentc-tools = {{ version = \"{}\", default-features = false, features = [\"dummy-feature\"] }}",
-            env!("CARGO_PKG_VERSION"),
-        )));
-    }
-
     #[test]
     fn registers_the_server_fragments_only_with_an_http_server() {
         let without = StandaloneArchetype
@@ -745,5 +682,40 @@ mod tests {
 
         assert!(content.contains("jobq = { git = \"https://github.com/wizrds/jobq-rs.git\""));
         assert!(content.contains("subway = { git = \"https://github.com/wizrds/subway-rs.git\""));
+    }
+
+    #[tokio::test]
+    async fn generated_cargo_toml_ends_with_the_contributed_tables() {
+        let resolved = StandaloneArchetype
+            .resolve(context(None), StandaloneArchetypeConfig::default())
+            .unwrap();
+        let registry = ExtensionRegistry::resolve(
+            vec![Box::new(StringExtensionPoint::new("cargo::tables", reducers::concat))],
+            HashMap::from([(
+                "cargo::tables".to_string(),
+                vec![ErasedContributionValue::new(
+                    "[profile.release]\nlto = \"fat\"".to_string(),
+                )],
+            )]),
+        )
+        .unwrap();
+        let mut vfs = VirtualFileSystem::new();
+
+        resolved
+            .contribution
+            .blocks
+            .iter()
+            .find(|block| block.id() == "cargo_toml")
+            .expect("cargo_toml block is registered")
+            .render(&GenerationContext::new(context(None)), &registry, &mut vfs)
+            .await
+            .unwrap();
+
+        assert!(
+            vfs.get("Cargo.toml")
+                .expect("Cargo.toml is generated")
+                .trim_end()
+                .ends_with("[profile.release]\nlto = \"fat\"")
+        );
     }
 }
