@@ -212,45 +212,31 @@ impl TelemetryBuilder {
             builder = builder.endpoint(endpoint);
         }
 
-        Ok(
-            builder
-                .maybe_traces_endpoint(
-                    Self::read_env("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT")?,
-                )
-                .maybe_metrics_endpoint(
-                    Self::read_env("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT")?,
-                )
-                .maybe_logs_endpoint(
-                    Self::read_env("OTEL_EXPORTER_OTLP_LOGS_ENDPOINT")?,
-                )
-                .traces_exporter(
-                    Self::read_env("OTEL_TRACES_EXPORTER")?
-                        .map(|value| value.parse())
-                        .transpose()
-                        .map_err(|error| {
-                            TelemetryError::environment("OTEL_TRACES_EXPORTER", error)
-                        })?
-                        .unwrap_or_default(),
-                )
-                .metrics_exporter(
-                    Self::read_env("OTEL_METRICS_EXPORTER")?
-                        .map(|value| value.parse())
-                        .transpose()
-                        .map_err(|error| {
-                            TelemetryError::environment("OTEL_METRICS_EXPORTER", error)
-                        })?
-                        .unwrap_or_default(),
-                )
-                .logs_exporter(
-                    Self::read_env("OTEL_LOGS_EXPORTER")?
-                        .map(|value| value.parse())
-                        .transpose()
-                        .map_err(|error| {
-                            TelemetryError::environment("OTEL_LOGS_EXPORTER", error)
-                        })?
-                        .unwrap_or_default(),
-                )
-        )
+        Ok(builder
+            .maybe_traces_endpoint(Self::read_env("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT")?)
+            .maybe_metrics_endpoint(Self::read_env("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT")?)
+            .maybe_logs_endpoint(Self::read_env("OTEL_EXPORTER_OTLP_LOGS_ENDPOINT")?)
+            .traces_exporter(
+                Self::read_env("OTEL_TRACES_EXPORTER")?
+                    .map(|value| value.parse())
+                    .transpose()
+                    .map_err(|error| TelemetryError::environment("OTEL_TRACES_EXPORTER", error))?
+                    .unwrap_or_default(),
+            )
+            .metrics_exporter(
+                Self::read_env("OTEL_METRICS_EXPORTER")?
+                    .map(|value| value.parse())
+                    .transpose()
+                    .map_err(|error| TelemetryError::environment("OTEL_METRICS_EXPORTER", error))?
+                    .unwrap_or_default(),
+            )
+            .logs_exporter(
+                Self::read_env("OTEL_LOGS_EXPORTER")?
+                    .map(|value| value.parse())
+                    .transpose()
+                    .map_err(|error| TelemetryError::environment("OTEL_LOGS_EXPORTER", error))?
+                    .unwrap_or_default(),
+            ))
     }
 
     fn read_env(name: &str) -> Result<Option<String>, TelemetryError> {
@@ -383,9 +369,8 @@ impl TelemetryBuilder {
             (self.logs_endpoint.as_ref(), self.logs_exporter),
         ]
         .iter()
-        .any(|(endpoint, exporter)| {
-            endpoint.is_some() && *exporter == TelemetryExporter::Otlp
-        }) {
+        .any(|(endpoint, exporter)| endpoint.is_some() && *exporter == TelemetryExporter::Otlp)
+        {
             Some(
                 Resource::builder()
                     .with_service_name(
@@ -419,72 +404,59 @@ impl TelemetryBuilder {
             None
         };
 
-        let tracer_provider = match (
-            self.traces_endpoint.as_ref(),
-            resource.as_ref(),
-            self.traces_exporter,
-        ) {
-            (Some(endpoint), Some(resource), TelemetryExporter::Otlp) => Some(
-                SdkTracerProvider::builder()
-                    .with_resource(resource.clone())
-                    .with_batch_exporter(match self.protocol.unwrap_or_default() {
-                        TelemetryProtocol::Http => SpanExporter::builder()
-                            .with_http()
-                            .with_endpoint(endpoint.clone())
-                            .build()?,
-                    })
-                    .build(),
-            ),
-            _ => None,
-        };
+        let tracer_provider =
+            match (self.traces_endpoint.as_ref(), resource.as_ref(), self.traces_exporter) {
+                (Some(endpoint), Some(resource), TelemetryExporter::Otlp) => Some(
+                    SdkTracerProvider::builder()
+                        .with_resource(resource.clone())
+                        .with_batch_exporter(match self.protocol.unwrap_or_default() {
+                            TelemetryProtocol::Http => SpanExporter::builder()
+                                .with_http()
+                                .with_endpoint(endpoint.clone())
+                                .build()?,
+                        })
+                        .build(),
+                ),
+                _ => None,
+            };
 
-        let meter_provider = match (
-            self.metrics_endpoint.as_ref(),
-            resource.as_ref(),
-            self.metrics_exporter,
-        ) {
-            (Some(endpoint), Some(resource), TelemetryExporter::Otlp) => Some(
-                SdkMeterProvider::builder()
-                    .with_resource(resource.clone())
-                    .with_reader(
-                        PeriodicReader::builder(
-                            match self.protocol.unwrap_or_default() {
+        let meter_provider =
+            match (self.metrics_endpoint.as_ref(), resource.as_ref(), self.metrics_exporter) {
+                (Some(endpoint), Some(resource), TelemetryExporter::Otlp) => Some(
+                    SdkMeterProvider::builder()
+                        .with_resource(resource.clone())
+                        .with_reader(
+                            PeriodicReader::builder(match self.protocol.unwrap_or_default() {
                                 TelemetryProtocol::Http => MetricExporter::builder()
                                     .with_http()
                                     .with_endpoint(endpoint.clone())
                                     .build()?,
-                            },
+                            })
+                            .build(),
                         )
                         .build(),
-                    )
-                    .build(),
-            ),
-            _ => None,
-        };
+                ),
+                _ => None,
+            };
 
-        let logger_provider = match (
-            self.logs_endpoint.as_ref(),
-            resource.as_ref(),
-            self.logs_exporter,
-        ) {
-            (Some(endpoint), Some(resource), TelemetryExporter::Otlp) => Some(
-                SdkLoggerProvider::builder()
-                    .with_resource(resource.clone())
-                    .with_log_processor(
-                        BatchLogProcessor::builder(
-                            match self.protocol.unwrap_or_default() {
+        let logger_provider =
+            match (self.logs_endpoint.as_ref(), resource.as_ref(), self.logs_exporter) {
+                (Some(endpoint), Some(resource), TelemetryExporter::Otlp) => Some(
+                    SdkLoggerProvider::builder()
+                        .with_resource(resource.clone())
+                        .with_log_processor(
+                            BatchLogProcessor::builder(match self.protocol.unwrap_or_default() {
                                 TelemetryProtocol::Http => LogExporter::builder()
                                     .with_http()
                                     .with_endpoint(endpoint.clone())
                                     .build()?,
-                            },
+                            })
+                            .build(),
                         )
                         .build(),
-                    )
-                    .build(),
-            ),
-            _ => None,
-        };
+                ),
+                _ => None,
+            };
 
         tracing_subscriber::registry()
             .with(logging_switch.clone())
@@ -507,47 +479,49 @@ impl TelemetryBuilder {
                     }))
                     .boxed(),
             )
+            .with(sentry::integrations::tracing::layer().event_filter(|metadata| {
+                match *metadata.level() {
+                    Level::ERROR => sentry::integrations::tracing::EventFilter::Event,
+                    Level::WARN => sentry::integrations::tracing::EventFilter::Breadcrumb,
+                    _ => sentry::integrations::tracing::EventFilter::Ignore,
+                }
+            }))
             .with(
-                sentry::integrations::tracing::layer().event_filter(|metadata| {
-                    match *metadata.level() {
-                        Level::ERROR => sentry::integrations::tracing::EventFilter::Event,
-                        Level::WARN => sentry::integrations::tracing::EventFilter::Breadcrumb,
-                        _ => sentry::integrations::tracing::EventFilter::Ignore,
-                    }
-                }),
-            )
-            .with(
-                tracer_provider.as_ref().map(|provider| {
-                    tracing_opentelemetry::layer().with_tracer(
-                        provider.tracer(
-                            self.service_name
-                                .clone()
-                                .expect("trace provider requires service_name"),
-                        ),
-                    )
-                }),
-            )
-            .with(
-                logger_provider.as_ref().map(|provider| {
-                    OpenTelemetryTracingBridge::new(provider)
-                        .with_filter(
-                            env_filter
-                                .add_directive("hyper=off".parse().unwrap())
-                                .add_directive("opentelemetry=off".parse().unwrap())
-                                .add_directive("tonic=off".parse().unwrap())
-                                .add_directive("h2=off".parse().unwrap())
-                                .add_directive("reqwest=off".parse().unwrap()),
+                tracer_provider
+                    .as_ref()
+                    .map(|provider| {
+                        tracing_opentelemetry::layer().with_tracer(
+                            provider.tracer(
+                                self.service_name
+                                    .clone()
+                                    .expect("trace provider requires service_name"),
+                            ),
                         )
-                        .with_filter(filter_fn({
-                            let log_filter = self.log_filter;
+                    }),
+            )
+            .with(
+                logger_provider
+                    .as_ref()
+                    .map(|provider| {
+                        OpenTelemetryTracingBridge::new(provider)
+                            .with_filter(
+                                env_filter
+                                    .add_directive("hyper=off".parse().unwrap())
+                                    .add_directive("opentelemetry=off".parse().unwrap())
+                                    .add_directive("tonic=off".parse().unwrap())
+                                    .add_directive("h2=off".parse().unwrap())
+                                    .add_directive("reqwest=off".parse().unwrap()),
+                            )
+                            .with_filter(filter_fn({
+                                let log_filter = self.log_filter;
 
-                            move |metadata| {
-                                log_filter
-                                    .as_ref()
-                                    .is_none_or(|filter| filter(metadata))
-                            }
-                        }))
-                }),
+                                move |metadata| {
+                                    log_filter
+                                        .as_ref()
+                                        .is_none_or(|filter| filter(metadata))
+                                }
+                            }))
+                    }),
             )
             .try_init()?;
 
@@ -584,8 +558,7 @@ where
                     .dsn(&dsn)
                     .release(env!("CARGO_PKG_VERSION"))
                     .environment(
-                        std::env::var("APP_ENV")
-                            .unwrap_or_else(|_| "production".to_string()),
+                        std::env::var("APP_ENV").unwrap_or_else(|_| "production".to_string()),
                     ),
             )
         });

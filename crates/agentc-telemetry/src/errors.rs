@@ -38,10 +38,7 @@ impl TelemetryError {
         name: impl Into<String>,
         source: impl Into<Box<dyn std::error::Error + Send + Sync>>,
     ) -> Self {
-        Self::Environment {
-            name: name.into(),
-            source: source.into(),
-        }
+        Self::Environment { name: name.into(), source: source.into() }
     }
 
     pub fn unsupported_exporter(value: impl Into<String>) -> Self {
