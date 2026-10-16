@@ -4,7 +4,7 @@
 
 use http::{HeaderName, HeaderValue};
 use rmcp::{
-    model::{CallToolRequestParams, Content, Tool},
+    model::{CallToolRequestParams, ContentBlock, Tool},
     service::{RoleClient, RunningService},
     transport::{
         TokioChildProcess,
@@ -310,9 +310,28 @@ fn build_params(name: &str, arguments: Value) -> CallToolRequestParams {
 }
 
 /// Extract the text from the first text content block in `content`, if any.
-fn extract_text(content: &[Content]) -> String {
+fn extract_text(content: &[ContentBlock]) -> String {
     content
         .iter()
         .find_map(|c| c.as_text().map(|t| t.text.clone()))
         .unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use rmcp::model::ContentBlock;
+
+    use crate::connection::handle::extract_text;
+
+    #[test]
+    fn extracts_the_first_text_block_from_tool_error_content() {
+        assert_eq!(
+            extract_text(&[
+                ContentBlock::image("AA==", "image/png"),
+                ContentBlock::text("tool failed"),
+                ContentBlock::text("additional detail"),
+            ]),
+            "tool failed",
+        );
+    }
 }

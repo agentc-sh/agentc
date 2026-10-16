@@ -7,10 +7,6 @@ repository.workspace = true
 license.workspace = true
 readme.workspace = true
 
-[dev-dependencies]
-tokio = { workspace = true }
-wiremock = { version = "0.6" }
-
 [features]
 default = ["tiktoken", "datetime"]
 tiktoken = ["dep:tiktoken-rs"]
@@ -35,3 +31,7 @@ tiktoken-rs = { version = "0.12", optional = true }
 reqwest = { version = "0.13", features = ["json", "query", "stream"], optional = true }
 moka = { version = "0.12", features = ["future"], optional = true }
 httpdate = { version = "1", optional = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
+wiremock = { version = "0.6" }

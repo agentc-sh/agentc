@@ -206,7 +206,21 @@ impl WorkspaceResolver {
 
                 if let Some(w_table) = workspace_val.as_table_like() {
                     for (k, v) in w_table.iter() {
-                        if !member_table.contains_key(k) {
+                        if k == "features"
+                            && let Some(member_features) = member_table
+                                .get_mut(k)
+                                .and_then(|item| item.as_array_mut())
+                            && let Some(workspace_features) = v.as_array()
+                        {
+                            for feature in workspace_features.iter() {
+                                if !member_features
+                                    .iter()
+                                    .any(|existing| existing.as_str() == feature.as_str())
+                                {
+                                    member_features.push(feature.clone());
+                                }
+                            }
+                        } else if !member_table.contains_key(k) {
                             member_table.insert(k, v.clone());
                         }
                     }
