@@ -51,4 +51,4 @@ json-patch = { workspace = true }
 schemars = { workspace = true }
 jsonschema = { workspace = true, optional = true }
 
-bashkit = { version = "0.17.1", default-features = false, features = ["tzdata"], optional = true }
+bashkit = { version = "0.19", default-features = false, features = ["tzdata"], optional = true }

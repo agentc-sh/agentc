@@ -81,12 +81,12 @@ chrono-tz = { version = "0.10", features = ["serde"] }
 uuid = { version = "1.23", features = ["v4", "v5", "fast-rng", "zerocopy", "serde"] }
 url = { version = "2", features = ["serde"] }
 json-patch = { version = "4.2", features = ["schemars", "utoipa"] }
-schemars = { version = "1.1", features = ["derive", "chrono04", "url2", "uuid1"] }
-jsonschema = { version = "0.57", default-features = false }
+schemars = { version = "1.2", features = ["derive", "chrono04", "url2", "uuid1"] }
+jsonschema = { version = "0.58", default-features = false }
 
 minijinja = { version = "2", features = ["json"] }
 
-sea-orm = { version = "1.1", features = ["sqlx-sqlite", "sqlx-postgres", "runtime-tokio-rustls", "macros", "with-uuid"] }
+sea-orm = { version = "1.1", features = ["sqlx-sqlite", "sqlx-postgres", "runtime-tokio-rustls", "macros", "mock", "with-json", "with-uuid", "sqlite-use-returning-for-3_35"] }
 sea-orm-migration = { version = "1.1" }
 
 tracing = { version = "0.1" }
@@ -114,7 +114,7 @@ lazy_static = { version = "1" }
 indexmap = { version = "2" }
 walkdir = { version = "2" }
 
-jobq = { git = "https://github.com/wizrds/jobq-rs.git", version = "0.5.2" }
-subway = { git = "https://github.com/wizrds/subway-rs.git", version = "0.1.0" }
+jobq = { git = "https://github.com/wizrds/jobq-rs.git", version = "0.5" }
+subway = { git = "https://github.com/wizrds/subway-rs.git", version = "0.1" }
 
 criterion = { version = "0.8", features = ["html_reports"] }

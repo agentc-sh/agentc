@@ -27,5 +27,5 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 url = { workspace = true }
 
-rig-core = { version = "0.39", features = ["derive", "rayon", "rmcp"] }
+rig-core = { version = "0.39", features = ["derive"] }
 cel = { version = "0.15", default-features = false, features = ["chrono", "regex", "json", "ext_encoders"], optional = true }

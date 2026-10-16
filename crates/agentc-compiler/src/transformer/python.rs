@@ -123,7 +123,7 @@ impl PythonTransformer {
     /// This keeps the artifacts store symlinks valid until the temp dir is explicitly
     /// cleaned up after compilation.
     fn temp_dir_for(&self, project_dir: &Path) -> PathBuf {
-        let hash = format!("{:x}", Sha256::digest(project_dir.to_string_lossy().as_bytes()));
+        let hash = hex::encode(Sha256::digest(project_dir.to_string_lossy().as_bytes()));
         std::env::temp_dir().join(format!("agentc-python-{}", &hash[..16]))
     }
 

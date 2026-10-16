@@ -1,4 +1,4 @@
-ARG VARIANT=1.95-bookworm
+ARG VARIANT=1.99-trixie
 FROM rust:${VARIANT}
 
 ARG TARGETARCH=amd64
