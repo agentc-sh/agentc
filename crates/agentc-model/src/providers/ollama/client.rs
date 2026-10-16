@@ -2,11 +2,13 @@
 //
 // SPDX-License-Identifier: MIT
 
-use rig_core::providers::ollama;
+use rig_core::{
+    client::ClientBuilder, http_client::ReqwestClient, markers::Missing, providers::ollama,
+};
 
 use crate::{
     errors::ModelError,
-    providers::ollama::model::OllamaModel,
+    providers::{ollama::model::OllamaModel, rig::headers::Headers},
     traits::CompletionClient,
     types::{
         identity::{ModelId, ProviderId},
@@ -17,12 +19,21 @@ use crate::{
 #[derive(Clone)]
 pub struct OllamaClient {
     provider: ProviderId,
-    inner: ollama::Client,
+    inner: ClientBuilder<ollama::OllamaBuilder, Missing, ReqwestClient>,
+    headers: Headers,
 }
 
 impl OllamaClient {
-    pub fn new(provider: ProviderId, client: ollama::Client) -> Self {
-        Self { provider, inner: client }
+    pub fn new(
+        provider: ProviderId,
+        client: ClientBuilder<ollama::OllamaBuilder, Missing, ReqwestClient>,
+        headers: Headers,
+    ) -> Self {
+        Self {
+            provider,
+            inner: client,
+            headers,
+        }
     }
 }
 
@@ -34,6 +45,12 @@ impl CompletionClient for OllamaClient {
     }
 
     fn model(&self, model: ModelId, params: InferenceParams) -> Result<OllamaModel, ModelError> {
-        Ok(OllamaModel::new(self.provider.clone(), self.inner.clone(), model, params))
+        Ok(OllamaModel::new(
+            self.provider.clone(),
+            self.inner.clone(),
+            self.headers.clone(),
+            model,
+            params,
+        ))
     }
 }

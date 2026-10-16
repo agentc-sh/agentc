@@ -2,11 +2,13 @@
 //
 // SPDX-License-Identifier: MIT
 
-use rig_core::providers::gemini;
+use rig_core::{
+    client::ClientBuilder, http_client::ReqwestClient, markers::Missing, providers::gemini,
+};
 
 use crate::{
     errors::ModelError,
-    providers::gemini::model::GeminiModel,
+    providers::{gemini::model::GeminiModel, rig::headers::Headers},
     traits::CompletionClient,
     types::{
         identity::{ModelId, ProviderId},
@@ -17,12 +19,24 @@ use crate::{
 #[derive(Clone)]
 pub struct GeminiClient {
     provider: ProviderId,
-    inner: gemini::Client,
+    inner: ClientBuilder<gemini::client::GeminiBuilder, Missing, ReqwestClient>,
+    api_key: String,
+    headers: Headers,
 }
 
 impl GeminiClient {
-    pub fn new(provider: ProviderId, client: gemini::Client) -> Self {
-        Self { provider, inner: client }
+    pub fn new(
+        provider: ProviderId,
+        client: ClientBuilder<gemini::client::GeminiBuilder, Missing, ReqwestClient>,
+        api_key: String,
+        headers: Headers,
+    ) -> Self {
+        Self {
+            provider,
+            inner: client,
+            api_key,
+            headers,
+        }
     }
 }
 
@@ -34,6 +48,13 @@ impl CompletionClient for GeminiClient {
     }
 
     fn model(&self, model: ModelId, params: InferenceParams) -> Result<GeminiModel, ModelError> {
-        Ok(GeminiModel::new(self.provider.clone(), self.inner.clone(), model, params))
+        Ok(GeminiModel::new(
+            self.provider.clone(),
+            self.inner.clone(),
+            self.api_key.clone(),
+            self.headers.clone(),
+            model,
+            params,
+        ))
     }
 }

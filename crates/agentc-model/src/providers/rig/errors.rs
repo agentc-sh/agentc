@@ -59,3 +59,9 @@ impl IntoModelError for CompletionError {
         }
     }
 }
+
+impl IntoModelError for http_client::Error {
+    fn into_model_error(self, provider: impl Into<ProviderId>) -> ModelError {
+        ModelError::provider(provider, self.to_string(), Some(self))
+    }
+}

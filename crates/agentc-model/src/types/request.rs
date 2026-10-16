@@ -5,6 +5,7 @@
 use serde_json::Value;
 
 use crate::types::{
+    context::InvocationContext,
     inference::InferenceParams,
     message::{ChatHistory, ChatMessage},
     tools::ToolSpec,
@@ -42,6 +43,7 @@ pub struct CompletionRequest {
     /// deserialized by the provider implementation and merged on top of any
     /// provider-level defaults set in the client config.
     pub provider_params: Option<Value>,
+    pub context: InvocationContext,
 }
 
 impl CompletionRequest {
@@ -58,6 +60,7 @@ impl CompletionRequest {
             presence_penalty: None,
             seed: None,
             provider_params: None,
+            context: InvocationContext::default(),
         }
     }
 

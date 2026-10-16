@@ -2,11 +2,13 @@
 //
 // SPDX-License-Identifier: MIT
 
-use rig_core::providers::huggingface;
+use rig_core::{
+    client::ClientBuilder, http_client::ReqwestClient, markers::Missing, providers::huggingface,
+};
 
 use crate::{
     errors::ModelError,
-    providers::huggingface::model::HuggingFaceModel,
+    providers::{huggingface::model::HuggingFaceModel, rig::headers::Headers},
     traits::CompletionClient,
     types::{
         identity::{ModelId, ProviderId},
@@ -17,12 +19,24 @@ use crate::{
 #[derive(Clone)]
 pub struct HuggingFaceClient {
     provider: ProviderId,
-    inner: huggingface::Client,
+    inner: ClientBuilder<huggingface::client::HuggingFaceBuilder, Missing, ReqwestClient>,
+    api_key: String,
+    headers: Headers,
 }
 
 impl HuggingFaceClient {
-    pub fn new(provider: ProviderId, client: huggingface::Client) -> Self {
-        Self { provider, inner: client }
+    pub fn new(
+        provider: ProviderId,
+        client: ClientBuilder<huggingface::client::HuggingFaceBuilder, Missing, ReqwestClient>,
+        api_key: String,
+        headers: Headers,
+    ) -> Self {
+        Self {
+            provider,
+            inner: client,
+            api_key,
+            headers,
+        }
     }
 }
 
@@ -38,6 +52,13 @@ impl CompletionClient for HuggingFaceClient {
         model: ModelId,
         params: InferenceParams,
     ) -> Result<HuggingFaceModel, ModelError> {
-        Ok(HuggingFaceModel::new(self.provider.clone(), self.inner.clone(), model, params))
+        Ok(HuggingFaceModel::new(
+            self.provider.clone(),
+            self.inner.clone(),
+            self.api_key.clone(),
+            self.headers.clone(),
+            model,
+            params,
+        ))
     }
 }

@@ -2,11 +2,13 @@
 //
 // SPDX-License-Identifier: MIT
 
-use rig_core::providers::openrouter;
+use rig_core::{
+    client::ClientBuilder, http_client::ReqwestClient, markers::Missing, providers::openrouter,
+};
 
 use crate::{
     errors::ModelError,
-    providers::openrouter::model::OpenRouterModel,
+    providers::{openrouter::model::OpenRouterModel, rig::headers::Headers},
     traits::CompletionClient,
     types::{
         identity::{ModelId, ProviderId},
@@ -17,12 +19,24 @@ use crate::{
 #[derive(Clone)]
 pub struct OpenRouterClient {
     provider: ProviderId,
-    inner: openrouter::Client,
+    inner: ClientBuilder<openrouter::OpenRouterExtBuilder, Missing, ReqwestClient>,
+    api_key: String,
+    headers: Headers,
 }
 
 impl OpenRouterClient {
-    pub fn new(provider: ProviderId, client: openrouter::Client) -> Self {
-        Self { provider, inner: client }
+    pub fn new(
+        provider: ProviderId,
+        client: ClientBuilder<openrouter::OpenRouterExtBuilder, Missing, ReqwestClient>,
+        api_key: String,
+        headers: Headers,
+    ) -> Self {
+        Self {
+            provider,
+            inner: client,
+            api_key,
+            headers,
+        }
     }
 }
 
@@ -38,6 +52,13 @@ impl CompletionClient for OpenRouterClient {
         model: ModelId,
         params: InferenceParams,
     ) -> Result<OpenRouterModel, ModelError> {
-        Ok(OpenRouterModel::new(self.provider.clone(), self.inner.clone(), model, params))
+        Ok(OpenRouterModel::new(
+            self.provider.clone(),
+            self.inner.clone(),
+            self.api_key.clone(),
+            self.headers.clone(),
+            model,
+            params,
+        ))
     }
 }
