@@ -24,9 +24,9 @@ impl FormatMiddleware<Body> for ExpressionFunctionDeserialize {
                     && position == ExpressionPosition::Value =>
             {
                 match call.args.as_slice() {
-                    [Expression::String(source)] => Ok(hcl::to_expression(
-                        ExpressionValueWire::new(source.clone()),
-                    )?),
+                    [Expression::String(source)] => {
+                        Ok(hcl::to_expression(ExpressionValueWire::new(source.clone()))?)
+                    }
                     _ => Err(ParserError::InvalidExpression(
                         "expression() requires one string".to_string(),
                     )),

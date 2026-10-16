@@ -37,7 +37,8 @@ impl InvocationContext {
     }
 
     pub fn with_attribute(mut self, name: impl Into<String>, value: impl Into<Value>) -> Self {
-        self.attributes.insert(name.into(), value.into());
+        self.attributes
+            .insert(name.into(), value.into());
         self
     }
 }
@@ -68,9 +69,6 @@ mod tests {
 
     #[test]
     fn empty_context_serializes_empty_attributes() {
-        assert_eq!(
-            to_value(InvocationContext::new()).unwrap(),
-            json!({ "attributes": {} })
-        );
+        assert_eq!(to_value(InvocationContext::new()).unwrap(), json!({ "attributes": {} }));
     }
 }

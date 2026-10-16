@@ -49,7 +49,8 @@ impl OpenAiConfig {
 
     /// Construct an [`OpenAiClient`] from this config.
     pub fn build_client(&self, provider: ProviderId) -> Result<OpenAiClient, ModelError> {
-        let mut builder = openai::CompletionsClient::builder().http_client(ReqwestClient::default());
+        let mut builder =
+            openai::CompletionsClient::builder().http_client(ReqwestClient::default());
 
         if let Some(url) = &self.base_url {
             builder = builder.base_url(url);

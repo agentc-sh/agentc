@@ -401,11 +401,9 @@ impl<T> RuntimeValue<T> {
     pub fn map<U>(self, f: impl Fn(T) -> U) -> RuntimeValue<U> {
         match self {
             Self::Constant(value) => RuntimeValue::Constant(f(value)),
-            Self::Runtime { env, default, secret } => RuntimeValue::Runtime {
-                env,
-                default: default.map(f),
-                secret,
-            },
+            Self::Runtime { env, default, secret } => {
+                RuntimeValue::Runtime { env, default: default.map(f), secret }
+            }
         }
     }
 
@@ -487,7 +485,9 @@ impl<T: Serialize> Serialize for ExpressionValue<T> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             Self::Literal(value) => value.serialize(serializer),
-            Self::Expression(source) => ExpressionValueWire::new(source.clone()).serialize(serializer),
+            Self::Expression(source) => {
+                ExpressionValueWire::new(source.clone()).serialize(serializer)
+            }
         }
     }
 }

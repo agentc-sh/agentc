@@ -42,7 +42,9 @@ use agentc_model::{
         timeout::Timeout,
     },
     traits::{CompletionModel, CompletionModelExt},
-    types::{context::InvocationContext, reasoning::ReasoningContent, stream::CompletionStreamEvent},
+    types::{
+        context::InvocationContext, reasoning::ReasoningContent, stream::CompletionStreamEvent,
+    },
 };
 use agentc_prompt::{
     buffer::{MessageBuffer, TokenBudget},

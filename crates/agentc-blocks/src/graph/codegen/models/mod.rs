@@ -209,7 +209,8 @@ impl Fragment<ResolvedContext> for ModelCargoFragment {
             "cargo::dependencies" => {
                 let mut dependency = RuntimeDependencyContribution::new("agentc-model");
 
-                if ctx.providers
+                if ctx
+                    .providers
                     .values()
                     .any(|provider| provider.kind.uses_cel())
                 {

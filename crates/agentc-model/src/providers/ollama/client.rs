@@ -29,11 +29,7 @@ impl OllamaClient {
         client: ClientBuilder<ollama::OllamaBuilder, Missing, ReqwestClient>,
         headers: Headers,
     ) -> Self {
-        Self {
-            provider,
-            inner: client,
-            headers,
-        }
+        Self { provider, inner: client, headers }
     }
 }
 

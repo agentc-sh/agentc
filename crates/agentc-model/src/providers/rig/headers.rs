@@ -100,8 +100,10 @@ mod tests {
     #[test]
     fn cel_is_unknown_without_the_feature() {
         assert!(
-            serde_json::from_value::<HeaderSource>(json!({ "syntax": "cel", "source": "tenant_id" }))
-                .is_err()
+            serde_json::from_value::<HeaderSource>(
+                json!({ "syntax": "cel", "source": "tenant_id" })
+            )
+            .is_err()
         );
     }
 
