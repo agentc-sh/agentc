@@ -167,6 +167,85 @@ params {
 }
 ```
 
+## Send custom headers
+
+To send extra HTTP headers with each request to the model API, such as a team tag for a gateway,
+set `headers` in the provider's `config` block:
+
+```hcl
+provider "cloud" {
+  kind   = "openai"
+  models = ["gpt-4o"]
+
+  config {
+    api_key = secret(runtime("OPENAI_API_KEY"))
+
+    headers = {
+      "X-Team" = "platform"
+    }
+  }
+}
+```
+
+### Compute a header for each request
+
+Wrap a [CEL](https://cel.dev) expression in `expression()` to compute a header value for each
+model request. The expression must evaluate to a string:
+
+```hcl
+headers = {
+  "X-Team"      = "platform"
+  "X-Tenant-Id" = expression("ctx.tenant_id")
+}
+```
+
+An expression reads the model request's context through the variable `ctx`:
+
+| Expression | Type | Description |
+|------------|------|-------------|
+| `ctx.conversation_id` | string | The conversation the model request belongs to. |
+| `ctx.agent_name` | string | The agent making the model request. |
+| `ctx.tenant_id` | string | The tenant the model request is made for. |
+| `ctx.attributes.<name>` | any | A named value the agent's graph attaches to the model request. |
+
+The agent's graph decides which of these values a model request carries. A graph can attach
+further values under `ctx.attributes`, such as a run identifier at `ctx.attributes.run_id`:
+
+```hcl
+headers = {
+  "X-Request-Tag" = expression("'run-' + ctx.attributes.run_id")
+}
+```
+
+### Handle missing values
+
+| Condition | Result |
+|-----------|--------|
+| The expression is not valid CEL | The agent fails to start, naming the expression. |
+| The expression reads a value the request does not carry | The model request fails. |
+| The expression evaluates to anything other than a string | The model request fails, naming the result type. |
+
+Use `has()` to read a value only when it is present:
+
+```hcl
+"X-Run" = expression("has(ctx.attributes.run_id) ? ctx.attributes.run_id : 'none'")
+```
+
+### Set headers at deployment time
+
+`headers` accepts `runtime()`. The environment value is a JSON object that maps each header name
+to its value form:
+
+```hcl
+headers = runtime("PROVIDER_HEADERS", {
+  "X-Team" = "platform"
+})
+```
+
+```bash
+PROVIDER_HEADERS='{"X-Team":{"syntax":"literal","source":"platform"},"X-Tenant-Id":{"syntax":"cel","source":"ctx.tenant_id"}}'
+```
+
 ## Where to go next
 
 - [Agents and prompts](/concepts/agents-and-prompts): how model selection fits the rest of the agent.
