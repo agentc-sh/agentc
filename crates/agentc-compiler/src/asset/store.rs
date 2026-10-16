@@ -41,7 +41,7 @@ impl ArtifactStore {
     /// The path is derived from a SHA-256 hash of the URI combined with
     /// the original filename, for human readability in the artifacts directory.
     pub fn path_for(&self, uri: &str) -> PathBuf {
-        let hash = format!("{:x}", Sha256::digest(uri.as_bytes()));
+        let hash = hex::encode(Sha256::digest(uri.as_bytes()));
         let filename = uri
             .split('/')
             .next_back()

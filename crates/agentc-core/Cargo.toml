@@ -35,4 +35,4 @@ regex = { workspace = true }
 
 minijinja = { workspace = true }
 
-config = { version = "0.15.19" }
+config = { version = "0.15" }

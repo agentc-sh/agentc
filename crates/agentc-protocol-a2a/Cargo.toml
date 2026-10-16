@@ -43,7 +43,7 @@ async-stream = { workspace = true }
 
 serde = { workspace = true }
 serde_json = { workspace = true }
-serde_qs = { version = "1.1.2", optional = true }
+serde_qs = { workspace = true, optional = true }
 schemars = { workspace = true, optional = true }
 json-patch = { workspace = true, optional = true }
 
@@ -63,6 +63,6 @@ reqwest-tracing = { version = "0.7", features = ["opentelemetry_0_32"], optional
 
 [dev-dependencies]
 axum = { workspace = true }
+tokio = { workspace = true }
 
 wiremock = { version = "0.6" }
-tokio = { version = "1", features = ["full"] }
