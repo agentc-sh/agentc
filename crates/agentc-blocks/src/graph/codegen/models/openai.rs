@@ -40,10 +40,18 @@ impl ProviderKindCodeGen for ResolvedContextProviderOpenAi {
             .map(|path| quote! { Some(#path.clone()) })
             .unwrap_or(quote! { None });
 
+        let headers = self
+            .headers
+            .as_ref()
+            .and_then(|_| fields.config_accessor(&["provider", provider, "headers"]))
+            .map(|path| quote! { #path.clone() })
+            .unwrap_or(quote! { Default::default() });
+
         quote! {
             OpenAiConfig {
                 api_key: #api_key,
                 base_url: #base_url,
+                headers: #headers,
                 ..Default::default()
             }
         }
@@ -56,7 +64,11 @@ mod tests {
 
     #[test]
     fn imports_and_config_reference_the_openai_factory() {
-        let provider = ResolvedContextProviderOpenAi { api_key: None, base_url: None };
+        let provider = ResolvedContextProviderOpenAi {
+            api_key: None,
+            base_url: None,
+            headers: None,
+        };
 
         assert!(
             provider

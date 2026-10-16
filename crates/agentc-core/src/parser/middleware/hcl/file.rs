@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use crate::parser::{
     errors::ParserError,
     middleware::{
-        hcl::expression::{ExpressionPosition, ExpressionVisitor, VisitOrder},
+        hcl::visitor::{ExpressionPosition, ExpressionVisitor, VisitOrder},
         traits::FormatMiddleware,
     },
 };

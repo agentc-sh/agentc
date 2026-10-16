@@ -7,7 +7,7 @@ use quote::quote;
 use serde::{
     Deserialize, Deserializer, Serialize, Serializer,
     de::{
-        self, DeserializeSeed, IgnoredAny, MapAccess, SeqAccess, Visitor,
+        self, DeserializeOwned, DeserializeSeed, IgnoredAny, MapAccess, SeqAccess, Visitor,
         value::{
             BoolDeserializer, CharDeserializer, F32Deserializer, F64Deserializer, I64Deserializer,
             I128Deserializer, MapAccessDeserializer, SeqAccessDeserializer, StringDeserializer,
@@ -19,6 +19,7 @@ use serde::{
 use std::{fmt, marker::PhantomData};
 
 const RUNTIME_VALUE_KEY: &str = "$runtime";
+const EXPRESSION_VALUE_KEY: &str = "$expression";
 
 struct RuntimeValueDefault<T>(Option<T>);
 
@@ -397,6 +398,17 @@ impl<T> RuntimeValue<T> {
         }
     }
 
+    pub fn map<U>(self, f: impl Fn(T) -> U) -> RuntimeValue<U> {
+        match self {
+            Self::Constant(value) => RuntimeValue::Constant(f(value)),
+            Self::Runtime { env, default, secret } => RuntimeValue::Runtime {
+                env,
+                default: default.map(f),
+                secret,
+            },
+        }
+    }
+
     pub fn render(
         &self,
         constant_expr: impl Fn(&T) -> TokenStream,
@@ -451,13 +463,92 @@ impl<'de, T: Deserialize<'de>> Deserialize<'de> for RuntimeValue<T> {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ExpressionValue<T> {
+    Literal(T),
+    Expression(String),
+}
+
+impl<T> ExpressionValue<T> {
+    pub fn literal(value: T) -> Self {
+        Self::Literal(value)
+    }
+
+    pub fn expression(source: impl Into<String>) -> Self {
+        Self::Expression(source.into())
+    }
+
+    pub fn is_expression(&self) -> bool {
+        matches!(self, Self::Expression(_))
+    }
+}
+
+impl<T: Serialize> Serialize for ExpressionValue<T> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self {
+            Self::Literal(value) => value.serialize(serializer),
+            Self::Expression(source) => ExpressionValueWire::new(source.clone()).serialize(serializer),
+        }
+    }
+}
+
+impl<'de, T: DeserializeOwned> Deserialize<'de> for ExpressionValue<T> {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        match serde_json::Value::deserialize(deserializer)? {
+            serde_json::Value::Object(object) if object.contains_key(EXPRESSION_VALUE_KEY) => {
+                ExpressionValueWire::try_from(object)
+                    .map(|wire| Self::Expression(wire.into_source()))
+                    .map_err(de::Error::custom)
+            }
+            value => T::deserialize(value)
+                .map(Self::Literal)
+                .map_err(de::Error::custom),
+        }
+    }
+}
+
+pub struct ExpressionValueWire {
+    source: String,
+}
+
+impl ExpressionValueWire {
+    pub fn new(source: String) -> Self {
+        Self { source }
+    }
+
+    pub fn into_source(self) -> String {
+        self.source
+    }
+}
+
+impl Serialize for ExpressionValueWire {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut map = serializer.serialize_map(Some(1))?;
+
+        map.serialize_entry(EXPRESSION_VALUE_KEY, &self.source)?;
+        map.end()
+    }
+}
+
+impl TryFrom<serde_json::Map<String, serde_json::Value>> for ExpressionValueWire {
+    type Error = String;
+
+    fn try_from(object: serde_json::Map<String, serde_json::Value>) -> Result<Self, String> {
+        match (object.len(), object.get(EXPRESSION_VALUE_KEY)) {
+            (1, Some(serde_json::Value::String(source))) => Ok(Self::new(source.clone())),
+            (1, Some(_)) => Err("expression() requires one string".to_string()),
+            _ => Err(format!("`{EXPRESSION_VALUE_KEY}` must be the only key")),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::{BTreeMap, BTreeSet};
 
     use serde_json::{from_str, from_value, json, to_value};
 
-    use super::{RuntimeValue, RuntimeValueWire};
+    use super::{ExpressionValue, RuntimeValue, RuntimeValueWire};
 
     #[test]
     fn constants_keep_their_shapes() {
@@ -559,5 +650,36 @@ mod tests {
 
         assert!(error.contains("expected a string"), "{error}");
         assert!(!error.contains("did not match any variant"), "{error}");
+    }
+
+    #[test]
+    fn expression_value_reads_a_plain_value_as_literal() {
+        assert_eq!(
+            from_value::<ExpressionValue<String>>(json!("platform")).unwrap(),
+            ExpressionValue::literal("platform".to_string())
+        );
+    }
+
+    #[test]
+    fn expression_value_reads_the_marker_as_expression() {
+        assert_eq!(
+            from_value::<ExpressionValue<String>>(json!({ "$expression": "tenant_id" })).unwrap(),
+            ExpressionValue::expression("tenant_id")
+        );
+    }
+
+    #[test]
+    fn expression_value_round_trips() {
+        assert_eq!(
+            to_value(ExpressionValue::<String>::expression("tenant_id")).unwrap(),
+            json!({ "$expression": "tenant_id" })
+        );
+    }
+
+    #[test]
+    fn expression_marker_rejects_extra_keys() {
+        assert!(
+            from_value::<ExpressionValue<String>>(json!({ "$expression": "a", "b": 1 })).is_err()
+        );
     }
 }

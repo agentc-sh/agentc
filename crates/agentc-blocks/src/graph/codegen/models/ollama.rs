@@ -33,9 +33,17 @@ impl ProviderKindCodeGen for ResolvedContextProviderOllama {
             .map(|path| quote! { Some(#path.clone()) })
             .unwrap_or(quote! { None });
 
+        let headers = self
+            .headers
+            .as_ref()
+            .and_then(|_| fields.config_accessor(&["provider", provider, "headers"]))
+            .map(|path| quote! { #path.clone() })
+            .unwrap_or(quote! { Default::default() });
+
         quote! {
             OllamaConfig {
                 base_url: #base_url,
+                headers: #headers,
                 ..Default::default()
             }
         }
@@ -48,7 +56,7 @@ mod tests {
 
     #[test]
     fn imports_and_config_reference_the_ollama_factory() {
-        let provider = ResolvedContextProviderOllama { base_url: None };
+        let provider = ResolvedContextProviderOllama { base_url: None, headers: None };
 
         assert!(
             provider

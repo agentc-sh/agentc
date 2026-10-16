@@ -1474,6 +1474,7 @@ limits {
                         "${locals.value}".to_owned(),
                     )),
                     base_url: Some(RuntimeValue::constant("${locals.value}".to_owned())),
+                    headers: None,
                 }),
                 params: Some(ManifestProviderParams {
                     max_tokens: None,

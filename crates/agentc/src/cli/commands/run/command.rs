@@ -15,7 +15,10 @@ use agentc_core::{
     manifest::Manifest,
     parser::{
         SpecFormat, SpecParser,
-        middleware::hcl::{FileFunctionDeserialize, RootedFileReader, RuntimeFunctionDeserialize},
+        middleware::hcl::{
+            ExpressionFunctionDeserialize, FileFunctionDeserialize, RootedFileReader,
+            RuntimeFunctionDeserialize,
+        },
     },
     run::{pipeline::RunPipeline, types::RunParams},
 };
@@ -73,7 +76,8 @@ impl Cmd for CliCommandRun {
                     .with_hcl_deserialize_middleware(FileFunctionDeserialize::new(
                         RootedFileReader::new(project.context().to_path_buf()),
                     ))
-                    .with_hcl_deserialize_middleware(RuntimeFunctionDeserialize),
+                    .with_hcl_deserialize_middleware(RuntimeFunctionDeserialize)
+                    .with_hcl_deserialize_middleware(ExpressionFunctionDeserialize),
             )
             .parse()
             .await

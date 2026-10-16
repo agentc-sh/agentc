@@ -16,11 +16,20 @@ use std::collections::HashSet;
 use proc_macro2::TokenStream;
 use quote::quote;
 
-use agentc_compiler::generator::{blocks::codegen::ToIdent, errors::GeneratorError};
+use agentc_compiler::generator::{
+    blocks::{codegen::ToIdent, fragment::Fragment},
+    context::GenerationContext,
+    errors::GeneratorError,
+    extension::ErasedContributionValue,
+};
 
 use crate::{
     config::fields::FieldsSpec,
     context::{ResolvedContext, ResolvedContextProvider, ResolvedContextProviderKind},
+    contributions::dependency::{
+        CargoDependencies, CargoDependencyContribution, CargoPatchContribution, CargoPatches,
+        RuntimeDependencyContribution,
+    },
     graph::codegen::models::params::InferenceParamsFields,
 };
 
@@ -188,15 +197,56 @@ impl ModelRegistryCodeGen {
     }
 }
 
+pub struct ModelCargoFragment;
+
+impl Fragment<ResolvedContext> for ModelCargoFragment {
+    fn generate_contribution(
+        &self,
+        ctx: &GenerationContext<ResolvedContext>,
+        point: &str,
+    ) -> Result<ErasedContributionValue, GeneratorError> {
+        match point {
+            "cargo::dependencies" => {
+                let mut dependency = RuntimeDependencyContribution::new("agentc-model");
+
+                if ctx.providers
+                    .values()
+                    .any(|provider| provider.kind.uses_cel())
+                {
+                    dependency = dependency.feature("cel");
+                }
+
+                Ok(ErasedContributionValue::new(
+                    CargoDependencies::from_entries([CargoDependencyContribution::runtime(
+                        dependency,
+                    )])
+                    .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
+                ))
+            }
+            "cargo::patches" => Ok(ErasedContributionValue::new(
+                CargoPatches::from_entries([CargoPatchContribution::runtime(
+                    RuntimeDependencyContribution::new("agentc-model"),
+                )])
+                .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
+            )),
+            _ => Err(GeneratorError::unexpected(format!("Unknown extension point '{}'", point))),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use std::collections::{BTreeMap, HashMap};
+
     use super::*;
     use crate::{
+        config::fields::providers::ResolvedContextProviderHeaders,
         context::{
-            ResolvedContextProviderAnthropic, ResolvedContextProviderModel,
-            ResolvedContextProviderOpenAi, ResolvedContextProviderParams,
+            ResolvedContextAgent, ResolvedContextAgentModel, ResolvedContextFilesystem,
+            ResolvedContextNetwork, ResolvedContextProviderAnthropic, ResolvedContextProviderModel,
+            ResolvedContextProviderOpenAi, ResolvedContextProviderParams, ResolvedContextRuntime,
         },
-        types::RuntimeValue,
+        types::{ExpressionValue, RuntimeValue},
     };
 
     fn empty_params() -> ResolvedContextProviderParams {
@@ -210,6 +260,61 @@ mod tests {
             presence_penalty: None,
             seed: None,
             provider_params: None,
+        }
+    }
+
+    struct ModelCargoFixture;
+
+    impl ModelCargoFixture {
+        fn context(
+            headers: Option<RuntimeValue<ResolvedContextProviderHeaders>>,
+        ) -> GenerationContext<ResolvedContext> {
+            GenerationContext::new(ResolvedContext {
+                slug: "assistant".to_string(),
+                agent_name: "assistant".to_string(),
+                runtime: ResolvedContextRuntime {
+                    default_tenant_id: RuntimeValue::constant("default".to_string()),
+                },
+                providers: HashMap::from([(
+                    "anthropic".to_string(),
+                    ResolvedContextProvider {
+                        name: "anthropic".to_string(),
+                        models: None,
+                        params: None,
+                        kind: ResolvedContextProviderKind::Anthropic(
+                            ResolvedContextProviderAnthropic {
+                                api_key: None,
+                                base_url: None,
+                                headers,
+                            },
+                        ),
+                    },
+                )]),
+                agent: ResolvedContextAgent {
+                    version: "0.1.0".to_string(),
+                    description: None,
+                    prompt: None,
+                    capabilities: None,
+                    capability_policy: None,
+                    model: ResolvedContextAgentModel {
+                        provider: RuntimeValue::constant("anthropic".to_string()),
+                        name: RuntimeValue::constant("claude".to_string()),
+                    },
+                },
+                blocks: BTreeMap::new(),
+                tools: HashMap::new(),
+                skills: HashMap::new(),
+                http_server: None,
+                network: ResolvedContextNetwork::default(),
+                filesystem: ResolvedContextFilesystem::default(),
+            })
+        }
+
+        fn headers(value: ExpressionValue<String>) -> RuntimeValue<ResolvedContextProviderHeaders> {
+            RuntimeValue::constant(ResolvedContextProviderHeaders::new(BTreeMap::from([(
+                "x-tenant".to_string(),
+                value,
+            )])))
         }
     }
 
@@ -257,6 +362,7 @@ mod tests {
             kind: ResolvedContextProviderKind::Anthropic(ResolvedContextProviderAnthropic {
                 api_key: Some(RuntimeValue::secret_runtime("KEY")),
                 base_url: Some(RuntimeValue::constant("https://api".to_string())),
+                headers: None,
             }),
         };
 
@@ -301,6 +407,7 @@ mod tests {
             kind: ResolvedContextProviderKind::OpenAi(ResolvedContextProviderOpenAi {
                 api_key: Some(RuntimeValue::secret_runtime("OPENAI_KEY")),
                 base_url: None,
+                headers: None,
             }),
         }
         .registration(&fields)
@@ -311,5 +418,86 @@ mod tests {
             "with_provider::<OpenAiFactory>(\"cloud\",OpenAiConfig{api_key:Some(config.provider.cloud.api_key.clone().into_inner()),base_url:None"
         ));
         assert!(rendered.contains("with_constraints(\"cloud\",[\"gpt-4o\"])"));
+    }
+
+    #[test]
+    fn model_dependency_omits_cel_for_literal_headers() {
+        let dependencies = ModelCargoFragment
+            .generate_contribution(
+                &ModelCargoFixture::context(Some(ModelCargoFixture::headers(
+                    ExpressionValue::literal("acme".to_string()),
+                ))),
+                "cargo::dependencies",
+            )
+            .expect("dependency should generate")
+            .downcast::<CargoDependencies>()
+            .expect("dependency should have the expected type");
+
+        assert_eq!(dependencies.len(), 1);
+        assert!(matches!(
+            dependencies
+                .get("agentc-model")
+                .unwrap(),
+            CargoDependencyContribution::Runtime(dependency)
+                if dependency.features.is_empty()
+        ));
+    }
+
+    #[test]
+    fn model_dependency_includes_cel_for_expression_headers() {
+        let dependencies = ModelCargoFragment
+            .generate_contribution(
+                &ModelCargoFixture::context(Some(ModelCargoFixture::headers(
+                    ExpressionValue::expression("ctx.tenant_id"),
+                ))),
+                "cargo::dependencies",
+            )
+            .expect("dependency should generate")
+            .downcast::<CargoDependencies>()
+            .expect("dependency should have the expected type");
+
+        assert_eq!(dependencies.len(), 1);
+        assert!(matches!(
+            dependencies
+                .get("agentc-model")
+                .unwrap(),
+            CargoDependencyContribution::Runtime(dependency)
+                if dependency.features.len() == 1
+                    && dependency.features.contains("cel")
+        ));
+    }
+
+    #[test]
+    fn model_dependency_includes_cel_for_runtime_headers() {
+        let dependencies = ModelCargoFragment
+            .generate_contribution(
+                &ModelCargoFixture::context(Some(RuntimeValue::required_runtime("HEADERS"))),
+                "cargo::dependencies",
+            )
+            .expect("dependency should generate")
+            .downcast::<CargoDependencies>()
+            .expect("dependency should have the expected type");
+
+        assert_eq!(dependencies.len(), 1);
+        assert!(matches!(
+            dependencies
+                .get("agentc-model")
+                .unwrap(),
+            CargoDependencyContribution::Runtime(dependency)
+                if dependency.features.len() == 1
+                    && dependency.features.contains("cel")
+        ));
+    }
+
+    #[test]
+    fn model_fragment_contributes_runtime_patch() {
+        let patches = ModelCargoFragment
+            .generate_contribution(&ModelCargoFixture::context(None), "cargo::patches")
+            .expect("patch should generate")
+            .downcast::<CargoPatches>()
+            .expect("patch should have the expected type");
+
+        assert_eq!(patches.len(), 1);
+        assert!(patches.get("agentc-model").is_some());
     }
 }

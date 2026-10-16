@@ -11,7 +11,7 @@ use std::{
 use regex::Regex;
 use serde_json::Value;
 
-use agentc_blocks::types::RuntimeValue;
+use agentc_blocks::types::{ExpressionValue, RuntimeValue};
 
 use crate::manifest::errors::ManifestError;
 
@@ -139,6 +139,15 @@ impl<T: Interpolate> Interpolate for RuntimeValue<T> {
                 default: default.interpolate(context)?,
                 secret,
             },
+        })
+    }
+}
+
+impl<T: Interpolate> Interpolate for ExpressionValue<T> {
+    fn interpolate(self, context: &Value) -> Result<Self, ManifestError> {
+        Ok(match self {
+            Self::Literal(value) => Self::Literal(value.interpolate(context)?),
+            Self::Expression(source) => Self::Expression(source.interpolate(context)?),
         })
     }
 }

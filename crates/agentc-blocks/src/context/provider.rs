@@ -6,7 +6,7 @@ use convert_case::{Case, Casing};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::types::RuntimeValue;
+use crate::{config::fields::providers::ResolvedContextProviderHeaders, types::RuntimeValue};
 
 /// Resolved providers information.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -25,6 +25,31 @@ pub enum ResolvedContextProviderKind {
     Gemini(ResolvedContextProviderGemini),
     /// Configuration for Hugging Face provider.
     HuggingFace(ResolvedContextProviderHuggingFace),
+}
+
+impl RuntimeValue<ResolvedContextProviderHeaders> {
+    pub fn uses_cel(&self) -> bool {
+        match self {
+            Self::Constant(headers) => headers.uses_cel(),
+            Self::Runtime { .. } => true,
+        }
+    }
+}
+
+impl ResolvedContextProviderKind {
+    pub fn uses_cel(&self) -> bool {
+        match self {
+            Self::Anthropic(provider) => &provider.headers,
+            Self::OpenAi(provider) => &provider.headers,
+            Self::Ollama(provider) => &provider.headers,
+            Self::OpenRouter(provider) => &provider.headers,
+            Self::Xai(provider) => &provider.headers,
+            Self::Gemini(provider) => &provider.headers,
+            Self::HuggingFace(provider) => &provider.headers,
+        }
+        .as_ref()
+        .is_some_and(|headers| headers.uses_cel())
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -77,6 +102,7 @@ pub struct ResolvedContextProviderAnthropic {
     pub api_key: Option<RuntimeValue<String>>,
     /// Base URL for the provider's API, if applicable.
     pub base_url: Option<RuntimeValue<String>>,
+    pub headers: Option<RuntimeValue<ResolvedContextProviderHeaders>>,
 }
 
 /// Resolved provider configuration for OpenAI.
@@ -86,6 +112,7 @@ pub struct ResolvedContextProviderOpenAi {
     pub api_key: Option<RuntimeValue<String>>,
     /// Base URL for the provider's API, if applicable.
     pub base_url: Option<RuntimeValue<String>>,
+    pub headers: Option<RuntimeValue<ResolvedContextProviderHeaders>>,
 }
 
 /// Resolved provider configuration for Ollama.
@@ -93,6 +120,7 @@ pub struct ResolvedContextProviderOpenAi {
 pub struct ResolvedContextProviderOllama {
     /// Base URL for the provider's API, if applicable.
     pub base_url: Option<RuntimeValue<String>>,
+    pub headers: Option<RuntimeValue<ResolvedContextProviderHeaders>>,
 }
 
 /// Resolved provider configuration for OpenRouter.
@@ -100,6 +128,7 @@ pub struct ResolvedContextProviderOllama {
 pub struct ResolvedContextProviderOpenRouter {
     /// Provider API key, if required.
     pub api_key: Option<RuntimeValue<String>>,
+    pub headers: Option<RuntimeValue<ResolvedContextProviderHeaders>>,
 }
 
 /// Resolved provider configuration for xAI.
@@ -107,6 +136,7 @@ pub struct ResolvedContextProviderOpenRouter {
 pub struct ResolvedContextProviderXai {
     /// Provider API key, if required.
     pub api_key: Option<RuntimeValue<String>>,
+    pub headers: Option<RuntimeValue<ResolvedContextProviderHeaders>>,
 }
 
 /// Resolved provider configuration for Gemini.
@@ -114,6 +144,7 @@ pub struct ResolvedContextProviderXai {
 pub struct ResolvedContextProviderGemini {
     /// Provider API key, if required.
     pub api_key: Option<RuntimeValue<String>>,
+    pub headers: Option<RuntimeValue<ResolvedContextProviderHeaders>>,
 }
 
 /// Resolved provider configuration for Hugging Face.
@@ -123,4 +154,5 @@ pub struct ResolvedContextProviderHuggingFace {
     pub api_key: Option<RuntimeValue<String>>,
     /// Base URL for the provider's API, if applicable.
     pub base_url: Option<RuntimeValue<String>>,
+    pub headers: Option<RuntimeValue<ResolvedContextProviderHeaders>>,
 }
