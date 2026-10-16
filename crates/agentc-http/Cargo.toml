@@ -45,10 +45,17 @@ typescript = ["client", "dep:agentc-executor-typescript"]
 tls = ["server", "dep:rustls"]
 
 [dependencies]
+<<<<<<< HEAD
 agentc-telemetry = { path = "../agentc-telemetry", version = "0.3.1" }
 agentc-domain = { path = "../agentc-domain", version = "0.3.1", optional = true }
 agentc-executor-python = { path = "../agentc-executor-python", version = "0.3.1", default-features = false, optional = true }
 agentc-executor-typescript = { path = "../agentc-executor-typescript", version = "0.3.1", default-features = false, optional = true }
+=======
+agentc-telemetry = { path = "../agentc-telemetry", version = "0.4.0" }
+agentc-domain = { path = "../agentc-domain", version = "0.4.0", optional = true }
+agentc-executor-python = { path = "../agentc-executor-python", version = "0.4.0", default-features = false, optional = true }
+agentc-executor-typescript = { path = "../agentc-executor-typescript", version = "0.4.0", default-features = false, optional = true }
+>>>>>>> origin/main
 
 tokio = { workspace = true }
 tokio-util = { workspace = true }
@@ -92,7 +99,11 @@ reqwest-tracing = { version = "0.7", features = ["opentelemetry_0_32"], optional
 opentelemetry-instrumentation-tower = { git = "https://github.com/open-telemetry/opentelemetry-rust-contrib", rev = "c0a28d7", package = "opentelemetry-instrumentation-tower", features = ["axum"], optional = true }
 
 [dev-dependencies]
+<<<<<<< HEAD
 agentc-executor-python = { path = "../agentc-executor-python", version = "0.3.1", features = ["rustpython"] }
+=======
+agentc-executor-python = { path = "../agentc-executor-python", version = "0.4.0", features = ["rustpython"] }
+>>>>>>> origin/main
 
 tower = { workspace = true, features = ["util"] }
 tokio = { workspace = true }

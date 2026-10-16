@@ -1,6 +1,6 @@
 [project]
 name = "agentc-runtime"
-version = "0.3.1"
+version = "0.4.0"
 description = "Python type stubs for the agentc runtime"
 readme = "README.md"
 license = "MIT"
