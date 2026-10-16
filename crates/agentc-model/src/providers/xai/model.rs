@@ -5,8 +5,10 @@
 use async_trait::async_trait;
 use futures::StreamExt;
 use rig_core::{
-    client::CompletionClient,
+    client::{ClientBuilder, CompletionClient},
     completion::CompletionModel as RigCompletionModel,
+    http_client::ReqwestClient,
+    markers::Missing,
     message::Message,
     providers::{openai::responses_api::streaming::StreamingCompletionResponse, xai},
 };
@@ -14,7 +16,10 @@ use serde_json::json;
 
 use crate::{
     errors::{IntoModelError, ModelError},
-    providers::{rig::events::CompletionStreamMetadata, xai::constants::OTEL_PROVIDER_NAME},
+    providers::{
+        rig::{events::CompletionStreamMetadata, headers::Headers},
+        xai::constants::OTEL_PROVIDER_NAME,
+    },
     stream::ChatCompletionStream,
     traits::CompletionModel,
     types::{
@@ -30,7 +35,9 @@ impl CompletionStreamMetadata for StreamingCompletionResponse {}
 /// [`XaiClient::model`](crate::providers::xai::client::XaiClient::model).
 pub struct XaiModel {
     provider: ProviderId,
-    model: xai::CompletionModel,
+    client: ClientBuilder<xai::client::XAiExtBuilder, Missing, ReqwestClient>,
+    api_key: String,
+    headers: Headers,
     model_id: ModelId,
     inference_params: InferenceParams,
 }
@@ -38,13 +45,17 @@ pub struct XaiModel {
 impl XaiModel {
     pub fn new(
         provider: ProviderId,
-        client: xai::Client,
+        client: ClientBuilder<xai::client::XAiExtBuilder, Missing, ReqwestClient>,
+        api_key: String,
+        headers: Headers,
         model_id: ModelId,
         inference_params: InferenceParams,
     ) -> Self {
         Self {
             provider,
-            model: client.completion_model(model_id.as_str()),
+            client,
+            api_key,
+            headers,
             model_id,
             inference_params,
         }
@@ -73,7 +84,13 @@ impl CompletionModel for XaiModel {
         let request = request.with_defaults(&self.inference_params);
         let (system, latest, rest) = request.messages.split()?;
         let mut builder = self
-            .model
+            .client
+            .clone()
+            .api_key(self.api_key.clone())
+            .http_headers(self.headers.resolve(&request.context)?)
+            .build()
+            .map_err(|e| e.into_model_error(self.provider.clone()))?
+            .completion_model(self.model_id.as_str())
             .completion_request(Message::try_from(latest)?);
         let mut additional = json!(
             request

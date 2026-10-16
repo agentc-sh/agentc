@@ -10,7 +10,7 @@ use agentc_blocks::types::RuntimeValueWire;
 use crate::parser::{
     errors::ParserError,
     middleware::{
-        hcl::expression::{ExpressionVisitor, VisitOrder},
+        hcl::visitor::{ExpressionVisitor, VisitOrder},
         traits::FormatMiddleware,
     },
 };

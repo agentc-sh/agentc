@@ -3,9 +3,17 @@
 // SPDX-License-Identifier: MIT
 
 use agentc_compiler::generator::blocks::codegen::ToIdent;
+use proc_macro2::TokenStream;
+use quote::quote;
+use serde::{Deserialize, Serialize};
+use serde_json::json;
+use std::collections::BTreeMap;
 
 use crate::{
-    config::fields::spec::{FieldsSpec, IntoFieldSpecs},
+    config::fields::{
+        spec::{FieldsSpec, IntoFieldSpecs},
+        types::{AsFieldValue, FieldValue, IntoTypeTokens},
+    },
     context::{
         ResolvedContextProvider, ResolvedContextProviderAnthropic, ResolvedContextProviderGemini,
         ResolvedContextProviderHuggingFace, ResolvedContextProviderKind,
@@ -13,6 +21,7 @@ use crate::{
         ResolvedContextProviderOpenRouter, ResolvedContextProviderParams,
         ResolvedContextProviderXai,
     },
+    types::ExpressionValue,
 };
 
 /// Registers every set inference parameter under `["provider", provider, slug, <field>]`.
@@ -26,6 +35,63 @@ trait ExtendParamFields {
 
 trait ExtendProviderFields {
     fn extend_provider_fields(&self, fields: &mut FieldsSpec, provider: &str);
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct ResolvedContextProviderHeaders(BTreeMap<String, ExpressionValue<String>>);
+
+impl ResolvedContextProviderHeaders {
+    pub fn new(values: BTreeMap<String, ExpressionValue<String>>) -> Self {
+        Self(values)
+    }
+
+    pub fn as_inner(&self) -> &BTreeMap<String, ExpressionValue<String>> {
+        &self.0
+    }
+
+    pub fn as_inner_mut(&mut self) -> &mut BTreeMap<String, ExpressionValue<String>> {
+        &mut self.0
+    }
+
+    pub fn into_inner(self) -> BTreeMap<String, ExpressionValue<String>> {
+        self.0
+    }
+
+    pub fn uses_cel(&self) -> bool {
+        self.0
+            .values()
+            .any(ExpressionValue::is_expression)
+    }
+}
+
+impl AsFieldValue for ResolvedContextProviderHeaders {
+    fn as_field_value(&self) -> FieldValue {
+        FieldValue::constant(
+            self.as_inner()
+                .iter()
+                .map(|(name, value)| {
+                    (
+                        name.clone(),
+                        match value {
+                            ExpressionValue::Literal(source) => {
+                                json!({ "syntax": "literal", "source": source })
+                            }
+                            ExpressionValue::Expression(source) => {
+                                json!({ "syntax": "cel", "source": source })
+                            }
+                        },
+                    )
+                })
+                .collect::<serde_json::Map<_, _>>(),
+        )
+    }
+}
+
+impl IntoTypeTokens for ResolvedContextProviderHeaders {
+    fn type_tokens() -> TokenStream {
+        quote! { agentc_model::providers::rig::headers::Headers }
+    }
 }
 
 impl ExtendParamFields for ResolvedContextProviderParams {
@@ -101,6 +167,9 @@ impl ExtendProviderFields for ResolvedContextProviderAnthropic {
         if let Some(v) = &self.base_url {
             fields.push(&["provider", provider, "base_url"], v);
         }
+        if let Some(v) = &self.headers {
+            fields.push(&["provider", provider, "headers"], v);
+        }
     }
 }
 
@@ -112,6 +181,9 @@ impl ExtendProviderFields for ResolvedContextProviderOpenAi {
         if let Some(v) = &self.base_url {
             fields.push(&["provider", provider, "base_url"], v);
         }
+        if let Some(v) = &self.headers {
+            fields.push(&["provider", provider, "headers"], v);
+        }
     }
 }
 
@@ -119,6 +191,9 @@ impl ExtendProviderFields for ResolvedContextProviderOllama {
     fn extend_provider_fields(&self, fields: &mut FieldsSpec, provider: &str) {
         if let Some(v) = &self.base_url {
             fields.push(&["provider", provider, "base_url"], v);
+        }
+        if let Some(v) = &self.headers {
+            fields.push(&["provider", provider, "headers"], v);
         }
     }
 }
@@ -128,6 +203,9 @@ impl ExtendProviderFields for ResolvedContextProviderOpenRouter {
         if let Some(v) = &self.api_key {
             fields.push(&["provider", provider, "api_key"], v);
         }
+        if let Some(v) = &self.headers {
+            fields.push(&["provider", provider, "headers"], v);
+        }
     }
 }
 
@@ -136,6 +214,9 @@ impl ExtendProviderFields for ResolvedContextProviderXai {
         if let Some(v) = &self.api_key {
             fields.push(&["provider", provider, "api_key"], v);
         }
+        if let Some(v) = &self.headers {
+            fields.push(&["provider", provider, "headers"], v);
+        }
     }
 }
 
@@ -143,6 +224,9 @@ impl ExtendProviderFields for ResolvedContextProviderGemini {
     fn extend_provider_fields(&self, fields: &mut FieldsSpec, provider: &str) {
         if let Some(v) = &self.api_key {
             fields.push(&["provider", provider, "api_key"], v);
+        }
+        if let Some(v) = &self.headers {
+            fields.push(&["provider", provider, "headers"], v);
         }
     }
 }
@@ -154,6 +238,9 @@ impl ExtendProviderFields for ResolvedContextProviderHuggingFace {
         }
         if let Some(v) = &self.base_url {
             fields.push(&["provider", provider, "base_url"], v);
+        }
+        if let Some(v) = &self.headers {
+            fields.push(&["provider", provider, "headers"], v);
         }
     }
 }
@@ -195,6 +282,7 @@ mod tests {
             kind: ResolvedContextProviderKind::Anthropic(ResolvedContextProviderAnthropic {
                 api_key: Some(RuntimeValue::secret_runtime("ANTHROPIC_KEY")),
                 base_url: Some(RuntimeValue::constant("https://api".to_string())),
+                headers: None,
             }),
         };
 
@@ -231,6 +319,7 @@ mod tests {
             params: None,
             kind: ResolvedContextProviderKind::Ollama(ResolvedContextProviderOllama {
                 base_url: Some(RuntimeValue::constant("http://localhost:11434".to_string())),
+                headers: None,
             }),
         };
 
@@ -256,6 +345,7 @@ mod tests {
             params: None,
             kind: ResolvedContextProviderKind::Xai(ResolvedContextProviderXai {
                 api_key: Some(RuntimeValue::secret_runtime("XAI_KEY")),
+                headers: None,
             }),
         };
 
@@ -291,6 +381,7 @@ mod tests {
             kind: ResolvedContextProviderKind::HuggingFace(ResolvedContextProviderHuggingFace {
                 api_key: Some(RuntimeValue::secret_runtime("HUGGINGFACE_KEY")),
                 base_url: Some(RuntimeValue::constant("https://router.example.com".to_string())),
+                headers: None,
             }),
         };
 
@@ -335,6 +426,7 @@ mod tests {
             kind: ResolvedContextProviderKind::OpenAi(ResolvedContextProviderOpenAi {
                 api_key: Some(RuntimeValue::secret_runtime("OPENAI_KEY")),
                 base_url: None,
+                headers: None,
             }),
         };
 

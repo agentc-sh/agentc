@@ -2,11 +2,13 @@
 //
 // SPDX-License-Identifier: MIT
 
-use rig_core::providers::xai;
+use rig_core::{
+    client::ClientBuilder, http_client::ReqwestClient, markers::Missing, providers::xai,
+};
 
 use crate::{
     errors::ModelError,
-    providers::xai::model::XaiModel,
+    providers::{rig::headers::Headers, xai::model::XaiModel},
     traits::CompletionClient,
     types::{
         identity::{ModelId, ProviderId},
@@ -17,12 +19,24 @@ use crate::{
 #[derive(Clone)]
 pub struct XaiClient {
     provider: ProviderId,
-    inner: xai::Client,
+    inner: ClientBuilder<xai::client::XAiExtBuilder, Missing, ReqwestClient>,
+    api_key: String,
+    headers: Headers,
 }
 
 impl XaiClient {
-    pub fn new(provider: ProviderId, client: xai::Client) -> Self {
-        Self { provider, inner: client }
+    pub fn new(
+        provider: ProviderId,
+        client: ClientBuilder<xai::client::XAiExtBuilder, Missing, ReqwestClient>,
+        api_key: String,
+        headers: Headers,
+    ) -> Self {
+        Self {
+            provider,
+            inner: client,
+            api_key,
+            headers,
+        }
     }
 }
 
@@ -34,6 +48,13 @@ impl CompletionClient for XaiClient {
     }
 
     fn model(&self, model: ModelId, params: InferenceParams) -> Result<XaiModel, ModelError> {
-        Ok(XaiModel::new(self.provider.clone(), self.inner.clone(), model, params))
+        Ok(XaiModel::new(
+            self.provider.clone(),
+            self.inner.clone(),
+            self.api_key.clone(),
+            self.headers.clone(),
+            model,
+            params,
+        ))
     }
 }

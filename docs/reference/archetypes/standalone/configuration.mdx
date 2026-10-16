@@ -103,6 +103,7 @@ fallbacks come from the corresponding [provider declaration](/reference/manifest
 |-------|------|--------------|-------------|
 | `api_key` | string | Configured for a provider supporting credentials | Authentication key. |
 | `base_url` | string | Configured for Anthropic, OpenAI, Ollama, or Hugging Face | Service endpoint. |
+| `headers` | object | Configured with `headers` | HTTP headers sent with each model request. Values come from the [provider declaration](/reference/manifest/providers). |
 | `params` | [InferenceParams](#inferenceparams) | Provider-level parameters configured | Inference defaults shared by the provider's models. |
 | `<model_key>` | [InferenceParams](#inferenceparams) | Parameters configured for that model | Inference settings for an individual model. |
 

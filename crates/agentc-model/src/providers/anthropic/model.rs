@@ -5,14 +5,21 @@
 use async_trait::async_trait;
 use futures::StreamExt;
 use rig_core::{
-    client::CompletionClient, completion::CompletionModel as RigCompletionModel, message::Message,
+    client::{ClientBuilder, CompletionClient},
+    completion::CompletionModel as RigCompletionModel,
+    http_client::ReqwestClient,
+    markers::Missing,
+    message::Message,
     providers::anthropic,
 };
 use serde_json::json;
 
 use crate::{
     errors::{IntoModelError, ModelError},
-    providers::{anthropic::constants::OTEL_PROVIDER_NAME, rig::events::CompletionStreamMetadata},
+    providers::{
+        anthropic::constants::OTEL_PROVIDER_NAME,
+        rig::{events::CompletionStreamMetadata, headers::Headers},
+    },
     stream::ChatCompletionStream,
     traits::CompletionModel,
     types::{
@@ -28,7 +35,9 @@ impl CompletionStreamMetadata for anthropic::streaming::StreamingCompletionRespo
 /// [`AnthropicClient::model`](crate::providers::anthropic::client::AnthropicClient::model).
 pub struct AnthropicModel {
     provider: ProviderId,
-    model: anthropic::completion::CompletionModel,
+    client: ClientBuilder<anthropic::client::AnthropicBuilder, Missing, ReqwestClient>,
+    api_key: String,
+    headers: Headers,
     model_id: ModelId,
     inference_params: InferenceParams,
 }
@@ -36,13 +45,17 @@ pub struct AnthropicModel {
 impl AnthropicModel {
     pub fn new(
         provider: ProviderId,
-        client: anthropic::Client,
+        client: ClientBuilder<anthropic::client::AnthropicBuilder, Missing, ReqwestClient>,
+        api_key: String,
+        headers: Headers,
         model_id: ModelId,
         inference_params: InferenceParams,
     ) -> Self {
         Self {
             provider,
-            model: client.completion_model(model_id.as_str()),
+            client,
+            api_key,
+            headers,
             model_id,
             inference_params,
         }
@@ -71,7 +84,13 @@ impl CompletionModel for AnthropicModel {
         let request = request.with_defaults(&self.inference_params);
         let (system, latest, rest) = request.messages.split()?;
         let mut builder = self
-            .model
+            .client
+            .clone()
+            .api_key(self.api_key.clone())
+            .http_headers(self.headers.resolve(&request.context)?)
+            .build()
+            .map_err(|e| e.into_model_error(self.provider.clone()))?
+            .completion_model(self.model_id.as_str())
             .completion_request(Message::try_from(latest)?);
         let mut additional = json!(
             request

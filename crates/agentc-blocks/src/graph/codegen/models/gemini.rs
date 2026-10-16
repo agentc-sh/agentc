@@ -33,9 +33,17 @@ impl ProviderKindCodeGen for ResolvedContextProviderGemini {
             .map(|path| quote! { Some(#path.clone().into_inner()) })
             .unwrap_or(quote! { None });
 
+        let headers = self
+            .headers
+            .as_ref()
+            .and_then(|_| fields.config_accessor(&["provider", provider, "headers"]))
+            .map(|path| quote! { #path.clone() })
+            .unwrap_or(quote! { Default::default() });
+
         quote! {
             GeminiConfig {
                 api_key: #api_key,
+                headers: #headers,
                 ..Default::default()
             }
         }
@@ -48,7 +56,7 @@ mod tests {
 
     #[test]
     fn imports_and_config_reference_the_gemini_factory() {
-        let provider = ResolvedContextProviderGemini { api_key: None };
+        let provider = ResolvedContextProviderGemini { api_key: None, headers: None };
 
         assert!(
             provider

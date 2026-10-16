@@ -40,10 +40,18 @@ impl ProviderKindCodeGen for ResolvedContextProviderAnthropic {
             .map(|path| quote! { Some(#path.clone()) })
             .unwrap_or(quote! { None });
 
+        let headers = self
+            .headers
+            .as_ref()
+            .and_then(|_| fields.config_accessor(&["provider", provider, "headers"]))
+            .map(|path| quote! { #path.clone() })
+            .unwrap_or(quote! { Default::default() });
+
         quote! {
             AnthropicConfig {
                 api_key: #api_key,
                 base_url: #base_url,
+                headers: #headers,
                 ..Default::default()
             }
         }
@@ -57,9 +65,13 @@ mod tests {
 
     #[test]
     fn imports_reference_the_anthropic_factory_and_config() {
-        let rendered = ResolvedContextProviderAnthropic { api_key: None, base_url: None }
-            .imports()
-            .to_string();
+        let rendered = ResolvedContextProviderAnthropic {
+            api_key: None,
+            base_url: None,
+            headers: None,
+        }
+        .imports()
+        .to_string();
 
         assert!(rendered.contains("AnthropicConfig"));
         assert!(rendered.contains("AnthropicFactory"));
@@ -81,6 +93,7 @@ mod tests {
         let rendered = ResolvedContextProviderAnthropic {
             api_key: Some(RuntimeValue::secret_runtime("KEY")),
             base_url: Some(RuntimeValue::constant("https://api".to_string())),
+            headers: None,
         }
         .config(&fields, "anthropic")
         .to_string()
