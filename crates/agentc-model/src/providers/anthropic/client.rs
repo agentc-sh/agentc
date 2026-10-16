@@ -2,11 +2,13 @@
 //
 // SPDX-License-Identifier: MIT
 
-use rig_core::providers::anthropic;
+use rig_core::{
+    client::ClientBuilder, http_client::ReqwestClient, markers::Missing, providers::anthropic,
+};
 
 use crate::{
     errors::ModelError,
-    providers::anthropic::model::AnthropicModel,
+    providers::{anthropic::model::AnthropicModel, rig::headers::Headers},
     traits::CompletionClient,
     types::{
         identity::{ModelId, ProviderId},
@@ -17,12 +19,24 @@ use crate::{
 #[derive(Clone)]
 pub struct AnthropicClient {
     provider: ProviderId,
-    inner: anthropic::Client,
+    inner: ClientBuilder<anthropic::client::AnthropicBuilder, Missing, ReqwestClient>,
+    api_key: String,
+    headers: Headers,
 }
 
 impl AnthropicClient {
-    pub fn new(provider: ProviderId, client: anthropic::Client) -> Self {
-        Self { provider, inner: client }
+    pub fn new(
+        provider: ProviderId,
+        client: ClientBuilder<anthropic::client::AnthropicBuilder, Missing, ReqwestClient>,
+        api_key: String,
+        headers: Headers,
+    ) -> Self {
+        Self {
+            provider,
+            inner: client,
+            api_key,
+            headers,
+        }
     }
 }
 
@@ -34,6 +48,13 @@ impl CompletionClient for AnthropicClient {
     }
 
     fn model(&self, model: ModelId, params: InferenceParams) -> Result<AnthropicModel, ModelError> {
-        Ok(AnthropicModel::new(self.provider.clone(), self.inner.clone(), model, params))
+        Ok(AnthropicModel::new(
+            self.provider.clone(),
+            self.inner.clone(),
+            self.api_key.clone(),
+            self.headers.clone(),
+            model,
+            params,
+        ))
     }
 }

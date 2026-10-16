@@ -141,6 +141,18 @@ NETWORK_ALLOW_PATTERNS__0__HOSTNAME=api.example.com
 A field whose manifest value contains a nested `runtime()` keeps its fixed parts. Only the nested
 runtime values are read from the environment.
 
+## Expression values
+
+An `expression("source")` value is evaluated by the agent while it runs, not while building it.
+The field that holds it decides the expression language and the values the expression can read.
+
+Only fields whose reference lists `expression()` accept it. Anywhere else, the manifest fails to
+load with a type error. Locals are interpolated into `source` as into any other string.
+
+| Field | Reference |
+|-------|-----------|
+| `provider` `config.headers` values | the `HeaderValue` section of each [provider kind](/reference/manifest/providers#kinds) |
+
 ## Blocks
 
 | Block | Purpose |

@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
+pub mod context;
 pub mod identity;
 pub mod inference;
 pub mod media;

@@ -12,6 +12,7 @@ use crate::{
     middleware::{CompletionMiddleware, Intercepted},
     stream::ChatCompletionStream,
     types::{
+        context::InvocationContext,
         identity::{ModelId, ProviderId, ProviderKind},
         inference::InferenceParams,
         message::ChatMessage,
@@ -311,6 +312,11 @@ impl<'a> CompletionRequestBuilder<'a> {
         if let Some(params) = params {
             self.request.provider_params = to_value(params).ok();
         }
+        self
+    }
+
+    pub fn context(mut self, context: InvocationContext) -> Self {
+        self.request.context = context;
         self
     }
 

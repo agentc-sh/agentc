@@ -5,14 +5,21 @@
 use async_trait::async_trait;
 use futures::StreamExt;
 use rig_core::{
-    client::CompletionClient, completion::CompletionModel as RigCompletionModel, message::Message,
+    client::{ClientBuilder, CompletionClient, Nothing},
+    completion::CompletionModel as RigCompletionModel,
+    http_client::ReqwestClient,
+    markers::Missing,
+    message::Message,
     providers::ollama,
 };
 use serde_json::json;
 
 use crate::{
     errors::{IntoModelError, ModelError},
-    providers::{ollama::constants::OTEL_PROVIDER_NAME, rig::events::CompletionStreamMetadata},
+    providers::{
+        ollama::constants::OTEL_PROVIDER_NAME,
+        rig::{events::CompletionStreamMetadata, headers::Headers},
+    },
     stream::ChatCompletionStream,
     traits::CompletionModel,
     types::{
@@ -32,7 +39,8 @@ impl CompletionStreamMetadata for ollama::StreamingCompletionResponse {
 /// [`OllamaClient::model`](crate::providers::ollama::OllamaClient::model).
 pub struct OllamaModel {
     provider: ProviderId,
-    model: ollama::CompletionModel,
+    client: ClientBuilder<ollama::OllamaBuilder, Missing, ReqwestClient>,
+    headers: Headers,
     model_id: ModelId,
     inference_params: InferenceParams,
 }
@@ -40,13 +48,15 @@ pub struct OllamaModel {
 impl OllamaModel {
     pub fn new(
         provider: ProviderId,
-        client: ollama::Client,
+        client: ClientBuilder<ollama::OllamaBuilder, Missing, ReqwestClient>,
+        headers: Headers,
         model_id: ModelId,
         inference_params: InferenceParams,
     ) -> Self {
         Self {
             provider,
-            model: client.completion_model(model_id.as_str()),
+            client,
+            headers,
             model_id,
             inference_params,
         }
@@ -75,7 +85,13 @@ impl CompletionModel for OllamaModel {
         let request = request.with_defaults(&self.inference_params);
         let (system, latest, rest) = request.messages.split()?;
         let mut builder = self
-            .model
+            .client
+            .clone()
+            .api_key(Nothing)
+            .http_headers(self.headers.resolve(&request.context)?)
+            .build()
+            .map_err(|e| e.into_model_error(self.provider.clone()))?
+            .completion_model(self.model_id.as_str())
             .completion_request(Message::try_from(latest)?);
         let mut additional = json!(
             request

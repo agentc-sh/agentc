@@ -30,6 +30,28 @@ address of a locally running Ollama instance.
 | Field | Type | Required | runtime() | Default | Description |
 |-------|------|----------|-----------|---------|-------------|
 | `base_url` | string | no | yes | unset | Base URL of the Ollama server. |
+| `headers` | map&lt;string, [HeaderValue](#headervalue)&gt; | no | yes | `{}` | HTTP headers sent with every model request, keyed by header name. Header names are case insensitive. |
+
+## HeaderValue
+
+A header value is one of:
+
+| Form | Header value |
+|------|--------------|
+| a string | The string, unchanged. |
+| `expression("source")` | The result of the [CEL](https://cel.dev) expression `source`, evaluated for each model request. |
+
+```hcl
+config {
+  headers = {
+    "X-Team"      = "platform"
+    "X-Tenant-Id" = expression("ctx.tenant_id")
+  }
+}
+```
+
+For the values an expression can read and how evaluation fails, see
+[Send custom headers](/guides/configure-a-model-provider#send-custom-headers).
 
 ## InferenceParams
 

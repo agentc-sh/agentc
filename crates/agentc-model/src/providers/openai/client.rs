@@ -2,11 +2,13 @@
 //
 // SPDX-License-Identifier: MIT
 
-use rig_core::providers::openai;
+use rig_core::{
+    client::ClientBuilder, http_client::ReqwestClient, markers::Missing, providers::openai,
+};
 
 use crate::{
     errors::ModelError,
-    providers::openai::model::OpenAiModel,
+    providers::{openai::model::OpenAiModel, rig::headers::Headers},
     traits::CompletionClient,
     types::{
         identity::{ModelId, ProviderId},
@@ -17,12 +19,24 @@ use crate::{
 #[derive(Clone)]
 pub struct OpenAiClient {
     provider: ProviderId,
-    inner: openai::CompletionsClient,
+    inner: ClientBuilder<openai::OpenAICompletionsExtBuilder, Missing, ReqwestClient>,
+    api_key: String,
+    headers: Headers,
 }
 
 impl OpenAiClient {
-    pub fn new(provider: ProviderId, client: openai::CompletionsClient) -> Self {
-        Self { provider, inner: client }
+    pub fn new(
+        provider: ProviderId,
+        client: ClientBuilder<openai::OpenAICompletionsExtBuilder, Missing, ReqwestClient>,
+        api_key: String,
+        headers: Headers,
+    ) -> Self {
+        Self {
+            provider,
+            inner: client,
+            api_key,
+            headers,
+        }
     }
 }
 
@@ -34,6 +48,13 @@ impl CompletionClient for OpenAiClient {
     }
 
     fn model(&self, model: ModelId, params: InferenceParams) -> Result<OpenAiModel, ModelError> {
-        Ok(OpenAiModel::new(self.provider.clone(), self.inner.clone(), model, params))
+        Ok(OpenAiModel::new(
+            self.provider.clone(),
+            self.inner.clone(),
+            self.api_key.clone(),
+            self.headers.clone(),
+            model,
+            params,
+        ))
     }
 }

@@ -4,12 +4,15 @@
 
 pub mod traits;
 
+use std::collections::BTreeMap;
+
 use sanitizer::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use validator::Validate;
 
 use agentc_blocks::{
+    config::fields::providers::ResolvedContextProviderHeaders,
     context::{
         ResolvedContextProvider, ResolvedContextProviderAnthropic, ResolvedContextProviderGemini,
         ResolvedContextProviderHuggingFace, ResolvedContextProviderKind,
@@ -17,7 +20,7 @@ use agentc_blocks::{
         ResolvedContextProviderOpenRouter, ResolvedContextProviderParams,
         ResolvedContextProviderXai,
     },
-    types::RuntimeValue,
+    types::{ExpressionValue, RuntimeValue},
 };
 
 use crate::manifest::{
@@ -193,6 +196,8 @@ pub struct ManifestProviderAnthropicConfig {
     pub api_key: Option<RuntimeValue<String>>,
     #[serde(default)]
     pub base_url: Option<RuntimeValue<String>>,
+    #[serde(default)]
+    pub headers: Option<RuntimeValue<BTreeMap<String, ExpressionValue<String>>>>,
 }
 
 impl ManifestProviderModel for ManifestProviderAnthropicModel {
@@ -226,6 +231,12 @@ impl ResolveProviderKind
                 .as_ref()
                 .and_then(|config| config.base_url.clone())
                 .interpolate(locals)?,
+            headers: self
+                .config
+                .as_ref()
+                .and_then(|config| config.headers.clone())
+                .interpolate(locals)?
+                .map(|headers| headers.map(ResolvedContextProviderHeaders::new)),
         }))
     }
 }
@@ -251,6 +262,8 @@ pub struct ManifestProviderOpenAiConfig {
     pub api_key: Option<RuntimeValue<String>>,
     #[serde(default)]
     pub base_url: Option<RuntimeValue<String>>,
+    #[serde(default)]
+    pub headers: Option<RuntimeValue<BTreeMap<String, ExpressionValue<String>>>>,
 }
 
 impl ManifestProviderModel for ManifestProviderOpenAiModel {
@@ -284,6 +297,12 @@ impl ResolveProviderKind
                 .as_ref()
                 .and_then(|config| config.base_url.clone())
                 .interpolate(locals)?,
+            headers: self
+                .config
+                .as_ref()
+                .and_then(|config| config.headers.clone())
+                .interpolate(locals)?
+                .map(|headers| headers.map(ResolvedContextProviderHeaders::new)),
         }))
     }
 }
@@ -307,6 +326,8 @@ pub struct ManifestProviderOllamaModelConfig {
 pub struct ManifestProviderOllamaConfig {
     #[serde(default)]
     pub base_url: Option<RuntimeValue<String>>,
+    #[serde(default)]
+    pub headers: Option<RuntimeValue<BTreeMap<String, ExpressionValue<String>>>>,
 }
 
 impl ManifestProviderModel for ManifestProviderOllamaModel {
@@ -335,6 +356,12 @@ impl ResolveProviderKind
                 .as_ref()
                 .and_then(|config| config.base_url.clone())
                 .interpolate(locals)?,
+            headers: self
+                .config
+                .as_ref()
+                .and_then(|config| config.headers.clone())
+                .interpolate(locals)?
+                .map(|headers| headers.map(ResolvedContextProviderHeaders::new)),
         }))
     }
 }
@@ -358,6 +385,8 @@ pub struct ManifestProviderOpenRouterModelConfig {
 pub struct ManifestProviderOpenRouterConfig {
     #[serde(default)]
     pub api_key: Option<RuntimeValue<String>>,
+    #[serde(default)]
+    pub headers: Option<RuntimeValue<BTreeMap<String, ExpressionValue<String>>>>,
 }
 
 impl ManifestProviderModel for ManifestProviderOpenRouterModel {
@@ -389,6 +418,12 @@ impl ResolveProviderKind
                 .as_ref()
                 .and_then(|config| config.api_key.clone())
                 .interpolate(locals)?,
+            headers: self
+                .config
+                .as_ref()
+                .and_then(|config| config.headers.clone())
+                .interpolate(locals)?
+                .map(|headers| headers.map(ResolvedContextProviderHeaders::new)),
         }))
     }
 }
@@ -412,6 +447,8 @@ pub struct ManifestProviderXaiModelConfig {
 pub struct ManifestProviderXaiConfig {
     #[serde(default)]
     pub api_key: Option<RuntimeValue<String>>,
+    #[serde(default)]
+    pub headers: Option<RuntimeValue<BTreeMap<String, ExpressionValue<String>>>>,
 }
 
 impl ManifestProviderModel for ManifestProviderXaiModel {
@@ -440,6 +477,12 @@ impl ResolveProviderKind
                 .as_ref()
                 .and_then(|config| config.api_key.clone())
                 .interpolate(locals)?,
+            headers: self
+                .config
+                .as_ref()
+                .and_then(|config| config.headers.clone())
+                .interpolate(locals)?
+                .map(|headers| headers.map(ResolvedContextProviderHeaders::new)),
         }))
     }
 }
@@ -463,6 +506,8 @@ pub struct ManifestProviderGeminiModelConfig {
 pub struct ManifestProviderGeminiConfig {
     #[serde(default)]
     pub api_key: Option<RuntimeValue<String>>,
+    #[serde(default)]
+    pub headers: Option<RuntimeValue<BTreeMap<String, ExpressionValue<String>>>>,
 }
 
 impl ManifestProviderModel for ManifestProviderGeminiModel {
@@ -491,6 +536,12 @@ impl ResolveProviderKind
                 .as_ref()
                 .and_then(|config| config.api_key.clone())
                 .interpolate(locals)?,
+            headers: self
+                .config
+                .as_ref()
+                .and_then(|config| config.headers.clone())
+                .interpolate(locals)?
+                .map(|headers| headers.map(ResolvedContextProviderHeaders::new)),
         }))
     }
 }
@@ -516,6 +567,8 @@ pub struct ManifestProviderHuggingFaceConfig {
     pub api_key: Option<RuntimeValue<String>>,
     #[serde(default)]
     pub base_url: Option<RuntimeValue<String>>,
+    #[serde(default)]
+    pub headers: Option<RuntimeValue<BTreeMap<String, ExpressionValue<String>>>>,
 }
 
 impl ManifestProviderModel for ManifestProviderHuggingFaceModel {
@@ -552,6 +605,12 @@ impl ResolveProviderKind
                 .as_ref()
                 .and_then(|config| config.base_url.clone())
                 .interpolate(locals)?,
+            headers: self
+                .config
+                .as_ref()
+                .and_then(|config| config.headers.clone())
+                .interpolate(locals)?
+                .map(|headers| headers.map(ResolvedContextProviderHeaders::new)),
         }))
     }
 }

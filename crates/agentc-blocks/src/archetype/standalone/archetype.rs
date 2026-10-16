@@ -40,7 +40,7 @@ use crate::{
     contributions::dependency::{CargoDependencies, CargoPatches},
     errors::BlocksError,
     feature::{ArchetypeStandalone, Cli, GenerationFeatureSet, HttpServer, LongLivedProcess},
-    graph::codegen::prompt::PromptCargoFragment,
+    graph::codegen::{models::ModelCargoFragment, prompt::PromptCargoFragment},
     runtime::EMBEDDED_RUNTIME,
 };
 
@@ -170,6 +170,13 @@ impl Archetype for StandaloneArchetype {
                     .contribute(Contribution::<CargoDependencies>::strict("cargo::dependencies"))
                     .contribute(Contribution::<CargoPatches>::strict("cargo::patches"))
                     .build(PromptCargoFragment),
+            )
+            .add(
+                FragmentBlock::builder()
+                    .id("model_cargo")
+                    .contribute(Contribution::<CargoDependencies>::strict("cargo::dependencies"))
+                    .contribute(Contribution::<CargoPatches>::strict("cargo::patches"))
+                    .build(ModelCargoFragment),
             )
             .add(
                 CodeGenBlock::builder()
@@ -356,6 +363,21 @@ mod tests {
                 .blocks
                 .iter()
                 .any(|block| block.id() == "prompt_cargo")
+        );
+    }
+
+    #[test]
+    fn registers_model_cargo_fragment() {
+        let resolved = StandaloneArchetype
+            .resolve(context(None), StandaloneArchetypeConfig::default())
+            .unwrap();
+
+        assert!(
+            resolved
+                .contribution
+                .blocks
+                .iter()
+                .any(|block| block.id() == "model_cargo")
         );
     }
 
