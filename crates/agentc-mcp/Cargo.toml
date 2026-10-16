@@ -8,8 +8,8 @@ license.workspace = true
 readme.workspace = true
 
 [dependencies]
-agentc-telemetry = { path = "../agentc-telemetry", version = "0.3.1" }
-agentc-agent = { path = "../agentc-agent", version = "0.3.1" }
+agentc-telemetry = { path = "../agentc-telemetry", version = "0.4.0" }
+agentc-agent = { path = "../agentc-agent", version = "0.4.0" }
 
 tokio = { workspace = true }
 async-trait = { workspace = true }

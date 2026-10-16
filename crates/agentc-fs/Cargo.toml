@@ -14,8 +14,8 @@ typescript = ["dep:agentc-executor-typescript", "dep:serde"]
 python = ["dep:agentc-executor-python"]
 
 [dependencies]
-agentc-executor-python = { path = "../agentc-executor-python", version = "0.3.1", default-features = false, optional = true }
-agentc-executor-typescript = { path = "../agentc-executor-typescript", version = "0.3.1", default-features = false, optional = true }
+agentc-executor-python = { path = "../agentc-executor-python", version = "0.4.0", default-features = false, optional = true }
+agentc-executor-typescript = { path = "../agentc-executor-typescript", version = "0.4.0", default-features = false, optional = true }
 
 async-trait = { workspace = true }
 futures = { workspace = true }
@@ -37,4 +37,4 @@ include_dir = { version = "0.7", optional = true }
 rustix = { version = "1", features = ["fs"] }
 
 [dev-dependencies]
-agentc-executor-python = { path = "../agentc-executor-python", version = "0.3.1", features = ["rustpython"] }
+agentc-executor-python = { path = "../agentc-executor-python", version = "0.4.0", features = ["rustpython"] }

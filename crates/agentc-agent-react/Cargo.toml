@@ -26,17 +26,17 @@ ag-ui = ["api", "dep:agentc-protocol-ag-ui"]
 a2a = ["api", "dep:agentc-protocol-a2a"]
 
 [dependencies]
-agentc-model = { path = "../agentc-model", version = "0.3.1" }
-agentc-agent = { path = "../agentc-agent", version = "0.3.1" }
-agentc-prompt = { path = "../agentc-prompt", version = "0.3.1" }
-agentc-database = { path = "../agentc-database", version = "0.3.1" }
-agentc-domain = { path = "../agentc-domain", version = "0.3.1" }
-agentc-domain-sql = { path = "../agentc-domain-sql", version = "0.3.1" }
-agentc-http = { path = "../agentc-http", version = "0.3.1", optional = true }
-agentc-telemetry = { path = "../agentc-telemetry", version = "0.3.1" }
+agentc-model = { path = "../agentc-model", version = "0.4.0" }
+agentc-agent = { path = "../agentc-agent", version = "0.4.0" }
+agentc-prompt = { path = "../agentc-prompt", version = "0.4.0" }
+agentc-database = { path = "../agentc-database", version = "0.4.0" }
+agentc-domain = { path = "../agentc-domain", version = "0.4.0" }
+agentc-domain-sql = { path = "../agentc-domain-sql", version = "0.4.0" }
+agentc-http = { path = "../agentc-http", version = "0.4.0", optional = true }
+agentc-telemetry = { path = "../agentc-telemetry", version = "0.4.0" }
 
-agentc-protocol-ag-ui = { path = "../agentc-protocol-ag-ui", version = "0.3.1", optional = true }
-agentc-protocol-a2a = { path = "../agentc-protocol-a2a", version = "0.3.1", optional = true, default-features = false, features = ["server"] }
+agentc-protocol-ag-ui = { path = "../agentc-protocol-ag-ui", version = "0.4.0", optional = true }
+agentc-protocol-a2a = { path = "../agentc-protocol-a2a", version = "0.4.0", optional = true, default-features = false, features = ["server"] }
 
 futures = { workspace = true }
 tokio = { workspace = true }
