@@ -42,7 +42,7 @@ use agentc_model::{
         timeout::Timeout,
     },
     traits::{CompletionModel, CompletionModelExt},
-    types::{reasoning::ReasoningContent, stream::CompletionStreamEvent},
+    types::{context::InvocationContext, reasoning::ReasoningContent, stream::CompletionStreamEvent},
 };
 use agentc_prompt::{
     buffer::{MessageBuffer, TokenBudget},
@@ -345,6 +345,13 @@ impl ReActNode {
                     .map(|td| td.to_model_type()),
             )
             .maybe_inference_params(override_params)
+            .context(
+                InvocationContext::new()
+                    .with_conversation_id(ctx.session_id.to_string())
+                    .with_agent_name(identity.name.clone())
+                    .with_tenant_id(ctx.tenant_id.clone())
+                    .with_attribute("run_id", ctx.run_id.to_string()),
+            )
             .send()
             .await
             .map_err(GraphError::execution_error)?;
