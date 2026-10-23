@@ -8,15 +8,9 @@ license.workspace = true
 readme.workspace = true
 
 [dependencies]
-<<<<<<< HEAD
-agentc-fs = { path = "../agentc-fs", version = "0.3.1", features = ["embedded"] }
-agentc-agent = { path = "../agentc-agent", version = "0.3.1" }
-agentc-prompt = { path = "../agentc-prompt", version = "0.3.1" }
-=======
 agentc-fs = { path = "../agentc-fs", version = "0.4.0", features = ["embedded"] }
 agentc-agent = { path = "../agentc-agent", version = "0.4.0" }
 agentc-prompt = { path = "../agentc-prompt", version = "0.4.0" }
->>>>>>> origin/main
 
 async-trait = { workspace = true }
 futures = { workspace = true }

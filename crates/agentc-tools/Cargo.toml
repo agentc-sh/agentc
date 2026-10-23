@@ -25,19 +25,11 @@ bash = [
 ]
 
 [dependencies]
-<<<<<<< HEAD
-agentc-agent = { path = "../agentc-agent", version = "0.3.1" }
-agentc-fs = { path = "../agentc-fs", version = "0.3.1", optional = true }
-agentc-http = { path = "../agentc-http", version = "0.3.1", default-features = false, features = ["client"], optional = true }
-agentc-executor-typescript = { path = "../agentc-executor-typescript", version = "0.3.1", optional = true }
-agentc-executor-python = { path = "../agentc-executor-python", version = "0.3.1", default-features = false, optional = true }
-=======
 agentc-agent = { path = "../agentc-agent", version = "0.4.0" }
 agentc-fs = { path = "../agentc-fs", version = "0.4.0", optional = true }
 agentc-http = { path = "../agentc-http", version = "0.4.0", default-features = false, features = ["client"], optional = true }
 agentc-executor-typescript = { path = "../agentc-executor-typescript", version = "0.4.0", optional = true }
 agentc-executor-python = { path = "../agentc-executor-python", version = "0.4.0", default-features = false, optional = true }
->>>>>>> origin/main
 
 base64 = { workspace = true, optional = true }
 uuid = { workspace = true, optional = true }
