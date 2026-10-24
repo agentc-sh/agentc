@@ -2,48 +2,79 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::time::SystemTime;
+use std::{marker::PhantomData, time::UNIX_EPOCH};
 
-use agentc_executor_typescript::guestjs::{
-    errors::Error,
-    handle::{BoundConstructorProtocol, BoundObjectProtocol, Class, Object, Value},
-    host::{ClassSpec, Deferred, HostClass},
-    marshal::{FromGuest, FromGuestBound, ToGuestBound},
-    runtime::Scope,
+use agentc_executor_typescript::{
+    backend::ExecutorBackend,
+    guestjs::{errors::Error, host_class},
 };
 
-use crate::fs::{FileType, Metadata};
+use crate::{
+    fs::{FileType, Metadata},
+    typescript::timestamp::Timestamp,
+};
 
-struct GuestDate {
-    millis: f64,
+pub struct Stats<B: ExecutorBackend> {
+    metadata: Metadata,
+    backend: PhantomData<fn() -> B>,
 }
 
-impl GuestDate {
-    fn new(millis: f64) -> Self {
-        Self { millis }
+impl<B: ExecutorBackend> Stats<B> {
+    pub fn new(metadata: Metadata) -> Self {
+        Self {
+            metadata,
+            backend: PhantomData,
+        }
     }
 
-    fn construct<'js>(&self, scope: &Scope<'js>) -> Result<Value, Error> {
-        Value::from_guest(
-            scope,
-            Object::from_guest_bound(scope, scope.ctx().globals().into())?
-                .get::<Class>("Date")?
-                .construct((self.millis,))?
-                .to_guest_bound(scope)?,
+    fn accessed(&self) -> Timestamp {
+        Timestamp::from(
+            self.metadata
+                .accessed()
+                .unwrap_or(UNIX_EPOCH)
+        )
+    }
+
+    fn modified(&self) -> Timestamp {
+        Timestamp::from(
+            self.metadata
+                .modified()
+                .unwrap_or(UNIX_EPOCH)
+        )
+    }
+
+    fn changed(&self) -> Timestamp {
+        Timestamp::from(
+            self.metadata
+                .changed()
+                .or_else(|| self.metadata.modified())
+                .unwrap_or(UNIX_EPOCH)
+        )
+    }
+
+    fn created(&self) -> Timestamp {
+        Timestamp::from(
+            self.metadata
+                .created()
+                .unwrap_or(UNIX_EPOCH)
         )
     }
 }
 
-pub struct Stats {
-    metadata: Metadata,
-}
-
-impl Stats {
-    pub fn new(metadata: Metadata) -> Self {
-        Self { metadata }
+#[host_class(backend = B, rename_all = "camelCase", crate_path = agentc_executor_typescript::guestjs)]
+impl<B: ExecutorBackend> Stats<B> {
+    #[guestjs(get)]
+    fn dev(&self) -> Result<u64, Error> {
+        Ok(self.metadata.dev())
     }
 
-    fn mode(&self) -> u32 {
+    #[guestjs(get)]
+    fn ino(&self) -> Result<u64, Error> {
+        Ok(self.metadata.ino())
+    }
+
+    #[guestjs(get)]
+    fn mode(&self) -> Result<u32, Error> {
         let file_type = match self.metadata.file_type() {
             FileType::File => 0o100000,
             FileType::Directory => 0o40000,
@@ -55,117 +86,127 @@ impl Stats {
             FileType::Other => 0,
         };
 
-        file_type | self.metadata.permissions().mode()
+        Ok(file_type | self.metadata.permissions().mode())
     }
 
-    fn millis(time: Option<SystemTime>) -> f64 {
-        time.and_then(|time| {
-            time.duration_since(SystemTime::UNIX_EPOCH)
-                .ok()
-        })
-        .map(|elapsed| elapsed.as_secs_f64() * 1000.0)
-        .unwrap_or_default()
+    #[guestjs(get)]
+    fn nlink(&self) -> Result<u64, Error> {
+        Ok(self.metadata.nlink())
     }
 
-    fn accessed(&self) -> f64 {
-        Self::millis(self.metadata.accessed())
+    #[guestjs(get)]
+    fn uid(&self) -> Result<u32, Error> {
+        Ok(self.metadata.uid())
     }
 
-    fn modified(&self) -> f64 {
-        Self::millis(self.metadata.modified())
+    #[guestjs(get)]
+    fn gid(&self) -> Result<u32, Error> {
+        Ok(self.metadata.gid())
     }
 
-    fn changed(&self) -> f64 {
-        self.metadata
-            .changed()
-            .or_else(|| self.metadata.modified())
-            .and_then(|time| {
-                time.duration_since(SystemTime::UNIX_EPOCH)
-                    .ok()
-            })
-            .map(|elapsed| elapsed.as_secs_f64() * 1000.0)
-            .unwrap_or_default()
+    #[guestjs(get)]
+    fn rdev(&self) -> Result<u64, Error> {
+        Ok(self.metadata.rdev())
     }
 
-    fn created(&self) -> f64 {
-        Self::millis(self.metadata.created())
+    #[guestjs(get)]
+    fn size(&self) -> Result<f64, Error> {
+        Ok(self.metadata.len() as f64)
     }
-}
 
-impl HostClass for Stats {
-    const NAME: &'static str = "Stats";
+    #[guestjs(get)]
+    fn blksize(&self) -> Result<u64, Error> {
+        Ok(self.metadata.blksize())
+    }
 
-    fn build(spec: &mut ClassSpec<Self>) {
-        spec.getter("dev", |stats, _scope| Ok(stats.metadata.dev()));
-        spec.getter("ino", |stats, _scope| Ok(stats.metadata.ino()));
-        spec.getter("mode", |stats, _scope| Ok(stats.mode()));
-        spec.getter("nlink", |stats, _scope| Ok(stats.metadata.nlink()));
-        spec.getter("uid", |stats, _scope| Ok(stats.metadata.uid()));
-        spec.getter("gid", |stats, _scope| Ok(stats.metadata.gid()));
-        spec.getter("rdev", |stats, _scope| Ok(stats.metadata.rdev()));
-        spec.getter("size", |stats, _scope| Ok(stats.metadata.len() as f64));
-        spec.getter("blksize", |stats, _scope| Ok(stats.metadata.blksize()));
-        spec.getter("blocks", |stats, _scope| Ok(stats.metadata.blocks()));
-        spec.getter("atimeMs", |stats, _scope| Ok(stats.accessed()));
-        spec.getter("mtimeMs", |stats, _scope| Ok(stats.modified()));
-        spec.getter("ctimeMs", |stats, _scope| Ok(stats.changed()));
-        spec.getter("birthtimeMs", |stats, _scope| Ok(stats.created()));
-        spec.getter("atime", |stats, _scope| {
-            // Constructed through the guest `Date` global because guestjs has no `Date` marshalling.
-            Ok(Deferred::new({
-                let date = GuestDate::new(stats.accessed());
+    #[guestjs(get)]
+    fn blocks(&self) -> Result<u64, Error> {
+        Ok(self.metadata.blocks())
+    }
 
-                move |scope: &Scope| date.construct(scope)
-            }))
-        });
-        spec.getter("mtime", |stats, _scope| {
-            Ok(Deferred::new({
-                let date = GuestDate::new(stats.modified());
+    #[guestjs(get)]
+    fn atime_ms(&self) -> Result<f64, Error> {
+        Ok(self.accessed().millis())
+    }
 
-                move |scope: &Scope| date.construct(scope)
-            }))
-        });
-        spec.getter("ctime", |stats, _scope| {
-            Ok(Deferred::new({
-                let date = GuestDate::new(stats.changed());
+    #[guestjs(get)]
+    fn mtime_ms(&self) -> Result<f64, Error> {
+        Ok(self.modified().millis())
+    }
 
-                move |scope: &Scope| date.construct(scope)
-            }))
-        });
-        spec.getter("birthtime", |stats, _scope| {
-            Ok(Deferred::new({
-                let date = GuestDate::new(stats.created());
+    #[guestjs(get)]
+    fn ctime_ms(&self) -> Result<f64, Error> {
+        Ok(self.changed().millis())
+    }
 
-                move |scope: &Scope| date.construct(scope)
-            }))
-        });
-        spec.method("isFile", |stats, _scope, _args| {
-            Ok(stats.metadata.file_type() == FileType::File)
-        });
-        spec.method("isDirectory", |stats, _scope, _args| {
-            Ok(stats.metadata.file_type() == FileType::Directory)
-        });
-        spec.method("isDir", |stats, _scope, _args| {
-            Ok(stats.metadata.file_type() == FileType::Directory)
-        });
-        spec.method("isSymbolicLink", |stats, _scope, _args| {
-            Ok(stats.metadata.file_type() == FileType::Symlink)
-        });
-        spec.method("isSymlink", |stats, _scope, _args| {
-            Ok(stats.metadata.file_type() == FileType::Symlink)
-        });
-        spec.method("isFIFO", |stats, _scope, _args| {
-            Ok(stats.metadata.file_type() == FileType::Fifo)
-        });
-        spec.method("isBlockDevice", |stats, _scope, _args| {
-            Ok(stats.metadata.file_type() == FileType::BlockDevice)
-        });
-        spec.method("isCharacterDevice", |stats, _scope, _args| {
-            Ok(stats.metadata.file_type() == FileType::CharacterDevice)
-        });
-        spec.method("isSocket", |stats, _scope, _args| {
-            Ok(stats.metadata.file_type() == FileType::Socket)
-        });
+    #[guestjs(get)]
+    fn birthtime_ms(&self) -> Result<f64, Error> {
+        Ok(self.created().millis())
+    }
+
+    #[guestjs(get)]
+    fn atime(&self) -> Result<Timestamp, Error> {
+        Ok(self.accessed())
+    }
+
+    #[guestjs(get)]
+    fn mtime(&self) -> Result<Timestamp, Error> {
+        Ok(self.modified())
+    }
+
+    #[guestjs(get)]
+    fn ctime(&self) -> Result<Timestamp, Error> {
+        Ok(self.changed())
+    }
+
+    #[guestjs(get)]
+    fn birthtime(&self) -> Result<Timestamp, Error> {
+        Ok(self.created())
+    }
+
+    #[guestjs(method)]
+    fn is_file(&self) -> Result<bool, Error> {
+        Ok(self.metadata.file_type() == FileType::File)
+    }
+
+    #[guestjs(method)]
+    fn is_directory(&self) -> Result<bool, Error> {
+        Ok(self.metadata.file_type() == FileType::Directory)
+    }
+
+    #[guestjs(method)]
+    fn is_dir(&self) -> Result<bool, Error> {
+        Ok(self.metadata.file_type() == FileType::Directory)
+    }
+
+    #[guestjs(method)]
+    fn is_symbolic_link(&self) -> Result<bool, Error> {
+        Ok(self.metadata.file_type() == FileType::Symlink)
+    }
+
+    #[guestjs(method)]
+    fn is_symlink(&self) -> Result<bool, Error> {
+        Ok(self.metadata.file_type() == FileType::Symlink)
+    }
+
+    #[guestjs(method, name = "isFIFO")]
+    fn is_fifo(&self) -> Result<bool, Error> {
+        Ok(self.metadata.file_type() == FileType::Fifo)
+    }
+
+    #[guestjs(method)]
+    fn is_block_device(&self) -> Result<bool, Error> {
+        Ok(self.metadata.file_type() == FileType::BlockDevice)
+    }
+
+    #[guestjs(method)]
+    fn is_character_device(&self) -> Result<bool, Error> {
+        Ok(self.metadata.file_type() == FileType::CharacterDevice)
+    }
+
+    #[guestjs(method)]
+    fn is_socket(&self) -> Result<bool, Error> {
+        Ok(self.metadata.file_type() == FileType::Socket)
     }
 }
 
@@ -173,28 +214,34 @@ impl HostClass for Stats {
 mod tests {
     use std::time::{Duration, SystemTime};
 
+    use agentc_executor_typescript::guestjs::quickjs::QuickJs;
+
     use super::Stats;
     use crate::fs::{FileType, Metadata, Permissions};
 
     #[test]
     fn mode_recombines_the_file_type_and_permission_bits() {
-        let stats = Stats::new(Metadata::new(FileType::Directory, 0, Permissions::new(0o755)));
+        let stats =
+            Stats::<QuickJs>::new(Metadata::new(FileType::Directory, 0, Permissions::new(0o755)));
 
-        assert_eq!(stats.mode(), 0o40755);
+        assert_eq!(stats.mode().unwrap(), 0o40755);
     }
 
     #[test]
     fn millis_reports_zero_for_a_missing_timestamp() {
-        assert_eq!(Stats::millis(None), 0.0);
+        let stats =
+            Stats::<QuickJs>::new(Metadata::new(FileType::File, 0, Permissions::new(0o644)));
+
+        assert_eq!(stats.accessed().millis(), 0.0);
     }
 
     #[test]
     fn changed_falls_back_to_modified() {
         let modified = SystemTime::UNIX_EPOCH + Duration::from_millis(1234);
-        let stats = Stats::new(
+        let stats = Stats::<QuickJs>::new(
             Metadata::new(FileType::File, 0, Permissions::new(0o644)).with_modified(modified),
         );
 
-        assert_eq!(stats.changed(), 1234.0);
+        assert_eq!(stats.changed().millis(), 1234.0);
     }
 }

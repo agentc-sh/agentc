@@ -3,33 +3,39 @@
 // SPDX-License-Identifier: MIT
 
 use std::borrow::Cow;
+use futures::FutureExt;
 
 use agentc_executor_typescript::{
+    backend::ExecutorBackend,
+    errors::GuestError,
     guestjs::{
         errors::Error,
-        handle::Object,
-        host::{Exports, HostClass, HostModule},
-        marshal::ToGuestBound,
-        runtime::Scope,
+        eval::GuestGlobalsExt,
+        handle::{class::Payload, protocol::ObjectProtocol},
+        host::{
+            library::{HostInitializer, HostLibrary},
+            module::ModuleDeclaration,
+            state::ModuleState,
+        },
+        imports::GuestModulesExt,
     },
     host::HostRuntime,
 };
-use bytes::Bytes;
 
 use crate::{
-    fs::{Dir, File, FileType, Owner, Permissions, SetOwnerOptions},
-    path::PathBuf,
+    fs::Dir,
     typescript::{
         constants::Constants,
         descriptors::Descriptors,
         dirent::Dirent,
         handle::FileHandle,
-        options::{
-            AccessMode, CopyMode, FileOptions, MkdirOptions, OpenFlags, ReaddirOptions, RmOptions,
-            RmdirOptions,
+        operations::{
+            Access, AppendFile, Chmod, Chown, CopyFile, Lchown, Lstat, Mkdir, Mkdtemp, Open,
+            ReadFile, Readdir, Readlink, Rename, Rm, Rmdir, Stat, Symlink, Truncate, Unlink,
+            WriteFile, FsOperation,
         },
         stats::Stats,
-        types::{BufferView, FileContents, FileData, ReaddirResult, WriteBuffer},
+        types::BufferRange,
     },
 };
 
@@ -38,349 +44,19 @@ pub struct FsModule {
     specifier: Cow<'static, str>,
     dir: Dir,
     runtime: HostRuntime,
+    descriptors: Descriptors,
 }
 
 impl FsModule {
     const DEFAULT_SPECIFIER: &'static str = "agentc:fs";
 
-    pub fn new(dir: Dir, host_runtime: HostRuntime) -> Self {
+    pub fn new(dir: Dir, runtime: HostRuntime) -> Self {
         Self {
             specifier: Cow::Borrowed(Self::DEFAULT_SPECIFIER),
             dir,
-            runtime: host_runtime,
+            runtime,
+            descriptors: Descriptors::new(),
         }
-    }
-
-    fn relative_name(base: &[u8], path: &[u8]) -> String {
-        String::from_utf8_lossy(if base == b"/" {
-            &path[1..]
-        } else {
-            &path[base.len() + 1..]
-        })
-        .into_owned()
-    }
-
-    async fn access(self, path: String, mode: Option<i32>) -> Result<(), Error> {
-        self.dir
-            .access(path, &AccessMode::options(mode.unwrap_or_default()))
-            .await?;
-
-        Ok(())
-    }
-
-    async fn read_file(self, path: String, options: FileOptions) -> Result<FileContents, Error> {
-        let mut file = self
-            .dir
-            .open_with_options(path, options.open_flags("r")?.options())
-            .await?;
-
-        let bytes = file.read_to_end().await?;
-
-        match options.encoding()? {
-            Some(encoding) => Ok(FileContents::Text(encoding.decode(&bytes))),
-            None => Ok(FileContents::Bytes(Bytes::from(bytes))),
-        }
-    }
-
-    async fn write_file(
-        self,
-        path: String,
-        data: FileData,
-        options: FileOptions,
-    ) -> Result<(), Error> {
-        let flags = options.open_flags("w")?;
-        let mut file = self
-            .dir
-            .open_with_options(path.clone(), flags.options())
-            .await?;
-
-        file.write_all(data.into_bytes(options.encoding()?)?)
-            .await?;
-
-        if let Some(mode) = options.mode
-            && flags.creates()
-        {
-            self.dir
-                .set_permissions(path, Permissions::new(mode))
-                .await?;
-        }
-
-        Ok(())
-    }
-
-    async fn append_file(
-        self,
-        path: String,
-        data: FileData,
-        options: FileOptions,
-    ) -> Result<(), Error> {
-        let flags = options.open_flags("a")?;
-        let mut file = self
-            .dir
-            .open_with_options(path.clone(), flags.options())
-            .await?;
-
-        file.write_all(data.into_bytes(options.encoding()?)?)
-            .await?;
-
-        if let Some(mode) = options.mode
-            && flags.creates()
-        {
-            self.dir
-                .set_permissions(path, Permissions::new(mode))
-                .await?;
-        }
-
-        Ok(())
-    }
-
-    async fn rename(self, from: String, to: String) -> Result<(), Error> {
-        self.dir.rename(from, to).await?;
-
-        Ok(())
-    }
-
-    async fn readdir(self, path: String, options: ReaddirOptions) -> Result<ReaddirResult, Error> {
-        let dir = self.dir.open_dir(&path).await?;
-        let mut entries = Vec::new();
-
-        if options.recursive.unwrap_or(false) {
-            let mut walk = dir.walk().await?;
-
-            while let Some(entry) = walk.next().await? {
-                entries.push(entry);
-            }
-        } else {
-            let mut cursor = dir.entries().await?;
-
-            while let Some(entry) = cursor.next().await? {
-                entries.push(entry);
-            }
-        }
-
-        entries.sort_by(|left, right| {
-            left.path()
-                .as_bytes()
-                .cmp(right.path().as_bytes())
-        });
-
-        if options.with_file_types.unwrap_or(false) {
-            return Ok(ReaddirResult::Entries(
-                entries
-                    .iter()
-                    .map(Dirent::new)
-                    .collect(),
-            ));
-        }
-
-        if options.recursive.unwrap_or(false) {
-            return Ok(ReaddirResult::Names(
-                entries
-                    .into_iter()
-                    .map(|entry| {
-                        Self::relative_name(
-                            &dir.path().as_bytes().to_vec(),
-                            entry.path().as_bytes(),
-                        )
-                    })
-                    .collect(),
-            ));
-        }
-
-        Ok(ReaddirResult::Names(
-            entries
-                .into_iter()
-                .map(|entry| entry.file_name().to_string_lossy())
-                .collect(),
-        ))
-    }
-
-    async fn mkdir(self, path: String, options: MkdirOptions) -> Result<String, Error> {
-        let (dir, created) = if options.recursive.unwrap_or(false) {
-            self.dir.create_dir_all(path).await?
-        } else {
-            self.dir.create_dir(path).await?
-        };
-
-        if let Some(mode) = options.mode
-            && created
-        {
-            self.dir
-                .set_permissions(dir.path(), Permissions::new(mode))
-                .await?;
-        }
-
-        Ok(dir.path().to_string_lossy())
-    }
-
-    async fn mkdtemp(self, prefix: String) -> Result<String, Error> {
-        Ok(self
-            .dir
-            .create_dir_temp(prefix)
-            .await?
-            .path()
-            .to_string_lossy())
-    }
-
-    async fn rm(self, path: String, options: RmOptions) -> Result<(), Error> {
-        let recursive = options.recursive.unwrap_or(false);
-        let force = options.force.unwrap_or(false);
-
-        match self.dir.symlink_metadata(&path).await {
-            Ok(metadata) if metadata.file_type() == FileType::Directory => {
-                let result = if recursive {
-                    self.dir.remove_dir_all(path).await
-                } else {
-                    self.dir.remove_dir(path).await
-                };
-
-                if force {
-                    Ok(())
-                } else {
-                    result.map_err(Into::into)
-                }
-            }
-            Ok(_) => {
-                let result = self.dir.remove_file(path).await;
-
-                if force {
-                    Ok(())
-                } else {
-                    result.map_err(Into::into)
-                }
-            }
-            Err(_) if force => Ok(()),
-            Err(error) => Err(error.into()),
-        }
-    }
-
-    async fn rmdir(self, path: String, options: RmdirOptions) -> Result<(), Error> {
-        if options.recursive.unwrap_or(false) {
-            self.dir.remove_dir_all(path).await?;
-        } else {
-            self.dir.remove_dir(path).await?;
-        }
-
-        Ok(())
-    }
-
-    async fn unlink(self, path: String) -> Result<(), Error> {
-        self.dir.remove_file(path).await?;
-
-        Ok(())
-    }
-
-    async fn stat(self, path: String) -> Result<Stats, Error> {
-        Ok(Stats::new(self.dir.metadata(path).await?))
-    }
-
-    async fn lstat(self, path: String) -> Result<Stats, Error> {
-        Ok(Stats::new(self.dir.symlink_metadata(path).await?))
-    }
-
-    async fn chmod(self, path: String, mode: u32) -> Result<(), Error> {
-        self.dir
-            .set_permissions(path, Permissions::new(mode))
-            .await?;
-
-        Ok(())
-    }
-
-    async fn chown(self, path: String, uid: u32, gid: u32) -> Result<(), Error> {
-        self.dir
-            .set_owner(path, Owner::new().user(uid).group(gid))
-            .await?;
-
-        Ok(())
-    }
-
-    async fn lchown(self, path: String, uid: u32, gid: u32) -> Result<(), Error> {
-        self.dir
-            .set_owner_with_options(
-                path,
-                Owner::new().user(uid).group(gid),
-                &SetOwnerOptions::new().follow_symlinks(false),
-            )
-            .await?;
-
-        Ok(())
-    }
-
-    async fn symlink(self, target: String, path: String) -> Result<(), Error> {
-        self.dir.symlink(target, path).await?;
-
-        Ok(())
-    }
-
-    async fn readlink(self, path: String) -> Result<String, Error> {
-        Ok(self
-            .dir
-            .read_link(path)
-            .await?
-            .to_string_lossy())
-    }
-
-    async fn truncate(self, path: String, len: Option<u64>) -> Result<(), Error> {
-        self.dir
-            .truncate(path, len.unwrap_or_default())
-            .await?;
-
-        Ok(())
-    }
-
-    async fn copy_file(self, from: String, to: String, mode: Option<i32>) -> Result<(), Error> {
-        let exclusive = CopyMode::exclusive(mode.unwrap_or_default())?;
-        let mut source = self
-            .dir
-            .options()
-            .read(true)
-            .open(from)
-            .await?;
-        let bytes = source.read_to_end().await?;
-        let mut destination = if exclusive {
-            self.dir
-                .options()
-                .write(true)
-                .create(true)
-                .create_new(true)
-                .open(to)
-                .await?
-        } else {
-            self.dir
-                .options()
-                .write(true)
-                .create(true)
-                .truncate(true)
-                .open(to)
-                .await?
-        };
-
-        destination.write_all(bytes).await?;
-
-        Ok(())
-    }
-
-    async fn open(
-        self,
-        path: String,
-        flags: OpenFlags,
-        mode: Option<u32>,
-    ) -> Result<(PathBuf, File), Error> {
-        let resolved = self.dir.resolve(&path)?;
-        let file = self
-            .dir
-            .open_with_options(path, flags.options())
-            .await?;
-
-        if let Some(mode) = mode {
-            if flags.creates() {
-                self.dir
-                    .set_permissions(resolved.clone(), Permissions::new(mode))
-                    .await?;
-            }
-        }
-
-        Ok((resolved, file))
     }
 
     pub fn with_specifier(mut self, specifier: impl Into<Cow<'static, str>>) -> Self {
@@ -391,786 +67,286 @@ impl FsModule {
     pub fn specifier(&self) -> &str {
         &self.specifier
     }
+
+    pub fn dir(&self) -> &Dir {
+        &self.dir
+    }
+
+    pub(crate) fn runtime(&self) -> &HostRuntime {
+        &self.runtime
+    }
+
+    pub(crate) fn descriptors(&self) -> &Descriptors {
+        &self.descriptors
+    }
 }
 
-impl HostModule for FsModule {
-    fn name(&self) -> &str {
-        self.specifier()
+struct FsDeclaration<B: ExecutorBackend>(ModuleDeclaration<B>);
+
+impl<B: ExecutorBackend> FsDeclaration<B> {
+    fn operation<O: FsOperation<B>>(self) -> Self {
+        Self(
+            self.0
+                .function_async(O::NAME, |context, args| {
+                    let dir = context
+                        .resolve::<ModuleState<FsModule>>()?
+                        .dir()
+                        .clone();
+
+                    Ok(O::read(context.enter(), args)?.run(dir))
+                })
+                .function(format!("{}Sync", O::NAME), |context, args| {
+                    let module = context.resolve::<ModuleState<FsModule>>()?;
+
+                    module
+                        .runtime()
+                        .block_on(
+                            O::read(context.enter(), args)?
+                                .run(module.dir().clone())
+                                .map(|result| result.map_err(GuestError::from)),
+                        )
+                        .map_err(|error| Error::unexpected(format!("agentc:fs: {error}")))?
+                        .map_err(Error::host)
+                }),
+        )
     }
 
-    fn initialize<'js>(&self, scope: &Scope<'js>) -> Result<(), Error> {
-        let module = scope.host_module(self.specifier())?;
-        let globals = scope.ctx().globals();
+    fn descriptor_functions(self) -> Self {
+        Self(
+            self.0
+                .function_async("open", |context, args| {
+                    let module = context.resolve::<ModuleState<FsModule>>()?;
+                    let open = Open::read(context.enter(), args)?;
 
-        globals.set(
-            Stats::NAME,
-            module
-                .class(Stats::NAME)?
-                .to_guest_bound(scope)?,
-        )?;
-        globals.set(
-            Dirent::NAME,
-            module
-                .class(Dirent::NAME)?
-                .to_guest_bound(scope)?,
-        )?;
-        globals.set(
-            FileHandle::NAME,
-            module
-                .class(FileHandle::NAME)?
-                .to_guest_bound(scope)?,
-        )?;
+                    Ok(async move {
+                        let (resolved, file) = open
+                            .run(module.dir().clone())
+                            .await?;
 
-        Ok(())
-    }
-
-    fn build(&self, exports: &mut Exports) {
-        let descriptors = Descriptors::new();
-
-        exports.class::<Stats>();
-        exports.class::<Dirent>();
-        exports.class::<FileHandle>();
-        exports.object("constants", Constants::build);
-
-        exports.async_function("access", {
-            let module = self.clone();
-
-            move |scope, args| {
-                let module = module.clone();
-                let path = args.get_owned::<String>(scope, 0)?;
-                let mode = args.get_opt::<i32>(scope, 1)?;
-
-                Ok(async move { module.access(path, mode).await })
-            }
-        });
-        exports.async_function("readFile", {
-            let module = self.clone();
-
-            move |scope, args| {
-                let module = module.clone();
-                let path = args.get_owned::<String>(scope, 0)?;
-                let options = FileOptions::from_args(scope, &args, 1)?;
-
-                Ok(async move { module.read_file(path, options).await })
-            }
-        });
-        exports.async_function("writeFile", {
-            let module = self.clone();
-
-            move |scope, args| {
-                let module = module.clone();
-                let path = args.get_owned::<String>(scope, 0)?;
-                let data = FileData::from_args(scope, &args, 1)?;
-                let options = FileOptions::from_args(scope, &args, 2)?;
-
-                Ok(async move {
-                    module
-                        .write_file(path, data, options)
-                        .await
+                        Ok(
+                            FileHandle::<B>::new(
+                                module
+                                    .descriptors()
+                                    .insert(resolved.clone(), file),
+                                resolved,
+                                module.dir().clone(),
+                                module.descriptors().clone(),
+                            )
+                        )
+                    })
                 })
-            }
-        });
-
-        exports.async_function("appendFile", {
-            let module = self.clone();
-
-            move |scope, args| {
-                let module = module.clone();
-                let path = args.get_owned::<String>(scope, 0)?;
-                let data = FileData::from_args(scope, &args, 1)?;
-                let options = FileOptions::from_args(scope, &args, 2)?;
-
-                Ok(async move {
-                    module
-                        .append_file(path, data, options)
-                        .await
-                })
-            }
-        });
-
-        exports.async_function("rename", {
-            let module = self.clone();
-
-            move |scope, args| {
-                let module = module.clone();
-                let from = args.get_owned::<String>(scope, 0)?;
-                let to = args.get_owned::<String>(scope, 1)?;
-
-                Ok(async move { module.rename(from, to).await })
-            }
-        });
-
-        exports.async_function("readdir", {
-            let module = self.clone();
-
-            move |scope, args| {
-                let module = module.clone();
-                let path = args.get_owned::<String>(scope, 0)?;
-                let options = args
-                    .get_opt::<ReaddirOptions>(scope, 1)?
-                    .unwrap_or_default();
-
-                Ok(async move { module.readdir(path, options).await })
-            }
-        });
-
-        exports.async_function("mkdir", {
-            let module = self.clone();
-
-            move |scope, args| {
-                let module = module.clone();
-                let path = args.get_owned::<String>(scope, 0)?;
-                let options = args
-                    .get_opt::<MkdirOptions>(scope, 1)?
-                    .unwrap_or_default();
-
-                Ok(async move { module.mkdir(path, options).await })
-            }
-        });
-
-        exports.async_function("mkdtemp", {
-            let module = self.clone();
-
-            move |scope, args| {
-                let module = module.clone();
-                let prefix = args.get_owned::<String>(scope, 0)?;
-
-                Ok(async move { module.mkdtemp(prefix).await })
-            }
-        });
-
-        exports.async_function("rm", {
-            let module = self.clone();
-
-            move |scope, args| {
-                let module = module.clone();
-                let path = args.get_owned::<String>(scope, 0)?;
-                let options = args
-                    .get_opt::<RmOptions>(scope, 1)?
-                    .unwrap_or_default();
-
-                Ok(async move { module.rm(path, options).await })
-            }
-        });
-
-        exports.async_function("rmdir", {
-            let module = self.clone();
-
-            move |scope, args| {
-                let module = module.clone();
-                let path = args.get_owned::<String>(scope, 0)?;
-                let options = args
-                    .get_opt::<RmdirOptions>(scope, 1)?
-                    .unwrap_or_default();
-
-                Ok(async move { module.rmdir(path, options).await })
-            }
-        });
-
-        exports.async_function("unlink", {
-            let module = self.clone();
-
-            move |scope, args| {
-                let module = module.clone();
-                let path = args.get_owned::<String>(scope, 0)?;
-
-                Ok(async move { module.unlink(path).await })
-            }
-        });
-
-        exports.async_function("stat", {
-            let module = self.clone();
-
-            move |scope, args| {
-                let module = module.clone();
-                let path = args.get_owned::<String>(scope, 0)?;
-
-                Ok(async move { module.stat(path).await })
-            }
-        });
-
-        exports.async_function("lstat", {
-            let module = self.clone();
-
-            move |scope, args| {
-                let module = module.clone();
-                let path = args.get_owned::<String>(scope, 0)?;
-
-                Ok(async move { module.lstat(path).await })
-            }
-        });
-
-        exports.async_function("chmod", {
-            let module = self.clone();
-
-            move |scope, args| {
-                let module = module.clone();
-                let path = args.get_owned::<String>(scope, 0)?;
-                let mode = args.get::<u32>(scope, 1)?;
-
-                Ok(async move { module.chmod(path, mode).await })
-            }
-        });
-
-        exports.async_function("chown", {
-            let module = self.clone();
-
-            move |scope, args| {
-                let module = module.clone();
-                let path = args.get_owned::<String>(scope, 0)?;
-                let uid = args.get::<u32>(scope, 1)?;
-                let gid = args.get::<u32>(scope, 2)?;
-
-                Ok(async move { module.chown(path, uid, gid).await })
-            }
-        });
-
-        exports.async_function("lchown", {
-            let module = self.clone();
-
-            move |scope, args| {
-                let module = module.clone();
-                let path = args.get_owned::<String>(scope, 0)?;
-                let uid = args.get::<u32>(scope, 1)?;
-                let gid = args.get::<u32>(scope, 2)?;
-
-                Ok(async move { module.lchown(path, uid, gid).await })
-            }
-        });
-
-        exports.async_function("symlink", {
-            let module = self.clone();
-
-            move |scope, args| {
-                let module = module.clone();
-                let target = args.get_owned::<String>(scope, 0)?;
-                let path = args.get_owned::<String>(scope, 1)?;
-
-                Ok(async move { module.symlink(target, path).await })
-            }
-        });
-
-        exports.async_function("readlink", {
-            let module = self.clone();
-
-            move |scope, args| {
-                let module = module.clone();
-                let path = args.get_owned::<String>(scope, 0)?;
-
-                Ok(async move { module.readlink(path).await })
-            }
-        });
-
-        exports.async_function("truncate", {
-            let module = self.clone();
-
-            move |scope, args| {
-                let module = module.clone();
-                let path = args.get_owned::<String>(scope, 0)?;
-                let len = args.get_opt::<u64>(scope, 1)?;
-
-                Ok(async move { module.truncate(path, len).await })
-            }
-        });
-
-        exports.async_function("copyFile", {
-            let module = self.clone();
-
-            move |scope, args| {
-                let module = module.clone();
-                let from = args.get_owned::<String>(scope, 0)?;
-                let to = args.get_owned::<String>(scope, 1)?;
-                let mode = args.get_opt::<i32>(scope, 2)?;
-
-                Ok(async move { module.copy_file(from, to, mode).await })
-            }
-        });
-        exports.async_function("open", {
-            let module = self.clone();
-            let descriptors = descriptors.clone();
-
-            move |scope, args| {
-                let module = module.clone();
-                let descriptors = descriptors.clone();
-                let path = args.get_owned::<String>(scope, 0)?;
-                let flags = OpenFlags::from_args(scope, &args, 1)?;
-                let mode = args.get_opt::<u32>(scope, 2)?;
-
-                Ok(async move {
+                .function("openSync", |context, args| {
+                    let module = context.resolve::<ModuleState<FsModule>>()?;
                     let (resolved, file) = module
-                        .clone()
-                        .open(path, flags, mode)
-                        .await?;
-                    let fd = descriptors.insert(resolved.clone(), file);
+                        .runtime()
+                        .block_on(
+                            Open::read(context.enter(), args)?
+                                .run(module.dir().clone())
+                                .map(|result| result.map_err(GuestError::from)),
+                        )
+                        .map_err(|error| Error::unexpected(format!("agentc:fs: {error}")))?
+                        .map_err(Error::host)?;
 
-                    Ok(FileHandle::new(fd, resolved, module.dir.clone(), descriptors))
+                    Ok(
+                        module
+                            .descriptors()
+                            .insert(resolved, file)
+                    )
                 })
-            }
-        });
+                .function("closeSync", |context, args| {
+                    context
+                        .resolve::<ModuleState<FsModule>>()?
+                        .descriptors()
+                        .close(args.next::<u32>(context.enter())?)?;
 
-        exports.function("accessSync", {
-            let module = self.clone();
+                    Ok(())
+                })
+                .function("readSync", |context, args| {
+                    let module = context.resolve::<ModuleState<FsModule>>()?;
+                    let fd = args.next::<u32>(context.enter())?;
+                    let BufferRange {
+                        buffer,
+                        offset,
+                        length,
+                    } = BufferRange::read(context.enter(), args)?;
+                    let position = args.next::<Option<u64>>(context.enter())?;
+                    let mut session = module.descriptors().take(fd)?;
 
-            move |scope, args| {
-                // `block_on` reports a bridge failure; the inner result is the operation's own.
-                let path = args.get_owned::<String>(scope, 0)?;
-                let mode = args.get_opt::<i32>(scope, 1)?;
+                    let (session, result) = module
+                        .runtime()
+                        .block_on(async move {
+                            let result = session.read(length, position).await;
 
-                module
-                    .runtime
-                    .block_on(module.clone().access(path, mode))
-                    .map_err(|error| Error::unexpected(format!("agentc:fs: {error}")))?
-            }
-        });
-        exports.function("readFileSync", {
-            let module = self.clone();
+                            (session, result)
+                        })
+                        .map_err(|error| Error::unexpected(format!("agentc:fs: {error}")))?;
 
-            move |scope, args| {
-                let path = args.get_owned::<String>(scope, 0)?;
-                let options = FileOptions::from_args(scope, &args, 1)?;
+                    module
+                        .descriptors()
+                        .restore(fd, session);
 
-                module
-                    .runtime
-                    .block_on(module.clone().read_file(path, options))
-                    .map_err(|error| Error::unexpected(format!("agentc:fs: {error}")))?
-            }
-        });
-        exports.function("writeFileSync", {
-            let module = self.clone();
+                    let bytes = result?;
 
-            move |scope, args| {
-                let path = args.get_owned::<String>(scope, 0)?;
-                let data = FileData::from_args(scope, &args, 1)?;
-                let options = FileOptions::from_args(scope, &args, 2)?;
+                    buffer.write(offset, &bytes)?;
 
-                module
-                    .runtime
-                    .block_on(
-                        module
-                            .clone()
-                            .write_file(path, data, options),
-                    )
-                    .map_err(|error| Error::unexpected(format!("agentc:fs: {error}")))?
-            }
-        });
+                    Ok(bytes.len() as u32)
+                })
+                .function("writeSync", |context, args| {
+                    let module = context.resolve::<ModuleState<FsModule>>()?;
+                    let fd = args.next::<u32>(context.enter())?;
+                    let bytes = BufferRange::read(context.enter(), args)?.bytes()?;
+                    let position = args.next::<Option<u64>>(context.enter())?;
+                    let mut session = module.descriptors().take(fd)?;
 
-        exports.function("appendFileSync", {
-            let module = self.clone();
+                    let (session, result) = module
+                        .runtime()
+                        .block_on(async move {
+                            let result = session.write(bytes, position).await;
 
-            move |scope, args| {
-                let path = args.get_owned::<String>(scope, 0)?;
-                let data = FileData::from_args(scope, &args, 1)?;
-                let options = FileOptions::from_args(scope, &args, 2)?;
+                            (session, result)
+                        })
+                        .map_err(|error| Error::unexpected(format!("agentc:fs: {error}")))?;
 
-                module
-                    .runtime
-                    .block_on(
-                        module
-                            .clone()
-                            .append_file(path, data, options),
-                    )
-                    .map_err(|error| Error::unexpected(format!("agentc:fs: {error}")))?
-            }
-        });
+                    module
+                        .descriptors()
+                        .restore(fd, session);
 
-        exports.function("renameSync", {
-            let module = self.clone();
+                    Ok(result? as u32)
+                })
+                .function("fstatSync", |context, args| {
+                    let module = context.resolve::<ModuleState<FsModule>>()?;
+                    let path = module
+                        .descriptors()
+                        .path(args.next::<u32>(context.enter())?)?;
+                    let dir = module.dir().clone();
 
-            move |scope, args| {
-                let from = args.get_owned::<String>(scope, 0)?;
-                let to = args.get_owned::<String>(scope, 1)?;
+                    module
+                        .runtime()
+                        .block_on(async move { dir.metadata(path).await })
+                        .map(|result| {
+                            result
+                                .map(Stats::<B>::new)
+                                .map_err(Into::into)
+                        })
+                        .map_err(|error| Error::unexpected(format!("agentc:fs: {error}")))?
+                })
+                .function("ftruncateSync", |context, args| {
+                    let module = context.resolve::<ModuleState<FsModule>>()?;
+                    let fd = args.next::<u32>(context.enter())?;
+                    let len = args
+                        .next::<Option<u64>>(context.enter())?
+                        .unwrap_or_default();
+                    let mut session = module.descriptors().take(fd)?;
 
-                module
-                    .runtime
-                    .block_on(module.clone().rename(from, to))
-                    .map_err(|error| Error::unexpected(format!("agentc:fs: {error}")))?
-            }
-        });
+                    let (session, result) = module
+                        .runtime()
+                        .block_on(async move {
+                            let result = session.truncate(len).await;
 
-        exports.function("readdirSync", {
-            let module = self.clone();
+                            (session, result)
+                        })
+                        .map_err(|error| Error::unexpected(format!("agentc:fs: {error}")))?;
 
-            move |scope, args| {
-                let path = args.get_owned::<String>(scope, 0)?;
-                let options = args
-                    .get_opt::<ReaddirOptions>(scope, 1)?
-                    .unwrap_or_default();
+                    module
+                        .descriptors()
+                        .restore(fd, session);
 
-                module
-                    .runtime
-                    .block_on(module.clone().readdir(path, options))
-                    .map_err(|error| Error::unexpected(format!("agentc:fs: {error}")))?
-            }
-        });
+                    result.map_err(Into::into)
+                })
+                .function("fsyncSync", |context, args| {
+                    let module = context.resolve::<ModuleState<FsModule>>()?;
+                    let fd = args.next::<u32>(context.enter())?;
+                    let mut session = module.descriptors().take(fd)?;
 
-        exports.function("mkdirSync", {
-            let module = self.clone();
+                    let (session, result) = module
+                        .runtime()
+                        .block_on(async move {
+                            let result = session.sync_all().await;
 
-            move |scope, args| {
-                let path = args.get_owned::<String>(scope, 0)?;
-                let options = args
-                    .get_opt::<MkdirOptions>(scope, 1)?
-                    .unwrap_or_default();
+                            (session, result)
+                        })
+                        .map_err(|error| Error::unexpected(format!("agentc:fs: {error}")))?;
 
-                module
-                    .runtime
-                    .block_on(module.clone().mkdir(path, options))
-                    .map_err(|error| Error::unexpected(format!("agentc:fs: {error}")))?
-            }
-        });
+                    module
+                        .descriptors()
+                        .restore(fd, session);
 
-        exports.function("mkdtempSync", {
-            let module = self.clone();
+                    result.map_err(Into::into)
+                })
+                .function("fdatasyncSync", |context, args| {
+                    let module = context.resolve::<ModuleState<FsModule>>()?;
+                    let fd = args.next::<u32>(context.enter())?;
+                    let mut session = module.descriptors().take(fd)?;
 
-            move |scope, args| {
-                let prefix = args.get_owned::<String>(scope, 0)?;
+                    let (session, result) = module
+                        .runtime()
+                        .block_on(async move {
+                            let result = session.sync_data().await;
 
-                module
-                    .runtime
-                    .block_on(module.clone().mkdtemp(prefix))
-                    .map_err(|error| Error::unexpected(format!("agentc:fs: {error}")))?
-            }
-        });
+                            (session, result)
+                        })
+                        .map_err(|error| Error::unexpected(format!("agentc:fs: {error}")))?;
 
-        exports.function("rmSync", {
-            let module = self.clone();
+                    module
+                        .descriptors()
+                        .restore(fd, session);
 
-            move |scope, args| {
-                let path = args.get_owned::<String>(scope, 0)?;
-                let options = args
-                    .get_opt::<RmOptions>(scope, 1)?
-                    .unwrap_or_default();
+                    result.map_err(Into::into)
+                }),
+        )
+    }
+}
 
-                module
-                    .runtime
-                    .block_on(module.clone().rm(path, options))
-                    .map_err(|error| Error::unexpected(format!("agentc:fs: {error}")))?
-            }
-        });
+impl<B: ExecutorBackend> TryFrom<FsModule> for HostLibrary<B> {
+    type Error = Error;
 
-        exports.function("rmdirSync", {
-            let module = self.clone();
+    fn try_from(module: FsModule) -> Result<Self, Self::Error> {
+        let specifier = module.specifier.clone();
 
-            move |scope, args| {
-                let path = args.get_owned::<String>(scope, 0)?;
-                let options = args
-                    .get_opt::<RmdirOptions>(scope, 1)?
-                    .unwrap_or_default();
+        Ok(
+            HostLibrary::from(
+                FsDeclaration(
+                    ModuleDeclaration::new(specifier.clone())
+                        .state(move |_| Ok(module.clone()))
+                        .class::<Stats<B>>()
+                        .class::<Dirent>()
+                        .class::<FileHandle<B>>()
+                        .namespace("constants", Constants::declaration()),
+                )
+                .operation::<Access>()
+                .operation::<ReadFile>()
+                .operation::<WriteFile>()
+                .operation::<AppendFile>()
+                .operation::<Rename>()
+                .operation::<Readdir>()
+                .operation::<Mkdir>()
+                .operation::<Mkdtemp>()
+                .operation::<Rm>()
+                .operation::<Rmdir>()
+                .operation::<Unlink>()
+                .operation::<Stat>()
+                .operation::<Lstat>()
+                .operation::<Chmod>()
+                .operation::<Chown>()
+                .operation::<Lchown>()
+                .operation::<Symlink>()
+                .operation::<Readlink>()
+                .operation::<Truncate>()
+                .operation::<CopyFile>()
+                .descriptor_functions()
+                .0,
+            )
+            .extend(HostInitializer::new(move |enter| {
+                let module = enter.guest().host_module(&specifier)?;
+                let globals = enter.guest().globals()?;
 
-                module
-                    .runtime
-                    .block_on(module.clone().rmdir(path, options))
-                    .map_err(|error| Error::unexpected(format!("agentc:fs: {error}")))?
-            }
-        });
-
-        exports.function("unlinkSync", {
-            let module = self.clone();
-
-            move |scope, args| {
-                let path = args.get_owned::<String>(scope, 0)?;
-
-                module
-                    .runtime
-                    .block_on(module.clone().unlink(path))
-                    .map_err(|error| Error::unexpected(format!("agentc:fs: {error}")))?
-            }
-        });
-
-        exports.function("statSync", {
-            let module = self.clone();
-
-            move |scope, args| {
-                let path = args.get_owned::<String>(scope, 0)?;
-
-                module
-                    .runtime
-                    .block_on(module.clone().stat(path))
-                    .map_err(|error| Error::unexpected(format!("agentc:fs: {error}")))?
-            }
-        });
-
-        exports.function("lstatSync", {
-            let module = self.clone();
-
-            move |scope, args| {
-                let path = args.get_owned::<String>(scope, 0)?;
-
-                module
-                    .runtime
-                    .block_on(module.clone().lstat(path))
-                    .map_err(|error| Error::unexpected(format!("agentc:fs: {error}")))?
-            }
-        });
-
-        exports.function("chmodSync", {
-            let module = self.clone();
-
-            move |scope, args| {
-                let path = args.get_owned::<String>(scope, 0)?;
-                let mode = args.get::<u32>(scope, 1)?;
-
-                module
-                    .runtime
-                    .block_on(module.clone().chmod(path, mode))
-                    .map_err(|error| Error::unexpected(format!("agentc:fs: {error}")))?
-            }
-        });
-
-        exports.function("chownSync", {
-            let module = self.clone();
-
-            move |scope, args| {
-                let path = args.get_owned::<String>(scope, 0)?;
-                let uid = args.get::<u32>(scope, 1)?;
-                let gid = args.get::<u32>(scope, 2)?;
-
-                module
-                    .runtime
-                    .block_on(module.clone().chown(path, uid, gid))
-                    .map_err(|error| Error::unexpected(format!("agentc:fs: {error}")))?
-            }
-        });
-
-        exports.function("lchownSync", {
-            let module = self.clone();
-
-            move |scope, args| {
-                let path = args.get_owned::<String>(scope, 0)?;
-                let uid = args.get::<u32>(scope, 1)?;
-                let gid = args.get::<u32>(scope, 2)?;
-
-                module
-                    .runtime
-                    .block_on(module.clone().lchown(path, uid, gid))
-                    .map_err(|error| Error::unexpected(format!("agentc:fs: {error}")))?
-            }
-        });
-
-        exports.function("symlinkSync", {
-            let module = self.clone();
-
-            move |scope, args| {
-                let target = args.get_owned::<String>(scope, 0)?;
-                let path = args.get_owned::<String>(scope, 1)?;
-
-                module
-                    .runtime
-                    .block_on(module.clone().symlink(target, path))
-                    .map_err(|error| Error::unexpected(format!("agentc:fs: {error}")))?
-            }
-        });
-
-        exports.function("readlinkSync", {
-            let module = self.clone();
-
-            move |scope, args| {
-                let path = args.get_owned::<String>(scope, 0)?;
-
-                module
-                    .runtime
-                    .block_on(module.clone().readlink(path))
-                    .map_err(|error| Error::unexpected(format!("agentc:fs: {error}")))?
-            }
-        });
-
-        exports.function("truncateSync", {
-            let module = self.clone();
-
-            move |scope, args| {
-                let path = args.get_owned::<String>(scope, 0)?;
-                let len = args.get_opt::<u64>(scope, 1)?;
-
-                module
-                    .runtime
-                    .block_on(module.clone().truncate(path, len))
-                    .map_err(|error| Error::unexpected(format!("agentc:fs: {error}")))?
-            }
-        });
-
-        exports.function("copyFileSync", {
-            let module = self.clone();
-
-            move |scope, args| {
-                let from = args.get_owned::<String>(scope, 0)?;
-                let to = args.get_owned::<String>(scope, 1)?;
-                let mode = args.get_opt::<i32>(scope, 2)?;
-
-                module
-                    .runtime
-                    .block_on(module.clone().copy_file(from, to, mode))
-                    .map_err(|error| Error::unexpected(format!("agentc:fs: {error}")))?
-            }
-        });
-        exports.function("openSync", {
-            let module = self.clone();
-            let descriptors = descriptors.clone();
-
-            move |scope, args| {
-                let path = args.get_owned::<String>(scope, 0)?;
-                let flags = OpenFlags::from_args(scope, &args, 1)?;
-                let mode = args.get_opt::<u32>(scope, 2)?;
-
-                let (resolved, file) = module
-                    .runtime
-                    .block_on(module.clone().open(path, flags, mode))
-                    .map_err(|error| Error::unexpected(format!("agentc:fs: {error}")))??;
-
-                Ok(descriptors.insert(resolved, file))
-            }
-        });
-        exports.function("closeSync", {
-            let descriptors = descriptors.clone();
-
-            move |scope, args| {
-                descriptors.close(args.get::<u32>(scope, 0)?)?;
+                globals.set(Stats::<B>::NAME, module.class(Stats::<B>::NAME)?)?;
+                globals.set(Dirent::NAME, module.class(Dirent::NAME)?)?;
+                globals.set(FileHandle::<B>::NAME, module.class(FileHandle::<B>::NAME)?)?;
 
                 Ok(())
-            }
-        });
-        exports.function("readSync", {
-            let module = self.clone();
-            let descriptors = descriptors.clone();
-
-            move |scope, args| {
-                let fd = args.get::<u32>(scope, 0)?;
-                let buffer = args.get::<Object>(scope, 1)?;
-                let offset = args
-                    .get_opt::<u32>(scope, 2)?
-                    .unwrap_or_default() as usize;
-                let length = args
-                    .get_opt::<u32>(scope, 3)?
-                    .map(|length| length as usize)
-                    .unwrap_or(BufferView::checked_length(BufferView::len(&buffer)?, offset)?);
-                let position = args.get_opt::<u64>(scope, 4)?;
-                let mut session = descriptors.take(fd)?;
-                let (session, result) = module
-                    .runtime
-                    .block_on(async move {
-                        let result = session.read(length, position).await;
-
-                        (session, result)
-                    })
-                    .map_err(|error| Error::unexpected(format!("agentc:fs: {error}")))?;
-
-                descriptors.restore(fd, session);
-
-                let bytes = result?;
-
-                BufferView::write(&buffer, offset, &bytes)?;
-
-                Ok(bytes.len() as u32)
-            }
-        });
-        exports.function("writeSync", {
-            let module = self.clone();
-            let descriptors = descriptors.clone();
-
-            move |scope, args| {
-                let fd = args.get::<u32>(scope, 0)?;
-                let request = WriteBuffer::from_args(scope, &args, 2)?;
-                let mut session = descriptors.take(fd)?;
-                let (session, result) = module
-                    .runtime
-                    .block_on(async move {
-                        let result = session
-                            .write(request.bytes, request.position)
-                            .await;
-
-                        (session, result)
-                    })
-                    .map_err(|error| Error::unexpected(format!("agentc:fs: {error}")))?;
-
-                descriptors.restore(fd, session);
-
-                Ok(result? as u32)
-            }
-        });
-        exports.function("fstatSync", {
-            let module = self.clone();
-            let descriptors = descriptors.clone();
-
-            move |scope, args| {
-                let path = descriptors.path(args.get::<u32>(scope, 0)?)?;
-                let dir = module.dir.clone();
-
-                module
-                    .runtime
-                    .block_on(async move { dir.metadata(path).await })
-                    .map(|result| {
-                        result
-                            .map(Stats::new)
-                            .map_err(Into::into)
-                    })
-                    .map_err(|error| Error::unexpected(format!("agentc:fs: {error}")))?
-            }
-        });
-        exports.function("ftruncateSync", {
-            let module = self.clone();
-            let descriptors = descriptors.clone();
-
-            move |scope, args| {
-                let fd = args.get::<u32>(scope, 0)?;
-                let len = args
-                    .get_opt::<u64>(scope, 1)?
-                    .unwrap_or_default();
-                let mut session = descriptors.take(fd)?;
-                let (session, result) = module
-                    .runtime
-                    .block_on(async move {
-                        let result = session.truncate(len).await;
-
-                        (session, result)
-                    })
-                    .map_err(|error| Error::unexpected(format!("agentc:fs: {error}")))?;
-
-                descriptors.restore(fd, session);
-
-                result.map_err(Into::into)
-            }
-        });
-        exports.function("fsyncSync", {
-            let module = self.clone();
-            let descriptors = descriptors.clone();
-
-            move |scope, args| {
-                let fd = args.get::<u32>(scope, 0)?;
-                let mut session = descriptors.take(fd)?;
-                let (session, result) = module
-                    .runtime
-                    .block_on(async move {
-                        let result = session.sync_all().await;
-
-                        (session, result)
-                    })
-                    .map_err(|error| Error::unexpected(format!("agentc:fs: {error}")))?;
-
-                descriptors.restore(fd, session);
-
-                result.map_err(Into::into)
-            }
-        });
-        exports.function("fdatasyncSync", {
-            let module = self.clone();
-            let descriptors = descriptors.clone();
-
-            move |scope, args| {
-                let fd = args.get::<u32>(scope, 0)?;
-                let mut session = descriptors.take(fd)?;
-                let (session, result) = module
-                    .runtime
-                    .block_on(async move {
-                        let result = session.sync_data().await;
-
-                        (session, result)
-                    })
-                    .map_err(|error| Error::unexpected(format!("agentc:fs: {error}")))?;
-
-                descriptors.restore(fd, session);
-
-                result.map_err(Into::into)
-            }
-        });
+            })),
+        )
     }
 }
 
@@ -1179,15 +355,19 @@ mod tests {
     use agentc_executor_typescript::{
         executor::Executor,
         guestjs::{
-            handle::{CallableProtocol, Promise},
+            bundle::Bundle,
+            handle::{
+                promise::Promise,
+                protocol::{CallableProtocol, ObjectProtocol},
+            },
             marshal::{FromGuest, ToGuestArgs},
+            quickjs::QuickJs,
         },
-        host::HostRuntime,
     };
 
     use crate::{
         fs::{Dir, Fs, Permissions},
-        typescript::module::FsModule,
+        typescript::executor::ExecutorBuilderFsExt,
     };
 
     const FS_SOURCE: &str = r#"
@@ -1525,32 +705,30 @@ export async function globalsIdentity() {
 }
 "#;
 
-    async fn executor(dir: Dir) -> Executor {
-        let module = FsModule::new(dir, HostRuntime::current().expect("host runtime"));
-
-        Executor::builder("fs.ts", FS_SOURCE)
+    async fn executor(dir: Dir) -> Executor<QuickJs> {
+        Executor::<QuickJs>::builder("fs")
+            .bundle(Bundle::single("fs.ts", FS_SOURCE).unwrap())
             .workers(1)
             .standard_environment()
-            .configure(move |guest| guest.bind(module.clone()))
+            .with_fs(dir)
+            .expect("filesystem binding configures")
             .build()
             .await
             .expect("executor builds")
     }
 
-    async fn call<T, A>(executor: &Executor, export: &'static str, args: A) -> T
+    async fn call<T, A>(executor: &Executor<QuickJs>, export: &'static str, args: A) -> T
     where
-        A: ToGuestArgs + Send + 'static,
-        T: FromGuest<Owned = T> + Send + 'static,
+        A: ToGuestArgs<QuickJs> + Send + 'static,
+        T: FromGuest<QuickJs, Owned = T> + Send + 'static,
     {
         executor
             .execute(move |context| {
                 Box::pin(async move {
                     context
                         .module()
-                        .function(export)
-                        .await?
-                        .call::<_, Promise<T>>(args)
-                        .await?
+                        .function(export)?
+                        .call::<_, Promise<QuickJs, T>>(args)?
                         .await
                 })
             })

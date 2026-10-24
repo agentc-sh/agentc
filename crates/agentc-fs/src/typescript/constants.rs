@@ -2,7 +2,9 @@
 //
 // SPDX-License-Identifier: MIT
 
-use agentc_executor_typescript::guestjs::host::Namespace;
+use agentc_executor_typescript::{
+    backend::ExecutorBackend, guestjs::host::namespace::NamespaceDeclaration,
+};
 
 pub(crate) const F_OK: i32 = 0;
 pub(crate) const R_OK: i32 = 4;
@@ -47,7 +49,9 @@ pub(crate) const COPYFILE_FICLONE_FORCE: i32 = 4;
 pub struct Constants;
 
 impl Constants {
-    pub fn build(namespace: &mut Namespace) {
+    pub fn declaration<B: ExecutorBackend>() -> NamespaceDeclaration<B> {
+        let mut namespace = NamespaceDeclaration::new();
+
         namespace.constant("F_OK", F_OK);
         namespace.constant("R_OK", R_OK);
         namespace.constant("W_OK", W_OK);
@@ -87,5 +91,7 @@ impl Constants {
         namespace.constant("COPYFILE_EXCL", COPYFILE_EXCL);
         namespace.constant("COPYFILE_FICLONE", COPYFILE_FICLONE);
         namespace.constant("COPYFILE_FICLONE_FORCE", COPYFILE_FICLONE_FORCE);
+
+        namespace
     }
 }

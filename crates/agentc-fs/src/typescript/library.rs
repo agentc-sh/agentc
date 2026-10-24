@@ -2,14 +2,21 @@
 //
 // SPDX-License-Identifier: MIT
 
-use agentc_executor_typescript::{guestjs::host::HostLibrary, host::HostRuntime};
+use agentc_executor_typescript::{
+    backend::ExecutorBackend,
+    guestjs::{errors::Error, host::library::HostLibrary},
+    host::HostRuntime,
+};
 
 use crate::{fs::Dir, typescript::module::FsModule};
 
 pub struct FsLibrary;
 
 impl FsLibrary {
-    pub fn bind(dir: Dir, host_runtime: HostRuntime) -> HostLibrary {
-        HostLibrary::new().with(FsModule::new(dir, host_runtime))
+    pub fn bind<B>(dir: Dir, runtime: HostRuntime) -> Result<HostLibrary<B>, Error>
+    where
+        B: ExecutorBackend,
+    {
+        FsModule::new(dir, runtime).try_into()
     }
 }

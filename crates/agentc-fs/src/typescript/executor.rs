@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 use agentc_executor_typescript::{
-    executor::ExecutorBuilder, guestjs::errors::Error, host::HostRuntime,
+    backend::ExecutorBackend, executor::ExecutorBuilder, guestjs::errors::Error, host::HostRuntime,
 };
 
 use crate::{fs::Dir, typescript::library::FsLibrary};
@@ -14,7 +14,7 @@ pub trait ExecutorBuilderFsExt {
         Self: Sized;
 }
 
-impl ExecutorBuilderFsExt for ExecutorBuilder {
+impl<B: ExecutorBackend> ExecutorBuilderFsExt for ExecutorBuilder<B> {
     fn with_fs(self, dir: Dir) -> Result<Self, Error> {
         // We need to capture the host runtime here instead of in the configure closure because the configure closure
         // is executed on each worker thread, and the host runtime is from the main thread.
@@ -23,7 +23,7 @@ impl ExecutorBuilderFsExt for ExecutorBuilder {
         })?;
 
         Ok(self.configure(move |runtime| {
-            runtime.bind(FsLibrary::bind(dir.clone(), host_runtime.clone()))
+            Ok(runtime.bind(FsLibrary::bind::<B>(dir.clone(), host_runtime.clone())?))
         }))
     }
 }
@@ -32,7 +32,14 @@ impl ExecutorBuilderFsExt for ExecutorBuilder {
 mod tests {
     use agentc_executor_typescript::{
         executor::Executor,
-        guestjs::handle::{CallableProtocol, Promise},
+        guestjs::{
+            bundle::Bundle,
+            handle::{
+                promise::Promise,
+                protocol::{CallableProtocol, ObjectProtocol},
+            },
+            quickjs::QuickJs,
+        },
     };
 
     use super::ExecutorBuilderFsExt;
@@ -51,7 +58,8 @@ export async function roundTrip(path, text) {
     #[tokio::test]
     async fn the_extension_trait_binds_the_module_on_every_worker() {
         let fs = Fs::memory();
-        let executor = Executor::builder("fs.ts", FS_SOURCE)
+        let executor = Executor::<QuickJs>::builder("fs")
+            .bundle(Bundle::single("fs.ts", FS_SOURCE).unwrap())
             .workers(2)
             .standard_environment()
             .with_fs(fs.root())
@@ -67,13 +75,11 @@ export async function roundTrip(path, text) {
                         Box::pin(async move {
                             context
                                 .module()
-                                .function("roundTrip")
-                                .await?
-                                .call::<_, Promise<String>>((
+                                .function("roundTrip")?
+                                .call::<_, Promise<QuickJs, String>>((
                                     format!("/file-{index}.txt"),
                                     format!("value-{index}"),
-                                ))
-                                .await?
+                                ))?
                                 .await
                         })
                     })
