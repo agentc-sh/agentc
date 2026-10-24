@@ -38,7 +38,7 @@ mod tests {
             bundle::Bundle,
             handle::{
                 promise::Promise,
-                protocol::{ConstructorProtocol, ObjectProtocol},
+                protocol::ObjectProtocol,
             },
             host::class::HostClass,
             quickjs::QuickJs,
@@ -47,7 +47,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::javascript::bindings::executor::ExecutorBuilderToolsExt;
+    use crate::javascript::bindings::{executor::ExecutorBuilderToolsExt, guest::GuestToolClass};
 
     const TOOL_SOURCE: &str = r#"
 import { Tool } from "agentc:tools";
@@ -90,15 +90,12 @@ export { Tool };
         executor
             .execute(|context| {
                 Box::pin(async move {
-                    let base = context
-                        .guest()
-                        .enter(Tool::<QuickJs>::class)?;
                     let module = context.module();
 
                     assert!(
                         module
-                            .class("Weather")?
-                            .is_subclass_of(&base)?,
+                            .get::<GuestToolClass<QuickJs>, _>("Weather")
+                            .is_ok(),
                         "a generic `extends Tool<A, B>` transpiles to a plain `extends Tool`, \
                          and `Tool::class` resolves the same constructor `agentc:tools` exports",
                     );
@@ -113,15 +110,15 @@ export { Tool };
 
                     assert!(
                         !module
-                            .class("NotATool")?
-                            .is_subclass_of(&base)?,
+                            .get::<GuestToolClass<QuickJs>, _>("NotATool")
+                            .is_ok(),
                         "an unrelated class is not a subclass",
                     );
 
                     assert!(
                         !module
-                            .class("Tool")?
-                            .is_subclass_of(&base)?,
+                            .get::<GuestToolClass<QuickJs>, _>("Tool")
+                            .is_ok(),
                         "`is_subclass_of` is strict, so the host class is not a subclass of \
                          itself and cannot be exported as a tool",
                     );
