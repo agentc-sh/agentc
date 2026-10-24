@@ -112,12 +112,11 @@ impl<B: ExecutorBackend> Response<B> {
 
     #[guestjs(get)]
     fn status_text(&self) -> Result<String, Error> {
-        Ok(
-            self.status
-                .canonical_reason()
-                .unwrap_or_default()
-                .to_owned()
-        )
+        Ok(self
+            .status
+            .canonical_reason()
+            .unwrap_or_default()
+            .to_owned())
     }
 
     #[guestjs(get)]
@@ -129,32 +128,25 @@ impl<B: ExecutorBackend> Response<B> {
     fn body(
         &self,
     ) -> Result<StreamSource<impl Stream<Item = Result<Bytes, Error>> + use<B>>, Error> {
-        Ok(
-            StreamSource::new(
-                self.take_body()?
-                    .map(|chunk| chunk.map_err(Error::from)),
-            )
-        )
+        Ok(StreamSource::new(
+            self.take_body()?
+                .map(|chunk| chunk.map_err(Error::from)),
+        ))
     }
 
     #[guestjs(async_method)]
     fn text(&self) -> Result<impl Future<Output = Result<String, Error>> + use<B>, Error> {
-        Ok(
-            Self::collect(self.take_body()?)
-                .map(|body| body.map(|bytes| String::from_utf8_lossy(&bytes).into_owned()))
-        )
+        Ok(Self::collect(self.take_body()?)
+            .map(|body| body.map(|bytes| String::from_utf8_lossy(&bytes).into_owned())))
     }
 
     #[guestjs(async_method)]
     fn json(&self) -> Result<impl Future<Output = Result<Json, Error>> + use<B>, Error> {
-        Ok(
-            Self::collect(self.take_body()?)
-                .map(|body| {
-                    serde_json::from_slice::<serde_json::Value>(&body?)
-                        .map(Json)
-                        .map_err(|error| Error::unexpected(format!("agentc:http: {error}")))
-                })
-        )
+        Ok(Self::collect(self.take_body()?).map(|body| {
+            serde_json::from_slice::<serde_json::Value>(&body?)
+                .map(Json)
+                .map_err(|error| Error::unexpected(format!("agentc:http: {error}")))
+        }))
     }
 
     #[guestjs(async_method)]

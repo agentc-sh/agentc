@@ -24,10 +24,7 @@ impl<B: ExecutorBackend> Schema<B> {
         draft202012::meta::validate(&schema.0)
             .map_err(|error| Error::unexpected(format!("invalid tool schema: {error}")))?;
 
-        Ok(Self {
-            value: schema.0,
-            backend: PhantomData,
-        })
+        Ok(Self { value: schema.0, backend: PhantomData })
     }
 
     #[guestjs(get)]

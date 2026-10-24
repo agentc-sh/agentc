@@ -2,8 +2,8 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::borrow::Cow;
 use futures::FutureExt;
+use std::borrow::Cow;
 
 use agentc_executor_typescript::{
     backend::ExecutorBackend,
@@ -30,9 +30,9 @@ use crate::{
         dirent::Dirent,
         handle::FileHandle,
         operations::{
-            Access, AppendFile, Chmod, Chown, CopyFile, Lchown, Lstat, Mkdir, Mkdtemp, Open,
-            ReadFile, Readdir, Readlink, Rename, Rm, Rmdir, Stat, Symlink, Truncate, Unlink,
-            WriteFile, FsOperation,
+            Access, AppendFile, Chmod, Chown, CopyFile, FsOperation, Lchown, Lstat, Mkdir, Mkdtemp,
+            Open, ReadFile, Readdir, Readlink, Rename, Rm, Rmdir, Stat, Symlink, Truncate, Unlink,
+            WriteFile,
         },
         stats::Stats,
         types::BufferRange,
@@ -119,20 +119,16 @@ impl<B: ExecutorBackend> FsDeclaration<B> {
                     let open = Open::read(context.enter(), args)?;
 
                     Ok(async move {
-                        let (resolved, file) = open
-                            .run(module.dir().clone())
-                            .await?;
+                        let (resolved, file) = open.run(module.dir().clone()).await?;
 
-                        Ok(
-                            FileHandle::<B>::new(
-                                module
-                                    .descriptors()
-                                    .insert(resolved.clone(), file),
-                                resolved,
-                                module.dir().clone(),
-                                module.descriptors().clone(),
-                            )
-                        )
+                        Ok(FileHandle::<B>::new(
+                            module
+                                .descriptors()
+                                .insert(resolved.clone(), file),
+                            resolved,
+                            module.dir().clone(),
+                            module.descriptors().clone(),
+                        ))
                     })
                 })
                 .function("openSync", |context, args| {
@@ -147,11 +143,9 @@ impl<B: ExecutorBackend> FsDeclaration<B> {
                         .map_err(|error| Error::unexpected(format!("agentc:fs: {error}")))?
                         .map_err(Error::host)?;
 
-                    Ok(
-                        module
-                            .descriptors()
-                            .insert(resolved, file)
-                    )
+                    Ok(module
+                        .descriptors()
+                        .insert(resolved, file))
                 })
                 .function("closeSync", |context, args| {
                     context
@@ -164,11 +158,8 @@ impl<B: ExecutorBackend> FsDeclaration<B> {
                 .function("readSync", |context, args| {
                     let module = context.resolve::<ModuleState<FsModule>>()?;
                     let fd = args.next::<u32>(context.enter())?;
-                    let BufferRange {
-                        buffer,
-                        offset,
-                        length,
-                    } = BufferRange::read(context.enter(), args)?;
+                    let BufferRange { buffer, offset, length } =
+                        BufferRange::read(context.enter(), args)?;
                     let position = args.next::<Option<u64>>(context.enter())?;
                     let mut session = module.descriptors().take(fd)?;
 
@@ -303,50 +294,48 @@ impl<B: ExecutorBackend> TryFrom<FsModule> for HostLibrary<B> {
     fn try_from(module: FsModule) -> Result<Self, Self::Error> {
         let specifier = module.specifier.clone();
 
-        Ok(
-            HostLibrary::from(
-                FsDeclaration(
-                    ModuleDeclaration::new(specifier.clone())
-                        .state(move |_| Ok(module.clone()))
-                        .class::<Stats<B>>()
-                        .class::<Dirent>()
-                        .class::<FileHandle<B>>()
-                        .namespace("constants", Constants::declaration()),
-                )
-                .operation::<Access>()
-                .operation::<ReadFile>()
-                .operation::<WriteFile>()
-                .operation::<AppendFile>()
-                .operation::<Rename>()
-                .operation::<Readdir>()
-                .operation::<Mkdir>()
-                .operation::<Mkdtemp>()
-                .operation::<Rm>()
-                .operation::<Rmdir>()
-                .operation::<Unlink>()
-                .operation::<Stat>()
-                .operation::<Lstat>()
-                .operation::<Chmod>()
-                .operation::<Chown>()
-                .operation::<Lchown>()
-                .operation::<Symlink>()
-                .operation::<Readlink>()
-                .operation::<Truncate>()
-                .operation::<CopyFile>()
-                .descriptor_functions()
-                .0,
+        Ok(HostLibrary::from(
+            FsDeclaration(
+                ModuleDeclaration::new(specifier.clone())
+                    .state(move |_| Ok(module.clone()))
+                    .class::<Stats<B>>()
+                    .class::<Dirent>()
+                    .class::<FileHandle<B>>()
+                    .namespace("constants", Constants::declaration()),
             )
-            .extend(HostInitializer::new(move |enter| {
-                let module = enter.guest().host_module(&specifier)?;
-                let globals = enter.guest().globals()?;
-
-                globals.set(Stats::<B>::NAME, module.class(Stats::<B>::NAME)?)?;
-                globals.set(Dirent::NAME, module.class(Dirent::NAME)?)?;
-                globals.set(FileHandle::<B>::NAME, module.class(FileHandle::<B>::NAME)?)?;
-
-                Ok(())
-            })),
+            .operation::<Access>()
+            .operation::<ReadFile>()
+            .operation::<WriteFile>()
+            .operation::<AppendFile>()
+            .operation::<Rename>()
+            .operation::<Readdir>()
+            .operation::<Mkdir>()
+            .operation::<Mkdtemp>()
+            .operation::<Rm>()
+            .operation::<Rmdir>()
+            .operation::<Unlink>()
+            .operation::<Stat>()
+            .operation::<Lstat>()
+            .operation::<Chmod>()
+            .operation::<Chown>()
+            .operation::<Lchown>()
+            .operation::<Symlink>()
+            .operation::<Readlink>()
+            .operation::<Truncate>()
+            .operation::<CopyFile>()
+            .descriptor_functions()
+            .0,
         )
+        .extend(HostInitializer::new(move |enter| {
+            let module = enter.guest().host_module(&specifier)?;
+            let globals = enter.guest().globals()?;
+
+            globals.set(Stats::<B>::NAME, module.class(Stats::<B>::NAME)?)?;
+            globals.set(Dirent::NAME, module.class(Dirent::NAME)?)?;
+            globals.set(FileHandle::<B>::NAME, module.class(FileHandle::<B>::NAME)?)?;
+
+            Ok(())
+        })))
     }
 }
 

@@ -55,13 +55,11 @@ impl FetchRequest {
         enter: &Enter<'js, B>,
         args: &Args<'js, B>,
     ) -> Result<Self, Error> {
-        Ok(
-            Self {
-                url: args.next::<String>(enter)?,
-                init: args
-                    .next::<Option<FetchInit>>(enter)?
-                    .unwrap_or_default(),
-            }
-        )
+        Ok(Self {
+            url: args.next::<String>(enter)?,
+            init: args
+                .next::<Option<FetchInit>>(enter)?
+                .unwrap_or_default(),
+        })
     }
 }

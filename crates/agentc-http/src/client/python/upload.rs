@@ -2,7 +2,10 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::{cell::RefCell, fmt::{Display, Formatter}};
+use std::{
+    cell::RefCell,
+    fmt::{Display, Formatter},
+};
 
 use agentc_executor_python::{
     backend::ExecutorBackend,

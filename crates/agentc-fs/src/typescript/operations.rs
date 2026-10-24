@@ -4,7 +4,11 @@
 
 use agentc_executor_typescript::{
     backend::ExecutorBackend,
-    guestjs::{enter::Enter, errors::Error, marshal::{ToGuest, args::Args}},
+    guestjs::{
+        enter::Enter,
+        errors::Error,
+        marshal::{ToGuest, args::Args},
+    },
 };
 use bytes::Bytes;
 
@@ -43,12 +47,10 @@ impl<B: ExecutorBackend> FsOperation<B> for Access {
     type Output = ();
 
     fn read<'js>(enter: &Enter<'js, B>, args: &Args<'js, B>) -> Result<Self, Error> {
-        Ok(
-            Self {
-                path: args.next::<String>(enter)?,
-                mode: args.next::<Option<i32>>(enter)?,
-            }
-        )
+        Ok(Self {
+            path: args.next::<String>(enter)?,
+            mode: args.next::<Option<i32>>(enter)?,
+        })
     }
 
     async fn run(self, dir: Dir) -> Result<Self::Output, Error> {
@@ -70,15 +72,13 @@ impl<B: ExecutorBackend> FsOperation<B> for ReadFile {
     type Output = FileContents;
 
     fn read<'js>(enter: &Enter<'js, B>, args: &Args<'js, B>) -> Result<Self, Error> {
-        Ok(
-            Self {
-                path: args.next::<String>(enter)?,
-                options: args
-                    .next::<Option<EncodingOrOptions>>(enter)?
-                    .map(FileOptions::from)
-                    .unwrap_or_default(),
-            }
-        )
+        Ok(Self {
+            path: args.next::<String>(enter)?,
+            options: args
+                .next::<Option<EncodingOrOptions>>(enter)?
+                .map(FileOptions::from)
+                .unwrap_or_default(),
+        })
     }
 
     async fn run(self, dir: Dir) -> Result<Self::Output, Error> {
@@ -108,16 +108,14 @@ impl<B: ExecutorBackend> FsOperation<B> for WriteFile {
     type Output = ();
 
     fn read<'js>(enter: &Enter<'js, B>, args: &Args<'js, B>) -> Result<Self, Error> {
-        Ok(
-            Self {
-                path: args.next::<String>(enter)?,
-                data: args.next::<FileData>(enter)?,
-                options: args
-                    .next::<Option<EncodingOrOptions>>(enter)?
-                    .map(FileOptions::from)
-                    .unwrap_or_default(),
-            }
-        )
+        Ok(Self {
+            path: args.next::<String>(enter)?,
+            data: args.next::<FileData>(enter)?,
+            options: args
+                .next::<Option<EncodingOrOptions>>(enter)?
+                .map(FileOptions::from)
+                .unwrap_or_default(),
+        })
     }
 
     async fn run(self, dir: Dir) -> Result<Self::Output, Error> {
@@ -126,9 +124,10 @@ impl<B: ExecutorBackend> FsOperation<B> for WriteFile {
             .open_with_options(self.path.clone(), flags.options())
             .await?;
 
-        let bytes = self.data.into_bytes(self.options.encoding()?)?;
-        file.write_all(bytes)
-            .await?;
+        let bytes = self
+            .data
+            .into_bytes(self.options.encoding()?)?;
+        file.write_all(bytes).await?;
 
         if let Some(mode) = self.options.mode
             && flags.creates()
@@ -153,16 +152,14 @@ impl<B: ExecutorBackend> FsOperation<B> for AppendFile {
     type Output = ();
 
     fn read<'js>(enter: &Enter<'js, B>, args: &Args<'js, B>) -> Result<Self, Error> {
-        Ok(
-            Self {
-                path: args.next::<String>(enter)?,
-                data: args.next::<FileData>(enter)?,
-                options: args
-                    .next::<Option<EncodingOrOptions>>(enter)?
-                    .map(FileOptions::from)
-                    .unwrap_or_default(),
-            }
-        )
+        Ok(Self {
+            path: args.next::<String>(enter)?,
+            data: args.next::<FileData>(enter)?,
+            options: args
+                .next::<Option<EncodingOrOptions>>(enter)?
+                .map(FileOptions::from)
+                .unwrap_or_default(),
+        })
     }
 
     async fn run(self, dir: Dir) -> Result<Self::Output, Error> {
@@ -171,9 +168,10 @@ impl<B: ExecutorBackend> FsOperation<B> for AppendFile {
             .open_with_options(self.path.clone(), flags.options())
             .await?;
 
-        let bytes = self.data.into_bytes(self.options.encoding()?)?;
-        file.write_all(bytes)
-            .await?;
+        let bytes = self
+            .data
+            .into_bytes(self.options.encoding()?)?;
+        file.write_all(bytes).await?;
 
         if let Some(mode) = self.options.mode
             && flags.creates()
@@ -197,12 +195,10 @@ impl<B: ExecutorBackend> FsOperation<B> for Rename {
     type Output = ();
 
     fn read<'js>(enter: &Enter<'js, B>, args: &Args<'js, B>) -> Result<Self, Error> {
-        Ok(
-            Self {
-                from: args.next::<String>(enter)?,
-                to: args.next::<String>(enter)?,
-            }
-        )
+        Ok(Self {
+            from: args.next::<String>(enter)?,
+            to: args.next::<String>(enter)?,
+        })
     }
 
     async fn run(self, dir: Dir) -> Result<Self::Output, Error> {
@@ -234,14 +230,12 @@ impl<B: ExecutorBackend> FsOperation<B> for Readdir {
     type Output = ReaddirResult;
 
     fn read<'js>(enter: &Enter<'js, B>, args: &Args<'js, B>) -> Result<Self, Error> {
-        Ok(
-            Self {
-                path: args.next::<String>(enter)?,
-                options: args
-                    .next::<Option<ReaddirOptions>>(enter)?
-                    .unwrap_or_default(),
-            }
-        )
+        Ok(Self {
+            path: args.next::<String>(enter)?,
+            options: args
+                .next::<Option<ReaddirOptions>>(enter)?
+                .unwrap_or_default(),
+        })
     }
 
     async fn run(self, dir: Dir) -> Result<Self::Output, Error> {
@@ -268,7 +262,11 @@ impl<B: ExecutorBackend> FsOperation<B> for Readdir {
                 .cmp(right.path().as_bytes())
         });
 
-        if self.options.with_file_types.unwrap_or(false) {
+        if self
+            .options
+            .with_file_types
+            .unwrap_or(false)
+        {
             return Ok(ReaddirResult::Entries(
                 entries
                     .iter()
@@ -311,14 +309,12 @@ impl<B: ExecutorBackend> FsOperation<B> for Mkdir {
     type Output = String;
 
     fn read<'js>(enter: &Enter<'js, B>, args: &Args<'js, B>) -> Result<Self, Error> {
-        Ok(
-            Self {
-                path: args.next::<String>(enter)?,
-                options: args
-                    .next::<Option<MkdirOptions>>(enter)?
-                    .unwrap_or_default(),
-            }
-        )
+        Ok(Self {
+            path: args.next::<String>(enter)?,
+            options: args
+                .next::<Option<MkdirOptions>>(enter)?
+                .unwrap_or_default(),
+        })
     }
 
     async fn run(self, dir: Dir) -> Result<Self::Output, Error> {
@@ -349,20 +345,15 @@ impl<B: ExecutorBackend> FsOperation<B> for Mkdtemp {
     type Output = String;
 
     fn read<'js>(enter: &Enter<'js, B>, args: &Args<'js, B>) -> Result<Self, Error> {
-        Ok(
-            Self {
-                prefix: args.next::<String>(enter)?,
-            }
-        )
+        Ok(Self { prefix: args.next::<String>(enter)? })
     }
 
     async fn run(self, dir: Dir) -> Result<Self::Output, Error> {
-        Ok(
-            dir.create_dir_temp(self.prefix)
-                .await?
-                .path()
-                .to_string_lossy()
-        )
+        Ok(dir
+            .create_dir_temp(self.prefix)
+            .await?
+            .path()
+            .to_string_lossy())
     }
 }
 
@@ -377,14 +368,12 @@ impl<B: ExecutorBackend> FsOperation<B> for Rm {
     type Output = ();
 
     fn read<'js>(enter: &Enter<'js, B>, args: &Args<'js, B>) -> Result<Self, Error> {
-        Ok(
-            Self {
-                path: args.next::<String>(enter)?,
-                options: args
-                    .next::<Option<RmOptions>>(enter)?
-                    .unwrap_or_default(),
-            }
-        )
+        Ok(Self {
+            path: args.next::<String>(enter)?,
+            options: args
+                .next::<Option<RmOptions>>(enter)?
+                .unwrap_or_default(),
+        })
     }
 
     async fn run(self, dir: Dir) -> Result<Self::Output, Error> {
@@ -431,14 +420,12 @@ impl<B: ExecutorBackend> FsOperation<B> for Rmdir {
     type Output = ();
 
     fn read<'js>(enter: &Enter<'js, B>, args: &Args<'js, B>) -> Result<Self, Error> {
-        Ok(
-            Self {
-                path: args.next::<String>(enter)?,
-                options: args
-                    .next::<Option<RmdirOptions>>(enter)?
-                    .unwrap_or_default(),
-            }
-        )
+        Ok(Self {
+            path: args.next::<String>(enter)?,
+            options: args
+                .next::<Option<RmdirOptions>>(enter)?
+                .unwrap_or_default(),
+        })
     }
 
     async fn run(self, dir: Dir) -> Result<Self::Output, Error> {
@@ -462,11 +449,7 @@ impl<B: ExecutorBackend> FsOperation<B> for Unlink {
     type Output = ();
 
     fn read<'js>(enter: &Enter<'js, B>, args: &Args<'js, B>) -> Result<Self, Error> {
-        Ok(
-            Self {
-                path: args.next::<String>(enter)?,
-            }
-        )
+        Ok(Self { path: args.next::<String>(enter)? })
     }
 
     async fn run(self, dir: Dir) -> Result<Self::Output, Error> {
@@ -486,11 +469,7 @@ impl<B: ExecutorBackend> FsOperation<B> for Stat {
     type Output = Stats<B>;
 
     fn read<'js>(enter: &Enter<'js, B>, args: &Args<'js, B>) -> Result<Self, Error> {
-        Ok(
-            Self {
-                path: args.next::<String>(enter)?,
-            }
-        )
+        Ok(Self { path: args.next::<String>(enter)? })
     }
 
     async fn run(self, dir: Dir) -> Result<Self::Output, Error> {
@@ -508,11 +487,7 @@ impl<B: ExecutorBackend> FsOperation<B> for Lstat {
     type Output = Stats<B>;
 
     fn read<'js>(enter: &Enter<'js, B>, args: &Args<'js, B>) -> Result<Self, Error> {
-        Ok(
-            Self {
-                path: args.next::<String>(enter)?,
-            }
-        )
+        Ok(Self { path: args.next::<String>(enter)? })
     }
 
     async fn run(self, dir: Dir) -> Result<Self::Output, Error> {
@@ -531,12 +506,10 @@ impl<B: ExecutorBackend> FsOperation<B> for Chmod {
     type Output = ();
 
     fn read<'js>(enter: &Enter<'js, B>, args: &Args<'js, B>) -> Result<Self, Error> {
-        Ok(
-            Self {
-                path: args.next::<String>(enter)?,
-                mode: args.next::<u32>(enter)?,
-            }
-        )
+        Ok(Self {
+            path: args.next::<String>(enter)?,
+            mode: args.next::<u32>(enter)?,
+        })
     }
 
     async fn run(self, dir: Dir) -> Result<Self::Output, Error> {
@@ -559,18 +532,21 @@ impl<B: ExecutorBackend> FsOperation<B> for Chown {
     type Output = ();
 
     fn read<'js>(enter: &Enter<'js, B>, args: &Args<'js, B>) -> Result<Self, Error> {
-        Ok(
-            Self {
-                path: args.next::<String>(enter)?,
-                uid: args.next::<u32>(enter)?,
-                gid: args.next::<u32>(enter)?,
-            }
-        )
+        Ok(Self {
+            path: args.next::<String>(enter)?,
+            uid: args.next::<u32>(enter)?,
+            gid: args.next::<u32>(enter)?,
+        })
     }
 
     async fn run(self, dir: Dir) -> Result<Self::Output, Error> {
-        dir.set_owner(self.path, Owner::new().user(self.uid).group(self.gid))
-            .await?;
+        dir.set_owner(
+            self.path,
+            Owner::new()
+                .user(self.uid)
+                .group(self.gid),
+        )
+        .await?;
 
         Ok(())
     }
@@ -588,19 +564,19 @@ impl<B: ExecutorBackend> FsOperation<B> for Lchown {
     type Output = ();
 
     fn read<'js>(enter: &Enter<'js, B>, args: &Args<'js, B>) -> Result<Self, Error> {
-        Ok(
-            Self {
-                path: args.next::<String>(enter)?,
-                uid: args.next::<u32>(enter)?,
-                gid: args.next::<u32>(enter)?,
-            }
-        )
+        Ok(Self {
+            path: args.next::<String>(enter)?,
+            uid: args.next::<u32>(enter)?,
+            gid: args.next::<u32>(enter)?,
+        })
     }
 
     async fn run(self, dir: Dir) -> Result<Self::Output, Error> {
         dir.set_owner_with_options(
             self.path,
-            Owner::new().user(self.uid).group(self.gid),
+            Owner::new()
+                .user(self.uid)
+                .group(self.gid),
             &SetOwnerOptions::new().follow_symlinks(false),
         )
         .await?;
@@ -620,16 +596,15 @@ impl<B: ExecutorBackend> FsOperation<B> for Symlink {
     type Output = ();
 
     fn read<'js>(enter: &Enter<'js, B>, args: &Args<'js, B>) -> Result<Self, Error> {
-        Ok(
-            Self {
-                target: args.next::<String>(enter)?,
-                path: args.next::<String>(enter)?,
-            }
-        )
+        Ok(Self {
+            target: args.next::<String>(enter)?,
+            path: args.next::<String>(enter)?,
+        })
     }
 
     async fn run(self, dir: Dir) -> Result<Self::Output, Error> {
-        dir.symlink(self.target, self.path).await?;
+        dir.symlink(self.target, self.path)
+            .await?;
 
         Ok(())
     }
@@ -645,19 +620,14 @@ impl<B: ExecutorBackend> FsOperation<B> for Readlink {
     type Output = String;
 
     fn read<'js>(enter: &Enter<'js, B>, args: &Args<'js, B>) -> Result<Self, Error> {
-        Ok(
-            Self {
-                path: args.next::<String>(enter)?,
-            }
-        )
+        Ok(Self { path: args.next::<String>(enter)? })
     }
 
     async fn run(self, dir: Dir) -> Result<Self::Output, Error> {
-        Ok(
-            dir.read_link(self.path)
-                .await?
-                .to_string_lossy()
-        )
+        Ok(dir
+            .read_link(self.path)
+            .await?
+            .to_string_lossy())
     }
 }
 
@@ -672,12 +642,10 @@ impl<B: ExecutorBackend> FsOperation<B> for Truncate {
     type Output = ();
 
     fn read<'js>(enter: &Enter<'js, B>, args: &Args<'js, B>) -> Result<Self, Error> {
-        Ok(
-            Self {
-                path: args.next::<String>(enter)?,
-                len: args.next::<Option<u64>>(enter)?,
-            }
-        )
+        Ok(Self {
+            path: args.next::<String>(enter)?,
+            len: args.next::<Option<u64>>(enter)?,
+        })
     }
 
     async fn run(self, dir: Dir) -> Result<Self::Output, Error> {
@@ -700,13 +668,11 @@ impl<B: ExecutorBackend> FsOperation<B> for CopyFile {
     type Output = ();
 
     fn read<'js>(enter: &Enter<'js, B>, args: &Args<'js, B>) -> Result<Self, Error> {
-        Ok(
-            Self {
-                from: args.next::<String>(enter)?,
-                to: args.next::<String>(enter)?,
-                mode: args.next::<Option<i32>>(enter)?,
-            }
-        )
+        Ok(Self {
+            from: args.next::<String>(enter)?,
+            to: args.next::<String>(enter)?,
+            mode: args.next::<Option<i32>>(enter)?,
+        })
     }
 
     async fn run(self, dir: Dir) -> Result<Self::Output, Error> {
@@ -750,16 +716,14 @@ impl Open {
         enter: &Enter<'js, B>,
         args: &Args<'js, B>,
     ) -> Result<Self, Error> {
-        Ok(
-            Self {
-                path: args.next::<String>(enter)?,
-                flags: match args.next::<Option<OpenFlagsArg>>(enter)? {
-                    Some(flags) => OpenFlags::try_from(flags)?,
-                    None => OpenFlags::parse("r")?,
-                },
-                mode: args.next::<Option<u32>>(enter)?,
-            }
-        )
+        Ok(Self {
+            path: args.next::<String>(enter)?,
+            flags: match args.next::<Option<OpenFlagsArg>>(enter)? {
+                Some(flags) => OpenFlags::try_from(flags)?,
+                None => OpenFlags::parse("r")?,
+            },
+            mode: args.next::<Option<u32>>(enter)?,
+        })
     }
 
     pub(crate) async fn run(self, dir: Dir) -> Result<(PathBuf, File), Error> {

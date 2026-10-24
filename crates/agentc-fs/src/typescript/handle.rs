@@ -139,20 +139,15 @@ impl<B: ExecutorBackend> ReadRequest<B> {
         length: Option<u32>,
         position: Option<u64>,
     ) -> Result<Self, Error> {
-        let BufferRange {
-            buffer,
+        let BufferRange { buffer, offset, length } =
+            BufferRange::new(buffer, offset.unwrap_or_default() as usize, length)?;
+
+        Ok(Self {
+            buffer: Some(buffer),
             offset,
             length,
-        } = BufferRange::new(buffer, offset.unwrap_or_default() as usize, length)?;
-
-        Ok(
-            Self {
-                buffer: Some(buffer),
-                offset,
-                length,
-                position,
-            }
-        )
+            position,
+        })
     }
 
     fn from_options(options: Object<B>) -> Result<Self, Error> {
@@ -162,14 +157,12 @@ impl<B: ExecutorBackend> ReadRequest<B> {
 
         match options.get::<Option<Uint8Array<B>>, _>("buffer")? {
             Some(buffer) => Self::from_buffer(buffer, offset, length, position),
-            None => Ok(
-                Self {
-                    buffer: None,
-                    offset: offset.unwrap_or_default() as usize,
-                    length: length.unwrap_or(16_384) as usize,
-                    position,
-                }
-            ),
+            None => Ok(Self {
+                buffer: None,
+                offset: offset.unwrap_or_default() as usize,
+                length: length.unwrap_or(16_384) as usize,
+                position,
+            }),
         }
     }
 }
@@ -219,13 +212,11 @@ impl<B: ExecutorBackend> WriteRequest<B> {
             .unwrap_or_default() as usize;
         let range = BufferRange::new(buffer, offset, length)?;
 
-        Ok(
-            Self {
-                bytes: range.bytes()?,
-                buffer: BufferValue::Value(range.buffer),
-                position,
-            }
-        )
+        Ok(Self {
+            bytes: range.bytes()?,
+            buffer: BufferValue::Value(range.buffer),
+            position,
+        })
     }
 
     fn from_string(
@@ -233,15 +224,13 @@ impl<B: ExecutorBackend> WriteRequest<B> {
         position: Option<u64>,
         encoding: Option<Encoding>,
     ) -> Result<Self, Error> {
-        Ok(
-            Self {
-                bytes: encoding
-                    .unwrap_or(Encoding::Utf8)
-                    .encode(&text)?,
-                buffer: BufferValue::Text(text),
-                position,
-            }
-        )
+        Ok(Self {
+            bytes: encoding
+                .unwrap_or(Encoding::Utf8)
+                .encode(&text)?,
+            buffer: BufferValue::Text(text),
+            position,
+        })
     }
 }
 
@@ -422,19 +411,17 @@ impl<B: ExecutorBackend> FileHandle<B> {
                 .read(request.length, request.position)
                 .await?;
 
-            Ok(
-                ReadResult {
-                    bytes_read: bytes.len() as u32,
-                    buffer: match request.buffer {
-                        Some(buffer) => {
-                            buffer.write(request.offset, &bytes)?;
+            Ok(ReadResult {
+                bytes_read: bytes.len() as u32,
+                buffer: match request.buffer {
+                    Some(buffer) => {
+                        buffer.write(request.offset, &bytes)?;
 
-                            BufferValue::Value(buffer)
-                        }
-                        None => BufferValue::Bytes(Bytes::from(bytes)),
-                    },
-                }
-            )
+                        BufferValue::Value(buffer)
+                    }
+                    None => BufferValue::Bytes(Bytes::from(bytes)),
+                },
+            })
         })
     }
 
@@ -450,15 +437,13 @@ impl<B: ExecutorBackend> FileHandle<B> {
         let mut lease = self.descriptors.lease(self.fd)?;
 
         Ok(async move {
-            Ok(
-                WriteResult {
-                    bytes_written: lease
-                        .session()?
-                        .write(request.bytes, request.position)
-                        .await? as u32,
-                    buffer: request.buffer,
-                }
-            )
+            Ok(WriteResult {
+                bytes_written: lease
+                    .session()?
+                    .write(request.bytes, request.position)
+                    .await? as u32,
+                buffer: request.buffer,
+            })
         })
     }
 }

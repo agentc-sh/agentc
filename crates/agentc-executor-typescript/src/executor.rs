@@ -364,21 +364,19 @@ impl ExecutorBuilder<guestjs::quickjs::QuickJs> {
     /// Adds the standard JavaScript environment to every worker.
     pub fn standard_environment(self) -> Self {
         self.configure(|builder| {
-            Ok(
-                builder
-                    .bind(ProcessEnvironment::lib()?)
-                    .bind_native(
-                        guestjs::quickjs::llrt::Llrt::builder()
-                            .buffer()
-                            .path()
-                            .console()
-                            .os()
-                            .stream_web()
-                            .timers()
-                            .url()
-                            .build(),
-                    )
-            )
+            Ok(builder
+                .bind(ProcessEnvironment::lib()?)
+                .bind_native(
+                    guestjs::quickjs::llrt::Llrt::builder()
+                        .buffer()
+                        .path()
+                        .console()
+                        .os()
+                        .stream_web()
+                        .timers()
+                        .url()
+                        .build(),
+                ))
         })
     }
 }
@@ -615,16 +613,14 @@ export function describe() {
             .bundle(Bundle::single("environment.ts", PROCESS_ENVIRONMENT_SOURCE).unwrap())
             .workers(1)
             .configure(|builder| {
-                Ok(
-                    builder.bind(HostLibrary::from(HostInitializer::new(|enter| {
-                        let globals = enter.guest().globals()?;
-                        let process = globals.class("Object")?.construct(())?;
+                Ok(builder.bind(HostLibrary::from(HostInitializer::new(|enter| {
+                    let globals = enter.guest().globals()?;
+                    let process = globals.class("Object")?.construct(())?;
 
-                        process.set("marker", "preserved")?;
+                    process.set("marker", "preserved")?;
 
-                        globals.set("process", process)
-                    })))
-                )
+                    globals.set("process", process)
+                }))))
             })
             .standard_environment()
             .build()
@@ -769,9 +765,7 @@ export function describe() {
                                 })
                             })
                             .await
-                            .map_err(|error| {
-                                guestjs::errors::Error::unexpected(error.to_string())
-                            })
+                            .map_err(|error| guestjs::errors::Error::unexpected(error.to_string()))
                     })
                 }),
             )

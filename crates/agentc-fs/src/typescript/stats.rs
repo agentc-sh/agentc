@@ -21,17 +21,14 @@ pub struct Stats<B: ExecutorBackend> {
 
 impl<B: ExecutorBackend> Stats<B> {
     pub fn new(metadata: Metadata) -> Self {
-        Self {
-            metadata,
-            backend: PhantomData,
-        }
+        Self { metadata, backend: PhantomData }
     }
 
     fn accessed(&self) -> Timestamp {
         Timestamp::from(
             self.metadata
                 .accessed()
-                .unwrap_or(UNIX_EPOCH)
+                .unwrap_or(UNIX_EPOCH),
         )
     }
 
@@ -39,7 +36,7 @@ impl<B: ExecutorBackend> Stats<B> {
         Timestamp::from(
             self.metadata
                 .modified()
-                .unwrap_or(UNIX_EPOCH)
+                .unwrap_or(UNIX_EPOCH),
         )
     }
 
@@ -48,7 +45,7 @@ impl<B: ExecutorBackend> Stats<B> {
             self.metadata
                 .changed()
                 .or_else(|| self.metadata.modified())
-                .unwrap_or(UNIX_EPOCH)
+                .unwrap_or(UNIX_EPOCH),
         )
     }
 
@@ -56,7 +53,7 @@ impl<B: ExecutorBackend> Stats<B> {
         Timestamp::from(
             self.metadata
                 .created()
-                .unwrap_or(UNIX_EPOCH)
+                .unwrap_or(UNIX_EPOCH),
         )
     }
 }

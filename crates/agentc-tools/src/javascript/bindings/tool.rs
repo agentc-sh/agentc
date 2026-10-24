@@ -19,13 +19,13 @@ pub struct Tool<B: Backend> {
 impl<B: ExecutorBackend> Tool<B> {
     #[guestjs(constructor)]
     fn new() -> Result<Self, Error> {
-        Ok(Self {
-            backend: PhantomData,
-        })
+        Ok(Self { backend: PhantomData })
     }
 
     #[guestjs(async_method)]
-    fn execute(&self) -> Result<impl Future<Output = Result<ToolOutput, Error>> + use<B> + 'static, Error> {
+    fn execute(
+        &self,
+    ) -> Result<impl Future<Output = Result<ToolOutput, Error>> + use<B> + 'static, Error> {
         Ok(async { Err(Error::unexpected("a Tool subclass must implement execute")) })
     }
 }
@@ -90,7 +90,9 @@ export { Tool };
         executor
             .execute(|context| {
                 Box::pin(async move {
-                    let base = context.guest().enter(Tool::<QuickJs>::class)?;
+                    let base = context
+                        .guest()
+                        .enter(Tool::<QuickJs>::class)?;
                     let module = context.module();
 
                     assert!(

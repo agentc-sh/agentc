@@ -3,9 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 use agentc_executor_typescript::{
-    backend::ExecutorBackend,
-    errors::Error,
-    executor::ExecutorBuilder,
+    backend::ExecutorBackend, errors::Error, executor::ExecutorBuilder,
 };
 
 use crate::client::{builder::HttpClientBuilder, typescript::library::HttpLibrary};

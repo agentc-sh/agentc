@@ -48,13 +48,7 @@ impl<B: ExecutorBackend> BufferRange<B> {
             None => Self::checked_length(buffer.len()?, offset)?,
         };
 
-        Ok(
-            Self {
-                buffer,
-                offset,
-                length,
-            }
-        )
+        Ok(Self { buffer, offset, length })
     }
 
     pub(crate) fn read<'js>(enter: &Enter<'js, B>, args: &Args<'js, B>) -> Result<Self, Error> {

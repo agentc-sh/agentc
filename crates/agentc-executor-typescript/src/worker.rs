@@ -264,8 +264,11 @@ impl WorkerThread {
     }
 
     fn builder(&self) -> thread::Builder {
-        thread::Builder::new()
-            .name(format!("agentc-typescript-{}-{}", self.executor.value(), self.worker.index(),))
+        thread::Builder::new().name(format!(
+            "agentc-typescript-{}-{}",
+            self.executor.value(),
+            self.worker.index(),
+        ))
     }
 
     pub(crate) fn spawn<F, T>(self, operation: F) -> io::Result<JoinHandle<T>>

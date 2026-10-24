@@ -88,21 +88,17 @@ export function read() {
             .configure(move |builder| {
                 let runtime = runtime.clone();
 
-                Ok(
-                    builder.bind(ModuleDeclaration::<QuickJs>::new("test:host").function(
-                        "value",
-                        move |_context, _args| {
-                            runtime
-                                .block_on(async {
-                                    tokio::task::yield_now().await;
-                                    42_i32
-                                })
-                                .map_err(|error| {
-                                    guestjs::errors::Error::unexpected(error.to_string())
-                                })
-                        },
-                    ))
-                )
+                Ok(builder.bind(ModuleDeclaration::<QuickJs>::new("test:host").function(
+                    "value",
+                    move |_context, _args| {
+                        runtime
+                            .block_on(async {
+                                tokio::task::yield_now().await;
+                                42_i32
+                            })
+                            .map_err(|error| guestjs::errors::Error::unexpected(error.to_string()))
+                    },
+                )))
             })
             .build()
             .await

@@ -2,17 +2,17 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::{marker::PhantomData, sync::{Arc, Weak}};
+use std::{
+    marker::PhantomData,
+    sync::{Arc, Weak},
+};
 
 use agentc_agent::tools::activity::{ActivityDelta, ActivityEmitter};
 use agentc_executor_typescript::{
     backend::ExecutorBackend,
     guestjs::{
-        FromGuest, host_class,
-        backend::Backend,
-        errors::Error,
-        host::function::FunctionDeclaration,
-        marshal::nullish::Nullish,
+        FromGuest, backend::Backend, errors::Error, host::function::FunctionDeclaration,
+        host_class, marshal::nullish::Nullish,
     },
     json::Json,
 };

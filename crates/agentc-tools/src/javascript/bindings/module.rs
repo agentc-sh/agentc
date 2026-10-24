@@ -44,11 +44,9 @@ impl<B: ExecutorBackend> TryFrom<ToolsModule> for ModuleDeclaration<B> {
     type Error = Error;
 
     fn try_from(module: ToolsModule) -> Result<Self, Self::Error> {
-        Ok(
-            ModuleDeclaration::new(module.specifier)
-                .class::<Tool<B>>()
-                .class::<ToolInput<B>>()
-                .class::<Schema<B>>()
-        )
+        Ok(ModuleDeclaration::new(module.specifier)
+            .class::<Tool<B>>()
+            .class::<ToolInput<B>>()
+            .class::<Schema<B>>())
     }
 }

@@ -131,7 +131,9 @@ impl Encoding {
             }
             Self::Base64 => {
                 if text.len() % 4 != 0 {
-                    return Err(Error::unsupported("agentc:fs: base64 input has an invalid length"));
+                    return Err(Error::unsupported(
+                        "agentc:fs: base64 input has an invalid length",
+                    ));
                 }
 
                 let mut bytes = Vec::with_capacity(text.len() / 4 * 3);

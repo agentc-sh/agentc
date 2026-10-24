@@ -19,9 +19,6 @@ impl ToolsLibrary {
     where
         B: ExecutorBackend,
     {
-        Ok(
-            HostLibrary::new()
-                .extend(ModuleDeclaration::<B>::try_from(ToolsModule::new())?)
-        )
+        Ok(HostLibrary::new().extend(ModuleDeclaration::<B>::try_from(ToolsModule::new())?))
     }
 }

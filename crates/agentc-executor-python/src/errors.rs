@@ -134,7 +134,9 @@ impl From<guestpy::errors::Error> for GuestError {
                 text: raise.text().to_owned(),
             },
             guestpy::errors::Error::Engine { message, source } => Self::Engine { message, source },
-            guestpy::errors::Error::Conversion { message, source } => Self::Conversion { message, source },
+            guestpy::errors::Error::Conversion { message, source } => {
+                Self::Conversion { message, source }
+            }
             guestpy::errors::Error::Import { name, message } => Self::Import { name, message },
             guestpy::errors::Error::Attribute { name } => Self::Attribute { name },
             guestpy::errors::Error::Bundle { path, message } => Self::Bundle { path, message },
@@ -150,7 +152,9 @@ impl From<guestpy::errors::Error> for GuestError {
             guestpy::errors::Error::StopIteration => Self::StopIteration,
             guestpy::errors::Error::StopAsyncIteration => Self::StopAsyncIteration,
             guestpy::errors::Error::Io(error) => Self::Io(error),
-            guestpy::errors::Error::Unexpected { message, source } => Self::Unexpected { message, source },
+            guestpy::errors::Error::Unexpected { message, source } => {
+                Self::Unexpected { message, source }
+            }
         }
     }
 }

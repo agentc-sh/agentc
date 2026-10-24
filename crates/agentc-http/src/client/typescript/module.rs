@@ -65,33 +65,31 @@ impl<B: ExecutorBackend> TryFrom<HttpModule> for HostLibrary<B> {
     fn try_from(module: HttpModule) -> Result<Self, Self::Error> {
         let specifier = module.specifier.clone();
 
-        Ok(
-            HostLibrary::from(
-                ModuleDeclaration::new(specifier.clone())
-                    .state(move |_| Ok(module.clone()))
-                    .class::<Headers>()
-                    .class::<Response<B>>()
-                    .function_async("fetch", |context, args| {
-                        let client = context
-                            .resolve::<ModuleState<HttpModule>>()?
-                            .client()
-                            .clone();
-                        let request = FetchRequest::read(context.enter(), args)?;
+        Ok(HostLibrary::from(
+            ModuleDeclaration::new(specifier.clone())
+                .state(move |_| Ok(module.clone()))
+                .class::<Headers>()
+                .class::<Response<B>>()
+                .function_async("fetch", |context, args| {
+                    let client = context
+                        .resolve::<ModuleState<HttpModule>>()?
+                        .client()
+                        .clone();
+                    let request = FetchRequest::read(context.enter(), args)?;
 
-                        Ok(async move { Response::<B>::send(&client, request).await })
-                    }),
-            )
-            .extend(HostInitializer::new(move |enter| {
-                let module = enter.guest().host_module(&specifier)?;
-                let globals = enter.guest().globals()?;
-
-                globals.set("fetch", module.function("fetch")?)?;
-                globals.set(Headers::NAME, module.class(Headers::NAME)?)?;
-                globals.set(Response::<B>::NAME, module.class(Response::<B>::NAME)?)?;
-
-                Ok(())
-            })),
+                    Ok(async move { Response::<B>::send(&client, request).await })
+                }),
         )
+        .extend(HostInitializer::new(move |enter| {
+            let module = enter.guest().host_module(&specifier)?;
+            let globals = enter.guest().globals()?;
+
+            globals.set("fetch", module.function("fetch")?)?;
+            globals.set(Headers::NAME, module.class(Headers::NAME)?)?;
+            globals.set(Response::<B>::NAME, module.class(Response::<B>::NAME)?)?;
+
+            Ok(())
+        })))
     }
 }
 
@@ -112,8 +110,7 @@ mod tests {
 
     use super::*;
     use crate::client::{
-        builder::HttpClientBuilder,
-        policies::address::PublicAddressPolicy,
+        builder::HttpClientBuilder, policies::address::PublicAddressPolicy,
         typescript::executor::ExecutorBuilderHttpExt,
     };
 
