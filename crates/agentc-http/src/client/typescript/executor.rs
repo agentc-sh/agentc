@@ -2,7 +2,11 @@
 //
 // SPDX-License-Identifier: MIT
 
-use agentc_executor_typescript::executor::ExecutorBuilder;
+use agentc_executor_typescript::{
+    backend::ExecutorBackend,
+    errors::Error,
+    executor::ExecutorBuilder,
+};
 
 use crate::client::{builder::HttpClientBuilder, typescript::library::HttpLibrary};
 
@@ -12,11 +16,18 @@ pub trait ExecutorBuilderHttpExt {
     fn with_http(self, builder: impl Into<HttpClientBuilder>) -> Self;
 }
 
-impl ExecutorBuilderHttpExt for ExecutorBuilder {
+impl<B: ExecutorBackend> ExecutorBuilderHttpExt for ExecutorBuilder<B> {
     fn with_http(self, builder: impl Into<HttpClientBuilder>) -> Self {
         let builder = builder.into();
 
-        self.configure(move |runtime| runtime.bind(HttpLibrary::bind_guest(builder.clone())))
+        self.configure(move |runtime| {
+            Ok(runtime.bind(HttpLibrary::bind::<B>(
+                builder
+                    .clone()
+                    .build()
+                    .map_err(Error::configuration)?,
+            )?))
+        })
     }
 }
 
@@ -26,7 +37,14 @@ mod tests {
 
     use agentc_executor_typescript::{
         executor::Executor,
-        guestjs::handle::{CallableProtocol, Promise},
+        guestjs::{
+            bundle::Bundle,
+            handle::{
+                promise::Promise,
+                protocol::{CallableProtocol, ObjectProtocol},
+            },
+            quickjs::QuickJs,
+        },
     };
     use axum::{Router, routing::get};
     use tokio::net::TcpListener;
@@ -62,7 +80,8 @@ export async function read(url) {
     #[tokio::test]
     async fn the_extension_trait_binds_the_module_on_every_worker() {
         let address = server().await;
-        let executor = Executor::builder("fetch.ts", FETCH_SOURCE)
+        let executor = Executor::<QuickJs>::builder("fetch")
+            .bundle(Bundle::single("fetch.ts", FETCH_SOURCE).unwrap())
             .workers(2)
             .standard_environment()
             .with_http(HttpClient::builder())
@@ -80,10 +99,8 @@ export async function read(url) {
                             Box::pin(async move {
                                 context
                                     .module()
-                                    .function("read")
-                                    .await?
-                                    .call::<_, Promise<String>>((url,))
-                                    .await?
+                                    .function("read")?
+                                    .call::<_, Promise<QuickJs, String>>((url,))?
                                     .await
                             })
                         }
@@ -98,5 +115,25 @@ export async function read(url) {
             .shutdown()
             .await
             .expect("executor shuts down");
+    }
+
+    #[tokio::test]
+    async fn an_invalid_client_configuration_fails_the_build() {
+        let Err(error) = Executor::<QuickJs>::builder("fetch")
+            .bundle(Bundle::single("fetch.ts", FETCH_SOURCE).unwrap())
+            .workers(1)
+            .standard_environment()
+            .with_http(HttpClient::builder().header("in valid", "x"))
+            .build()
+            .await
+        else {
+            panic!("an invalid client configuration should fail the build");
+        };
+
+        let Error::WorkerInitialization { source, .. } = error else {
+            panic!("invalid HTTP configuration should fail worker initialization");
+        };
+
+        assert!(matches!(*source, Error::Configuration(_)),);
     }
 }

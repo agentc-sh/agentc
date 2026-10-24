@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-use agentc_executor_typescript::guestjs::host::{ClassSpec, HostClass};
+use agentc_executor_typescript::guestjs::{errors::Error, host::iter::Iterable, host_class};
 use http::HeaderMap;
 
 /// The guest-visible header collection on a
@@ -12,6 +12,10 @@ pub struct Headers {
 }
 
 impl Headers {
+    pub(crate) fn new(inner: impl Into<HeaderMap>) -> Self {
+        Self { inner: inner.into() }
+    }
+
     fn lookup(&self, name: &str) -> Option<String> {
         self.inner
             .get(name)
@@ -34,30 +38,32 @@ impl Headers {
             })
             .collect()
     }
-
-    pub(crate) fn new(inner: impl Into<HeaderMap>) -> Self {
-        Self { inner: inner.into() }
-    }
 }
 
-impl HostClass for Headers {
-    const NAME: &'static str = "Headers";
+#[host_class(crate_path = agentc_executor_typescript::guestjs)]
+impl Headers {
+    #[guestjs(method)]
+    fn get(&self, name: String) -> Result<Option<String>, Error> {
+        Ok(self.lookup(&name))
+    }
 
-    fn build(spec: &mut ClassSpec<Self>) {
-        spec.method("get", |headers, scope, args| {
-            Ok(headers.lookup(&args.get_owned::<String>(scope, 0)?))
-        });
+    #[guestjs(method)]
+    fn has(&self, name: String) -> Result<bool, Error> {
+        Ok(self.lookup(&name).is_some())
+    }
 
-        spec.method("has", |headers, scope, args| {
-            Ok(headers
-                .lookup(&args.get_owned::<String>(scope, 0)?)
-                .is_some())
-        });
+    #[guestjs(method)]
+    fn keys(&self) -> Result<Vec<String>, Error> {
+        Ok(self.names())
+    }
 
-        spec.method("keys", |headers, _scope, _args| Ok(headers.names()));
+    #[guestjs(method)]
+    fn entries(&self) -> Result<Vec<Vec<String>>, Error> {
+        Ok(self.pairs())
+    }
 
-        spec.method("entries", |headers, _scope, _args| Ok(headers.pairs()));
-
-        spec.iterable(|headers, _scope| Ok(headers.pairs()));
+    #[guestjs(method, symbol = "iterator")]
+    fn iterator(&self) -> Result<Iterable<impl Iterator<Item = Vec<String>> + use<>>, Error> {
+        Ok(Iterable::new(self.pairs().into_iter()))
     }
 }

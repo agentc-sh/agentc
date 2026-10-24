@@ -2,18 +2,15 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::cell::RefCell;
+use std::{cell::RefCell, marker::PhantomData};
 
 use agentc_executor_typescript::{
-    guestjs::{
-        errors::Error,
-        host::{ClassSpec, HostClass},
-        llrt::streams::HostReadableStream,
-    },
+    backend::ExecutorBackend,
+    guestjs::{backend::Backend, errors::Error, host::stream::StreamSource, host_class},
     json::Json,
 };
 use bytes::{Bytes, BytesMut};
-use futures::StreamExt;
+use futures::{FutureExt, Stream, StreamExt};
 use http::{HeaderMap, Method, StatusCode};
 use url::Url;
 
@@ -25,16 +22,27 @@ use crate::client::{
 };
 
 /// The guest-visible response returned by the guest `fetch` function.
-pub struct Response {
+pub struct Response<B: Backend> {
     status: StatusCode,
     url: Url,
     headers: HeaderMap,
     // Interior mutability so `body` is a property, as it is on the Web, while still being consumed
     // exactly once.
     body: RefCell<Option<HttpBodyStream>>,
+    _marker: PhantomData<fn() -> B>,
 }
 
-impl Response {
+impl<B: Backend> Response<B> {
+    pub(crate) fn from_response(response: HttpResponse) -> Self {
+        Self {
+            status: response.status(),
+            url: response.url().clone(),
+            headers: response.headers().clone(),
+            body: RefCell::new(Some(response.into_stream())),
+            _marker: PhantomData,
+        }
+    }
+
     fn take_body(&self) -> Result<HttpBodyStream, Error> {
         self.body
             .borrow_mut()
@@ -51,15 +59,6 @@ impl Response {
         }
 
         Ok(collected.freeze())
-    }
-
-    pub(crate) fn from_response(response: HttpResponse) -> Self {
-        Self {
-            status: response.status(),
-            url: response.url().clone(),
-            headers: response.headers().clone(),
-            body: RefCell::new(Some(response.into_stream())),
-        }
     }
 
     pub(crate) async fn send(client: &HttpClient, request: FetchRequest) -> Result<Self, Error> {
@@ -81,7 +80,7 @@ impl Response {
             }
         }
 
-        if let Some(body) = request.body {
+        if let Some(body) = request.init.body {
             builder = builder.body(Bytes::from(body));
         }
 
@@ -89,62 +88,82 @@ impl Response {
     }
 }
 
-impl HostClass for Response {
-    const NAME: &'static str = "Response";
+#[host_class(rename_all = "camelCase", backend = B, crate_path = agentc_executor_typescript::guestjs)]
+impl<B: ExecutorBackend> Response<B> {
+    #[guestjs(get)]
+    fn status(&self) -> Result<u16, Error> {
+        Ok(self.status.as_u16())
+    }
 
-    fn build(spec: &mut ClassSpec<Self>) {
-        spec.getter("status", |response, _scope| Ok(response.status.as_u16()));
+    #[guestjs(get)]
+    fn ok(&self) -> Result<bool, Error> {
+        Ok(self.status.is_success())
+    }
 
-        spec.getter("ok", |response, _scope| Ok(response.status.is_success()));
+    #[guestjs(get)]
+    fn url(&self) -> Result<String, Error> {
+        Ok(self.url.to_string())
+    }
 
-        spec.getter("url", |response, _scope| Ok(response.url.to_string()));
+    #[guestjs(get)]
+    fn body_used(&self) -> Result<bool, Error> {
+        Ok(self.body.borrow().is_none())
+    }
 
-        spec.getter("bodyUsed", |response, _scope| Ok(response.body.borrow().is_none()));
-
-        spec.getter("statusText", |response, _scope| {
-            Ok(response
-                .status
+    #[guestjs(get)]
+    fn status_text(&self) -> Result<String, Error> {
+        Ok(
+            self.status
                 .canonical_reason()
                 .unwrap_or_default()
-                .to_owned())
-        });
+                .to_owned()
+        )
+    }
 
-        spec.getter("headers", |response, _scope| Ok(Headers::new(response.headers.clone())));
+    #[guestjs(get)]
+    fn headers(&self) -> Result<Headers, Error> {
+        Ok(Headers::new(self.headers.clone()))
+    }
 
-        spec.getter("body", |response, _scope| {
-            Ok(HostReadableStream::from_stream(
-                response
-                    .take_body()?
+    #[guestjs(get)]
+    fn body(
+        &self,
+    ) -> Result<StreamSource<impl Stream<Item = Result<Bytes, Error>> + use<B>>, Error> {
+        Ok(
+            StreamSource::new(
+                self.take_body()?
                     .map(|chunk| chunk.map_err(Error::from)),
-            ))
-        });
+            )
+        )
+    }
 
-        spec.async_method("text", |response, _scope, _args| {
-            let body = response.take_body()?;
+    #[guestjs(async_method)]
+    fn text(&self) -> Result<impl Future<Output = Result<String, Error>> + use<B>, Error> {
+        Ok(
+            Self::collect(self.take_body()?)
+                .map(|body| body.map(|bytes| String::from_utf8_lossy(&bytes).into_owned()))
+        )
+    }
 
-            Ok(async move { Ok(String::from_utf8_lossy(&Self::collect(body).await?).into_owned()) })
-        });
+    #[guestjs(async_method)]
+    fn json(&self) -> Result<impl Future<Output = Result<Json, Error>> + use<B>, Error> {
+        Ok(
+            Self::collect(self.take_body()?)
+                .map(|body| {
+                    serde_json::from_slice::<serde_json::Value>(&body?)
+                        .map(Json)
+                        .map_err(|error| Error::unexpected(format!("agentc:http: {error}")))
+                })
+        )
+    }
 
-        spec.async_method("json", |response, _scope, _args| {
-            let body = response.take_body()?;
+    #[guestjs(async_method)]
+    fn bytes(&self) -> Result<impl Future<Output = Result<Bytes, Error>> + use<B>, Error> {
+        Ok(Self::collect(self.take_body()?))
+    }
 
-            Ok(async move {
-                serde_json::from_slice::<serde_json::Value>(&Self::collect(body).await?)
-                    .map(Json)
-                    .map_err(|error| Error::unexpected(format!("agentc:http: {error}")))
-            })
-        });
-
-        spec.async_method("bytes", |response, _scope, _args| {
-            let body = response.take_body()?;
-
-            Ok(async move { Self::collect(body).await })
-        });
-
-        spec.async_method("arrayBuffer", |response, _scope, _args| {
-            let body = response.take_body()?;
-
-            Ok(async move { Self::collect(body).await })
-        });
+    #[guestjs(async_method)]
+    fn array_buffer(&self) -> Result<impl Future<Output = Result<Bytes, Error>> + use<B>, Error> {
+        Ok(Self::collect(self.take_body()?))
     }
 }
