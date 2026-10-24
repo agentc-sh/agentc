@@ -28,7 +28,6 @@ use serde_json::Value;
 use crate::python::bindings::{
     coercion::{Coercion, Decoded},
     guest::GuestToolClass,
-    input::ToolInput as GuestToolInput,
     schema::Schema,
 };
 
@@ -83,7 +82,7 @@ where
                         .get::<GuestToolClass>(&export_name)?;
                     let coercion = Coercion::new(context.guest())?;
 
-                    let (guest_input, _guard) = GuestToolInput::new(
+                    let (guest_input, _guard) = crate::python::bindings::input::ToolInput::new(
                         coercion.decode(exported.args(), Value::Object(args))?,
                         input
                             .state

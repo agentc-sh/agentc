@@ -2,11 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::{
-    cell::RefCell,
-    error::Error as StdError,
-    fmt::{Display, Formatter, Result as FmtResult},
-};
+use std::{cell::RefCell, fmt::{Display, Formatter}};
 
 use agentc_executor_python::{
     backend::ExecutorBackend,
@@ -24,12 +20,12 @@ use crate::client::python::exceptions::BodyConsumed;
 pub(crate) struct UploadFailed;
 
 impl Display for UploadFailed {
-    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         formatter.write_str("guest request body failed")
     }
 }
 
-impl StdError for UploadFailed {}
+impl std::error::Error for UploadFailed {}
 
 pub(crate) struct Upload<B: ExecutorBackend> {
     chunks: AsyncIter<B, Bytes>,
