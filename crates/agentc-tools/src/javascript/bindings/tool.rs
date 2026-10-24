@@ -40,13 +40,11 @@ mod tests {
                 promise::Promise,
                 protocol::ObjectProtocol,
             },
-            host::class::HostClass,
             quickjs::QuickJs,
         },
         json::Json,
     };
 
-    use super::*;
     use crate::javascript::bindings::{executor::ExecutorBuilderToolsExt, guest::GuestToolClass};
 
     const TOOL_SOURCE: &str = r#"
