@@ -36,10 +36,7 @@ mod tests {
         executor::Executor,
         guestjs::{
             bundle::Bundle,
-            handle::{
-                promise::Promise,
-                protocol::ObjectProtocol,
-            },
+            handle::{promise::Promise, protocol::ObjectProtocol},
             quickjs::QuickJs,
         },
         json::Json,
