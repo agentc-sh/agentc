@@ -30,4 +30,4 @@ thiserror = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 
-guestjs = { git = "https://github.com/wizrds/guestjs.git", rev = "0.6.1", features = ["tokio", "embedded", "serde", "bytes"] }
+guestjs = { git = "https://github.com/wizrds/guestjs.git", rev = "0.6.2", features = ["tokio", "embedded", "serde", "bytes"] }
