@@ -2,23 +2,30 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::future::Future;
+use std::{future::Future, marker::PhantomData};
 
-use agentc_executor_typescript::guestjs::{errors::Error, host_class};
+use agentc_executor_typescript::{
+    backend::ExecutorBackend,
+    guestjs::{backend::Backend, errors::Error, host_class},
+};
 
 use crate::javascript::bindings::output::ToolOutput;
 
-pub struct Tool;
+pub struct Tool<B: Backend> {
+    backend: PhantomData<fn() -> B>,
+}
 
-#[host_class(crate_path = agentc_executor_typescript::guestjs)]
-impl Tool {
+#[host_class(backend = B, crate_path = agentc_executor_typescript::guestjs)]
+impl<B: ExecutorBackend> Tool<B> {
     #[guestjs(constructor)]
     fn new() -> Result<Self, Error> {
-        Ok(Self)
+        Ok(Self {
+            backend: PhantomData,
+        })
     }
 
     #[guestjs(async_method)]
-    fn execute(&self) -> Result<impl Future<Output = Result<ToolOutput, Error>> + 'static, Error> {
+    fn execute(&self) -> Result<impl Future<Output = Result<ToolOutput, Error>> + use<B> + 'static, Error> {
         Ok(async { Err(Error::unexpected("a Tool subclass must implement execute")) })
     }
 }
@@ -27,7 +34,15 @@ impl Tool {
 mod tests {
     use agentc_executor_typescript::{
         executor::Executor,
-        guestjs::handle::{BoundClass, BoundConstructorProtocol, BoundObjectProtocol, Promise},
+        guestjs::{
+            bundle::Bundle,
+            handle::{
+                promise::Promise,
+                protocol::{ConstructorProtocol, ObjectProtocol},
+            },
+            host::class::HostClass,
+            quickjs::QuickJs,
+        },
         json::Json,
     };
 
@@ -57,8 +72,9 @@ export class NotATool {
 export { Tool };
 "#;
 
-    async fn executor() -> Executor {
-        Executor::builder("tool.ts", TOOL_SOURCE)
+    async fn executor() -> Executor<QuickJs> {
+        Executor::<QuickJs>::builder("tool")
+            .bundle(Bundle::single("tool.ts", TOOL_SOURCE).unwrap())
             .workers(1)
             .standard_environment()
             .with_tools()
@@ -74,47 +90,41 @@ export { Tool };
         executor
             .execute(|context| {
                 Box::pin(async move {
-                    context
-                        .guest()
-                        .scope(async move |scope| {
-                            let base = BoundClass::of::<Tool>(&scope)?;
-                            let module = context.module().bind(&scope)?;
+                    let base = context.guest().enter(Tool::<QuickJs>::class)?;
+                    let module = context.module();
 
-                            assert!(
-                                module
-                                    .class_as::<Tool>("Weather")?
-                                    .is_subclass_of(&base)?,
-                                "a generic `extends Tool<A, B>` transpiles to a plain \
-                             `extends Tool`, and `BoundClass::of` resolves the same \
-                             constructor `agentc:tools` exports",
-                            );
+                    assert!(
+                        module
+                            .class("Weather")?
+                            .is_subclass_of(&base)?,
+                        "a generic `extends Tool<A, B>` transpiles to a plain `extends Tool`, \
+                         and `Tool::class` resolves the same constructor `agentc:tools` exports",
+                    );
 
-                            assert_eq!(
-                                module
-                                    .class_as::<Tool>("Weather")?
-                                    .get::<String>("description")?,
-                                "Reports the weather.",
-                                "`static readonly` survives the oxc transform",
-                            );
+                    assert_eq!(
+                        module
+                            .class("Weather")?
+                            .get::<String, _>("description")?,
+                        "Reports the weather.",
+                        "`static readonly` survives the oxc transform",
+                    );
 
-                            assert!(
-                                !module
-                                    .class_as::<Tool>("NotATool")?
-                                    .is_subclass_of(&base)?,
-                                "an unrelated class is not a subclass",
-                            );
+                    assert!(
+                        !module
+                            .class("NotATool")?
+                            .is_subclass_of(&base)?,
+                        "an unrelated class is not a subclass",
+                    );
 
-                            assert!(
-                                !module
-                                    .class_as::<Tool>("Tool")?
-                                    .is_subclass_of(&base)?,
-                                "`is_subclass_of` is strict, so the host class is not a \
-                             subclass of itself and cannot be exported as a tool",
-                            );
+                    assert!(
+                        !module
+                            .class("Tool")?
+                            .is_subclass_of(&base)?,
+                        "`is_subclass_of` is strict, so the host class is not a subclass of \
+                         itself and cannot be exported as a tool",
+                    );
 
-                            Ok(())
-                        })
-                        .await
+                    Ok(())
                 })
             })
             .await
@@ -134,16 +144,10 @@ export { Tool };
             .execute(|context| {
                 Box::pin(async move {
                     context
-                        .guest()
-                        .scope(async move |scope| {
-                            context
-                                .module()
-                                .bind(&scope)?
-                                .class_as::<Tool>("Silent")?
-                                .construct(())?
-                                .call_method::<_, Promise<Json>>("execute", ())?
-                                .await
-                        })
+                        .module()
+                        .class("Silent")?
+                        .construct(())?
+                        .call_method::<_, _, Promise<QuickJs, Json>>("execute", ())?
                         .await
                 })
             })

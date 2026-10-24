@@ -2,11 +2,18 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::sync::{Arc, Weak};
+use std::{marker::PhantomData, sync::{Arc, Weak}};
 
 use agentc_agent::tools::activity::{ActivityDelta, ActivityEmitter};
 use agentc_executor_typescript::{
-    guestjs::{FromGuest, errors::Error, host::HostFn, host_class, marshal::Nullish},
+    backend::ExecutorBackend,
+    guestjs::{
+        FromGuest, host_class,
+        backend::Backend,
+        errors::Error,
+        host::function::FunctionDeclaration,
+        marshal::nullish::Nullish,
+    },
     json::Json,
 };
 use serde_json::Value;
@@ -22,14 +29,15 @@ impl From<GuestActivityDelta> for ActivityDelta {
     }
 }
 
-pub struct ToolInput {
+pub struct ToolInput<B: Backend> {
     args: Value,
     state: Value,
     emitter: Option<Weak<ActivityEmitter>>,
+    backend: PhantomData<fn() -> B>,
 }
 
-#[host_class(crate_path = agentc_executor_typescript::guestjs)]
-impl ToolInput {
+#[host_class(backend = B, crate_path = agentc_executor_typescript::guestjs)]
+impl<B: ExecutorBackend> ToolInput<B> {
     pub(crate) fn new(
         args: Value,
         state: Value,
@@ -40,6 +48,7 @@ impl ToolInput {
                 args,
                 state,
                 emitter: emitter.as_ref().map(Arc::downgrade),
+                backend: PhantomData,
             },
             emitter,
         )
@@ -56,18 +65,18 @@ impl ToolInput {
     }
 
     #[guestjs(get)]
-    fn emit(&self) -> Result<Nullish<HostFn>, Error> {
+    fn emit(&self) -> Result<Nullish<FunctionDeclaration<B>>, Error> {
         let Some(emitter) = self.emitter.clone() else {
             return Ok(Nullish::Undefined);
         };
 
-        Ok(Nullish::Some(HostFn::new(move |scope, args| {
+        Ok(Nullish::Some(FunctionDeclaration::new(move |context, args| {
             if let Some(sender) = emitter
                 .upgrade()
                 .and_then(|emitter| emitter.sender())
             {
                 let _ = sender.try_send(
-                    args.get_owned::<GuestActivityDelta>(scope, 0)?
+                    args.next::<GuestActivityDelta>(context.enter())?
                         .into(),
                 );
             }
@@ -81,10 +90,7 @@ impl ToolInput {
 mod tests {
     use agentc_executor_typescript::{
         executor::Executor,
-        guestjs::{
-            handle::BoundConstructorProtocol,
-            marshal::{FromGuestBound, ToGuestBound},
-        },
+        guestjs::{bundle::Bundle, handle::protocol::ObjectProtocol, quickjs::QuickJs},
     };
     use tokio::sync::mpsc;
 
@@ -124,8 +130,9 @@ export class Forger extends Tool {
         emitter: Option<ActivityEmitter>,
         args: Value,
         state: Value,
-    ) -> Result<ToolOutput, agentc_executor_typescript::error::Error> {
-        let executor = Executor::builder("echo.ts", TOOL_SOURCE)
+    ) -> Result<ToolOutput, agentc_executor_typescript::errors::Error> {
+        let executor = Executor::<QuickJs>::builder("echo")
+            .bundle(Bundle::single("echo.ts", TOOL_SOURCE).unwrap())
             .workers(1)
             .standard_environment()
             .with_tools()
@@ -139,19 +146,11 @@ export class Forger extends Tool {
                     let (guest_input, _guard) = ToolInput::new(args, state, emitter.map(Arc::new));
 
                     context
-                        .guest()
-                        .scope(async move |scope| {
-                            context
-                                .module()
-                                .bind(&scope)?
-                                .class_as::<GuestTool>("Echo")?
-                                .construct(())?
-                                .execute(ToolInput::from_guest_bound(
-                                    &scope,
-                                    guest_input.to_guest_bound(&scope)?,
-                                )?)?
-                                .await
-                        })
+                        .module()
+                        .class("Echo")?
+                        .into_result::<GuestTool<QuickJs>>()
+                        .construct(())?
+                        .execute(guest_input)?
                         .await
                 })
             })
@@ -220,7 +219,8 @@ export class Forger extends Tool {
 
     #[tokio::test]
     async fn guest_code_cannot_construct_a_tool_input() {
-        let executor = Executor::builder("echo.ts", TOOL_SOURCE)
+        let executor = Executor::<QuickJs>::builder("echo")
+            .bundle(Bundle::single("echo.ts", TOOL_SOURCE).unwrap())
             .workers(1)
             .standard_environment()
             .with_tools()
@@ -234,19 +234,11 @@ export class Forger extends Tool {
                     let (guest_input, _guard) = ToolInput::new(Value::Null, Value::Null, None);
 
                     context
-                        .guest()
-                        .scope(async move |scope| {
-                            context
-                                .module()
-                                .bind(&scope)?
-                                .class_as::<GuestTool>("Forger")?
-                                .construct(())?
-                                .execute(ToolInput::from_guest_bound(
-                                    &scope,
-                                    guest_input.to_guest_bound(&scope)?,
-                                )?)?
-                                .await
-                        })
+                        .module()
+                        .class("Forger")?
+                        .into_result::<GuestTool<QuickJs>>()
+                        .construct(())?
+                        .execute(guest_input)?
                         .await
                 })
             })

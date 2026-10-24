@@ -4,7 +4,10 @@
 
 use std::borrow::Cow;
 
-use agentc_executor_typescript::guestjs::host::{Exports, HostModule};
+use agentc_executor_typescript::{
+    backend::ExecutorBackend,
+    guestjs::{errors::Error, host::module::ModuleDeclaration},
+};
 
 use crate::javascript::bindings::{input::ToolInput, schema::Schema, tool::Tool};
 
@@ -37,14 +40,15 @@ impl Default for ToolsModule {
     }
 }
 
-impl HostModule for ToolsModule {
-    fn name(&self) -> &str {
-        self.specifier()
-    }
+impl<B: ExecutorBackend> TryFrom<ToolsModule> for ModuleDeclaration<B> {
+    type Error = Error;
 
-    fn build(&self, exports: &mut Exports) {
-        exports.class::<Tool>();
-        exports.class::<ToolInput>();
-        exports.class::<Schema>();
+    fn try_from(module: ToolsModule) -> Result<Self, Self::Error> {
+        Ok(
+            ModuleDeclaration::new(module.specifier)
+                .class::<Tool<B>>()
+                .class::<ToolInput<B>>()
+                .class::<Schema<B>>()
+        )
     }
 }
