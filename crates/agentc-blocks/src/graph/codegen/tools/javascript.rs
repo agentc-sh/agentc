@@ -4,7 +4,7 @@
 
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
-use std::collections::HashMap;
+use std::{collections::HashMap, ffi::OsStr, path::Path};
 
 use agentc_compiler::generator::{
     blocks::{codegen::ToIdent, fragment::Fragment},
@@ -46,15 +46,12 @@ impl ToolCodeGen for JavascriptTools<'_> {
         Self::is_present(self.0)
             .then(|| {
                 vec![
-                    ImportContribution::path(&["agentc_executor_typescript", "executor"])
-                        .item("Executor"),
                     ImportContribution::path(&["agentc_fs", "typescript", "executor"])
-                        .item("ExecutorBuilderFsExt"),
+                        .item_as("ExecutorBuilderFsExt", "_"),
                     ImportContribution::path(&["agentc_http", "client", "typescript"])
-                        .item("ExecutorBuilderHttpExt"),
+                        .item_as("ExecutorBuilderHttpExt", "_"),
                     ImportContribution::path(&["agentc_tools", "javascript"])
-                        .item("ExecutorBuilderToolsExt")
-                        .item("JavascriptTool"),
+                        .item_as("ExecutorBuilderToolsExt", "_"),
                 ]
             })
             .unwrap_or_default()
@@ -84,19 +81,43 @@ impl ToolCodeGen for JavascriptTools<'_> {
         for (bundle_path, tools) in &by_bundle {
             let executor_ident =
                 Ident::new(&format!("js_executor_{}", bundle_path.to_ident()), Span::call_site());
+            let module_name = Path::new(bundle_path)
+                .file_stem()
+                .and_then(OsStr::to_str)
+                .ok_or_else(|| {
+                    GeneratorError::unexpected(format!(
+                        "Bundle path '{}' has no file name",
+                        bundle_path
+                    ))
+                })?;
+            let file_name = Path::new(bundle_path)
+                .file_name()
+                .and_then(OsStr::to_str)
+                .ok_or_else(|| {
+                    GeneratorError::unexpected(format!(
+                        "Bundle path '{}' has no file name",
+                        bundle_path
+                    ))
+                })?;
 
             registrations.push(quote! {
                 #[allow(non_snake_case, nonstandard_style)]
-                let #executor_ident = Executor::builder(#bundle_path, include_str!(#bundle_path))
-                    .workers(4)
-                    .queue_capacity(32)
-                    .standard_environment()
-                    .with_tools()
-                    .with_http(config.network.builder()?)
-                    .with_fs(fs.root())?
-                    .cancellation(shutdown.clone())
-                    .build()
-                    .await?;
+                let #executor_ident = agentc_executor_typescript::executor::Executor::<
+                    agentc_executor_typescript::guestjs::quickjs::QuickJs,
+                >::builder(#module_name)
+                .bundle(agentc_executor_typescript::guestjs::bundle::Bundle::single(
+                    #file_name,
+                    include_str!(#bundle_path),
+                )?)
+                .workers(4)
+                .queue_capacity(32)
+                .standard_environment()
+                .with_tools()
+                .with_http(config.network.builder()?)
+                .with_fs(fs.root())?
+                .cancellation(shutdown.clone())
+                .build()
+                .await?;
             });
 
             for (tool, js) in tools {
@@ -116,7 +137,7 @@ impl ToolCodeGen for JavascriptTools<'_> {
                     fields,
                     quote! {
                         builder = builder.with_tool(
-                            JavascriptTool::builder()
+                            agentc_tools::javascript::JavascriptTool::builder()
                                 .executor(#executor_ident.clone())
                                 .export_name(#export_name)
                                 .name(#name)
@@ -145,7 +166,9 @@ impl Fragment<ResolvedContext> for JavascriptToolCargoFragment {
         match point {
             "cargo::dependencies" => Ok(ErasedContributionValue::new(
                 CargoDependencies::from_entries([CargoDependencyContribution::runtime(
-                    RuntimeDependencyContribution::new("agentc-executor-typescript"),
+                    RuntimeDependencyContribution::new("agentc-executor-typescript")
+                        .default_features(false)
+                        .feature("quickjs"),
                 )])
                 .map_err(|error| GeneratorError::unexpected(error.to_string()))?,
             )),
@@ -296,7 +319,7 @@ mod tests {
 
         assert_eq!(
             registrations
-                .matches("Executor :: builder")
+                .matches("Executor :: < agentc_executor_typescript")
                 .count(),
             1
         );
@@ -337,7 +360,7 @@ mod tests {
 
         assert_eq!(
             registrations
-                .matches("Executor :: builder")
+                .matches("Executor :: < agentc_executor_typescript")
                 .count(),
             2
         );
@@ -430,15 +453,12 @@ mod tests {
         assert_eq!(
             JavascriptTools(&ctx).imports(),
             vec![
-                ImportContribution::path(&["agentc_executor_typescript", "executor"])
-                    .item("Executor"),
                 ImportContribution::path(&["agentc_fs", "typescript", "executor"])
-                    .item("ExecutorBuilderFsExt"),
+                    .item_as("ExecutorBuilderFsExt", "_"),
                 ImportContribution::path(&["agentc_http", "client", "typescript"])
-                    .item("ExecutorBuilderHttpExt"),
+                    .item_as("ExecutorBuilderHttpExt", "_"),
                 ImportContribution::path(&["agentc_tools", "javascript"])
-                    .item("ExecutorBuilderToolsExt")
-                    .item("JavascriptTool"),
+                    .item_as("ExecutorBuilderToolsExt", "_"),
             ],
         );
     }
