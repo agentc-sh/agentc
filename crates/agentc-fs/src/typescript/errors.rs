@@ -4,10 +4,8 @@
 
 use agentc_executor_typescript::guestjs::errors::Error;
 
-use crate::errors::Error as FsError;
-
-impl From<FsError> for Error {
-    fn from(error: FsError) -> Self {
-        Error::sourced_unexpected(format!("agentc:fs: {error}"), Some(error))
+impl From<crate::errors::Error> for Error {
+    fn from(error: crate::errors::Error) -> Self {
+        Error::sourced_unexpected(format!("agentc:fs: {error}"), error)
     }
 }

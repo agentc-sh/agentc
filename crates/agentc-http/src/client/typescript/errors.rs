@@ -8,6 +8,6 @@ use crate::client::errors::HttpClientError;
 
 impl From<HttpClientError> for Error {
     fn from(error: HttpClientError) -> Self {
-        Error::sourced_unexpected(format!("agentc:http: {error}"), Some(error))
+        Error::sourced_unexpected(format!("agentc:http: {error}"), error)
     }
 }

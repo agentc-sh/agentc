@@ -7,10 +7,10 @@ use std::rc::Rc;
 use futures::future::LocalBoxFuture;
 use tokio::sync::oneshot;
 
-use crate::{context::Context, error::Error};
+use crate::{backend::ExecutorBackend, context::Context, errors::Error};
 
-pub(crate) trait Job: Send {
-    fn execute(self: Box<Self>, context: Rc<Context>) -> LocalBoxFuture<'static, ()>;
+pub(crate) trait Job<B: ExecutorBackend>: Send {
+    fn execute(self: Box<Self>, context: Rc<Context<B>>) -> LocalBoxFuture<'static, ()>;
 }
 
 pub(crate) struct TypedJob<F, T> {
@@ -19,9 +19,10 @@ pub(crate) struct TypedJob<F, T> {
 }
 
 impl<F, T> TypedJob<F, T> {
-    pub(crate) fn prepare(operation: F) -> (Box<dyn Job>, oneshot::Receiver<Result<T, Error>>)
+    pub(crate) fn prepare<B>(operation: F) -> (Box<dyn Job<B>>, oneshot::Receiver<Result<T, Error>>)
     where
-        F: for<'a> FnOnce(&'a Context) -> LocalBoxFuture<'a, Result<T, guestjs::errors::Error>>
+        B: ExecutorBackend,
+        F: for<'a> FnOnce(&'a Context<B>) -> LocalBoxFuture<'a, Result<T, guestjs::errors::Error>>
             + Send
             + 'static,
         T: Send + 'static,
@@ -31,14 +32,15 @@ impl<F, T> TypedJob<F, T> {
     }
 }
 
-impl<F, T> Job for TypedJob<F, T>
+impl<B, F, T> Job<B> for TypedJob<F, T>
 where
-    F: for<'a> FnOnce(&'a Context) -> LocalBoxFuture<'a, Result<T, guestjs::errors::Error>>
+    B: ExecutorBackend,
+    F: for<'a> FnOnce(&'a Context<B>) -> LocalBoxFuture<'a, Result<T, guestjs::errors::Error>>
         + Send
         + 'static,
     T: Send + 'static,
 {
-    fn execute(self: Box<Self>, context: Rc<Context>) -> LocalBoxFuture<'static, ()> {
+    fn execute(self: Box<Self>, context: Rc<Context<B>>) -> LocalBoxFuture<'static, ()> {
         let Self { operation, response } = *self;
 
         Box::pin(async move {
@@ -53,60 +55,109 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::rc::Rc;
+    use std::{panic::resume_unwind, rc::Rc};
 
-    use guestjs::runtime::Runtime;
+    use guestjs::{
+        builder::{GuestBuilderExt, RuntimeBuilderExt},
+        bundle::Bundle,
+        imports::GuestModulesExt,
+        quickjs::QuickJs,
+        runtime::Runtime,
+    };
+    use tokio::{
+        runtime::Builder,
+        task::{LocalSet, yield_now},
+    };
 
-    use crate::{context::Context, error::Error, job::TypedJob};
+    use crate::{
+        context::Context,
+        errors::Error,
+        job::TypedJob,
+        worker::{ExecutorId, WorkerId, WorkerThread},
+    };
 
     struct TestContext;
 
     impl TestContext {
-        async fn build() -> Rc<Context> {
-            let runtime = Runtime::builder()
+        fn build() -> Rc<Context<QuickJs>> {
+            let runtime = Runtime::<QuickJs>::builder()
+                .bundle(&Bundle::single("test_component.ts", "export const value = 42;\n").unwrap())
                 .build()
-                .await
                 .unwrap();
-            let guest = runtime.guest().build().await.unwrap();
-            let module = guest
-                .guest_module("test.js", "export const value = 42;")
-                .await
-                .unwrap();
+            let guest = runtime.guest().build().unwrap();
+            let module = guest.import("test_component").unwrap();
 
             Rc::new(Context::new(runtime, guest, module))
         }
     }
 
-    #[tokio::test(flavor = "current_thread")]
-    async fn executes_local_future_with_typed_result() {
-        let (job, response) = TypedJob::prepare(|_context| {
-            Box::pin(async move {
-                let value = Rc::new(42);
+    struct TestWorker;
 
-                tokio::task::yield_now().await;
-
-                Ok(*value)
-            })
-        });
-
-        job.execute(TestContext::build().await)
-            .await;
-
-        assert_eq!(response.await.unwrap().unwrap(), 42);
+    impl TestWorker {
+        fn run<F, Fut>(operation: F)
+        where
+            F: FnOnce() -> Fut + Send + 'static,
+            Fut: Future<Output = ()> + 'static,
+        {
+            if let Err(panic) = WorkerThread::new(ExecutorId::next(), WorkerId::new(0))
+                .spawn(|| {
+                    Builder::new_current_thread()
+                        .enable_all()
+                        .build()
+                        .unwrap()
+                        .block_on(LocalSet::new().run_until(operation()))
+                })
+                .unwrap()
+                .join()
+            {
+                resume_unwind(panic);
+            }
+        }
     }
 
-    #[tokio::test(flavor = "current_thread")]
-    async fn converts_guest_error() {
-        let (job, response) = TypedJob::<_, ()>::prepare(|_context| {
-            Box::pin(async move { Err(guestjs::errors::Error::guest_exception("failed")) })
+    #[test]
+    fn executes_local_future_with_typed_result() {
+        TestWorker::run(|| async {
+            let (job, response) = TypedJob::prepare(|_context| {
+                Box::pin(async move {
+                    let value = Rc::new(42);
+
+                    yield_now().await;
+
+                    Ok(*value)
+                })
+            });
+            let context = TestContext::build();
+
+            job.execute(context.clone()).await;
+
+            assert_eq!(response.await.unwrap().unwrap(), 42);
+
+            let Ok(context) = Rc::try_unwrap(context) else {
+                panic!("test retained the worker context");
+            };
+
+            context.shutdown().await.unwrap();
         });
+    }
 
-        job.execute(TestContext::build().await)
-            .await;
+    #[test]
+    fn converts_guest_error() {
+        TestWorker::run(|| async {
+            let (job, response) = TypedJob::<_, ()>::prepare(|_context| {
+                Box::pin(async move { Err(guestjs::errors::Error::unexpected("failed")) })
+            });
+            let context = TestContext::build();
 
-        assert!(matches!(
-            response.await.unwrap(),
-            Err(Error::Guest(guestjs::errors::Error::GuestException { .. })),
-        ));
+            job.execute(context.clone()).await;
+
+            assert!(matches!(response.await.unwrap(), Err(Error::Guest(_))));
+
+            let Ok(context) = Rc::try_unwrap(context) else {
+                panic!("test retained the worker context");
+            };
+
+            context.shutdown().await.unwrap();
+        });
     }
 }

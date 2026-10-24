@@ -22,7 +22,7 @@ impl Encoding {
             b'0'..=b'9' => Ok(digit - b'0'),
             b'a'..=b'f' => Ok(digit - b'a' + 10),
             b'A'..=b'F' => Ok(digit - b'A' + 10),
-            _ => Err(Error::conversion(format!(
+            _ => Err(Error::unsupported(format!(
                 "agentc:fs: invalid hex digit {:?}",
                 char::from(digit)
             ))),
@@ -35,7 +35,7 @@ impl Encoding {
             .position(|candidate| *candidate == character)
             .map(|index| index as u8)
             .ok_or_else(|| {
-                Error::conversion(format!(
+                Error::unsupported(format!(
                     "agentc:fs: invalid base64 character {:?}",
                     char::from(character)
                 ))
@@ -49,7 +49,7 @@ impl Encoding {
             "base64" => Ok(Self::Base64),
             "latin1" | "binary" => Ok(Self::Latin1),
             "ascii" => Ok(Self::Ascii),
-            _ => Err(Error::conversion(format!("agentc:fs: unsupported encoding {label:?}"))),
+            _ => Err(Error::unsupported(format!("agentc:fs: unsupported encoding {label:?}"))),
         }
     }
 
@@ -121,7 +121,7 @@ impl Encoding {
             Self::Utf8 => Ok(text.as_bytes().to_vec()),
             Self::Hex => {
                 if text.len() % 2 != 0 {
-                    return Err(Error::conversion("agentc:fs: hex input has an odd length"));
+                    return Err(Error::unsupported("agentc:fs: hex input has an odd length"));
                 }
 
                 text.as_bytes()
@@ -131,7 +131,9 @@ impl Encoding {
             }
             Self::Base64 => {
                 if text.len() % 4 != 0 {
-                    return Err(Error::conversion("agentc:fs: base64 input has an invalid length"));
+                    return Err(Error::unsupported(
+                        "agentc:fs: base64 input has an invalid length",
+                    ));
                 }
 
                 let mut bytes = Vec::with_capacity(text.len() / 4 * 3);
@@ -145,7 +147,7 @@ impl Encoding {
                     match (chunk[2], chunk[3]) {
                         (b'=', b'=') => {}
                         (b'=', _) => {
-                            return Err(Error::conversion(
+                            return Err(Error::unsupported(
                                 "agentc:fs: base64 input has an invalid length",
                             ));
                         }
@@ -197,10 +199,8 @@ mod tests {
     fn parse_rejects_an_unknown_label() {
         assert!(matches!(
             Encoding::parse("utf16"),
-            Err(agentc_executor_typescript::guestjs::errors::Error::Conversion {
-                message,
-                ..
-            }) if message == "agentc:fs: unsupported encoding \"utf16\""
+            Err(agentc_executor_typescript::guestjs::errors::Error::Unsupported { message })
+                if message == "agentc:fs: unsupported encoding \"utf16\""
         ));
     }
 
@@ -227,10 +227,8 @@ mod tests {
     fn hex_rejects_an_odd_length() {
         assert!(matches!(
             Encoding::Hex.encode("abc"),
-            Err(agentc_executor_typescript::guestjs::errors::Error::Conversion {
-                message,
-                ..
-            }) if message == "agentc:fs: hex input has an odd length"
+            Err(agentc_executor_typescript::guestjs::errors::Error::Unsupported { message })
+                if message == "agentc:fs: hex input has an odd length"
         ));
     }
 
@@ -246,10 +244,8 @@ mod tests {
     fn base64_rejects_an_invalid_character() {
         assert!(matches!(
             Encoding::Base64.encode("aG$="),
-            Err(agentc_executor_typescript::guestjs::errors::Error::Conversion {
-                message,
-                ..
-            }) if message == "agentc:fs: invalid base64 character '$'"
+            Err(agentc_executor_typescript::guestjs::errors::Error::Unsupported { message })
+                if message == "agentc:fs: invalid base64 character '$'"
         ));
     }
 

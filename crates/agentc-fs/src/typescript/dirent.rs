@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-use agentc_executor_typescript::guestjs::host::{ClassSpec, HostClass};
+use agentc_executor_typescript::guestjs::{errors::Error, host_class};
 
 use crate::fs::{DirEntry, FileType};
 
@@ -29,27 +29,51 @@ impl Dirent {
     }
 }
 
-impl HostClass for Dirent {
-    const NAME: &'static str = "Dirent";
+#[host_class(rename_all = "camelCase", crate_path = agentc_executor_typescript::guestjs)]
+impl Dirent {
+    #[guestjs(get)]
+    fn name(&self) -> Result<String, Error> {
+        Ok(self.name.clone())
+    }
 
-    fn build(spec: &mut ClassSpec<Self>) {
-        spec.getter("name", |entry, _scope| Ok(entry.name.clone()));
-        spec.getter("parentPath", |entry, _scope| Ok(entry.parent_path.clone()));
-        spec.method("isFile", |entry, _scope, _args| Ok(entry.file_type == FileType::File));
-        spec.method("isDirectory", |entry, _scope, _args| {
-            Ok(entry.file_type == FileType::Directory)
-        });
-        spec.method("isSymbolicLink", |entry, _scope, _args| {
-            Ok(entry.file_type == FileType::Symlink)
-        });
-        spec.method("isFIFO", |entry, _scope, _args| Ok(entry.file_type == FileType::Fifo));
-        spec.method("isBlockDevice", |entry, _scope, _args| {
-            Ok(entry.file_type == FileType::BlockDevice)
-        });
-        spec.method("isCharacterDevice", |entry, _scope, _args| {
-            Ok(entry.file_type == FileType::CharacterDevice)
-        });
-        spec.method("isSocket", |entry, _scope, _args| Ok(entry.file_type == FileType::Socket));
+    #[guestjs(get)]
+    fn parent_path(&self) -> Result<String, Error> {
+        Ok(self.parent_path.clone())
+    }
+
+    #[guestjs(method)]
+    fn is_file(&self) -> Result<bool, Error> {
+        Ok(self.file_type == FileType::File)
+    }
+
+    #[guestjs(method)]
+    fn is_directory(&self) -> Result<bool, Error> {
+        Ok(self.file_type == FileType::Directory)
+    }
+
+    #[guestjs(method)]
+    fn is_symbolic_link(&self) -> Result<bool, Error> {
+        Ok(self.file_type == FileType::Symlink)
+    }
+
+    #[guestjs(method, name = "isFIFO")]
+    fn is_fifo(&self) -> Result<bool, Error> {
+        Ok(self.file_type == FileType::Fifo)
+    }
+
+    #[guestjs(method)]
+    fn is_block_device(&self) -> Result<bool, Error> {
+        Ok(self.file_type == FileType::BlockDevice)
+    }
+
+    #[guestjs(method)]
+    fn is_character_device(&self) -> Result<bool, Error> {
+        Ok(self.file_type == FileType::CharacterDevice)
+    }
+
+    #[guestjs(method)]
+    fn is_socket(&self) -> Result<bool, Error> {
+        Ok(self.file_type == FileType::Socket)
     }
 }
 

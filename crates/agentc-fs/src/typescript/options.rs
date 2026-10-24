@@ -2,7 +2,11 @@
 //
 // SPDX-License-Identifier: MIT
 
-use agentc_executor_typescript::guestjs::{FromGuest, errors::Error, host::Args, runtime::Scope};
+use agentc_executor_typescript::guestjs::{
+    FromGuest,
+    errors::Error,
+    marshal::describe::{Describe, Expected},
+};
 use serde::Deserialize;
 
 use crate::{
@@ -106,7 +110,7 @@ impl OpenFlags {
                     .create_new(true),
                 true,
             )),
-            _ => Err(Error::conversion(format!("agentc:fs: invalid open flags {flags:?}"))),
+            _ => Err(Error::unsupported(format!("agentc:fs: invalid open flags {flags:?}"))),
         }
     }
 
@@ -121,17 +125,17 @@ impl OpenFlags {
                 .read(true)
                 .write(true),
             _ => {
-                return Err(Error::conversion("agentc:fs: invalid open access mode"));
+                return Err(Error::unsupported("agentc:fs: invalid open access mode"));
             }
         };
 
         if bits & O_EXCL as u64 != 0 && bits & O_CREAT as u64 == 0 {
-            return Err(Error::conversion("agentc:fs: O_EXCL requires O_CREAT"));
+            return Err(Error::unsupported("agentc:fs: O_EXCL requires O_CREAT"));
         }
 
         let unsupported = bits & !SUPPORTED_OPEN_BITS;
         if unsupported != 0 {
-            return Err(Error::conversion(format!(
+            return Err(Error::unsupported(format!(
                 "agentc:fs: unsupported open flag bit {:#x}",
                 unsupported & unsupported.wrapping_neg(),
             )));
@@ -160,28 +164,30 @@ impl OpenFlags {
         Ok(Self::new(options, bits & O_CREAT as u64 != 0))
     }
 
-    pub fn from_args<'js>(
-        scope: &Scope<'js>,
-        args: &Args<'js>,
-        index: usize,
-    ) -> Result<Self, Error> {
-        if let Ok(Some(flags)) = args.get_opt::<String>(scope, index) {
-            return Self::parse(&flags);
-        }
-
-        if let Ok(Some(bits)) = args.get_opt::<i64>(scope, index) {
-            return Self::from_bits(bits);
-        }
-
-        Self::parse("r")
-    }
-
     pub fn options(&self) -> &OpenOptions {
         &self.options
     }
 
     pub fn creates(&self) -> bool {
         self.creates
+    }
+}
+
+#[derive(FromGuest)]
+#[guestjs(union, crate_path = agentc_executor_typescript::guestjs)]
+pub enum OpenFlagsArg {
+    Text(String),
+    Bits(i64),
+}
+
+impl TryFrom<OpenFlagsArg> for OpenFlags {
+    type Error = Error;
+
+    fn try_from(value: OpenFlagsArg) -> Result<Self, Self::Error> {
+        match value {
+            OpenFlagsArg::Text(flags) => Self::parse(&flags),
+            OpenFlagsArg::Bits(bits) => Self::from_bits(bits),
+        }
     }
 }
 
@@ -205,7 +211,7 @@ impl CopyMode {
         let unsupported = mode & !SUPPORTED_COPY_BITS;
 
         if unsupported != 0 {
-            return Err(Error::conversion(format!(
+            return Err(Error::unsupported(format!(
                 "agentc:fs: unsupported copy flag bit {:#x}",
                 (unsupported as u64) & (unsupported as u64).wrapping_neg(),
             )));
@@ -229,23 +235,6 @@ pub struct FileOptions {
 }
 
 impl FileOptions {
-    pub fn from_args<'js>(
-        scope: &Scope<'js>,
-        args: &Args<'js>,
-        index: usize,
-    ) -> Result<Self, Error> {
-        if let Ok(Some(encoding)) = args.get_opt::<String>(scope, index) {
-            return Ok(Self {
-                encoding: Some(encoding),
-                ..Default::default()
-            });
-        }
-
-        Ok(args
-            .get_opt::<Self>(scope, index)?
-            .unwrap_or_default())
-    }
-
     pub fn encoding(&self) -> Result<Option<Encoding>, Error> {
         self.encoding
             .as_deref()
@@ -257,6 +246,31 @@ impl FileOptions {
         match self.flag.as_deref() {
             Some(flag) => OpenFlags::parse(flag),
             None => OpenFlags::parse(default),
+        }
+    }
+}
+
+impl Describe for FileOptions {
+    fn describe(expected: &mut Expected) {
+        expected.push("object");
+    }
+}
+
+#[derive(FromGuest)]
+#[guestjs(union, crate_path = agentc_executor_typescript::guestjs)]
+pub enum EncodingOrOptions {
+    Encoding(String),
+    Options(FileOptions),
+}
+
+impl From<EncodingOrOptions> for FileOptions {
+    fn from(value: EncodingOrOptions) -> Self {
+        match value {
+            EncodingOrOptions::Encoding(encoding) => Self {
+                encoding: Some(encoding),
+                ..Default::default()
+            },
+            EncodingOrOptions::Options(options) => options,
         }
     }
 }
@@ -355,10 +369,8 @@ mod tests {
     fn open_flags_reject_sync_mode_strings() {
         assert!(matches!(
             OpenFlags::parse("rs"),
-            Err(agentc_executor_typescript::guestjs::errors::Error::Conversion {
-                message,
-                ..
-            }) if message == "agentc:fs: invalid open flags \"rs\""
+            Err(agentc_executor_typescript::guestjs::errors::Error::Unsupported { message })
+                if message == "agentc:fs: invalid open flags \"rs\""
         ));
     }
 
@@ -382,10 +394,8 @@ mod tests {
     fn open_flags_from_bits_requires_o_creat_for_o_excl() {
         assert!(matches!(
             OpenFlags::from_bits(128),
-            Err(agentc_executor_typescript::guestjs::errors::Error::Conversion {
-                message,
-                ..
-            }) if message == "agentc:fs: O_EXCL requires O_CREAT"
+            Err(agentc_executor_typescript::guestjs::errors::Error::Unsupported { message })
+                if message == "agentc:fs: O_EXCL requires O_CREAT"
         ));
     }
 
@@ -393,10 +403,8 @@ mod tests {
     fn open_flags_from_bits_rejects_an_unsupported_bit() {
         assert!(matches!(
             OpenFlags::from_bits(4),
-            Err(agentc_executor_typescript::guestjs::errors::Error::Conversion {
-                message,
-                ..
-            }) if message == "agentc:fs: unsupported open flag bit 0x4"
+            Err(agentc_executor_typescript::guestjs::errors::Error::Unsupported { message })
+                if message == "agentc:fs: unsupported open flag bit 0x4"
         ));
     }
 

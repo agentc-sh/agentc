@@ -8,7 +8,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use crate::error::Error;
+use crate::errors::Error;
 
 /// A pending typed operation submitted to an executor.
 #[must_use = "execution results must be awaited"]
@@ -42,23 +42,19 @@ impl<T> Future for Execution<T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{error::Error, execution::Execution};
+    use crate::{errors::Error, execution::Execution};
 
     #[tokio::test]
     async fn forwards_successful_result() {
-        assert_eq!(
-            Execution::new(async { Ok(42) })
-                .await
-                .unwrap(),
-            42
-        );
+        let result = Execution::new(async { Ok(42) }).await;
+
+        assert_eq!(result.unwrap(), 42);
     }
 
     #[tokio::test]
     async fn forwards_executor_error() {
-        assert!(matches!(
-            Execution::<()>::ready(Err(Error::executor_shutdown())).await,
-            Err(Error::ExecutorShutdown),
-        ));
+        let result = Execution::<()>::ready(Err(Error::executor_shutdown())).await;
+
+        assert!(matches!(result, Err(Error::ExecutorShutdown)));
     }
 }

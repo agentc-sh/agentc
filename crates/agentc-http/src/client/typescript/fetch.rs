@@ -4,15 +4,12 @@
 
 use std::collections::BTreeMap;
 
-use agentc_executor_typescript::guestjs::{
-    FromGuest,
-    errors::Error,
-    handle::{BoundObject, BoundObjectProtocol, Object},
-    host::Args,
-    runtime::Scope,
+use agentc_executor_typescript::{
+    backend::ExecutorBackend,
+    guestjs::{FromGuest, enter::Enter, errors::Error, marshal::args::Args},
 };
 use bytes::Bytes;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// The second argument to the guest `fetch` function.
 #[derive(Debug, Default, Deserialize, FromGuest)]
@@ -21,6 +18,7 @@ use serde::Deserialize;
 pub struct FetchInit {
     pub method: Option<String>,
     pub headers: Option<FetchHeaders>,
+    pub body: Option<FetchBody>,
 }
 
 /// A header record supplied by guest code.
@@ -30,24 +28,12 @@ pub struct FetchInit {
 pub struct FetchHeaders(pub BTreeMap<String, String>);
 
 /// A request body supplied by guest code.
+#[derive(Debug, Deserialize, Serialize, FromGuest)]
+#[guestjs(union, crate_path = agentc_executor_typescript::guestjs)]
+#[serde(untagged)]
 pub enum FetchBody {
-    Text(String),
     Bytes(Bytes),
-}
-
-impl FetchBody {
-    /// Reads the `body` property of a guest `fetch` init object.
-    fn from_init<'js>(init: &BoundObject<'js>) -> Result<Option<Self>, Error> {
-        // A `Uint8Array` is not an `Array`, so it must be read through the GuestJS byte
-        // marshalling or serde would deserialize it as a map keyed by index.
-        if let Ok(Some(bytes)) = init.get::<Option<Bytes>>("body") {
-            return Ok(Some(Self::Bytes(bytes)));
-        }
-
-        Ok(init
-            .get::<Option<String>>("body")?
-            .map(Self::Text))
-    }
+    Text(String),
 }
 
 impl From<FetchBody> for Bytes {
@@ -62,36 +48,18 @@ impl From<FetchBody> for Bytes {
 pub(crate) struct FetchRequest {
     pub(crate) url: String,
     pub(crate) init: FetchInit,
-    pub(crate) body: Option<FetchBody>,
 }
 
 impl FetchRequest {
-    pub(crate) fn from_args<'js>(scope: &Scope<'js>, args: &Args<'js>) -> Result<Self, Error> {
-        let init = args.get_opt::<Object>(scope, 1)?;
-
+    pub(crate) fn read<'js, B: ExecutorBackend>(
+        enter: &Enter<'js, B>,
+        args: &Args<'js, B>,
+    ) -> Result<Self, Error> {
         Ok(Self {
-            url: args.get_owned::<String>(scope, 0)?,
-            body: init
-                .as_ref()
-                .map(FetchBody::from_init)
-                .transpose()?
-                .flatten(),
-            init: FetchInit {
-                method: init
-                    .as_ref()
-                    .and_then(|init| {
-                        init.get::<Option<String>>("method")
-                            .ok()
-                    })
-                    .flatten(),
-                headers: init
-                    .as_ref()
-                    .and_then(|init| {
-                        init.get::<Option<FetchHeaders>>("headers")
-                            .ok()
-                    })
-                    .flatten(),
-            },
+            url: args.next::<String>(enter)?,
+            init: args
+                .next::<Option<FetchInit>>(enter)?
+                .unwrap_or_default(),
         })
     }
 }
