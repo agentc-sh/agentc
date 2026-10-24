@@ -2,12 +2,96 @@
 //
 // SPDX-License-Identifier: MIT
 
+use guestjs::errors::BorrowKind;
+
+#[derive(Debug, thiserror::Error)]
+pub enum GuestError {
+    #[error("unexpected error: {message}")]
+    Unexpected {
+        message: String,
+        #[source]
+        source: Option<Box<dyn std::error::Error + Send + Sync>>,
+    },
+
+    #[error("guest exception: {name}: {message}")]
+    Guest {
+        name: String,
+        message: String,
+        stack: Option<String>,
+    },
+
+    #[error("expected {expected}, found {found}")]
+    Conversion { expected: String, found: String },
+
+    #[error("a value was used outside the guest it belongs to")]
+    ForeignContext,
+
+    #[error("{type_name} is already borrowed ({kind})")]
+    Borrow { kind: BorrowKind, type_name: String },
+
+    #[error("{message}")]
+    Unsupported { message: String },
+
+    #[error("execution was interrupted")]
+    Interrupted,
+
+    #[error("execution timed out")]
+    Timeout,
+
+    #[error("execution was cancelled")]
+    Cancelled,
+
+    #[error("the guest is closed")]
+    Closed,
+
+    #[error("{message}")]
+    Engine { message: String },
+
+    #[error("cannot import {name}: {message}")]
+    Import { name: String, message: String },
+
+    #[error("invalid bundle: {message}")]
+    Bundle { message: String },
+
+    #[error(transparent)]
+    Host(Box<dyn std::error::Error + Send + Sync>),
+}
+
+impl From<guestjs::errors::Error> for GuestError {
+    fn from(error: guestjs::errors::Error) -> Self {
+        match error {
+            guestjs::errors::Error::Unexpected { message, source } => {
+                Self::Unexpected { message, source }
+            }
+            guestjs::errors::Error::Guest(exception) => Self::Guest {
+                name: exception.name().to_owned(),
+                message: exception.message().to_owned(),
+                stack: exception.stack().map(str::to_owned),
+            },
+            guestjs::errors::Error::Conversion { expected, found } => {
+                Self::Conversion { expected, found }
+            }
+            guestjs::errors::Error::ForeignContext => Self::ForeignContext,
+            guestjs::errors::Error::Borrow { kind, type_name } => Self::Borrow { kind, type_name },
+            guestjs::errors::Error::Unsupported { message } => Self::Unsupported { message },
+            guestjs::errors::Error::Interrupted => Self::Interrupted,
+            guestjs::errors::Error::Timeout => Self::Timeout,
+            guestjs::errors::Error::Cancelled => Self::Cancelled,
+            guestjs::errors::Error::Closed => Self::Closed,
+            guestjs::errors::Error::Engine { message } => Self::Engine { message },
+            guestjs::errors::Error::Import { name, message } => Self::Import { name, message },
+            guestjs::errors::Error::Bundle { message } => Self::Bundle { message },
+            guestjs::errors::Error::Host(error) => Self::Host(error),
+        }
+    }
+}
+
 /// Errors produced while constructing, operating, or shutting down an executor.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     /// An operation failed inside GuestJS.
     #[error(transparent)]
-    Guest(#[from] guestjs::errors::Error),
+    Guest(#[from] GuestError),
 
     /// No Tokio runtime was active where the host runtime was captured.
     #[error("no active runtime to capture as the host runtime")]
@@ -37,12 +121,15 @@ pub enum Error {
         source: std::io::Error,
     },
 
+    #[error("runtime configuration failed: {0}")]
+    Configuration(#[source] Box<dyn std::error::Error + Send + Sync>),
+
     /// A worker could not initialize its GuestJS package environment.
     #[error("failed to initialize worker {worker}: {source}")]
     WorkerInitialization {
         worker: usize,
         #[source]
-        source: guestjs::errors::Error,
+        source: Box<Error>,
     },
 
     /// A worker stopped accepting submitted work.
@@ -52,6 +139,13 @@ pub enum Error {
     /// A worker exited before returning an execution result.
     #[error("worker {worker} dropped its execution response")]
     WorkerResponseDropped { worker: usize },
+
+    #[error("failed to shut down worker {worker}: {source}")]
+    WorkerShutdown {
+        worker: usize,
+        #[source]
+        source: GuestError,
+    },
 
     /// Work was submitted after executor shutdown began.
     #[error("executor is shut down")]
@@ -84,7 +178,7 @@ pub enum Error {
 
 impl Error {
     /// Creates an [`Error::Guest`] error.
-    pub fn guest(error: impl Into<guestjs::errors::Error>) -> Self {
+    pub fn guest(error: impl Into<GuestError>) -> Self {
         Self::Guest(error.into())
     }
 
@@ -119,14 +213,15 @@ impl Error {
         }
     }
 
+    pub fn configuration(source: impl Into<Box<dyn std::error::Error + Send + Sync>>) -> Self {
+        Self::Configuration(source.into())
+    }
+
     /// Creates an [`Error::WorkerInitialization`] error.
-    pub fn worker_initialization(
-        worker: impl Into<usize>,
-        source: impl Into<guestjs::errors::Error>,
-    ) -> Self {
+    pub fn worker_initialization(worker: impl Into<usize>, source: impl Into<Error>) -> Self {
         Self::WorkerInitialization {
             worker: worker.into(),
-            source: source.into(),
+            source: Box::new(source.into()),
         }
     }
 
@@ -138,6 +233,13 @@ impl Error {
     /// Creates an [`Error::WorkerResponseDropped`] error.
     pub fn worker_response_dropped(worker: impl Into<usize>) -> Self {
         Self::WorkerResponseDropped { worker: worker.into() }
+    }
+
+    pub fn worker_shutdown(worker: impl Into<usize>, source: impl Into<GuestError>) -> Self {
+        Self::WorkerShutdown {
+            worker: worker.into(),
+            source: source.into(),
+        }
     }
 
     /// Creates an [`Error::ExecutorShutdown`] error.
@@ -174,5 +276,11 @@ impl Error {
             message: message.into(),
             source: source.into(),
         }
+    }
+}
+
+impl From<guestjs::errors::Error> for Error {
+    fn from(error: guestjs::errors::Error) -> Self {
+        Self::Guest(GuestError::from(error))
     }
 }

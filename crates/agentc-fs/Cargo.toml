@@ -10,7 +10,7 @@ readme.workspace = true
 [features]
 default = ["embedded"]
 embedded = ["dep:include_dir"]
-typescript = ["dep:agentc-executor-typescript", "dep:serde"]
+typescript = ["dep:agentc-executor-typescript", "agentc-executor-typescript/quickjs", "dep:serde"]
 python = ["dep:agentc-executor-python"]
 
 [dependencies]

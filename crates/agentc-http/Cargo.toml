@@ -40,7 +40,7 @@ server = [
 ]
 
 python = ["client", "dep:agentc-executor-python", "dep:encoding_rs"]
-typescript = ["client", "dep:agentc-executor-typescript"]
+typescript = ["client", "dep:agentc-executor-typescript", "agentc-executor-typescript/quickjs"]
 
 tls = ["server", "dep:rustls"]
 
@@ -66,7 +66,7 @@ sanitizer = { workspace = true, optional = true }
 json-patch = { workspace = true, optional = true }
 utoipa = { workspace = true, optional = true }
 
-bytes = { workspace = true, optional = true }
+bytes = { workspace = true, optional = true, features = ["serde"] }
 url = { workspace = true, optional = true }
 regex = { workspace = true, optional = true }
 

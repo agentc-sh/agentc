@@ -2,9 +2,9 @@
 //
 // SPDX-License-Identifier: MIT
 
-use std::{error::Error as StdError, io};
+use std::io;
 
-use guestpy::errors::{BorrowKind, Error as GuestPyError};
+use guestpy::errors::BorrowKind;
 use tokio::task::JoinError;
 
 /// A `Send`-safe mirror of [`guestpy::errors::Error`] with the guest-owned exception
@@ -36,7 +36,7 @@ pub enum GuestError {
     Engine {
         message: String,
         #[source]
-        source: Option<Box<dyn StdError + Send + Sync>>,
+        source: Option<Box<dyn std::error::Error + Send + Sync>>,
     },
 
     /// A failure converting a value between Rust and Python.
@@ -44,7 +44,7 @@ pub enum GuestError {
     Conversion {
         message: String,
         #[source]
-        source: Option<Box<dyn StdError + Send + Sync>>,
+        source: Option<Box<dyn std::error::Error + Send + Sync>>,
     },
 
     /// A named module failed to import.
@@ -80,7 +80,7 @@ pub enum GuestError {
 
     /// A host-defined function or binding failed.
     #[error(transparent)]
-    Host(Box<dyn StdError + Send + Sync>),
+    Host(Box<dyn std::error::Error + Send + Sync>),
 
     /// Execution timed out.
     #[error("execution timed out")]
@@ -115,42 +115,46 @@ pub enum GuestError {
     Unexpected {
         message: String,
         #[source]
-        source: Option<Box<dyn StdError + Send + Sync>>,
+        source: Option<Box<dyn std::error::Error + Send + Sync>>,
     },
 }
 
-impl From<GuestPyError> for GuestError {
-    fn from(error: GuestPyError) -> Self {
+impl From<guestpy::errors::Error> for GuestError {
+    fn from(error: guestpy::errors::Error) -> Self {
         match error {
-            GuestPyError::Guest(exception) => Self::Guest {
+            guestpy::errors::Error::Guest(exception) => Self::Guest {
                 type_name: exception.type_name().to_owned(),
                 qualified_name: exception.qualified_name().to_owned(),
                 message: exception.message().to_owned(),
                 name: exception.name().map(str::to_owned),
                 traceback: exception.traceback().map(str::to_owned),
             },
-            GuestPyError::Raise(raise) => Self::Raise {
+            guestpy::errors::Error::Raise(raise) => Self::Raise {
                 class: raise.class().to_owned(),
                 text: raise.text().to_owned(),
             },
-            GuestPyError::Engine { message, source } => Self::Engine { message, source },
-            GuestPyError::Conversion { message, source } => Self::Conversion { message, source },
-            GuestPyError::Import { name, message } => Self::Import { name, message },
-            GuestPyError::Attribute { name } => Self::Attribute { name },
-            GuestPyError::Bundle { path, message } => Self::Bundle { path, message },
-            GuestPyError::AmbiguousBundle { roots } => Self::AmbiguousBundle { roots },
-            GuestPyError::NameInUse { name } => Self::NameInUse { name },
-            GuestPyError::Borrow { class, kind } => Self::Borrow { class, kind },
-            GuestPyError::Unsupported { message } => Self::Unsupported { message },
-            GuestPyError::Host(error) => Self::Host(error),
-            GuestPyError::Timeout => Self::Timeout,
-            GuestPyError::Cancelled => Self::Cancelled,
-            GuestPyError::Interrupted => Self::Interrupted,
-            GuestPyError::Closed => Self::Closed,
-            GuestPyError::StopIteration => Self::StopIteration,
-            GuestPyError::StopAsyncIteration => Self::StopAsyncIteration,
-            GuestPyError::Io(error) => Self::Io(error),
-            GuestPyError::Unexpected { message, source } => Self::Unexpected { message, source },
+            guestpy::errors::Error::Engine { message, source } => Self::Engine { message, source },
+            guestpy::errors::Error::Conversion { message, source } => {
+                Self::Conversion { message, source }
+            }
+            guestpy::errors::Error::Import { name, message } => Self::Import { name, message },
+            guestpy::errors::Error::Attribute { name } => Self::Attribute { name },
+            guestpy::errors::Error::Bundle { path, message } => Self::Bundle { path, message },
+            guestpy::errors::Error::AmbiguousBundle { roots } => Self::AmbiguousBundle { roots },
+            guestpy::errors::Error::NameInUse { name } => Self::NameInUse { name },
+            guestpy::errors::Error::Borrow { class, kind } => Self::Borrow { class, kind },
+            guestpy::errors::Error::Unsupported { message } => Self::Unsupported { message },
+            guestpy::errors::Error::Host(error) => Self::Host(error),
+            guestpy::errors::Error::Timeout => Self::Timeout,
+            guestpy::errors::Error::Cancelled => Self::Cancelled,
+            guestpy::errors::Error::Interrupted => Self::Interrupted,
+            guestpy::errors::Error::Closed => Self::Closed,
+            guestpy::errors::Error::StopIteration => Self::StopIteration,
+            guestpy::errors::Error::StopAsyncIteration => Self::StopAsyncIteration,
+            guestpy::errors::Error::Io(error) => Self::Io(error),
+            guestpy::errors::Error::Unexpected { message, source } => {
+                Self::Unexpected { message, source }
+            }
         }
     }
 }
@@ -191,7 +195,7 @@ pub enum Error {
     },
 
     #[error("runtime configuration failed: {0}")]
-    Configuration(#[source] Box<dyn StdError + Send + Sync>),
+    Configuration(#[source] Box<dyn std::error::Error + Send + Sync>),
 
     /// A worker failed to build its GuestPy environment or import the entry module.
     #[error("failed to initialize worker {worker}: {source}")]
@@ -242,7 +246,7 @@ pub enum Error {
     Unexpected {
         message: String,
         #[source]
-        source: Option<Box<dyn StdError + Send + Sync>>,
+        source: Option<Box<dyn std::error::Error + Send + Sync>>,
     },
 }
 
@@ -283,7 +287,7 @@ impl Error {
         }
     }
 
-    pub fn configuration(source: impl Into<Box<dyn StdError + Send + Sync>>) -> Self {
+    pub fn configuration(source: impl Into<Box<dyn std::error::Error + Send + Sync>>) -> Self {
         Self::Configuration(source.into())
     }
 
@@ -341,7 +345,7 @@ impl Error {
     /// Creates an [`Error::Unexpected`] error.
     pub fn unexpected(
         message: impl Into<String>,
-        source: impl Into<Option<Box<dyn StdError + Send + Sync>>>,
+        source: impl Into<Option<Box<dyn std::error::Error + Send + Sync>>>,
     ) -> Self {
         Self::Unexpected {
             message: message.into(),
@@ -350,8 +354,8 @@ impl Error {
     }
 }
 
-impl From<GuestPyError> for Error {
-    fn from(error: GuestPyError) -> Self {
+impl From<guestpy::errors::Error> for Error {
+    fn from(error: guestpy::errors::Error) -> Self {
         Self::Guest(GuestError::from(error))
     }
 }

@@ -12,8 +12,10 @@ mod dirent;
 mod encoding;
 mod errors;
 mod handle;
+mod operations;
 mod options;
 mod stats;
+mod timestamp;
 mod types;
 
 pub use crate::typescript::{executor::ExecutorBuilderFsExt, library::FsLibrary};

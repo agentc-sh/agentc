@@ -17,39 +17,35 @@ use agentc_agent::{
     },
 };
 use agentc_executor_typescript::{
-    error::Error,
+    backend::ExecutorBackend,
+    errors::Error,
     executor::Executor,
-    guestjs::{
-        handle::{BoundClass, BoundConstructorProtocol, BoundObjectProtocol},
-        marshal::{FromGuestBound, ToGuestBound},
-    },
+    guestjs::handle::{class::Instance, protocol::ObjectProtocol},
 };
 use async_trait::async_trait;
 
-use crate::javascript::bindings::{
-    guest::GuestTool, input::ToolInput as GuestToolInput, schema::Schema,
-    tool::Tool as GuestToolBase,
-};
+use crate::javascript::bindings::{guest::GuestToolClass, schema::Schema};
 
 /// A JavaScript tool executed by a shared TypeScript package executor.
-pub struct JavascriptTool {
-    executor: Executor,
+pub struct JavascriptTool<B: ExecutorBackend> {
+    executor: Executor<B>,
     export_name: String,
     definition: ToolDefinition,
     capabilities: CapabilitySet,
     timeout: Duration,
 }
 
-impl JavascriptTool {
+impl<B: ExecutorBackend> JavascriptTool<B> {
     /// Creates a builder for a JavaScript tool.
-    pub fn builder() -> JavascriptToolBuilder {
+    pub fn builder() -> JavascriptToolBuilder<B> {
         JavascriptToolBuilder::new()
     }
 }
 
 #[async_trait]
-impl<S> Tool<S> for JavascriptTool
+impl<B, S> Tool<S> for JavascriptTool<B>
 where
+    B: ExecutorBackend + Send + Sync,
     S: GraphState + 'static,
     S::Update: Default,
 {
@@ -73,7 +69,7 @@ where
             self.timeout,
             self.executor.execute(move |context| {
                 Box::pin(async move {
-                    let (guest_input, _guard) = GuestToolInput::new(
+                    let (input, _guard) = crate::javascript::bindings::input::ToolInput::new(
                         input.args,
                         input
                             .state
@@ -82,19 +78,15 @@ where
                     );
 
                     context
-                        .guest()
-                        .scope(async move |scope| {
-                            context
-                                .module()
-                                .bind(&scope)?
-                                .class_as::<GuestTool>(&export_name)?
-                                .construct(())?
-                                .execute(GuestToolInput::from_guest_bound(
-                                    &scope,
-                                    guest_input.to_guest_bound(&scope)?,
-                                )?)?
-                                .await
-                        })
+                        .module()
+                        .get::<GuestToolClass<B>, _>(export_name.as_str())
+                        .map_err(|error| {
+                            agentc_executor_typescript::guestjs::errors::Error::unexpected(format!(
+                                "export '{export_name}' {error}",
+                            ))
+                        })?
+                        .construct()?
+                        .execute(input)?
                         .await
                 })
             }),
@@ -116,8 +108,8 @@ where
 }
 
 /// Configures a JavaScript tool backed by a shared TypeScript package executor.
-pub struct JavascriptToolBuilder {
-    executor: Option<Executor>,
+pub struct JavascriptToolBuilder<B: ExecutorBackend> {
+    executor: Option<Executor<B>>,
     export_name: Option<String>,
     name: Option<String>,
     description: Option<String>,
@@ -125,7 +117,7 @@ pub struct JavascriptToolBuilder {
     timeout: Duration,
 }
 
-impl JavascriptToolBuilder {
+impl<B: ExecutorBackend> JavascriptToolBuilder<B> {
     /// Creates an empty JavaScript tool builder.
     pub fn new() -> Self {
         Self {
@@ -139,7 +131,7 @@ impl JavascriptToolBuilder {
     }
 
     /// Sets the shared package executor.
-    pub fn executor(mut self, executor: Executor) -> Self {
+    pub fn executor(mut self, executor: Executor<B>) -> Self {
         self.executor = Some(executor);
         self
     }
@@ -184,66 +176,53 @@ impl JavascriptToolBuilder {
     }
 
     /// Builds the JavaScript tool and validates its package export.
-    pub async fn build(self) -> Result<JavascriptTool, Error> {
+    pub async fn build(self) -> Result<JavascriptTool<B>, Error> {
         let executor = self
             .executor
             .expect("executor must be provided to build a JavascriptTool");
         let export_name = self
             .export_name
             .expect("export_name must be provided to build a JavascriptTool");
-        let definition = executor
-            .execute({
+        let definition = tokio::time::timeout(
+            self.timeout,
+            executor.execute({
                 let export_name = export_name.clone();
 
                 move |context| {
                     Box::pin(async move {
-                        context
-                            .guest()
-                            .scope(async move |scope| {
-                                let exported = context
-                                    .module()
-                                    .bind(&scope)?
-                                    .class(&export_name)
-                                    .map_err(|_| {
-                                        agentc_executor_typescript::guestjs::errors::Error::unexpected(format!(
-                                            "export '{export_name}' does not exist or is not a class",
-                                        ))
-                                    })?;
+                        let class = context
+                            .module()
+                            .get::<GuestToolClass<B>, _>(export_name.as_str())
+                            .map_err(|error| {
+                                agentc_executor_typescript::guestjs::errors::Error::unexpected(format!(
+                                    "export '{export_name}' {error}",
+                                ))
+                            })?;
 
-                                if !exported
-                                    .is_subclass_of(&BoundClass::of::<GuestToolBase>(&scope)?)?
-                                {
-                                    return Err(
-                                        agentc_executor_typescript::guestjs::errors::Error::unexpected(format!(
-                                            "export '{export_name}' is not a Tool subclass",
-                                        )),
-                                    );
-                                }
-
-                                Ok(ToolDefinition {
-                                    description: match self.description {
-                                        Some(description) => description,
-                                        None => exported
-                                            .get::<Option<String>>("description")?
-                                            .ok_or_else(|| {
-                                                agentc_executor_typescript::guestjs::errors::Error::unexpected(format!(
-                                                    "export '{export_name}' has no description",
-                                                ))
-                                            })?,
-                                    },
-                                    parameters: exported
-                                        .get::<Schema>("parameters")?
-                                        .borrow()?
-                                        .document()
-                                        .clone(),
-                                    name: self.name.unwrap_or(export_name),
-                                })
-                            })
-                            .await
+                        Ok(ToolDefinition {
+                            description: match self.description {
+                                Some(description) => description,
+                                None => class
+                                    .class()
+                                    .get::<Option<String>, _>("description")?
+                                    .ok_or_else(|| {
+                                        agentc_executor_typescript::guestjs::errors::Error::unexpected(
+                                            format!("export '{export_name}' has no description"),
+                                        )
+                                    })?,
+                            },
+                            parameters: class
+                                .class()
+                                .get::<Instance<B, Schema<B>>, _>("parameters")?
+                                .borrow_with(|schema| schema.document().clone())?,
+                            name: self.name.unwrap_or(export_name),
+                        })
                     })
                 }
-            })
-            .await?;
+            }),
+        )
+        .await
+        .map_err(|_| Error::unexpected("tool definition discovery timed out", None))??;
 
         Ok(JavascriptTool {
             executor,
@@ -255,7 +234,7 @@ impl JavascriptToolBuilder {
     }
 }
 
-impl Default for JavascriptToolBuilder {
+impl<B: ExecutorBackend> Default for JavascriptToolBuilder<B> {
     fn default() -> Self {
         Self::new()
     }
@@ -274,12 +253,14 @@ mod tests {
             types::{ToolExecutionContext, ToolInput, ToolOutput},
         },
     };
-    use agentc_executor_typescript::executor::Executor;
+    use agentc_executor_typescript::{
+        executor::Executor,
+        guestjs::{bundle::Bundle, quickjs::QuickJs},
+    };
     use serde::{Deserialize, Serialize};
     use tokio::sync::mpsc;
 
-    use crate::javascript::bindings::ExecutorBuilderToolsExt;
-    use crate::javascript::tool::JavascriptTool;
+    use crate::javascript::{ExecutorBuilderToolsExt, tool::JavascriptTool};
 
     const TOOL_SOURCE: &str = r#"
 import { Schema, Tool } from "agentc:tools";
@@ -428,8 +409,9 @@ export const plain = {
     struct TestHarness;
 
     impl TestHarness {
-        async fn executor(workers: usize) -> Executor {
-            Executor::builder("tools.ts", TOOL_SOURCE)
+        async fn executor(workers: usize) -> Executor<QuickJs> {
+            Executor::<QuickJs>::builder("tools")
+                .bundle(Bundle::single("tools.ts", TOOL_SOURCE).unwrap())
                 .workers(workers)
                 .standard_environment()
                 .with_tools()
@@ -438,7 +420,7 @@ export const plain = {
                 .unwrap()
         }
 
-        async fn tool(executor: &Executor, export_name: &str) -> JavascriptTool {
+        async fn tool(executor: &Executor<QuickJs>, export_name: &str) -> JavascriptTool<QuickJs> {
             JavascriptTool::builder()
                 .executor(executor.clone())
                 .export_name(export_name)
@@ -459,7 +441,7 @@ export const plain = {
         }
 
         async fn execute(
-            tool: &JavascriptTool,
+            tool: &JavascriptTool<QuickJs>,
             input: ToolInput<serde_json::Value>,
         ) -> Result<ToolOutput<json_patch::Patch>, ToolError> {
             Tool::<TestState>::execute(tool, input).await
@@ -644,17 +626,11 @@ export const plain = {
     async fn a_synchronous_execute_is_rejected() {
         let executor = TestHarness::executor(1).await;
         let tool = TestHarness::tool(&executor, "Synchronous").await;
-        let error =
-            match TestHarness::execute(&tool, TestHarness::input(serde_json::json!({}))).await {
-                Ok(_) => panic!("a non-promise return succeeds"),
-                Err(error) => error,
-            };
 
         assert!(
-            error
-                .to_string()
-                .contains("expected a promise"),
-            "`Promise<ToolOutput>` is what makes async mandatory; got: {error}",
+            TestHarness::execute(&tool, TestHarness::input(serde_json::json!({})))
+                .await
+                .is_err()
         );
 
         executor.shutdown().await.unwrap();

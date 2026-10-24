@@ -2,25 +2,29 @@
 //
 // SPDX-License-Identifier: MIT
 
+use std::marker::PhantomData;
+
 use agentc_executor_typescript::{
-    guestjs::{errors::Error, host_class},
+    backend::ExecutorBackend,
+    guestjs::{backend::Backend, errors::Error, host_class},
     json::Json,
 };
 use jsonschema::draft202012;
 use serde_json::Value;
 
-pub struct Schema {
+pub struct Schema<B: Backend> {
     value: Value,
+    backend: PhantomData<fn() -> B>,
 }
 
-#[host_class(crate_path = agentc_executor_typescript::guestjs)]
-impl Schema {
+#[host_class(backend = B, crate_path = agentc_executor_typescript::guestjs)]
+impl<B: ExecutorBackend> Schema<B> {
     #[guestjs(constructor)]
     fn new(schema: Json) -> Result<Self, Error> {
         draft202012::meta::validate(&schema.0)
             .map_err(|error| Error::unexpected(format!("invalid tool schema: {error}")))?;
 
-        Ok(Self { value: schema.0 })
+        Ok(Self { value: schema.0, backend: PhantomData })
     }
 
     #[guestjs(get)]
@@ -36,7 +40,9 @@ impl Schema {
 #[cfg(test)]
 mod tests {
     use agentc_executor_typescript::{
-        executor::Executor, guestjs::handle::BoundObjectProtocol, json::Json,
+        executor::Executor,
+        guestjs::{bundle::Bundle, handle::protocol::ObjectProtocol, quickjs::QuickJs},
+        json::Json,
     };
 
     use crate::javascript::bindings::executor::ExecutorBuilderToolsExt;
@@ -68,7 +74,8 @@ export const parameters = new Schema({
 
     #[tokio::test]
     async fn a_valid_schema_constructs_and_reads_back() {
-        let executor = Executor::builder("schema.ts", VALID_SOURCE)
+        let executor = Executor::<QuickJs>::builder("schema")
+            .bundle(Bundle::single("schema.ts", VALID_SOURCE).unwrap())
             .workers(1)
             .standard_environment()
             .with_tools()
@@ -80,16 +87,10 @@ export const parameters = new Schema({
             executor
                 .execute(|context| Box::pin(async move {
                     context
-                        .guest()
-                        .scope(async move |scope| {
-                            context
-                                .module()
-                                .bind(&scope)?
-                                .object("parameters")?
-                                .get::<Json>("value")
-                                .map(|value| value.0)
-                        })
-                        .await
+                        .module()
+                        .object("parameters")?
+                        .get::<Json, _>("value")
+                        .map(|value| value.0)
                 }))
                 .await
                 .expect("guest call succeeds"),
@@ -108,7 +109,8 @@ export const parameters = new Schema({
 
     #[tokio::test]
     async fn schema_rejects_invalid_document() {
-        let error = match Executor::builder("schema.ts", INVALID_SOURCE)
+        let error = match Executor::<QuickJs>::builder("schema")
+            .bundle(Bundle::single("schema.ts", INVALID_SOURCE).unwrap())
             .workers(1)
             .standard_environment()
             .with_tools()
@@ -129,7 +131,8 @@ export const parameters = new Schema({
 
     #[tokio::test]
     async fn an_unknown_meta_schema_does_not_panic() {
-        Executor::builder("schema.ts", UNKNOWN_META_SOURCE)
+        Executor::<QuickJs>::builder("schema")
+            .bundle(Bundle::single("schema.ts", UNKNOWN_META_SOURCE).unwrap())
             .workers(1)
             .standard_environment()
             .with_tools()
