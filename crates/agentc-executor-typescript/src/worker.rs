@@ -3,20 +3,31 @@
 // SPDX-License-Identifier: MIT
 
 use std::{
+    any::Any,
     cell::RefCell,
+    io,
     rc::{Rc, Weak},
     sync::{
         Arc,
         atomic::{AtomicU64, Ordering},
     },
-    thread::JoinHandle,
+    thread::{self, JoinHandle},
 };
 
-use guestjs::runtime::{Runtime, RuntimeBuilder};
-use tokio::sync::{mpsc, oneshot};
+use guestjs::{
+    builder::{GuestBuilderExt, RuntimeBuilder, RuntimeBuilderExt},
+    bundle::Bundle,
+    imports::GuestModulesExt,
+    runtime::Runtime,
+};
+use tokio::{
+    runtime::Builder,
+    sync::{mpsc, oneshot},
+    task::LocalSet,
+};
 use tokio_util::sync::CancellationToken;
 
-use crate::{context::Context, error::Error, job::Job};
+use crate::{backend::ExecutorBackend, context::Context, errors::Error, job::Job};
 
 static NEXT_EXECUTOR_ID: AtomicU64 = AtomicU64::new(1);
 
@@ -26,7 +37,124 @@ thread_local! {
     };
 }
 
-pub(crate) type RuntimeConfiguration = Arc<dyn Fn(RuntimeBuilder) -> RuntimeBuilder + Send + Sync>;
+pub(crate) type RuntimeConfiguration<B> =
+    Arc<dyn Fn(RuntimeBuilder<B>) -> Result<RuntimeBuilder<B>, Error> + Send + Sync>;
+
+struct Worker;
+
+impl Worker {
+    fn run<B: ExecutorBackend>(
+        config: WorkerConfig<B>,
+        receiver: mpsc::Receiver<Box<dyn Job<B>>>,
+        startup: oneshot::Sender<Result<(), Error>>,
+    ) -> Result<(), Error> {
+        let worker = config.worker;
+        let runtime = match Builder::new_current_thread()
+            .enable_all()
+            .build()
+        {
+            Ok(runtime) => runtime,
+            Err(error) => {
+                let _ = startup.send(Err(Error::worker_runtime(worker, error)));
+                return Ok(());
+            }
+        };
+        let local = LocalSet::new();
+
+        let Some(context) =
+            runtime.block_on(local.run_until(Self::serve(config, receiver, startup)))
+        else {
+            return Ok(());
+        };
+
+        drop(local);
+
+        runtime
+            .block_on(
+                LocalSet::new().run_until(
+                    Rc::try_unwrap(context)
+                        .map_err(|_| {
+                            Error::worker_shutdown(
+                                worker,
+                                guestjs::errors::Error::unexpected(
+                                    "worker context remained referenced during shutdown",
+                                ),
+                            )
+                        })?
+                        .shutdown(),
+                ),
+            )
+            .map_err(|error| Error::worker_shutdown(worker, error))
+    }
+
+    async fn initialize<B: ExecutorBackend>(
+        config: &WorkerConfig<B>,
+    ) -> Result<Rc<Context<B>>, Error> {
+        let runtime = config
+            .bundles
+            .iter()
+            .fold(
+                config
+                    .configurations
+                    .iter()
+                    .try_fold(Runtime::<B>::builder(), |builder, configure| configure(builder))?,
+                RuntimeBuilder::bundle,
+            )
+            .cancellation(config.cancellation.clone())
+            .build()?;
+        let guest = runtime.guest().build()?;
+        let module = match guest.import(config.entry.as_ref()) {
+            Ok(module) => module,
+            Err(error) => {
+                let _ = Context::close_initialization(runtime, guest).await;
+                return Err(error.into());
+            }
+        };
+
+        Ok(Rc::new(Context::new(runtime, guest, module.await?)))
+    }
+
+    async fn serve<B: ExecutorBackend>(
+        config: WorkerConfig<B>,
+        mut receiver: mpsc::Receiver<Box<dyn Job<B>>>,
+        startup: oneshot::Sender<Result<(), Error>>,
+    ) -> Option<Rc<Context<B>>> {
+        let context = match Self::initialize(&config).await {
+            Ok(context) => context,
+            Err(error) => {
+                let _ = startup.send(Err(Error::worker_initialization(config.worker, error)));
+                return None;
+            }
+        };
+
+        ExecutionContext::install(config.executor, config.worker, &context);
+
+        if startup.send(Ok(())).is_err() {
+            ExecutionContext::clear();
+            return Some(context);
+        }
+
+        loop {
+            tokio::select! {
+                _ = config.cancellation.cancelled() => break,
+                job = receiver.recv() => {
+                    let Some(job) = job else {
+                        break;
+                    };
+
+                    tokio::select! {
+                        _ = config.cancellation.cancelled() => break,
+                        _ = job.execute(context.clone()) => {}
+                    }
+                }
+            }
+        }
+
+        ExecutionContext::clear();
+
+        Some(context)
+    }
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct ExecutorId(u64);
@@ -69,16 +197,19 @@ impl From<WorkerId> for usize {
 pub(crate) struct ExecutionContext {
     executor: ExecutorId,
     worker: WorkerId,
-    context: Weak<Context>,
+    context: Weak<dyn Any>,
 }
 
 impl ExecutionContext {
-    pub(crate) fn install(executor: ExecutorId, worker: WorkerId, context: &Rc<Context>) {
+    pub(crate) fn install<B>(executor: ExecutorId, worker: WorkerId, context: &Rc<Context<B>>)
+    where
+        B: ExecutorBackend,
+    {
         EXECUTION_CONTEXT.with(|current| {
             *current.borrow_mut() = Some(Self {
                 executor,
                 worker,
-                context: Rc::downgrade(context),
+                context: Rc::<Context<B>>::downgrade(context),
             });
         });
     }
@@ -89,7 +220,10 @@ impl ExecutionContext {
         });
     }
 
-    pub(crate) fn for_executor(executor: ExecutorId) -> Option<Rc<Context>> {
+    pub(crate) fn for_executor<B>(executor: ExecutorId) -> Option<Rc<Context<B>>>
+    where
+        B: ExecutorBackend,
+    {
         EXECUTION_CONTEXT
             .with(|current| {
                 current
@@ -99,9 +233,13 @@ impl ExecutionContext {
                     .map(|current| current.context.clone())
             })
             .and_then(|context| context.upgrade())
+            .and_then(|context| context.downcast::<Context<B>>().ok())
     }
 
-    pub(crate) fn for_worker(executor: ExecutorId, worker: WorkerId) -> Option<Rc<Context>> {
+    pub(crate) fn for_worker<B>(executor: ExecutorId, worker: WorkerId) -> Option<Rc<Context<B>>>
+    where
+        B: ExecutorBackend,
+    {
         EXECUTION_CONTEXT
             .with(|current| {
                 current
@@ -111,70 +249,97 @@ impl ExecutionContext {
                     .map(|current| current.context.clone())
             })
             .and_then(|context| context.upgrade())
+            .and_then(|context| context.downcast::<Context<B>>().ok())
     }
 }
 
-pub(crate) struct WorkerHandle {
-    id: WorkerId,
-    sender: mpsc::Sender<Box<dyn Job>>,
+pub(crate) struct WorkerThread {
+    executor: ExecutorId,
+    worker: WorkerId,
 }
 
-impl WorkerHandle {
+impl WorkerThread {
+    pub(crate) fn new(executor: ExecutorId, worker: WorkerId) -> Self {
+        Self { executor, worker }
+    }
+
+    fn builder(&self) -> thread::Builder {
+        thread::Builder::new()
+            .name(format!("agentc-typescript-{}-{}", self.executor.value(), self.worker.index(),))
+    }
+
+    pub(crate) fn spawn<F, T>(self, operation: F) -> io::Result<JoinHandle<T>>
+    where
+        F: FnOnce() -> T + Send + 'static,
+        T: Send + 'static,
+    {
+        self.builder().spawn(operation)
+    }
+}
+
+pub(crate) struct WorkerHandle<B: ExecutorBackend> {
+    id: WorkerId,
+    sender: mpsc::Sender<Box<dyn Job<B>>>,
+}
+
+impl<B: ExecutorBackend> WorkerHandle<B> {
     pub(crate) fn spawn(
-        config: WorkerConfig,
+        config: WorkerConfig<B>,
         queue_capacity: usize,
-    ) -> Result<(Self, oneshot::Receiver<Result<(), Error>>, JoinHandle<()>), Error> {
+    ) -> Result<(Self, oneshot::Receiver<Result<(), Error>>, JoinHandle<Result<(), Error>>), Error>
+    {
         let worker = config.worker;
         let (sender, receiver) = mpsc::channel(queue_capacity);
         let (startup, ready) = oneshot::channel();
 
-        let thread = std::thread::Builder::new()
-            .name(format!("agentc-typescript-{}-{}", config.executor.value(), worker.index(),))
-            .spawn(move || Worker::run(config, receiver, startup))
-            .map_err(|error| Error::worker_spawn(worker, error))?;
-
-        Ok((Self { id: worker, sender }, ready, thread))
+        Ok((
+            Self { id: worker, sender },
+            ready,
+            WorkerThread::new(config.executor, worker)
+                .spawn(move || Worker::run(config, receiver, startup))
+                .map_err(|error| Error::worker_spawn(worker, error))?,
+        ))
     }
 
     pub(crate) fn id(&self) -> WorkerId {
         self.id
     }
 
-    pub(crate) fn sender(&self) -> &mpsc::Sender<Box<dyn Job>> {
+    pub(crate) fn sender(&self) -> &mpsc::Sender<Box<dyn Job<B>>> {
         &self.sender
     }
 }
 
 #[derive(Clone)]
-pub(crate) struct WorkerConfig {
-    name: Arc<str>,
-    source: Arc<str>,
-    configurations: Arc<Vec<RuntimeConfiguration>>,
+pub(crate) struct WorkerConfig<B: ExecutorBackend> {
+    entry: Arc<str>,
+    bundles: Arc<Vec<Bundle>>,
+    configurations: Arc<Vec<RuntimeConfiguration<B>>>,
     executor: ExecutorId,
     worker: WorkerId,
     cancellation: CancellationToken,
 }
 
-impl WorkerConfig {
-    pub(crate) fn builder(name: Arc<str>, source: Arc<str>) -> WorkerConfigBuilder {
-        WorkerConfigBuilder::new(name, source)
+impl<B: ExecutorBackend> WorkerConfig<B> {
+    pub(crate) fn builder(entry: Arc<str>, bundles: Arc<Vec<Bundle>>) -> WorkerConfigBuilder<B> {
+        WorkerConfigBuilder::new(entry, bundles)
     }
 }
 
-pub(crate) struct WorkerConfigBuilder {
-    name: Arc<str>,
-    source: Arc<str>,
-    configurations: Option<Arc<Vec<RuntimeConfiguration>>>,
+pub(crate) struct WorkerConfigBuilder<B: ExecutorBackend> {
+    entry: Arc<str>,
+    bundles: Arc<Vec<Bundle>>,
+    configurations: Option<Arc<Vec<RuntimeConfiguration<B>>>>,
     executor: Option<ExecutorId>,
     worker: Option<WorkerId>,
     cancellation: Option<CancellationToken>,
 }
 
-impl WorkerConfigBuilder {
-    pub(crate) fn new(name: Arc<str>, source: Arc<str>) -> Self {
+impl<B: ExecutorBackend> WorkerConfigBuilder<B> {
+    pub(crate) fn new(entry: Arc<str>, bundles: Arc<Vec<Bundle>>) -> Self {
         Self {
-            name,
-            source,
+            entry,
+            bundles,
             configurations: None,
             executor: None,
             worker: None,
@@ -182,30 +347,37 @@ impl WorkerConfigBuilder {
         }
     }
 
-    pub(crate) fn configurations(mut self, configurations: Arc<Vec<RuntimeConfiguration>>) -> Self {
+    pub(crate) fn configurations(
+        mut self,
+        configurations: Arc<Vec<RuntimeConfiguration<B>>>,
+    ) -> Self {
         self.configurations = Some(configurations);
+
         self
     }
 
     pub(crate) fn executor(mut self, executor: ExecutorId) -> Self {
         self.executor = Some(executor);
+
         self
     }
 
     pub(crate) fn worker(mut self, worker: WorkerId) -> Self {
         self.worker = Some(worker);
+
         self
     }
 
     pub(crate) fn cancellation(mut self, cancellation: CancellationToken) -> Self {
         self.cancellation = Some(cancellation);
+
         self
     }
 
-    pub(crate) fn build(self) -> WorkerConfig {
+    pub(crate) fn build(self) -> WorkerConfig<B> {
         WorkerConfig {
-            name: self.name,
-            source: self.source,
+            entry: self.entry,
+            bundles: self.bundles,
             configurations: self
                 .configurations
                 .expect("WorkerConfigBuilder: configurations not set"),
@@ -222,79 +394,111 @@ impl WorkerConfigBuilder {
     }
 }
 
-struct Worker;
+#[cfg(test)]
+mod tests {
+    use std::{panic::resume_unwind, rc::Rc};
 
-impl Worker {
-    fn run(
-        config: WorkerConfig,
-        receiver: mpsc::Receiver<Box<dyn Job>>,
-        startup: oneshot::Sender<Result<(), Error>>,
-    ) {
-        match tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
+    use guestjs::{
+        builder::{GuestBuilderExt, RuntimeBuilderExt},
+        bundle::Bundle,
+        imports::GuestModulesExt,
+        quickjs::QuickJs,
+        runtime::Runtime,
+    };
+    use tokio::{runtime::Builder, task::LocalSet};
+    use tokio_util::sync::CancellationToken;
+
+    use crate::{
+        context::Context,
+        worker::{ExecutionContext, ExecutorId, WorkerId, WorkerThread},
+    };
+
+    struct TestContext;
+
+    impl TestContext {
+        fn build() -> Rc<Context<QuickJs>> {
+            let runtime = Runtime::<QuickJs>::builder()
+                .bundle(&Bundle::single("test_component.ts", "export const value = 42;\n").unwrap())
+                .cancellation(CancellationToken::new())
+                .build()
+                .unwrap();
+            let guest = runtime.guest().build().unwrap();
+            let module = guest.import("test_component").unwrap();
+
+            Rc::new(Context::new(runtime, guest, module))
+        }
+    }
+
+    struct TestWorker;
+
+    impl TestWorker {
+        fn run<F, Fut>(operation: F)
+        where
+            F: FnOnce() -> Fut + Send + 'static,
+            Fut: Future<Output = ()> + 'static,
         {
-            Ok(runtime) => runtime.block_on(
-                tokio::task::LocalSet::new().run_until(Self::serve(config, receiver, startup)),
-            ),
-            Err(error) => {
-                let _ = startup.send(Err(Error::worker_runtime(config.worker, error)));
+            if let Err(panic) = WorkerThread::new(ExecutorId::next(), WorkerId::new(0))
+                .spawn(|| {
+                    Builder::new_current_thread()
+                        .enable_all()
+                        .build()
+                        .unwrap()
+                        .block_on(LocalSet::new().run_until(operation()))
+                })
+                .unwrap()
+                .join()
+            {
+                resume_unwind(panic);
             }
         }
     }
 
-    async fn serve(
-        config: WorkerConfig,
-        mut receiver: mpsc::Receiver<Box<dyn Job>>,
-        startup: oneshot::Sender<Result<(), Error>>,
-    ) {
-        let context = match Self::initialize(&config).await {
-            Ok(context) => context,
-            Err(error) => {
-                let _ = startup.send(Err(Error::worker_initialization(config.worker, error)));
-                return;
-            }
-        };
+    #[test]
+    fn executor_ids_never_use_zero() {
+        assert_ne!(ExecutorId::next(), ExecutorId::next());
+    }
 
-        ExecutionContext::install(config.executor, config.worker, &context);
+    #[test]
+    fn execution_context_matches_executor_and_worker() {
+        TestWorker::run(|| async {
+            let context = TestContext::build();
+            let executor = ExecutorId::next();
+            let worker = WorkerId::new(0);
 
-        if startup.send(Ok(())).is_err() {
+            ExecutionContext::install(executor, worker, &context);
+
+            assert!(ExecutionContext::for_executor::<QuickJs>(executor).is_some());
+            assert!(ExecutionContext::for_worker::<QuickJs>(executor, worker).is_some());
+            assert!(ExecutionContext::for_executor::<QuickJs>(ExecutorId::next()).is_none());
+            assert!(ExecutionContext::for_worker::<QuickJs>(executor, WorkerId::new(1)).is_none());
+
             ExecutionContext::clear();
-            return;
-        }
 
-        loop {
-            tokio::select! {
-                _ = config.cancellation.cancelled() => break,
-                job = receiver.recv() => {
-                    let Some(job) = job else {
-                        break;
-                    };
+            let Ok(context) = Rc::try_unwrap(context) else {
+                panic!("test retained the worker context");
+            };
 
-                    tokio::select! {
-                        _ = config.cancellation.cancelled() => break,
-                        _ = job.execute(context.clone()) => {}
-                    }
-                }
-            }
-        }
-
-        ExecutionContext::clear();
+            context.shutdown().await.unwrap();
+        });
     }
 
-    async fn initialize(config: &WorkerConfig) -> Result<Rc<Context>, guestjs::errors::Error> {
-        let runtime = config
-            .configurations
-            .iter()
-            .fold(Runtime::builder(), |builder, configure| configure(builder))
-            .cancellation(config.cancellation.clone())
-            .build()
-            .await?;
-        let guest = runtime.guest().build().await?;
-        let module = guest
-            .guest_module(config.name.as_ref(), config.source.as_ref())
-            .await?;
+    #[test]
+    fn execution_context_does_not_extend_context_lifetime() {
+        TestWorker::run(|| async {
+            let context = TestContext::build();
+            let executor = ExecutorId::next();
 
-        Ok(Rc::new(Context::new(runtime, guest, module)))
+            ExecutionContext::install(executor, WorkerId::new(0), &context);
+
+            let Ok(context) = Rc::try_unwrap(context) else {
+                panic!("test retained the worker context");
+            };
+
+            context.shutdown().await.unwrap();
+
+            assert!(ExecutionContext::for_executor::<QuickJs>(executor).is_none());
+
+            ExecutionContext::clear();
+        });
     }
 }

@@ -7,6 +7,7 @@ use std::sync::Arc;
 use futures::future::LocalBoxFuture;
 
 use crate::{
+    backend::ExecutorBackend,
     context::Context,
     execution::Execution,
     executor::ExecutorInner,
@@ -14,26 +15,34 @@ use crate::{
 };
 
 /// A cloneable affinity handle that routes operations to one worker.
-#[derive(Clone)]
-pub struct WorkerLease {
-    executor: Arc<ExecutorInner>,
+pub struct WorkerLease<B: ExecutorBackend> {
+    executor: Arc<ExecutorInner<B>>,
     worker: WorkerId,
 }
 
-impl WorkerLease {
-    pub(crate) fn new(executor: Arc<ExecutorInner>, worker: WorkerId) -> Self {
+impl<B: ExecutorBackend> Clone for WorkerLease<B> {
+    fn clone(&self) -> Self {
+        Self {
+            executor: self.executor.clone(),
+            worker: self.worker,
+        }
+    }
+}
+
+impl<B: ExecutorBackend> WorkerLease<B> {
+    pub(crate) fn new(executor: Arc<ExecutorInner<B>>, worker: WorkerId) -> Self {
         Self { executor, worker }
     }
 
     /// Executes a typed GuestJS operation on the lease's worker.
     pub fn execute<F, T>(&self, operation: F) -> Execution<T>
     where
-        F: for<'a> FnOnce(&'a Context) -> LocalBoxFuture<'a, Result<T, guestjs::errors::Error>>
+        F: for<'a> FnOnce(&'a Context<B>) -> LocalBoxFuture<'a, Result<T, guestjs::errors::Error>>
             + Send
             + 'static,
         T: Send + 'static,
     {
-        match ExecutionContext::for_worker(self.executor.id, self.worker) {
+        match ExecutionContext::for_worker::<B>(self.executor.id(), self.worker) {
             Some(context) => self
                 .executor
                 .dispatch_local(context, operation),
@@ -53,12 +62,15 @@ impl WorkerLease {
 mod tests {
     use std::time::Duration;
 
-    use crate::{
-        execution::Execution, executor::Executor, guestjs::handle::CallableProtocol,
-        lease::WorkerLease,
+    use guestjs::{
+        bundle::Bundle,
+        handle::protocol::{CallableProtocol, ObjectProtocol},
+        quickjs::QuickJs,
     };
 
-    const COUNTER_SOURCE: &str = r#"
+    use crate::{errors::Error, execution::Execution, executor::Executor, lease::WorkerLease};
+
+    const COMPONENT_SOURCE: &str = r#"
 let count = 0;
 
 export function increment() {
@@ -70,15 +82,13 @@ export function increment() {
     struct TestLease;
 
     impl TestLease {
-        fn increment(lease: &WorkerLease) -> Execution<i32> {
+        fn increment(lease: &WorkerLease<QuickJs>) -> Execution<i32> {
             lease.execute(|context| {
                 Box::pin(async move {
                     context
                         .module()
-                        .function("increment")
-                        .await?
+                        .function("increment")?
                         .call::<_, i32>(())
-                        .await
                 })
             })
         }
@@ -86,7 +96,8 @@ export function increment() {
 
     #[tokio::test]
     async fn preserves_worker_affinity() {
-        let executor = Executor::builder("test.ts", COUNTER_SOURCE)
+        let executor = Executor::<QuickJs>::builder("test_component")
+            .bundle(Bundle::single("test_component.ts", COMPONENT_SOURCE).unwrap())
             .workers(2)
             .build()
             .await
@@ -113,7 +124,8 @@ export function increment() {
 
     #[tokio::test]
     async fn executes_locally_on_selected_worker() {
-        let executor = Executor::builder("test.ts", COUNTER_SOURCE)
+        let executor = Executor::<QuickJs>::builder("test_component")
+            .bundle(Bundle::single("test_component.ts", COMPONENT_SOURCE).unwrap())
             .workers(1)
             .build()
             .await
@@ -124,29 +136,29 @@ export function increment() {
         assert_eq!(
             tokio::time::timeout(
                 Duration::from_secs(1),
-                lease.execute(move |context| Box::pin(async move {
-                    let first = context
-                        .module()
-                        .function("increment")
-                        .await?
-                        .call::<_, i32>(())
-                        .await?;
-                    let second = nested
-                        .execute(|context| {
-                            Box::pin(async move {
-                                context
-                                    .module()
-                                    .function("increment")
-                                    .await?
-                                    .call::<_, i32>(())
-                                    .await
+                lease.execute(move |context| {
+                    Box::pin(async move {
+                        let first = context
+                            .module()
+                            .function("increment")?
+                            .call::<_, i32>(())?;
+                        let second = nested
+                            .execute(|context| {
+                                Box::pin(async move {
+                                    context
+                                        .module()
+                                        .function("increment")?
+                                        .call::<_, i32>(())
+                                })
                             })
-                        })
-                        .await
-                        .map_err(|error| guestjs::errors::Error::unexpected(error.to_string()))?;
+                            .await
+                            .map_err(|error| {
+                                guestjs::errors::Error::unexpected(error.to_string())
+                            })?;
 
-                    Ok((first, second))
-                })),
+                        Ok((first, second))
+                    })
+                }),
             )
             .await
             .unwrap()
@@ -155,5 +167,21 @@ export function increment() {
         );
 
         executor.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn reports_executor_shutdown() {
+        let executor = Executor::<QuickJs>::builder("test_component")
+            .bundle(Bundle::single("test_component.ts", COMPONENT_SOURCE).unwrap())
+            .workers(1)
+            .build()
+            .await
+            .unwrap();
+        let lease = executor.lease();
+
+        executor.shutdown().await.unwrap();
+
+        assert!(lease.is_shutdown());
+        assert!(matches!(TestLease::increment(&lease).await, Err(Error::ExecutorShutdown),));
     }
 }

@@ -6,7 +6,7 @@ use std::{future::Future, sync::mpsc::sync_channel};
 
 use tokio::runtime::Handle;
 
-use crate::error::Error;
+use crate::errors::Error;
 
 #[derive(Clone)]
 pub struct HostRuntime {
@@ -49,16 +49,14 @@ impl From<Handle> for HostRuntime {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        error::Error,
-        executor::Executor,
-        guestjs::{
-            errors::Error as GuestError,
-            handle::CallableProtocol,
-            host::{Exports, HostModule},
-        },
-        host::HostRuntime,
+    use guestjs::{
+        bundle::Bundle,
+        handle::protocol::{CallableProtocol, ObjectProtocol},
+        host::module::ModuleDeclaration,
+        quickjs::QuickJs,
     };
+
+    use crate::{errors::Error, executor::Executor, host::HostRuntime};
 
     const HOST_SOURCE: &str = r#"
 import { value } from "test:host";
@@ -67,36 +65,6 @@ export function read() {
     return value();
 }
 "#;
-
-    #[derive(Clone)]
-    struct BlockingModule {
-        runtime: HostRuntime,
-    }
-
-    impl BlockingModule {
-        fn new(runtime: HostRuntime) -> Self {
-            BlockingModule { runtime }
-        }
-    }
-
-    impl HostModule for BlockingModule {
-        fn name(&self) -> &str {
-            "test:host"
-        }
-
-        fn build(&self, exports: &mut Exports) {
-            let runtime = self.runtime.clone();
-
-            exports.function("value", move |_scope, _args| {
-                runtime
-                    .block_on(async {
-                        tokio::task::yield_now().await;
-                        42_i32
-                    })
-                    .map_err(|error| GuestError::unexpected(error.to_string()))
-            });
-        }
-    }
 
     #[tokio::test]
     async fn block_on_returns_the_future_output() {
@@ -114,9 +82,28 @@ export function read() {
     #[tokio::test]
     async fn block_on_from_inside_a_worker_thread_does_not_panic() {
         let runtime = HostRuntime::current().unwrap();
-        let executor = Executor::builder("host.ts", HOST_SOURCE)
+        let executor = Executor::<QuickJs>::builder("host")
+            .bundle(Bundle::single("host.ts", HOST_SOURCE).unwrap())
             .workers(1)
-            .configure(move |builder| builder.bind(BlockingModule::new(runtime.clone())))
+            .configure(move |builder| {
+                let runtime = runtime.clone();
+
+                Ok(
+                    builder.bind(ModuleDeclaration::<QuickJs>::new("test:host").function(
+                        "value",
+                        move |_context, _args| {
+                            runtime
+                                .block_on(async {
+                                    tokio::task::yield_now().await;
+                                    42_i32
+                                })
+                                .map_err(|error| {
+                                    guestjs::errors::Error::unexpected(error.to_string())
+                                })
+                        },
+                    ))
+                )
+            })
             .build()
             .await
             .unwrap();
@@ -126,10 +113,8 @@ export function read() {
                 .execute(|context| Box::pin(async move {
                     context
                         .module()
-                        .function("read")
-                        .await?
+                        .function("read")?
                         .call::<_, i32>(())
-                        .await
                 }))
                 .await
                 .unwrap(),

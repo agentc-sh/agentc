@@ -8,7 +8,17 @@ license.workspace = true
 readme.workspace = true
 
 [features]
-default = []
+default = ["quickjs"]
+quickjs = [
+    "guestjs/quickjs",
+    "guestjs/llrt-buffer",
+    "guestjs/llrt-console",
+    "guestjs/llrt-os",
+    "guestjs/llrt-path",
+    "guestjs/llrt-stream-web",
+    "guestjs/llrt-timers",
+    "guestjs/llrt-url",
+]
 
 [dependencies]
 tokio = { workspace = true }
@@ -20,19 +30,4 @@ thiserror = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 
-[dependencies.guestjs]
-git = "https://github.com/wizrds/guestjs.git"
-rev = "0.5.1"
-features = [
-    "tokio",
-    "bytes",
-    "typescript",
-    "llrt-buffer",
-    "llrt-console",
-    "llrt-streams",
-    "llrt-fetch",
-    "llrt-os",
-    "llrt-process-env",
-    "llrt-timers",
-    "llrt-url",
-]
+guestjs = { git = "https://github.com/wizrds/guestjs.git", rev = "0.6.1", features = ["tokio", "embedded", "serde", "bytes"] }
